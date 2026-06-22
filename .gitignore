@@ -1,0 +1,16 @@
+node_modules/
+
+.next/
+.ruff_cache/
+.pytest_cache/
+__pycache__/
+*.py[cod]
+
+CLAUDE.md
+
+.venv/
+.vscode/
+.DS_Store
+.obsidian/
+
+.env

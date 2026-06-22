@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Internal Data Portal | Atlas Policy Institute</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary-color: #1e3a8a; /* Deep blue */
+            --secondary-color: #2563eb;
+            --bg-color: #f1f5f9;
+            --card-bg: #ffffff;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --border-color: #e2e8f0;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Sidebar Navigation */
+        .sidebar {
+            width: 260px;
+            background-color: var(--primary-color);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+        }
+
+        .sidebar-brand {
+            font-size: 1.25rem;
+            font-weight: bold;
+            margin-bottom: 40px;
+            line-height: 1.4;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 15px;
+        }
+
+        .sidebar-brand span {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: normal;
+            color: #cbd5e1;
+        }
+
+        .nav-item {
+            padding: 12px 15px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+            font-size: 0.95rem;
+        }
+
+        .nav-item:hover, .nav-item.active {
+            background-color: var(--secondary-color);
+        }
+
+        /* Main Content Area */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        /* Header */
+        .header {
+            background-color: var(--card-bg);
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .header-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .header-tools button {
+            background-color: var(--bg-color);
+            border: 1px solid var(--border-color);
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-left: 10px;
+            font-weight: 500;
+        }
+
+        .header-tools button:hover {
+            background-color: #e2e8f0;
+        }
+
+        /* Dashboard Grid */
+        .dashboard {
+            padding: 30px;
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 20px;
+        }
+
+        /* KPI Cards */
+        .kpi-card {
+            background-color: var(--card-bg);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            grid-column: span 3;
+            border: 1px solid var(--border-color);
+        }
+
+        .kpi-card h3 {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+        }
+
+        .kpi-card .value {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: var(--text-main);
+        }
+
+        /* Chart Containers */
+        .chart-container {
+            background-color: var(--card-bg);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            border: 1px solid var(--border-color);
+        }
+
+        .chart-main { grid-column: span 8; }
+        .chart-side { grid-column: span 4; }
+        .chart-bottom { grid-column: span 6; }
+
+        .chart-header {
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-main);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .chart-header .badge {
+            font-size: 0.75rem;
+            background: #dbeafe;
+            color: #1e40af;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-weight: normal;
+        }
+
+        canvas {
+            width: 100% !important;
+            height: 300px !important;
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="sidebar">
+        <div class="sidebar-brand">
+            Atlas Institute
+            <span>Internal Data Portal</span>
+        </div>
+        <div class="nav-item active">Overview Dashboard</div>
+        <div class="nav-item">Climate & Energy Data</div>
+        <div class="nav-item">Global Economic Indicators</div>
+        <div class="nav-item">Public Health Metrics</div>
+        <div style="flex-grow: 1;"></div>
+        <div class="nav-item">Data Ingestion Logs</div>
+        <div class="nav-item">Researcher Tools</div>
+    </nav>
+
+    <main class="main-content">
+        
+        <header class="header">
+            <div class="header-title">Macro-Policy Impact Overview</div>
+            <div class="header-tools">
+                <button>Filter Data</button>
+                <button>Export Report (PDF)</button>
+            </div>
+        </header>
+
+        <div class="dashboard">
+            
+            <div class="kpi-card">
+                <h3>Active Datasets</h3>
+                <div class="value">1,402</div>
+            </div>
+            <div class="kpi-card">
+                <h3>Longitudinal Studies</h3>
+                <div class="value">48</div>
+            </div>
+            <div class="kpi-card">
+                <h3>API Queries (24h)</h3>
+                <div class="value">34.2K</div>
+            </div>
+            <div class="kpi-card">
+                <h3>Data Freshness</h3>
+                <div class="value" style="color: #16a34a;">99.8%</div>
+            </div>
+
+            <div class="chart-container chart-main">
+                <div class="chart-header">
+                    Global Emissions vs. Regional Carbon Taxes
+                    <span class="badge">Verified Data</span>
+                </div>
+                <canvas id="impactChart"></canvas>
+            </div>
+
+            <div class="chart-container chart-side">
+                <div class="chart-header">
+                    Research Funding Allocation
+                </div>
+                <canvas id="fundingChart"></canvas>
+            </div>
+
+            <div class="chart-container chart-bottom">
+                <div class="chart-header">
+                    Renewable Energy Adoption by Region (TWh)
+                </div>
+                <canvas id="energyChart"></canvas>
+            </div>
+
+            <div class="chart-container chart-bottom">
+                <div class="chart-header">
+                    Socioeconomic Stability Index
+                    <span class="badge">Model Beta v2</span>
+                </div>
+                <canvas id="stabilityChart"></canvas>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        // Set default styling for charts to match theme
+        Chart.defaults.font.family = "'Segoe UI', Roboto, sans-serif";
+        Chart.defaults.color = '#64748b';
+
+        // 1. Main Impact Line Chart
+        const ctxImpact = document.getElementById('impactChart').getContext('2d');
+        new Chart(ctxImpact, {
+            type: 'line',
+            data: {
+                labels: ['2018', '2019', '2020', '2021', '2022', '2023', '2024', '2025', '2026'],
+                datasets: [{
+                    label: 'Carbon Output (GtCO2)',
+                    data: [36.2, 36.5, 34.0, 36.3, 36.8, 37.1, 36.9, 36.5, 36.1],
+                    borderColor: '#ef4444',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.3
+                },
+                {
+                    label: 'Policy Coverage (%)',
+                    data: [18, 20, 21, 23, 25, 27, 31, 35, 39],
+                    borderColor: '#2563eb',
+                    borderWidth: 2,
+                    borderDash: [5, 5],
+                    tension: 0.3,
+                    yAxisID: 'y1'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: { beginAtZero: false, title: { display: true, text: 'Emissions' } },
+                    y1: { position: 'right', beginAtZero: true, title: { display: true, text: 'Coverage %' } }
+                }
+            }
+        });
+
+        // 2. Funding Doughnut Chart
+        const ctxFunding = document.getElementById('fundingChart').getContext('2d');
+        new Chart(ctxFunding, {
+            type: 'doughnut',
+            data: {
+                labels: ['Climate Model', 'Econ-Demographics', 'Public Health', 'Tech Policy'],
+                datasets: [{
+                    data: [45, 25, 20, 10],
+                    backgroundColor: ['#1e3a8a', '#3b82f6', '#93c5fd', '#bfdbfe'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom' }
+                },
+                cutout: '70%'
+            }
+        });
+
+        // 3. Energy Bar Chart
+        const ctxEnergy = document.getElementById('energyChart').getContext('2d');
+        new Chart(ctxEnergy, {
+            type: 'bar',
+            data: {
+                labels: ['North America', 'Europe', 'Asia-Pacific', 'Latin America'],
+                datasets: [{
+                    label: 'Solar',
+                    data: [120, 150, 280, 45],
+                    backgroundColor: '#f59e0b'
+                },
+                {
+                    label: 'Wind',
+                    data: [180, 220, 190, 60],
+                    backgroundColor: '#0ea5e9'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: { stacked: true },
+                    y: { stacked: true }
+                }
+            }
+        });
+
+        // 4. Stability Radar Chart
+        const ctxStability = document.getElementById('stabilityChart').getContext('2d');
+        new Chart(ctxStability, {
+            type: 'radar',
+            data: {
+                labels: ['Employment', 'Healthcare Access', 'Housing', 'Education', 'Food Security'],
+                datasets: [{
+                    label: 'Urban Areas',
+                    data: [85, 90, 70, 88, 92],
+                    borderColor: '#8b5cf6',
+                    backgroundColor: 'rgba(139, 92, 246, 0.2)',
+                },
+                {
+                    label: 'Rural Areas',
+                    data: [65, 55, 80, 60, 75],
+                    borderColor: '#10b981',
+                    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false
+            }
+        });
+    </script>
+</body>
+</html>

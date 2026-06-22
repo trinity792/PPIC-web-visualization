@@ -1,0 +1,605 @@
+# Previous Tool: Technical Analysis & Migration Guide
+
+A complete technical breakdown of the legacy "Previous Tool" codebase — what every script does, how the pieces fit together, where it is fragile, and how to carry its visualizations forward into React.
+
+> [!info] Who this document is for
+> You are the incoming intern. Over your internship you will (1) **understand how this tool works**, (2) **find where it breaks** when source files are poorly formatted or change shape, and (3) **migrate every visualization to a React framework**. This document is your map. The [Robustness Risks & Improvement Opportunities](#robustness-risks--improvement-opportunities) and [React Migration Guide](#react-migration-guide) sections at the end speak directly to tasks 2 and 3 — but read the rest first so they make sense.
+
+---
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Key Architecture Facts](#key-architecture-facts)
+- [Directory Structure](#directory-structure)
+- [Visualization Tool](#visualization-tool)
+  - [Pop-Housing](#pop-housing)
+  - [Components of Change](#components-of-change)
+  - [Age-Sex-Race Projections](#age-sex-race-projections)
+  - [Building Permits](#building-permits)
+  - [ACS Housing Stress](#acs-housing-stress)
+  - [Shared Patterns](#shared-patterns)
+  - [Jupyter Notebooks](#jupyter-notebooks)
+- [Automated Data Pipeline](#automated-data-pipeline)
+  - [Pipeline Orchestrator](#pipeline-orchestrator)
+  - [Historical Data Downloader](#historical-data-downloader)
+  - [Historical Data Processor](#historical-data-processor)
+  - [Modern Data Pipeline](#modern-data-pipeline)
+  - [Configuration](#configuration)
+  - [Forward Fill Helpers](#forward-fill-helpers)
+  - [Data Cleaning Utilities](#data-cleaning-utilities)
+  - [Logging Configuration](#logging-configuration)
+  - [Validation](#validation)
+- [Shiny Web Application](#shiny-web-application)
+  - [Main Application](#main-application)
+  - [App Configuration](#app-configuration)
+  - [Shiny Visualization Modules](#shiny-visualization-modules)
+- [Data Flow and Interactions](#data-flow-and-interactions)
+- [Data Sources Reference](#data-sources-reference)
+- [Robustness Risks & Improvement Opportunities](#robustness-risks--improvement-opportunities)
+- [React Migration Guide](#react-migration-guide)
+- [Glossary](#glossary)
+
+---
+
+## Overview
+
+The codebase serves PPIC's data-visualization needs for California demographic indicators sourced from the **California Department of Finance (DoF)** and the **U.S. Census Bureau**. It is two largely independent subsystems.
+
+The **Visualization Tool** is five standalone Python modules, each focused on one dataset: population/housing, components of change, demographic projections, building permits, and housing stress. Each module scrapes its source, cleans it, merges it with a historical CSV, and draws interactive Plotly charts. People use these modules by running Jupyter notebooks.
+
+The **Automated Data Pipeline** is a production-grade reimplementation of *just* the population/housing data path. It spans 1991 to the present, solves hard data-cleaning problems (forward-filling, geographic classification, boundary-year deduplication), and feeds a **Shiny web application** for interactive exploration.
+
+> [!important] One sentence to remember
+> The Visualization Tool produces charts directly from live-scraped data inside Jupyter; the Automated Data Pipeline pre-builds a clean dataset that a separate Shiny web app reads. **These two systems both produce a file called `PopHousing_Current.csv`, but the two files are not the same dataset.**
+
+---
+
+## Key Architecture Facts
+
+Read these five facts before anything else. They are the things that surprise people, and the things that most affect a React migration.
+
+> [!warning] 1. In the Visualization Tool, the chart functions *are* the data pipeline
+> There is **no separate "refresh the data" step**. Each `visualize_line()`, `visualize_bar()`, and `visualize_map()` runs the entire flow as a side effect of drawing a chart: scrape → clean → merge with history → render → and, *only if new data is detected*, archive and overwrite the canonical CSV. Calling a chart function can silently rewrite the dataset on disk.
+
+> [!warning] 2. The Visualization Tool's Pop-Housing module is county/region/state only
+> `clean_e5()` keeps only `State Total`, `County Total`, and `San Francisco` rows. Its `Geographic Level` is one of `State`, `Region`, `County`, or `Other` — there is **no City or Town level**. The Automated Data Pipeline is the only place that drills down to individual cities and towns.
+
+> [!note] 3. Age-Sex-Race Projections is the odd one out
+> It is the only module built as a **class (`Projections`)**. Its ETL runs **once, in `__init__()`**, not on every chart call. Its `visualize_*` methods read the already-loaded `self.Projections` DataFrame and never re-scrape. `visualize_line()` is even **stateful** — it appends traces to a persistent `self.fig` so successive calls can overlay series.
+
+> [!note] 4. The Shiny app never scrapes
+> The Shiny app reads the static `PopHousing_Current.csv` produced by the pipeline (loaded once into a global `PopHousingVisualizer`). Its chart methods **return** a Plotly figure, which the app embeds with `ui.HTML(fig.to_html(include_plotlyjs="cdn"))` — **not** `shinywidgets`/`output_widget` (which is listed in `requirements.txt` but never imported).
+
+> [!tip] 5. The clean separation already exists — in one place
+> The pipeline + Shiny app demonstrate the architecture you want for React: a **decoupled ETL** that writes a static data file, and a **presentation layer** that only reads it. The Visualization Tool fuses these two concerns together. Your migration will essentially extend the pipeline's pattern to all five datasets.
+
+---
+
+## Directory Structure
+
+```text
+Previous Tool/
+├── Visualization Tool/
+│   ├── Pop-Housing/
+│   │   ├── pophousing_code.py
+│   │   ├── VISUALIZE_POPHOUSING_BARPLOT.ipynb
+│   │   ├── VISUALIZE_POPHOUSING_LINEPLOT.ipynb
+│   │   ├── VISUALIZE_POPHOUSING_MAP.ipynb
+│   │   └── data/current/, data/archive/, data/downloaded/
+│   ├── Components-Of-Change/
+│   │   ├── components_code.py
+│   │   ├── VISUALIZE_COMPONENTS_{BARPLOT,LINEPLOT,MAP}.ipynb
+│   │   └── data/current/, data/archive/, data/downloaded/
+│   ├── Age-Sex-Race-Projections/
+│   │   ├── projections_code.py
+│   │   ├── VISUALIZE_AGESEXRACE_{BARPLOT,LINEPLOT,MAP}.ipynb
+│   │   ├── california-counties.geojson
+│   │   ├── us-states.json
+│   │   └── data/current/, data/archive/, data/downloaded/
+│   ├── Building-Permits/
+│   │   ├── permits_code.py
+│   │   ├── VISUALIZE_PERMITS_{BARPLOT,LINEPLOT,MAP}.ipynb
+│   │   └── data/current/, data/archive/, data/downloaded/
+│   ├── ACS-Housing-Stress/
+│   │   ├── housingstress_code.py
+│   │   ├── VISUALIZE_HOUSINGSTRESS_{BAR,LINE}.ipynb
+│   │   ├── puma_counties_xwalk_2020.csv
+│   │   └── data/current/, data/archive/
+│   └── __cleaning__/
+│       ├── pophousing/pophousing_cleaning.ipynb
+│       ├── components/componentsofchange_cleaning.ipynb
+│       ├── projections/projections_cleaning.ipynb
+│       ├── permits/permits_cleaning.ipynb
+│       └── housing_stress/acs_cleaning.ipynb, acs_cleaning_attempt2.ipynb
+│
+└── Automated Data Pipeline/
+    └── CA Population Housing/
+        ├── production_pipeline/
+        │   ├── run_original_pipeline.py
+        │   ├── pophousing_pipeline.py
+        │   ├── historical_data_processor.py
+        │   ├── download_historical_data.py
+        │   ├── config.py
+        │   ├── enhanced_forward_fill_helpers.py
+        │   ├── data_cleaning_utils.py
+        │   ├── logging_config.py
+        │   └── visualizations/
+        │       ├── basic_visualizations.py
+        │       └── advanced_city_analysis.py
+        ├── shiny_app/
+        │   ├── comprehensive_app.py
+        │   ├── app_config.py
+        │   ├── shiny_app_deploy/app.py
+        │   └── visualizations/
+        │       ├── growth_patterns.py
+        │       ├── housing_analysis.py
+        │       └── interactive_line_plots.py
+        ├── validate_production.py
+        ├── requirements.txt
+        ├── data/current/, data/archive/, data/downloaded/
+        └── logs/
+```
+
+---
+
+## Visualization Tool
+
+Each module is a self-contained scrape-clean-visualize unit for one dataset. They share a common shape — scrape a government source, reshape it, merge with a historical CSV, archive the old version, and expose `visualize_line()`, `visualize_bar()`, and (usually) `visualize_map()`.
+
+> [!warning] The shared "gotcha"
+> For four of the five modules, the ETL is **embedded inside** every chart function. The exception is [Age-Sex-Race Projections](#age-sex-race-projections). See [Key Architecture Facts](#key-architecture-facts).
+
+### Pop-Housing
+
+**File:** `Visualization Tool/Pop-Housing/pophousing_code.py`
+
+Tracks California population and housing-unit estimates from the DoF **E-5** dataset: housing composition by type (single-family, multi-family, mobile homes), occupancy, and derived rates (vacancy rate, persons per household). Data is scraped from `https://dof.ca.gov/forecasting/demographics/estimates/`.
+
+| Function                       | Description                                                                                                                                                                                                                                                                |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scrape_dof_e5()`              | Finds the E-5 Excel link by searching for `e-5`/`E-5` in anchor tags; reads the second sheet.                                                                                                                                                                              |
+| `scrape_dof_e5_spatially()`    | Fallback scraper that finds the link by positional index (third `<ul>` on the page).                                                                                                                                                                                       |
+| `clean_e5()`                   | Keeps only `State Total`, `County Total`, and `San Francisco` rows (**no cities/towns**); drops April 1 census-benchmark rows (keeps Jan 1); computes derived columns; recomputes Vacancy Rate and Persons Per Household after aggregating the 58 counties into 9 regions. |
+| `combine_e5_with_historical()` | Loads the existing CSV, drops overlapping years, concatenates new data, imputes `0 → NaN` for detailed unit columns in regions, tags `Source='DoF'`, and returns `(combined_df, new_data_exists)`. Saving happens in the *caller*.                                         |
+| `visualize_line()`             | Runs the full ETL, then draws a line chart (multi-location/multi-parameter, optional base-year indexing). Saves/archives if new data was found.                                                                                                                            |
+| `visualize_bar()`              | Same ETL, then percent/numeric change between two years. California is highlighted orange (`#CA4F1A`) and is dropped from `Numeric Change`/Counties views (it dwarfs the counties).                                                                                        |
+| `visualize_map()`              | Same ETL, then a county or region choropleth using `california-counties.geojson`, with configurable bins.                                                                                                                                                                  |
+
+> [!warning] Geographic coverage
+> `Geographic Level` = `np.select(..., ['State','Region','County'], default='Other')`. There is **no City or Town**. This module's `PopHousing_Current.csv` is a few thousand rows of aggregates — *not* the ~19,160-row city-level file the pipeline builds.
+
+**Output columns:** Total Population, Household Population, Group Quarters Population, Total Housing Units, Single Family Detached/Attached Units, Two to Four Family Units, Five Plus Family Units, Mobile Homes, Occupied Units, Vacancy Rate (%), Persons Per Household, Single Family Units, Multiple Family Units, Vacant Units, Source.
+
+### Components of Change
+
+**File:** `Visualization Tool/Components-Of-Change/components_code.py`
+
+Decomposes population change into births, deaths, natural increase, and migration (domestic and international). It blends two sources: DoF **E-6** (county-level) and Census Bureau population estimates with components (state-level, all 50 US states).
+
+| Function | Description |
+|----------|-------------|
+| `scrape_dof_e6()` / `scrape_dof_e6_spatially()` | Text-match and positional fallback scrapers for the E-6 Excel file. |
+| `scrape_census_components()` | Downloads Census `co-est` component files. |
+| `clean_e6()` | Parses E-6, standardizes county names, adds 9-region aggregations via `add_region()`. |
+| `clean_census_components()` | Filters to states, computes crude rates per 1,000 population, adds a state-level aggregation. |
+| `combine_dof_with_historical()` / `combine_census_with_historical()` / `combine_dof_and_census()` | Merge each source with history and unify county-level (DoF) + state-level (Census). |
+| `visualize_line()` / `visualize_bar()` / `visualize_map()` | Full ETL, then charts with a `source` filter (DoF vs. Census). Maps cover CA counties or US states. |
+
+> [!note] Geographic coverage includes all 50 US states (stored as 2-letter codes like `CA`, `NY`) at the State level, plus CA counties and the 9 regions.
+
+### Age-Sex-Race Projections
+
+**File:** `Visualization Tool/Age-Sex-Race-Projections/projections_code.py`
+
+Combines DoF **P-3** projections (county + state) with Census `cc-est` demographic estimates, stratified by age, sex, and race/ethnicity.
+
+> [!note] This module is structurally different from the other four
+> It is a **class (`Projections`)**. The full ETL runs **once in `__init__()`**. The `visualize_*` methods read the cached `self.Projections` and do **not** re-scrape. `visualize_line()` is **stateful**, appending traces to a persistent `self.fig` (gated by a `new_plot` argument), so calls can overlay series on one figure.
+
+| Method | Description |
+|--------|-------------|
+| `__init__()` | Loads history, then scrapes DoF (text → positional → manual CSV fallback) and Census, cleans both, merges, and saves — all on instantiation. |
+| `scrape_dof_projections()` / `scrape_dof_projections_spatially()` | P-3 downloaders (county and state sheets). |
+| `scrape_census_estimates()` | Census `cc-est` downloader. |
+| `clean_dof_projections()` / `clean_census_estimates()` | Reshape age/sex/race; map to 7 race-ethnicity groups; add regional and state aggregations. |
+| `combine_dof_and_census()` | Unify the two sources; save inside `__init__`. |
+| `visualize_line()` / `visualize_bar()` / `visualize_map()` | Render from `self.Projections`. |
+
+**Stratification:** Location (58 counties + 9 regions + California + 50 US states) × Year × Age (5-year groups) × Sex × Race/Ethnicity (White, Black, Asian, NHPI, AIAN, Multiracial, Hispanic).
+
+### Building Permits
+
+**File:** `Visualization Tool/Building-Permits/permits_code.py`
+
+Tracks residential building-permit issuance from the Census Bureau's **monthly** survey, for 25 California metro areas and 50 US states.
+
+| Function | Description |
+|----------|-------------|
+| `clean_and_scrape_metro_permits()` | Downloads monthly CBSA data; standardizes metro names (e.g., "Riverside-San Bernardino-Ontario" → "Inland Empire"). |
+| `clean_and_scrape_state_permits()` | Downloads and reshapes monthly state data. |
+| `combine_permits_with_historical()` | Merge, dedupe, archive. |
+| `visualize_line()` | Full ETL, then a time series. Takes `start_date`/`end_date` in **`YYYY-MM`** and an `aggregated` (year-to-date) flag. |
+| `visualize_bar()` | Percent/numeric change between two `YYYY-MM` dates. |
+| `visualize_map()` | Choropleth for CA metros or US states. Reads geojson via **relative paths** (current working directory). |
+
+> [!warning] This module is keyed by **month (`YYYY-MM`)**, not year — unlike every other module. Its geojson files are loaded by relative path while its data CSVs use absolute `R:\UCF\...` paths, so it only works from a specific working directory.
+
+**Metrics:** Total, 1-Unit, 2-Units, 3-4-Units, 5+ Units, 2+ Units (derived), monthly from 2011.
+
+### ACS Housing Stress
+
+**File:** `Visualization Tool/ACS-Housing-Stress/housingstress_code.py`
+
+Measures housing cost burden from the **American Community Survey**: the share and number of households spending over 30% or 50% of income on housing, stratified by race/ethnicity and tenure.
+
+| Function | Description |
+|----------|-------------|
+| `get_data()` | Pulls ACS table + geography files from Census URLs; joins and filters by state. |
+| `build_full_dataset()` | Orchestrates `build_state_dataset()` (50 states), `build_county_dataset()` (CA counties via PUMA crosswalk), and `build_region_dataset()` (9 regions). |
+| `build_race_data()` | Stratifies by race/ethnicity (nested within each builder). |
+| `combine_with_historical()` | Merge and archive. |
+| `visualize_line()` / `visualize_bar()` | Build → combine, then render. Filterable by `location`, `race`, and tenure `label`. |
+
+> [!note] No map here
+> This is the only module with just two chart types (hence only two notebooks). Its data is **long-format**, stratified by `Race/ethnicity` and a tenure `Label`. Geographic levels: State (50 US states), County (CA), Region (9 CA regions).
+
+**Metrics:** `Number Over 30%`, `Number Over 50%`, `Share Over 30%`, `Share Over 50%`, per Year × Geographic Level × Location × Race/ethnicity × Label.
+
+**Crosswalk:** `puma_counties_xwalk_2020.csv` maps Public Use Microdata Areas (PUMAs) to CA counties.
+
+### Shared Patterns
+
+These conventions recur across all five modules. Note where each one is *fragile* — those notes feed the [Robustness Risks](#robustness-risks--improvement-opportunities) section.
+
+**ETL-inside-visualization.** For four of five modules, drawing a chart triggers the whole scrape → clean → combine → render → conditional-save sequence. Projections runs ETL once in its constructor instead.
+
+**Regional definitions.** The same 9 regions appear in every script: Far North, Bay Area, San Diego (Regional), Inland Empire, Sacramento (Regional), North San Joaquin Valley, South San Joaquin Valley, Central Coast, Los Angeles (Regional). Each is an aggregation of specific counties.
+
+**Conditional archival.** A save happens **only when new data is detected** (via `pd.testing.assert_frame_equal` against the saved copy). The old file is copied to `data/archive/` with an `mm-dd-yy` stamp, then `*_Current.csv` is overwritten. If all sources fail and the code falls back to the last-saved CSV, nothing is written.
+
+**Geographic-level tagging.** Each script re-derives `Geographic Level` with `np.select()` just before saving. Conditions differ by module; no Visualization Tool module emits City or Town.
+
+**Three-tier fallback scraping.** (1) link-text matching → (2) positional `<ul>` parsing → (3) manually downloaded CSV → (last resort) the previously saved CSV.
+
+**Visualization stack.** All use Plotly and call `fig.show(config={'toImageButtonOptions': {'format': 'svg'}})`. Parameter interfaces are similar but not identical (Permits uses `YYYY-MM` dates; Projections takes `sex`/`race`/`age_range`; Housing Stress takes `race`/`label`).
+
+**Brand colors.** `#293B54` (dark blue), `#CA4F1A` (orange), `#CCCB74` (olive), `#44AFD0` (teal), and more.
+
+**Hard-coded paths.** All Visualization Tool data lives under Windows network paths like `R:\UCF\Visualization Tool\...`.
+
+### Jupyter Notebooks
+
+**Visualization notebooks (14).** Each module ships 2–3 notebooks (bar, line, and usually map) that import the module's `.py` file and call its chart functions interactively. These notebooks are the actual user interface for the Visualization Tool.
+
+| Module | Notebooks |
+|--------|-----------|
+| Pop-Housing | BARPLOT, LINEPLOT, MAP |
+| Components of Change | BARPLOT, LINEPLOT, MAP |
+| Age-Sex-Race Projections | BARPLOT, LINEPLOT, MAP |
+| Building Permits | BARPLOT, LINEPLOT, MAP |
+| ACS Housing Stress | BAR, LINE |
+
+**Cleaning notebooks (6).** In `__cleaning__/`, these document the original data-prep work later formalized into the `.py` modules. They are the historical record of how each `*_Current.csv` was first built.
+
+---
+
+## Automated Data Pipeline
+
+Located in `Automated Data Pipeline/CA Population Housing/production_pipeline/`. This is a refactored, production-grade reimplementation of *only* the population/housing path. Unlike the Visualization Tool, it **separates ETL from visualization**: a sequence of scripts builds a clean dataset, and the Shiny app reads it.
+
+### Pipeline Orchestrator
+
+**File:** `run_original_pipeline.py`
+
+Runs the three core scripts in order via `subprocess`, prompting whether to continue if one fails, and printing a success summary (exit code 0 = full success, 1 = partial).
+
+1. `download_historical_data.py` — fetch E-8 files
+2. `historical_data_processor.py` — build the 1991–2020 history
+3. `pophousing_pipeline.py` — fetch E-5 and merge into the final dataset
+
+### Historical Data Downloader
+
+**File:** `download_historical_data.py`
+
+Scrapes the DoF site for the E-8 historical Excel files. `get_historical_landing_page_urls()` finds links under the "E-8 Historical Population and Housing Estimates" header; `find_excel_link_on_page()` locates each "Organized by Geography" download. Saves three decade files to `data/downloaded/`:
+
+- `E-8_90-00main.xlsx` (1990–2000)
+- `Closed_E8_Full_Decade_Final_v2.xlsx` (2000–2010)
+- `E-8_2010_2020_by_Geo_Internet.xlsx` (2010–2020)
+
+### Historical Data Processor
+
+**File:** `historical_data_processor.py`
+
+Turns the three E-8 files into a unified 1991–2020 dataset. This is the most intricate cleaning code in the project.
+
+| Challenge | How it's handled |
+|-----------|------------------|
+| **Format variation** | The 1990–2000 file has a different layout than later decades; `detect_e8_file_format()` picks the right cleaner. |
+| **Forward-filling** | County names appear as headers above blank-named city rows; context-aware fills avoid contaminating cities with county totals. |
+| **Boundary-year overlaps** | 2000 and 2010 appear in two files each; `handle_boundary_year_overlaps()` keeps one version. |
+| **Ambiguous names** | "San Diego" etc. name both a city and a county; classification uses structural analysis, not just population thresholds. |
+
+Key functions: `apply_1990_2000_forward_fill()`, `process_excel_file_simple()`, `clean_common_historical()`, `add_geographic_level_modern()`, `main()`.
+
+### Modern Data Pipeline
+
+**File:** `pophousing_pipeline.py`
+
+Downloads the latest E-5 (2020–present) and merges it with the historical dataset.
+
+| Function | Description |
+|----------|-------------|
+| `cleanup_old_e5_files()` | Removes cached E-5 files older than 90 days. |
+| `get_e5_file_url()` | Finds the current E-5 URL (header → `202\d-202\d` landing page → `Geo_InternetVersion.xlsx`). |
+| `download_e5_data()` | Smart-cached download (reuses files < 90 days old). |
+| `get_most_recent_e5_file()` | Fallback to most recent cached file (≤ 180 days) if scraping fails. |
+| `clean_e5_data()` / `add_geographic_level_e5()` | Rename columns, strip summary rows, forward-fill, assign State/County/City/Town. |
+| `fix_vacancy_rate_decimal_fractions()` | Corrects 2020+ vacancy rates stored as decimals (0.05) rather than percentages (5.0). |
+| `standardize_san_francisco_classification()` | Duplicates SF as both City and County rows. |
+| `add_regional_data()` / `add_state_data_for_modern_years()` | Build regional and state aggregates. |
+| `main()` | Orchestrates clean → merge → dedupe → regionalize → fix → classify → save. |
+
+> [!success] Verified output
+> Final `data/current/PopHousing_Current.csv` is **19,160 rows**, 1991–2025: **16,010 City**, **2,030 County**, **770 Town**, **315 Region**, **35 State**. SF appears as both a City and a County row.
+
+### Configuration
+
+**File:** `config.py`
+
+Centralized settings for every pipeline script.
+
+| Group | Contents |
+|-------|----------|
+| Web scraping | `DOF_BASE_URL`, `REQUESTS_HEADERS` (Chrome UA), `REQUESTS_TIMEOUT` (60s) |
+| File paths | `CURRENT_DATA_PATH`, `ARCHIVE_DATA_PATH`, `DOWNLOAD_DIR` — derived from the script's own directory (portable) |
+| Column definitions | `E5_COLUMN_NAMES` — expected E-5 column order |
+| Regional mapping | `REGIONS_MAPPING` — 9 regions → county lists |
+| Geographic classification | `STATE_LEVEL`, `COUNTY_LEVEL` (58), `REGION_LEVEL`, `AMBIGUOUS_CITY_NAMES` (32), `ALL_TOWNS` (22) |
+| Name standardization | `CITY_NAME_MAPPINGS`, `HISTORICAL_NAME_STANDARDIZATION`, `PROPER_NAMES_ENDING_IN_CITY` (16) |
+| Incorporation dates | `CITY_INCORPORATION_DATES` — to remove pre-incorporation zeros |
+| Caching | `E5_CACHE_MAX_AGE_DAYS` (90), `E5_FALLBACK_MAX_AGE_DAYS` (180), `E5_FILE_PATTERN` |
+| Historical file mapping | `HISTORICAL_FILE_CONFIG` — filename → cleaner, sheet, header row, year range |
+
+> [!tip] For the migration, `config.py` is gold
+> It already encodes the canonical region definitions, name mappings, and geographic classifications. A React/API backend should reuse this as the single source of truth rather than re-deriving regions (which the Visualization Tool does, redundantly, in every file).
+
+### Forward Fill Helpers
+
+**File:** `enhanced_forward_fill_helpers.py`
+
+Context-aware forward-filling that prevents city/county contamination when raw DoF Excel uses a hierarchical layout (county header above blank-named city rows).
+
+| Function | Description |
+|----------|-------------|
+| `has_meaningful_data()` | Detects rows with non-zero population/housing values. |
+| `identify_county_headers()` | Finds county-header rows by what follows them ("County Total", "Balance of County", or city names). |
+| `classify_ambiguous_location()` | Classifies dual city/county names via explicit markers → structural position → town list → population threshold (last resort). |
+| `enhanced_assign_geographic_level_with_context()` | Assigns levels using full row context. |
+
+### Data Cleaning Utilities
+
+**File:** `data_cleaning_utils.py`
+
+Shared cleaning functions used by both processors, to reduce duplication.
+
+| Function | Description |
+|----------|-------------|
+| `standardize_location_names()` | Apply name mappings, preserve special names, strip " City"/" Town" suffixes. |
+| `standardize_san_francisco_classification()` | Duplicate SF as City and County. |
+| `assign_geographic_levels()` | Classify by config lists (State/County/Region/Town/City). |
+| `calculate_derived_housing_columns()` | Single Family, Multiple Family, Vacant Units, Vacancy Rate. |
+| `vectorized_forward_fill()` | Efficient pandas forward fill. |
+| `universal_data_cleaner()` | One entry point chaining all steps, configurable by source. |
+| `validate_cleaned_data()` | Assert required columns and quality. |
+
+### Logging Configuration
+
+**File:** `logging_config.py`
+
+Creates three output streams per script: a detailed per-script log (`logs/{script}_{date}.log`, DEBUG+), a shared daily error log (`logs/errors_{date}.log`, ERROR only), and simplified console output (INFO+). Helpers: `log_dataframe_info()`, `log_data_quality_check()`, `log_processing_step()`, `close_logging()`, `get_logger()`.
+
+### Validation
+
+**File:** `validate_production.py`
+
+Pre-deployment checks: directory structure, installed dependencies, core module imports, data-directory access, and config loading.
+
+> [!warning] This validates *plumbing, not data*
+> It confirms imports and files exist — it does **not** check that the produced dataset is correct (right row counts, no nulls, sane vacancy rates). That gap matters for task 2.
+
+---
+
+## Shiny Web Application
+
+Located in `shiny_app/`. An interactive dashboard, built with Python Shiny, over the pipeline's output. **It never scrapes** — it reads the static CSV.
+
+### Main Application
+
+**File:** `comprehensive_app.py`
+
+Built with `ui.page_bootstrap` + `ui.navset_tab` into three top-level tabs — an **Overview dashboard**, a **Basic Visualizations** tab (one tab whose chart type is chosen by a control), and a **Data Downloads** tab. A large `server()` function wires it together with `@reactive.effect`, `@reactive.calc`, `@reactive.event`, and `@render.ui`, plus many quick-select buttons ("major counties", "top 50 cities", "California vs. regions").
+
+**Chart capabilities (Basic Visualizations tab):**
+
+- **Line** — multi-location time series with optional base-year indexing.
+- **Bar** — single-period change, a **side-by-side two-period comparison** (`visualize_bar_comparison`), or a **multi-parameter** grouped comparison (`create_multi_parameter_chart`, defined in the app).
+- **Map** — choropleth with configurable bin count.
+- **Geographic subset** selector spans **Counties, Cities, Towns, Regions, States** — exposing the city/town granularity only the pipeline produces.
+
+**How rendering actually works (verified):**
+
+- `PopHousingVisualizer` (from `basic_visualizations.py`) is instantiated **once globally** and loads the static CSV.
+- Its methods **return** a `go.Figure`; the app stores it in a `reactive.value` (`current_plot_fig`) and renders with `ui.HTML(fig.to_html(include_plotlyjs="cdn"))` — an embedded Plotly HTML document, **not** `shinywidgets`.
+- Downloads: full/filtered dataset as CSV (base64 data-URI links / `@render.download`), and the current chart as a standalone interactive HTML file, plus SVG via Plotly's modebar.
+
+> [!note] `shiny_app_deploy/app.py` is a separate, trimmed (~2,030-line) variant of `comprehensive_app.py` (~2,278 lines), packaged for shinyapps.io — not an identical copy.
+
+### App Configuration
+
+**File:** `app_config.py`
+
+Title ("California Housing & Population Analysis Dashboard"), version 2.0.0, default date range (1991–2025), UI dimensions, 10 major cities for quick selection, color scheme, and server settings (host `0.0.0.0`, port from `$PORT` or 8000).
+
+### Shiny Visualization Modules
+
+Three helper modules feed the dashboard's overview/auxiliary visuals; all produce Plotly `go.Figure` objects embedded via `fig.to_html`.
+
+- **`growth_patterns.py`** — scatter plots classifying cities by population-vs-housing change, with a "balanced growth" diagonal; bubble size = population.
+- **`housing_analysis.py`** — housing-composition stacked bars and metric trends.
+- **`interactive_line_plots.py`** — multi-location time series.
+
+A fourth, larger pipeline-side module — **`production_pipeline/visualizations/advanced_city_analysis.py`** (~950 lines) — provides city-level growth classification and the shared brand palette referenced by `basic_visualizations.py`.
+
+---
+
+## Data Flow and Interactions
+
+The two subsystems both process DoF population/housing data but operate independently.
+
+```text
+              Government Data Sources
+   DoF (E-5, E-6, E-8, P-3)   |   Census Bureau (ACS, components, permits, cc-est)
+              │                            │
+   ┌──────────┴───────────┐    ┌───────────┴────────────────┐
+   │  Visualization Tool  │    │   Automated Data Pipeline   │
+   │  5 scripts +         │    │   run_original_pipeline.py  │
+   │  14 viz notebooks +  │    │     ├─ download_historical  │
+   │  6 cleaning notebooks│    │     ├─ historical_processor │
+   │                      │    │     └─ pophousing_pipeline  │
+   │  ETL runs inside     │    │                 │           │
+   │  every chart call    │    │                 ▼           │
+   │         │            │    │   PopHousing_Current.csv    │
+   │         ▼            │    │   (~19,160 rows, city-level)│
+   │  *_Current.csv per   │    │                 │           │
+   │  dataset (aggregates)│    │                 ▼           │
+   │         │            │    │   Shiny Web App (reads CSV) │
+   │         ▼            │    └─────────────────────────────┘
+   │  Charts in Jupyter   │
+   └──────────────────────┘
+```
+
+**Visualization Tool's `pophousing_code.py`** scrapes → cleans → merges → renders inside each chart call, keeps **only county/region/state aggregates**, uses `R:\UCF\...` paths, and runs in Jupyter.
+
+**Pipeline's `pophousing_pipeline.py`** is decoupled: an orchestrated ETL processes three decades of E-8 plus modern E-5, drills down to **~16,000 cities and 770 towns**, uses centralized config, smart caching, structured logging, and portable paths, and writes a static CSV for the Shiny app.
+
+> [!warning] The two `PopHousing_Current.csv` files are different datasets
+> County/region/state-only (Visualization Tool) vs. full city-level ~19,160 rows (pipeline), in different `data/current/` directories. They are **not interchangeable**, and the Shiny app depends specifically on the pipeline's city-level file.
+
+**Shared geographic definitions.** Every script uses the same 9 regions:
+
+| Region | Counties |
+|--------|----------|
+| Far North | Butte, Colusa, Del Norte, Glenn, Humboldt, Lake, Lassen, Mendocino, Modoc, Nevada, Plumas, Shasta, Sierra, Siskiyou, Sutter, Tehama, Trinity, Yuba |
+| Bay Area | Alameda, Contra Costa, Marin, Napa, San Francisco, San Mateo, Santa Clara, Solano, Sonoma |
+| Sacramento (Regional) | El Dorado, Placer, Sacramento, Yolo |
+| North San Joaquin Valley | Merced, San Joaquin, Stanislaus |
+| South San Joaquin Valley | Fresno, Kern, Kings, Madera, Tulare, Alpine, Amador, Calaveras, Inyo, Mariposa, Mono, Tuolumne |
+| Central Coast | Monterey, San Benito, San Luis Obispo, Santa Barbara, Santa Cruz |
+| Los Angeles (Regional) | Los Angeles, Orange, Ventura |
+| Inland Empire | Riverside, San Bernardino |
+| San Diego (Regional) | San Diego, Imperial |
+
+---
+
+## Data Sources Reference
+
+| Source | Dataset | Script(s) | Geographic Level | Update Frequency |
+|--------|---------|-----------|-----------------|------------------|
+| CA DoF | E-5 (Population & Housing Estimates) | `pophousing_code.py`, `pophousing_pipeline.py` | State, County, City | Annual (May) |
+| CA DoF | E-6 (Components of Change) | `components_code.py` | State, County | Annual |
+| CA DoF | E-8 (Historical Estimates) | `historical_data_processor.py` | State, County, City | Static (decade files) |
+| CA DoF | P-3 (Demographic Projections) | `projections_code.py` | State, County | Periodic |
+| Census Bureau | ACS Summary Files | `housingstress_code.py` | State, County (via PUMA) | Annual |
+| Census Bureau | Population Estimates w/ Components | `components_code.py` | State (50) | Annual |
+| Census Bureau | Demographic Estimates (cc-est) | `projections_code.py` | County, State | Annual |
+| Census Bureau | Monthly Building Permit Survey | `permits_code.py` | Metro, State | Monthly |
+
+---
+
+## Robustness Risks & Improvement Opportunities
+
+This section is **task 2**. Every risk below is something that breaks when a source file is poorly formatted or its structure changes. They are roughly ordered by how often they will bite you.
+
+> [!danger] Highest-impact fragilities
+> These assume the DoF/Census websites and file layouts never change. They will change.
+
+- [ ] **Brittle web scraping.** Scrapers depend on the DoF theme CSS class `et_pb_text_inner`, on link text containing `e-5`/`e-6`, and on positional `<ul>` indices (e.g., "third `<ul>`"). A site redesign breaks all three tiers at once. *Improve:* scrape by stable attributes, add schema checks, and fail loudly with actionable messages.
+- [ ] **Excel sheet-index assumptions.** Code reads `sheet_names[1]` (the second sheet). If DoF reorders or adds a sheet, the wrong data loads silently. *Improve:* select sheets by name/pattern, validate headers before parsing.
+- [ ] **Positional column renaming.** `clean_e5()` renames 15 columns by position. One inserted/removed/reordered column shifts every field. *Improve:* map columns by header text; assert the expected set is present.
+- [ ] **Hard-coded decade filenames.** `HISTORICAL_FILE_CONFIG` and the Visualization Tool hard-code exact E-8 filenames and header rows. New filenames silently skip files. *Improve:* discover files by pattern; log what was and wasn't matched.
+
+> [!warning] Silent-failure and data-integrity risks
+
+- [ ] **`warnings.filterwarnings("ignore")`** at the top of every Visualization Tool module hides pandas dtype/parse warnings that would reveal bad inputs. *Improve:* scope or remove the suppression; surface warnings in logs.
+- [ ] **ETL-on-every-chart can overwrite good data with bad.** A transient network blip or a changed file can be cleaned into a malformed frame and saved over the canonical CSV. *Improve:* separate "refresh data" from "draw chart" (this is also the migration goal); validate before writing; keep archives.
+- [ ] **Vacancy-rate decimal heuristic.** `fix_vacancy_rate_decimal_fractions()` guesses format from a `< 1.0` threshold. A legitimate sub-1% rate, or a future format change, defeats it. *Improve:* detect format from the source explicitly.
+- [ ] **Ambiguous city/county classification** relies on row-order structure. Reordered or differently-summarized source rows can misclassify locations. *Improve:* prefer explicit geographic identifiers (FIPS codes) where available.
+- [ ] **Validation checks plumbing, not data.** `validate_production.py` doesn't assert row counts, null rates, year coverage, or value ranges. *Improve:* add data-quality assertions (e.g., expected ~19k rows, 1991–2025, no negative populations).
+
+> [!note] Portability and maintainability
+
+- [ ] **Hard-coded `R:\UCF\...` Windows paths** make the Visualization Tool non-portable. *Improve:* derive paths from the file location (the pipeline's `config.py` already does this).
+- [ ] **Duplicated region definitions** across all five Visualization Tool files invite drift. *Improve:* one shared config/source of truth (extend the pipeline's `config.py`).
+- [ ] **Massive copy-paste inside chart functions** (the same scrape/clean/fallback block repeats in line/bar/map). *Improve:* extract a single `get_data()` used by all renderers.
+- [ ] **No automated tests** anywhere. *Improve:* add unit tests for cleaners using small fixture files that mimic real and malformed inputs.
+
+---
+
+## React Migration Guide
+
+This section is **task 3**: move every visualization to a React framework. The good news — the pipeline + Shiny pattern already shows the target shape. Your job is to generalize it.
+
+### Target architecture
+
+> [!tip] Decouple data from presentation
+> Today, four of five Visualization Tool modules fuse ETL and rendering. In React, the browser **cannot** run pandas/BeautifulSoup. So the ETL must move to a backend (or scheduled job) that emits clean **JSON/CSV**, and React only consumes it. The Automated Data Pipeline is already 80% of that backend for the population/housing dataset.
+
+```text
+[ Scheduled Python ETL ]  →  [ static JSON/CSV or API ]  →  [ React + charting lib ]
+   (scrape, clean,            (one file per dataset,         (components read data,
+    validate, version)         versioned & validated)         render charts, handle UI)
+```
+
+### Mapping the current pieces to React
+
+| Today | In React |
+|-------|----------|
+| `visualize_line/bar/map()` (Plotly figures) | One component per chart type, props-driven. **`react-plotly.js`** gives near-1:1 parity with the existing Plotly figures. |
+| Shiny selectors (location, parameter, year range, metric) | Controlled React inputs / state (multi-select, range slider, toggle). The Shiny app's inputs are a ready-made UX spec. |
+| Quick-select buttons ("major counties", "top 50 cities") | Preset handlers that set selection state. |
+| Choropleth maps + geojson | `react-plotly.js` choropleth, or Mapbox/`deck.gl`; ship `california-counties.geojson` / `us-states.json` as static assets. |
+| `*_Current.csv` files | Versioned static JSON (or an API endpoint) per dataset, served to the client. |
+| Brand palette (`#293B54`, …) | A shared theme/constants module. |
+| Indexing, percent/numeric change, regional aggregation | Move into the ETL output (precompute) or a thin client-side util — but keep region/aggregation logic server-side to stay consistent with `config.py`. |
+
+### Suggested sequence
+
+- [ ] **Stand up the data layer first.** Extend the pipeline so each of the five datasets is produced as a validated, versioned JSON/CSV by a scheduled job — no scraping in the request path.
+- [ ] **Port one chart type end-to-end** (recommend Pop-Housing **line**) to prove the `react-plotly.js` + data-fetch + selectors loop.
+- [ ] **Reuse the Shiny app as the UX reference** — it already defines tabs, selectors, presets, indexing, and download behavior.
+- [ ] **Add the remaining chart types** (bar, map) and then the remaining datasets, dataset by dataset.
+- [ ] **Carry over the special cases** explicitly: SF as both City and County, the no-City Pop-Housing aggregates vs. city-level pipeline data, Permits' `YYYY-MM` keying, Housing Stress's long-format race/tenure stratification, and Projections' overlay behavior.
+- [ ] **Match downloads:** CSV export and high-resolution (SVG/PNG) chart export — Plotly's `toImage` covers the latter.
+
+> [!important] Decisions to confirm with your mentor before building
+> (1) Is there an existing backend/API to host the ETL output, or do we serve static files? (2) Which datasets are in scope for the first release? (3) Is `react-plotly.js` acceptable, or is a different charting library preferred? These determine the shape of everything above.
+
+---
+
+## Glossary
+
+| Term | Meaning |
+|------|---------|
+| **DoF** | California Department of Finance — source of E-5, E-6, E-8, P-3 estimates. |
+| **E-5** | Annual DoF population & housing estimates by city/county/state. |
+| **E-6** | DoF components-of-change estimates (births, deaths, migration). |
+| **E-8** | DoF historical population & housing estimates (decade files). |
+| **P-3** | DoF demographic projections by age/sex/race. |
+| **ACS** | American Community Survey (Census Bureau). |
+| **PUMA** | Public Use Microdata Area — Census geography mapped to counties via a crosswalk. |
+| **CBSA** | Core-Based Statistical Area — the Census metro/micro geography used for permits. |
+| **ETL** | Extract-Transform-Load — the scrape → clean → save data flow. |
+| **Choropleth** | A map that shades regions by a data value. |
+| **Indexing** | Rescaling each series to 100 at a base year to compare growth rates. |

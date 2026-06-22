@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Civic Evidence Lab | Internal Data Platform Mockup</title>
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --panel: #ffffff;
+      --panel-soft: #f9fafb;
+      --ink: #17202a;
+      --muted: #657386;
+      --muted-2: #8b97a8;
+      --line: #d9e0e8;
+      --nav: #111827;
+      --nav-soft: #1f2937;
+      --blue: #2457a6;
+      --blue-soft: #e8f0ff;
+      --teal: #0f766e;
+      --teal-soft: #dff7f4;
+      --amber: #a16207;
+      --amber-soft: #fff2cc;
+      --red: #b42318;
+      --red-soft: #ffe4df;
+      --green: #16794c;
+      --green-soft: #e3f7ec;
+      --shadow: 0 14px 38px rgba(17, 24, 39, 0.08);
+      --radius-xl: 22px;
+      --radius-lg: 16px;
+      --radius-md: 12px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+      display: grid;
+      grid-template-columns: 280px 1fr;
+    }
+
+    .sidebar {
+      background: linear-gradient(180deg, var(--nav), #0b1220);
+      color: #f8fafc;
+      min-height: 100vh;
+      padding: 26px 22px;
+      position: sticky;
+      top: 0;
+      align-self: start;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 34px;
+    }
+
+    .brand-mark {
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #7dd3fc, #2563eb 55%, #0f172a);
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+      letter-spacing: -0.05em;
+      box-shadow: 0 10px 24px rgba(37, 99, 235, 0.28);
+    }
+
+    .brand h1 {
+      font-size: 15px;
+      margin: 0;
+      line-height: 1.2;
+      letter-spacing: 0.01em;
+    }
+
+    .brand span {
+      display: block;
+      color: #a7b1c3;
+      font-weight: 500;
+      font-size: 12px;
+      margin-top: 3px;
+    }
+
+    .nav-section-title {
+      color: #8fa0b8;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      margin: 22px 0 10px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #d7dee9;
+      text-decoration: none;
+      font-size: 14px;
+      padding: 11px 12px;
+      border-radius: 12px;
+      margin: 3px 0;
+    }
+
+    .nav-item.active,
+    .nav-item:hover {
+      background: rgba(255,255,255,0.09);
+      color: #ffffff;
+    }
+
+    .nav-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 99px;
+      background: #60a5fa;
+    }
+
+    .sidebar-card {
+      margin-top: 32px;
+      padding: 16px;
+      border-radius: var(--radius-lg);
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .sidebar-card p {
+      margin: 0 0 12px;
+      font-size: 12px;
+      color: #bdc8d9;
+      line-height: 1.5;
+    }
+
+    .sync-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #d1fae5;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .sync-pulse {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #34d399;
+      box-shadow: 0 0 0 5px rgba(52, 211, 153, 0.15);
+    }
+
+    main {
+      padding: 26px;
+      min-width: 0;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 20px;
+      margin-bottom: 22px;
+    }
+
+    .eyebrow {
+      color: var(--blue);
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-size: 11px;
+      margin-bottom: 8px;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: clamp(26px, 3vw, 42px);
+      line-height: 1.05;
+      letter-spacing: -0.045em;
+    }
+
+    .subhead {
+      color: var(--muted);
+      max-width: 760px;
+      line-height: 1.55;
+      margin: 12px 0 0;
+      font-size: 15px;
+    }
+
+    .top-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    button, .button {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--ink);
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-weight: 750;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(17, 24, 39, 0.04);
+    }
+
+    button.primary {
+      background: var(--blue);
+      border-color: var(--blue);
+      color: white;
+    }
+
+    .filter-bar {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(130px, 1fr));
+      gap: 12px;
+      padding: 14px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow);
+      margin-bottom: 20px;
+    }
+
+    .filter {
+      background: var(--panel-soft);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 10px 12px;
+      min-width: 0;
+    }
+
+    .filter label {
+      display: block;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      color: var(--muted-2);
+      font-weight: 800;
+      margin-bottom: 6px;
+    }
+
+    .filter div {
+      font-size: 14px;
+      font-weight: 750;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .grid {
+      display: grid;
+      gap: 18px;
+    }
+
+    .kpi-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-bottom: 18px;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow);
+      min-width: 0;
+    }
+
+    .kpi {
+      padding: 18px;
+    }
+
+    .kpi-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 12px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 5px 8px;
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .badge.green { background: var(--green-soft); color: var(--green); }
+    .badge.blue { background: var(--blue-soft); color: var(--blue); }
+    .badge.amber { background: var(--amber-soft); color: var(--amber); }
+    .badge.red { background: var(--red-soft); color: var(--red); }
+    .badge.teal { background: var(--teal-soft); color: var(--teal); }
+
+    .kpi-value {
+      font-size: 34px;
+      line-height: 1;
+      font-weight: 850;
+      letter-spacing: -0.04em;
+      margin-bottom: 10px;
+    }
+
+    .kpi-note {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .dashboard-grid {
+      grid-template-columns: minmax(0, 1.45fr) minmax(340px, 0.75fr);
+      align-items: start;
+    }
+
+    .card-header {
+      padding: 18px 20px 0;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .card-title {
+      margin: 0;
+      font-size: 18px;
+      letter-spacing: -0.02em;
+    }
+
+    .card-description {
+      margin: 6px 0 0;
+      color: var(--muted);
+      line-height: 1.45;
+      font-size: 13px;
+    }
+
+    .chart-shell {
+      padding: 14px 20px 20px;
+    }
+
+    .line-chart {
+      width: 100%;
+      min-height: 310px;
+      display: block;
+    }
+
+    .axis-label {
+      fill: #718096;
+      font-size: 12px;
+    }
+
+    .gridline {
+      stroke: #e6ebf1;
+      stroke-width: 1;
+    }
+
+    .trend-line {
+      fill: none;
+      stroke: #2457a6;
+      stroke-width: 4;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .comparison-line {
+      fill: none;
+      stroke: #0f766e;
+      stroke-width: 4;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-dasharray: 9 8;
+    }
+
+    .point {
+      fill: #ffffff;
+      stroke: #2457a6;
+      stroke-width: 4;
+    }
+
+    .point.teal { stroke: #0f766e; }
+
+    .legend {
+      display: flex;
+      gap: 18px;
+      flex-wrap: wrap;
+      padding: 0 20px 20px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .legend-mark {
+      width: 26px;
+      height: 4px;
+      border-radius: 999px;
+      background: var(--blue);
+      display: inline-block;
+    }
+
+    .legend-mark.teal {
+      background: repeating-linear-gradient(90deg, var(--teal), var(--teal) 8px, transparent 8px, transparent 13px);
+    }
+
+    .right-stack {
+      display: grid;
+      gap: 18px;
+    }
+
+    .risk-list {
+      padding: 12px 20px 20px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .risk-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: center;
+      padding: 12px;
+      background: var(--panel-soft);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+    }
+
+    .risk-row strong {
+      display: block;
+      font-size: 14px;
+      margin-bottom: 4px;
+    }
+
+    .risk-row span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .score {
+      width: 46px;
+      height: 46px;
+      border-radius: 14px;
+      display: grid;
+      place-items: center;
+      font-weight: 900;
+      color: var(--blue);
+      background: var(--blue-soft);
+    }
+
+    .score.amber { color: var(--amber); background: var(--amber-soft); }
+    .score.red { color: var(--red); background: var(--red-soft); }
+
+    .map-card {
+      min-height: 360px;
+    }
+
+    .map-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(260px, 0.85fr);
+      gap: 18px;
+      padding: 16px 20px 20px;
+    }
+
+    .mock-map {
+      background:
+        radial-gradient(circle at 18% 22%, rgba(36,87,166,0.22), transparent 15%),
+        radial-gradient(circle at 72% 42%, rgba(15,118,110,0.18), transparent 18%),
+        linear-gradient(135deg, #edf2f7, #f9fafb);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      min-height: 270px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .region {
+      position: absolute;
+      border: 1px solid rgba(255,255,255,0.78);
+      border-radius: 18px;
+      background: rgba(36, 87, 166, 0.17);
+      backdrop-filter: blur(2px);
+    }
+
+    .r1 { left: 10%; top: 16%; width: 28%; height: 34%; background: rgba(36,87,166,0.27); }
+    .r2 { left: 36%; top: 24%; width: 30%; height: 28%; background: rgba(15,118,110,0.25); }
+    .r3 { left: 22%; top: 52%; width: 34%; height: 32%; background: rgba(161,98,7,0.22); }
+    .r4 { right: 10%; top: 50%; width: 24%; height: 27%; background: rgba(180,35,24,0.20); }
+    .r5 { right: 16%; top: 12%; width: 18%; height: 22%; background: rgba(22,121,76,0.22); }
+
+    .map-pin {
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #111827;
+      border: 3px solid white;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.25);
+    }
+
+    .p1 { left: 32%; top: 38%; }
+    .p2 { left: 61%; top: 45%; }
+    .p3 { left: 72%; top: 63%; }
+    .p4 { left: 43%; top: 68%; }
+
+    .map-panel {
+      display: grid;
+      gap: 12px;
+    }
+
+    .metric-bar {
+      display: grid;
+      gap: 7px;
+    }
+
+    .metric-row {
+      display: flex;
+      justify-content: space-between;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .bar-bg {
+      height: 10px;
+      border-radius: 999px;
+      background: #e8edf3;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: inherit;
+      background: var(--blue);
+    }
+
+    .bar-fill.teal { background: var(--teal); }
+    .bar-fill.amber { background: var(--amber); }
+    .bar-fill.red { background: var(--red); }
+
+    .table-card {
+      overflow: hidden;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th {
+      text-align: left;
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      background: #f8fafc;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      padding: 12px 16px;
+    }
+
+    td {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: middle;
+    }
+
+    td strong { display: block; margin-bottom: 3px; }
+    td small { color: var(--muted); }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 800;
+      font-size: 12px;
+      border-radius: 999px;
+      padding: 6px 9px;
+    }
+
+    .status::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .two-column {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      margin-top: 18px;
+    }
+
+    .note-list {
+      padding: 12px 20px 20px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .note {
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--panel-soft);
+    }
+
+    .note h4 {
+      margin: 0 0 6px;
+      font-size: 14px;
+    }
+
+    .note p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .methodology {
+      padding: 16px 20px 20px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .method-step {
+      display: grid;
+      grid-template-columns: 34px 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+
+    .step-number {
+      width: 34px;
+      height: 34px;
+      border-radius: 12px;
+      background: var(--blue-soft);
+      color: var(--blue);
+      display: grid;
+      place-items: center;
+      font-weight: 900;
+    }
+
+    .method-step strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 14px;
+    }
+
+    .method-step span {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .footer-note {
+      margin: 22px 0 0;
+      color: var(--muted-2);
+      font-size: 12px;
+      text-align: right;
+    }
+
+    @media (max-width: 1180px) {
+      body { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .filter-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .dashboard-grid,
+      .map-layout,
+      .two-column { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 680px) {
+      main { padding: 16px; }
+      .topbar { flex-direction: column; }
+      .top-actions { justify-content: flex-start; }
+      .filter-bar,
+      .kpi-grid { grid-template-columns: 1fr; }
+      table { min-width: 760px; }
+      .table-wrap { overflow-x: auto; }
+    }
+  </style>
+</head>
+<body>
+  <aside class="sidebar" aria-label="Primary navigation">
+    <div class="brand">
+      <div class="brand-mark">CE</div>
+      <div>
+        <h1>Civic Evidence Lab <span>Internal analytics workspace</span></h1>
+      </div>
+    </div>
+
+    <div class="nav-section-title">Programs</div>
+    <a href="#" class="nav-item active"><span class="nav-dot"></span> Democracy & Representation</a>
+    <a href="#" class="nav-item"><span class="nav-dot" style="background:#34d399"></span> Digital Equity</a>
+    <a href="#" class="nav-item"><span class="nav-dot" style="background:#f59e0b"></span> Housing & Mobility</a>
+    <a href="#" class="nav-item"><span class="nav-dot" style="background:#f87171"></span> Climate Resilience</a>
+
+    <div class="nav-section-title">Workspace</div>
+    <a href="#" class="nav-item">Evidence Dashboard</a>
+    <a href="#" class="nav-item">Dataset Registry</a>
+    <a href="#" class="nav-item">Field Notes</a>
+    <a href="#" class="nav-item">Grant Reporting</a>
+    <a href="#" class="nav-item">Methodology Archive</a>
+
+    <div class="sidebar-card">
+      <p><strong>Restricted internal use.</strong><br />Pre-publication findings. Numbers shown in this mockup are synthetic placeholders.</p>
+      <div class="sync-status"><span class="sync-pulse"></span> Data warehouse synced 08:42</div>
+    </div>
+  </aside>
+
+  <main>
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">Research intelligence platform</div>
+        <h2>Policy impact and equity monitoring</h2>
+        <p class="subhead">
+          Internal dashboard for analysts tracking research outputs, policy uptake, regional indicators,
+          evidence quality, and stakeholder engagement across active nonprofit think tank programs.
+        </p>
+      </div>
+      <div class="top-actions">
+        <button>Export brief</button>
+        <button>Open notes</button>
+        <button class="primary">Create snapshot</button>
+      </div>
+    </header>
+
+    <section class="filter-bar" aria-label="Dashboard filters">
+      <div class="filter">
+        <label>Program</label>
+        <div>Democracy & Representation</div>
+      </div>
+      <div class="filter">
+        <label>Geography</label>
+        <div>12-state comparison set</div>
+      </div>
+      <div class="filter">
+        <label>Period</label>
+        <div>FY 2026, Q1–Q2</div>
+      </div>
+      <div class="filter">
+        <label>Population group</label>
+        <div>All tracked communities</div>
+      </div>
+      <div class="filter">
+        <label>Confidence</label>
+        <div>Medium and above</div>
+      </div>
+    </section>
+
+    <section class="grid kpi-grid" aria-label="Key metrics">
+      <article class="card kpi">
+        <div class="kpi-header">Research outputs <span class="badge blue">+18%</span></div>
+        <div class="kpi-value">46</div>
+        <div class="kpi-note">Briefs, memos, datasets, and testimony packages published or in review.</div>
+      </article>
+      <article class="card kpi">
+        <div class="kpi-header">Policy citations <span class="badge green">+31%</span></div>
+        <div class="kpi-value">128</div>
+        <div class="kpi-note">Mentions in legislative analysis, agency reports, hearings, and civic partner materials.</div>
+      </article>
+      <article class="card kpi">
+        <div class="kpi-header">Equity alert index <span class="badge amber">Watch</span></div>
+        <div class="kpi-value">72</div>
+        <div class="kpi-note">Composite score from representation gaps, access barriers, and demographic variance.</div>
+      </article>
+      <article class="card kpi">
+        <div class="kpi-header">Evidence confidence <span class="badge teal">Stable</span></div>
+        <div class="kpi-value">84%</div>
+        <div class="kpi-note">Share of tracked findings backed by reproducible data and peer-reviewed methods.</div>
+      </article>
+    </section>
+
+    <section class="grid dashboard-grid">
+      <article class="card">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title">Policy uptake trend</h3>
+            <p class="card-description">Synthetic trend line comparing internal research releases with downstream policy references.</p>
+          </div>
+          <span class="badge blue">Monthly</span>
+        </div>
+        <div class="chart-shell">
+          <svg class="line-chart" viewBox="0 0 820 330" role="img" aria-label="Line chart showing research releases and policy references over time">
+            <line class="gridline" x1="70" y1="50" x2="780" y2="50"></line>
+            <line class="gridline" x1="70" y1="110" x2="780" y2="110"></line>
+            <line class="gridline" x1="70" y1="170" x2="780" y2="170"></line>
+            <line class="gridline" x1="70" y1="230" x2="780" y2="230"></line>
+            <line class="gridline" x1="70" y1="290" x2="780" y2="290"></line>
+
+            <text class="axis-label" x="20" y="55">160</text>
+            <text class="axis-label" x="25" y="115">120</text>
+            <text class="axis-label" x="31" y="175">80</text>
+            <text class="axis-label" x="31" y="235">40</text>
+            <text class="axis-label" x="38" y="295">0</text>
+
+            <polyline class="trend-line" points="72,255 160,238 248,205 336,196 424,158 512,142 600,112 688,96 776,68"></polyline>
+            <polyline class="comparison-line" points="72,275 160,260 248,242 336,220 424,202 512,184 600,154 688,130 776,118"></polyline>
+
+            <circle class="point" cx="72" cy="255" r="6"></circle>
+            <circle class="point" cx="160" cy="238" r="6"></circle>
+            <circle class="point" cx="248" cy="205" r="6"></circle>
+            <circle class="point" cx="336" cy="196" r="6"></circle>
+            <circle class="point" cx="424" cy="158" r="6"></circle>
+            <circle class="point" cx="512" cy="142" r="6"></circle>
+            <circle class="point" cx="600" cy="112" r="6"></circle>
+            <circle class="point" cx="688" cy="96" r="6"></circle>
+            <circle class="point" cx="776" cy="68" r="6"></circle>
+
+            <circle class="point teal" cx="72" cy="275" r="6"></circle>
+            <circle class="point teal" cx="248" cy="242" r="6"></circle>
+            <circle class="point teal" cx="424" cy="202" r="6"></circle>
+            <circle class="point teal" cx="600" cy="154" r="6"></circle>
+            <circle class="point teal" cx="776" cy="118" r="6"></circle>
+
+            <text class="axis-label" x="62" y="318">Oct</text>
+            <text class="axis-label" x="148" y="318">Nov</text>
+            <text class="axis-label" x="236" y="318">Dec</text>
+            <text class="axis-label" x="327" y="318">Jan</text>
+            <text class="axis-label" x="414" y="318">Feb</text>
+            <text class="axis-label" x="502" y="318">Mar</text>
+            <text class="axis-label" x="591" y="318">Apr</text>
+            <text class="axis-label" x="679" y="318">May</text>
+            <text class="axis-label" x="767" y="318">Jun</text>
+          </svg>
+        </div>
+        <div class="legend">
+          <span><i class="legend-mark"></i> Policy references</span>
+          <span><i class="legend-mark teal"></i> Research outputs</span>
+        </div>
+      </article>
+
+      <div class="right-stack">
+        <article class="card">
+          <div class="card-header">
+            <div>
+              <h3 class="card-title">Priority research risks</h3>
+              <p class="card-description">Analyst-facing triage list for data gaps and methodological risk.</p>
+            </div>
+          </div>
+          <div class="risk-list">
+            <div class="risk-row">
+              <div><strong>Small-n subgroup samples</strong><span>Needs supplemental field validation.</span></div>
+              <div class="score red">91</div>
+            </div>
+            <div class="risk-row">
+              <div><strong>Delayed agency reporting</strong><span>Three jurisdictions have missing April data.</span></div>
+              <div class="score amber">76</div>
+            </div>
+            <div class="risk-row">
+              <div><strong>Partner survey attrition</strong><span>Response rate declined in rural counties.</span></div>
+              <div class="score amber">68</div>
+            </div>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-header">
+            <div>
+              <h3 class="card-title">Engagement mix</h3>
+              <p class="card-description">Current quarter outreach distribution.</p>
+            </div>
+          </div>
+          <div class="chart-shell">
+            <div class="metric-bar">
+              <div class="metric-row"><span>Legislative staff briefings</span><span>38%</span></div>
+              <div class="bar-bg"><div class="bar-fill" style="width:38%"></div></div>
+            </div>
+            <br />
+            <div class="metric-bar">
+              <div class="metric-row"><span>Community partner sessions</span><span>27%</span></div>
+              <div class="bar-bg"><div class="bar-fill teal" style="width:27%"></div></div>
+            </div>
+            <br />
+            <div class="metric-bar">
+              <div class="metric-row"><span>Media/data requests</span><span>21%</span></div>
+              <div class="bar-bg"><div class="bar-fill amber" style="width:21%"></div></div>
+            </div>
+            <br />
+            <div class="metric-bar">
+              <div class="metric-row"><span>Academic review</span><span>14%</span></div>
+              <div class="bar-bg"><div class="bar-fill red" style="width:14%"></div></div>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="card map-card" style="margin-top:18px;">
+      <div class="card-header">
+        <div>
+          <h3 class="card-title">Regional indicator scan</h3>
+          <p class="card-description">Mock geospatial view for tracking outcome indicators, confidence levels, and local partner coverage.</p>
+        </div>
+        <span class="badge teal">12 regions</span>
+      </div>
+      <div class="map-layout">
+        <div class="mock-map" aria-label="Mock regional map visualization">
+          <div class="region r1"></div>
+          <div class="region r2"></div>
+          <div class="region r3"></div>
+          <div class="region r4"></div>
+          <div class="region r5"></div>
+          <div class="map-pin p1"></div>
+          <div class="map-pin p2"></div>
+          <div class="map-pin p3"></div>
+          <div class="map-pin p4"></div>
+        </div>
+        <div class="map-panel">
+          <div class="note">
+            <h4>Highest change cluster</h4>
+            <p>Metro-to-suburban belt shows the largest quarter-over-quarter shift in civic participation indicators.</p>
+          </div>
+          <div class="metric-bar">
+            <div class="metric-row"><span>Representation gap closure</span><span>64%</span></div>
+            <div class="bar-bg"><div class="bar-fill" style="width:64%"></div></div>
+          </div>
+          <div class="metric-bar">
+            <div class="metric-row"><span>Local data completeness</span><span>81%</span></div>
+            <div class="bar-bg"><div class="bar-fill teal" style="width:81%"></div></div>
+          </div>
+          <div class="metric-bar">
+            <div class="metric-row"><span>Community validation coverage</span><span>52%</span></div>
+            <div class="bar-bg"><div class="bar-fill amber" style="width:52%"></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card table-card" style="margin-top:18px;">
+      <div class="card-header">
+        <div>
+          <h3 class="card-title">Active evidence products</h3>
+          <p class="card-description">Internal publication pipeline with audience, status, and confidence metadata.</p>
+        </div>
+        <button>View full registry</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Product</th>
+              <th>Lead</th>
+              <th>Audience</th>
+              <th>Evidence level</th>
+              <th>Status</th>
+              <th>Next review</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Representation gap tracker</strong><small>Interactive dataset and policy memo</small></td>
+              <td>Quantitative Methods</td>
+              <td>State policy staff</td>
+              <td><span class="badge green">High</span></td>
+              <td><span class="status" style="color:var(--green); background:var(--green-soft);">Ready</span></td>
+              <td>Jul 08</td>
+            </tr>
+            <tr>
+              <td><strong>Community access index</strong><small>Regional dashboard module</small></td>
+              <td>Field Research</td>
+              <td>Partner organizations</td>
+              <td><span class="badge amber">Medium</span></td>
+              <td><span class="status" style="color:var(--amber); background:var(--amber-soft);">Methods review</span></td>
+              <td>Jul 15</td>
+            </tr>
+            <tr>
+              <td><strong>Civic infrastructure scan</strong><small>Briefing deck and appendix</small></td>
+              <td>Policy Strategy</td>
+              <td>Foundation program officers</td>
+              <td><span class="badge blue">Mixed</span></td>
+              <td><span class="status" style="color:var(--blue); background:var(--blue-soft);">Drafting</span></td>
+              <td>Jul 22</td>
+            </tr>
+            <tr>
+              <td><strong>Election administration notes</strong><small>Qualitative synthesis</small></td>
+              <td>Legal Research</td>
+              <td>Internal leadership</td>
+              <td><span class="badge green">High</span></td>
+              <td><span class="status" style="color:var(--teal); background:var(--teal-soft);">Validation</span></td>
+              <td>Aug 02</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="grid two-column">
+      <article class="card">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title">Analyst annotations</h3>
+            <p class="card-description">Recent internal notes attached to charts and data products.</p>
+          </div>
+        </div>
+        <div class="note-list">
+          <div class="note">
+            <h4>Data quality flag</h4>
+            <p>April survey weights should be rerun after county-level population estimates are revised.</p>
+          </div>
+          <div class="note">
+            <h4>Policy context</h4>
+            <p>Two states introduced related bills after the last stakeholder briefing. Track language overlap.</p>
+          </div>
+          <div class="note">
+            <h4>Communications note</h4>
+            <p>External-facing framing should separate descriptive indicators from causal interpretation.</p>
+          </div>
+        </div>
+      </article>
+
+      <article class="card">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title">Methodology status</h3>
+            <p class="card-description">Mock workflow showing reproducibility and review progress.</p>
+          </div>
+        </div>
+        <div class="methodology">
+          <div class="method-step">
+            <div class="step-number">1</div>
+            <div><strong>Source ingestion</strong><span>Administrative data, partner surveys, and public datasets imported to the warehouse.</span></div>
+          </div>
+          <div class="method-step">
+            <div class="step-number">2</div>
+            <div><strong>Cleaning and harmonization</strong><span>Variable names, geography IDs, missing values, and weighting logic standardized.</span></div>
+          </div>
+          <div class="method-step">
+            <div class="step-number">3</div>
+            <div><strong>Reproducibility check</strong><span>Notebook outputs compared against dashboard metrics before release snapshots are created.</span></div>
+          </div>
+          <div class="method-step">
+            <div class="step-number">4</div>
+            <div><strong>Policy review</strong><span>Research, legal, and communications teams review claims before external publication.</span></div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <p class="footer-note">Mockup version 0.1 · Synthetic data only · Designed for internal research planning</p>
+  </main>
+</body>
+</html>
