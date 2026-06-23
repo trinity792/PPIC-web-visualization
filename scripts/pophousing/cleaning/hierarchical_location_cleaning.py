@@ -1,9 +1,34 @@
+"""
+hierarchical_location_cleaning.py — recovers location and county context from hierarchical E-5 rows.
+
+Data sources:
+    - pandas.DataFrame inputs — E-5 rows with hierarchical location and county labels
+    - lib/pophousing_config.py — canonical California county names
+
+Outputs:
+    - boolean and index-set helpers — detected meaningful rows and county headers
+    - pandas.DataFrame — records with filled locations or temporary county context
+
+Usage:
+    python scripts/pophousing/cleaning/hierarchical_location_cleaning.py
+
+Test Folders:
+    - scripts/unit_tests/pophousing/cleaning/
+"""
+
 import pandas as pd
 
 from scripts.pophousing.config.geography import get_geography_config
 
+"""
+========================================================================================================================
+Hierarchical Location Cleaning
+========================================================================================================================
+"""
+
 
 def has_meaningful_housing_data(housing_row, value_columns):
+    """Report whether a row has any positive housing values. Test file: scripts/unit_tests/pophousing/cleaning/test_hierarchical_location_cleaning.py"""
     values = pd.Series([housing_row.get(column) for column in value_columns])
     numeric_values = pd.to_numeric(
         values.astype("string").str.replace(",", "", regex=False),
@@ -13,6 +38,7 @@ def has_meaningful_housing_data(housing_row, value_columns):
 
 
 def identify_county_headers(housing_df, county_names, location_col):
+    """Identify county header rows followed by a county total. Test file: scripts/unit_tests/pophousing/cleaning/test_hierarchical_location_cleaning.py"""
     if location_col not in housing_df.columns:
         raise KeyError(f"Missing column: {location_col}")
 
@@ -29,6 +55,7 @@ def identify_county_headers(housing_df, county_names, location_col):
 
 
 def forward_fill_locations_with_context(housing_df, location_col, county_col):
+    """Forward-fill blank hierarchical location labels. Test file: scripts/unit_tests/pophousing/cleaning/test_hierarchical_location_cleaning.py"""
     missing_columns = [
         column
         for column in (location_col, county_col)
@@ -45,6 +72,7 @@ def forward_fill_locations_with_context(housing_df, location_col, county_col):
 
 
 def build_county_context_column(housing_df, location_col, county_col, temp_col):
+    """Build a forward-filled temporary county context column. Test file: scripts/unit_tests/pophousing/cleaning/test_hierarchical_location_cleaning.py"""
     if location_col not in housing_df.columns:
         raise KeyError(f"Missing column: {location_col}")
 

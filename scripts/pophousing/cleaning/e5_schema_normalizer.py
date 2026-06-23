@@ -1,4 +1,29 @@
+"""
+e5_schema_normalizer.py — validates, trims, and renames columns from a raw DoF E-5 worksheet.
+
+Data sources:
+    - pandas.DataFrame inputs — raw E-5 worksheet rows and columns
+    - column names and mappings — schema configuration supplied by the cleaning pipeline
+
+Outputs:
+    - pandas.DataFrame — width-validated, data-anchored, or renamed E-5 records
+
+Usage:
+    python scripts/pophousing/cleaning/e5_schema_normalizer.py
+
+Test Folders:
+    - scripts/unit_tests/pophousing/cleaning/
+"""
+
+"""
+========================================================================================================================
+E-5 Schema Normalization
+========================================================================================================================
+"""
+
+
 def normalize_e5_columns(raw_e5_df, column_names):
+    """Apply configured names after validating worksheet width. Test file: scripts/unit_tests/pophousing/cleaning/test_e5_schema_normalizer.py"""
     actual_width = len(raw_e5_df.columns)
     expected_width = len(column_names)
     if actual_width != expected_width:
@@ -12,6 +37,7 @@ def normalize_e5_columns(raw_e5_df, column_names):
 
 
 def trim_to_first_data_row(raw_e5_df, anchor_value, column):
+    """Trim metadata rows before the first configured data anchor. Test file: scripts/unit_tests/pophousing/cleaning/test_e5_schema_normalizer.py"""
     if column not in raw_e5_df.columns:
         raise KeyError(f"missing column: {column}")
 
@@ -24,6 +50,7 @@ def trim_to_first_data_row(raw_e5_df, anchor_value, column):
 
 
 def rename_e5_schema(raw_e5_df, mapping):
+    """Rename raw E-5 columns using a validated mapping. Test file: scripts/unit_tests/pophousing/cleaning/test_e5_schema_normalizer.py"""
     missing_columns = [column for column in mapping if column not in raw_e5_df.columns]
     if missing_columns:
         raise KeyError(f"missing columns: {', '.join(missing_columns)}")

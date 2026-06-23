@@ -1,3 +1,19 @@
+"""
+geography.py — exposes defensive copies of Population & Housing geography configuration.
+
+Data sources:
+    - lib/pophousing_config.py — regions, counties, towns, and city-name mappings
+
+Outputs:
+    - dict — geography names, mappings, valid levels, and classification thresholds
+
+Usage:
+    python scripts/pophousing/config/geography.py
+
+Test Folders:
+    - scripts/unit_tests/pophousing/config/
+"""
+
 from lib.pophousing_config import (
     ALL_TOWNS,
     AMBIGUOUS_CITY_NAMES,
@@ -8,8 +24,15 @@ from lib.pophousing_config import (
     REGIONS_MAPPING,
 )
 
+"""
+========================================================================================================================
+Geography Configuration
+========================================================================================================================
+"""
+
 
 def get_geography_config():
+    """Return isolated geography configuration values. Test file: scripts/unit_tests/pophousing/config/test_geography.py"""
     county_names = set(COUNTY_LEVEL)
     county_names.add("San Francisco")
     return {

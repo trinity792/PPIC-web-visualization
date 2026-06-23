@@ -1,9 +1,33 @@
+"""
+schemas.py — builds canonical E-5 schemas and cleaning and final-validation settings.
+
+Data sources:
+    - lib/pophousing_config.py — raw DoF E-5 column names
+    - system date — current year used as the maximum final-validation year
+
+Outputs:
+    - dict — column mappings, cleaning settings, output schema, and validation rules
+
+Usage:
+    python scripts/pophousing/config/schemas.py
+
+Test Folders:
+    - scripts/unit_tests/pophousing/config/
+"""
+
 from datetime import date
 
 from lib.pophousing_config import E5_COLUMN_NAMES
 
+"""
+========================================================================================================================
+Schema Configuration
+========================================================================================================================
+"""
+
 
 def get_schema_config():
+    """Return isolated schema and validation configuration. Test file: scripts/unit_tests/pophousing/config/test_schemas.py"""
     numeric_columns = [
         "Total Population",
         "Household Population",

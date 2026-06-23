@@ -1,3 +1,19 @@
+"""
+state_aggregation.py — fills missing California state years by aggregating county records.
+
+Data sources:
+    - pandas.DataFrame inputs — canonical county and state Population & Housing records
+
+Outputs:
+    - pandas.DataFrame — original records with missing state-year aggregates added
+
+Usage:
+    python scripts/pophousing/aggregation/state_aggregation.py
+
+Test Folders:
+    - scripts/unit_tests/pophousing/aggregation/
+"""
+
 import pandas as pd
 
 from scripts.pophousing.aggregation.aggregation_utils import (
@@ -6,10 +22,19 @@ from scripts.pophousing.aggregation.aggregation_utils import (
 )
 from scripts.pophousing.calculations.housing_metrics import recalculate_housing_rates
 
+# ── Constants ─────────────────────────────────────────────────────────────────
+
 _RATE_COLUMNS = {"Vacancy Rate (%)", "Persons Per Household"}
+
+"""
+========================================================================================================================
+State Aggregation
+========================================================================================================================
+"""
 
 
 def find_missing_state_years(housing_df, state_name, year_col):
+    """Find county years without a corresponding state row. Test file: scripts/unit_tests/pophousing/aggregation/test_state_aggregation.py"""
     required_columns = ["Location", "Geographic Level", year_col]
     missing_columns = [
         column for column in required_columns if column not in housing_df.columns
@@ -29,6 +54,7 @@ def find_missing_state_years(housing_df, state_name, year_col):
 
 
 def build_state_rows_from_counties(housing_df, missing_years, state_name):
+    """Aggregate county data into state rows for missing years. Test file: scripts/unit_tests/pophousing/aggregation/test_state_aggregation.py"""
     required_columns = ["Location", "Geographic Level", "Year"]
     missing_columns = [
         column for column in required_columns if column not in housing_df.columns
@@ -71,6 +97,7 @@ def build_state_rows_from_counties(housing_df, missing_years, state_name):
 
 
 def add_state_data_for_missing_years(housing_df, state_name):
+    """Add recalculated state rows for years absent from the input. Test file: scripts/unit_tests/pophousing/aggregation/test_state_aggregation.py"""
     missing_years = find_missing_state_years(housing_df, state_name, "Year")
     if not missing_years:
         return housing_df.copy()

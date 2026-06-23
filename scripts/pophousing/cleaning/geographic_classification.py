@@ -1,9 +1,34 @@
+"""
+geographic_classification.py — classifies and normalizes geographic rows in DoF E-5 housing data.
+
+Data sources:
+    - pandas.DataFrame inputs — cleaned E-5 locations, county context, and population values
+    - lib/pophousing_config.py — California geography names and classification settings
+
+Outputs:
+    - geographic level strings — row-level classification results
+    - pandas.DataFrame — records with normalized geographic levels and helper rows removed
+
+Usage:
+    python scripts/pophousing/cleaning/geographic_classification.py
+
+Test Folders:
+    - scripts/unit_tests/pophousing/cleaning/
+"""
+
 import pandas as pd
 
 from scripts.pophousing.config.geography import get_geography_config
 
+"""
+========================================================================================================================
+Geographic Classification
+========================================================================================================================
+"""
+
 
 def classify_ambiguous_location(location, county_context, population, housing_row, housing_df, row_index):
+    """Classify an ambiguous California location using row context. Test file: scripts/unit_tests/pophousing/cleaning/test_geographic_classification.py"""
     config = get_geography_config()
     if location == "County Total":
         return "County"
@@ -39,6 +64,7 @@ def classify_ambiguous_location(location, county_context, population, housing_ro
 
 
 def assign_geographic_level_with_context(location, county_context, population, housing_row, geography_config):
+    """Assign a geographic level from configured names and context. Test file: scripts/unit_tests/pophousing/cleaning/test_geographic_classification.py"""
     if location == "State Total" or location == geography_config["state_name"]:
         return "State"
     if location in geography_config["region_names"]:
@@ -55,6 +81,7 @@ def assign_geographic_level_with_context(location, county_context, population, h
 
 
 def resolve_county_total_rows(housing_df, location_col, temp_county_col):
+    """Replace county-total labels with their county context. Test file: scripts/unit_tests/pophousing/cleaning/test_geographic_classification.py"""
     missing_columns = [
         column
         for column in (location_col, temp_county_col)
@@ -76,6 +103,7 @@ def resolve_county_total_rows(housing_df, location_col, temp_county_col):
 
 
 def normalize_state_total_rows(housing_df, location_col, state_name):
+    """Normalize state-total labels and levels. Test file: scripts/unit_tests/pophousing/cleaning/test_geographic_classification.py"""
     if location_col not in housing_df.columns:
         raise KeyError(f"Missing column: {location_col}")
 
@@ -89,6 +117,7 @@ def normalize_state_total_rows(housing_df, location_col, state_name):
 
 
 def assign_missing_geographic_levels(housing_df, classifier_fn, location_col, county_col, population_col, level_col):
+    """Classify rows whose geographic level is missing. Test file: scripts/unit_tests/pophousing/cleaning/test_geographic_classification.py"""
     required_columns = [location_col, population_col]
     missing_columns = [
         column for column in required_columns if column not in housing_df.columns
@@ -115,6 +144,7 @@ def assign_missing_geographic_levels(housing_df, classifier_fn, location_col, co
 
 
 def apply_town_overrides(housing_df, town_list, location_col, level_col):
+    """Force configured towns to use the Town level. Test file: scripts/unit_tests/pophousing/cleaning/test_geographic_classification.py"""
     missing_columns = [
         column for column in (location_col, level_col) if column not in housing_df.columns
     ]
@@ -127,6 +157,7 @@ def apply_town_overrides(housing_df, town_list, location_col, level_col):
 
 
 def sanitize_geographic_levels(housing_df, valid_levels, default_level):
+    """Replace invalid geographic levels with the configured default. Test file: scripts/unit_tests/pophousing/cleaning/test_geographic_classification.py"""
     level_col = "Geographic Level"
     if level_col not in housing_df.columns:
         raise KeyError(f"Missing column: {level_col}")
@@ -138,6 +169,7 @@ def sanitize_geographic_levels(housing_df, valid_levels, default_level):
 
 
 def remove_balance_rows(housing_df, location_col):
+    """Remove balance-of-area summary rows. Test file: scripts/unit_tests/pophousing/cleaning/test_geographic_classification.py"""
     if location_col not in housing_df.columns:
         raise KeyError(f"Missing column: {location_col}")
 
@@ -148,11 +180,13 @@ def remove_balance_rows(housing_df, location_col):
 
 
 def drop_helper_columns(housing_df, columns):
+    """Drop temporary columns that exist in the dataframe. Test file: scripts/unit_tests/pophousing/cleaning/test_geographic_classification.py"""
     existing_columns = [column for column in columns if column in housing_df.columns]
     return housing_df.drop(columns=existing_columns).copy()
 
 
 def standardize_san_francisco_classification(housing_df, location_col, level_col):
+    """Represent San Francisco as both City and County rows. Test file: scripts/unit_tests/pophousing/cleaning/test_geographic_classification.py"""
     missing_columns = [
         column for column in (location_col, level_col) if column not in housing_df.columns
     ]

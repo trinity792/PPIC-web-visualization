@@ -1,9 +1,32 @@
+"""
+aggregation_validators.py — validates normalized housing rates after geographic aggregation.
+
+Data sources:
+    - pandas.DataFrame input — aggregated housing records containing years, rates, and levels
+
+Outputs:
+    - tuple — validity flag and validation-message list
+
+Usage:
+    python scripts/pophousing/validation/aggregation_validators.py
+
+Test Folders:
+    - scripts/unit_tests/pophousing/validation/
+"""
+
 import pandas as pd
 
 from scripts.shared.validation.dataframe_validators import validate_numeric_range
 
+"""
+========================================================================================================================
+Aggregation Validation
+========================================================================================================================
+"""
+
 
 def validate_normalized_housing_rates(housing_df, year_col, rate_col, level_col):
+    """Validate rate ranges and detect likely decimal fractions. Test file: scripts/unit_tests/pophousing/validation/test_aggregation_validators.py"""
     required_columns = [year_col, rate_col, level_col]
     missing_columns = [
         column for column in required_columns if column not in housing_df.columns

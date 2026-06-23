@@ -1,3 +1,22 @@
+"""
+dof_e5_downloader.py — discovers, downloads, caches, and reads the latest DoF E-5 workbook.
+
+Data sources:
+    - California Department of Finance estimates page — identifies the latest E-5 report page
+    - California Department of Finance E-5 report page — links to the current E-5 workbook
+    - {download_directory}/E-5-{YEAR}_Geo_InternetVersion.xlsx — cached or fallback workbook
+
+Outputs:
+    - {download_directory}/E-5-{YEAR}_Geo_InternetVersion.xlsx — downloaded workbook cache
+    - pandas.DataFrame — second worksheet from the selected E-5 workbook
+
+Usage:
+    python scripts/pophousing/acquisition/dof_e5_downloader.py
+
+Test Folders:
+    - scripts/unit_tests/pophousing/acquisition/
+"""
+
 import re
 import time
 from pathlib import Path
@@ -9,14 +28,26 @@ from bs4 import BeautifulSoup
 
 from scripts.shared.downloads.http_downloads import HTTPDownloadError, download_file, fetch_response
 
+# ── Constants ─────────────────────────────────────────────────────────────────
+
 E5_FILENAME_PATTERN = r"E-5-\d{4}_Geo_InternetVersion\.xlsx"
 
 
 class E5DiscoveryError(RuntimeError):
+    """Report an error while locating an E-5 workbook. Test file: scripts/unit_tests/pophousing/acquisition/test_dof_e5_downloader.py"""
+
     pass
 
 
+"""
+========================================================================================================================
+Workbook Discovery
+========================================================================================================================
+"""
+
+
 def get_e5_file_url(source_settings):
+    """Locate the current E-5 workbook URL. Test file: scripts/unit_tests/pophousing/acquisition/test_dof_e5_downloader.py"""
     base_url = source_settings["base_url"]
     headers = source_settings.get("requests_headers", {})
     timeout = source_settings.get("request_timeout_seconds", 60)
@@ -63,13 +94,22 @@ def get_e5_file_url(source_settings):
 
 
 def get_e5_filename_from_url(url, filename_pattern=E5_FILENAME_PATTERN):
+    """Extract and validate an E-5 filename from a URL. Test file: scripts/unit_tests/pophousing/acquisition/test_dof_e5_downloader.py"""
     filename = Path(unquote(urlparse(url).path)).name
     if not re.fullmatch(filename_pattern, filename, re.IGNORECASE):
         raise ValueError(f"URL does not contain a valid E-5 filename: {url}")
     return filename
 
 
+"""
+========================================================================================================================
+Workbook Retrieval
+========================================================================================================================
+"""
+
+
 def download_e5_data(url, download_directory, cache_max_age_days, headers=None, timeout=60):
+    """Return E-5 data from a fresh cache or downloaded workbook. Test file: scripts/unit_tests/pophousing/acquisition/test_dof_e5_downloader.py"""
     if cache_max_age_days < 0:
         raise ValueError("cache_max_age_days must be non-negative")
 
@@ -92,6 +132,7 @@ def download_e5_data(url, download_directory, cache_max_age_days, headers=None, 
 
 
 def get_most_recent_e5_file(download_directory, filename_pattern, fallback_max_age_days):
+    """Read the newest valid fallback E-5 workbook within the age limit. Test file: scripts/unit_tests/pophousing/acquisition/test_dof_e5_downloader.py"""
     if fallback_max_age_days < 0:
         raise ValueError("fallback_max_age_days must be non-negative")
 
@@ -123,7 +164,10 @@ def get_most_recent_e5_file(download_directory, filename_pattern, fallback_max_a
     return None
 
 
+# ── Workbook Reader ───────────────────────────────────────────────────────────
+
 def _read_e5_workbook(workbook_path):
+    """Read the data worksheet from an E-5 workbook. Test file: scripts/unit_tests/pophousing/acquisition/test_dof_e5_downloader.py"""
     try:
         with pd.ExcelFile(workbook_path) as excel_file:
             if len(excel_file.sheet_names) < 2:

@@ -1,7 +1,31 @@
+"""
+row_filters.py — filters dataframe rows by year, summary labels, headers, and meaningful content.
+
+Data sources:
+    - pandas.DataFrame inputs — tabular records supplied by data-cleaning pipelines
+    - configured year bounds and row-label patterns — criteria for retaining records
+
+Outputs:
+    - pandas.DataFrame — copied and reindexed records that satisfy each filter
+
+Usage:
+    python scripts/shared/data_cleaning/row_filters.py
+
+Test Folders:
+    - scripts/unit_tests/shared/data_cleaning/
+"""
+
 import pandas as pd
+
+"""
+========================================================================================================================
+Row Filters
+========================================================================================================================
+"""
 
 
 def filter_year_range(dataframe, year_col, min_year, max_year):
+    """Keep rows within inclusive configured year bounds. Test file: scripts/unit_tests/shared/data_cleaning/test_row_filters.py"""
     if year_col not in dataframe.columns:
         raise KeyError(f"missing column: {year_col}")
     if max_year is not None and min_year > max_year:
@@ -17,6 +41,7 @@ def filter_year_range(dataframe, year_col, min_year, max_year):
 def remove_summary_rows(
     dataframe, location_col, keep_values, summary_patterns=None
 ):
+    """Remove matching summary rows except protected values. Test file: scripts/unit_tests/shared/data_cleaning/test_row_filters.py"""
     if location_col not in dataframe.columns:
         raise KeyError(f"Missing column: {location_col}")
     if not summary_patterns:
@@ -35,6 +60,7 @@ def remove_summary_rows(
 
 
 def remove_header_like_rows(dataframe, location_col, patterns):
+    """Remove rows whose location text matches header patterns. Test file: scripts/unit_tests/shared/data_cleaning/test_row_filters.py"""
     if location_col not in dataframe.columns:
         raise KeyError(f"Missing column: {location_col}")
     if not patterns:
@@ -49,6 +75,7 @@ def remove_header_like_rows(dataframe, location_col, patterns):
 
 
 def drop_empty_rows_without_data(dataframe, location_col, data_cols):
+    """Drop rows lacking both a location and meaningful numeric data. Test file: scripts/unit_tests/shared/data_cleaning/test_row_filters.py"""
     required_columns = [location_col, *data_cols]
     missing_columns = [
         column for column in required_columns if column not in dataframe.columns

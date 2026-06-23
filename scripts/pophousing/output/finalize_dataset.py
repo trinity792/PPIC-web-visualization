@@ -1,9 +1,33 @@
+"""
+finalize_dataset.py — validates, orders, sorts, and atomically writes the final housing dataset.
+
+Data sources:
+    - pandas.DataFrame — merged Population & Housing records supplied by the pipeline
+
+Outputs:
+    - pandas.DataFrame — canonical output columns with normalized years and source
+    - {output_path}.csv — atomically written final Population & Housing dataset
+
+Usage:
+    python scripts/pophousing/output/finalize_dataset.py
+
+Test Folders:
+    - scripts/unit_tests/pophousing/output/
+"""
+
 from pathlib import Path
 
 import pandas as pd
 
+"""
+========================================================================================================================
+Output Preparation
+========================================================================================================================
+"""
+
 
 def prepare_housing_output(housing_df, source_name, output_columns, sort_columns):
+    """Prepare canonical, sorted housing output without mutating the input. Test file: scripts/unit_tests/pophousing/output/test_finalize_dataset.py"""
     missing_columns = [
         column
         for column in output_columns
@@ -35,7 +59,15 @@ def prepare_housing_output(housing_df, source_name, output_columns, sort_columns
     )
 
 
+"""
+========================================================================================================================
+Output Writing
+========================================================================================================================
+"""
+
+
 def write_housing_output(housing_df, output_path):
+    """Atomically write housing records to CSV and return the path. Test file: scripts/unit_tests/pophousing/output/test_finalize_dataset.py"""
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     temporary_path = output_path.with_name(f"{output_path.name}.tmp")

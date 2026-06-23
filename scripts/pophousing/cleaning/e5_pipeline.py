@@ -1,3 +1,21 @@
+"""
+e5_pipeline.py — runs the complete cleaning and validation pipeline for modern DoF E-5 data.
+
+Data sources:
+    - pandas.DataFrame — raw second worksheet from a DoF E-5 workbook
+    - schema_config — canonical E-5 columns, mappings, year bounds, and validation rules
+    - geography_config — California locations, regions, towns, and classification rules
+
+Outputs:
+    - pandas.DataFrame — validated E-5 records in the canonical Population & Housing schema
+
+Usage:
+    python scripts/pophousing/cleaning/e5_pipeline.py
+
+Test Folders:
+    - scripts/unit_tests/pophousing/cleaning/
+"""
+
 from scripts.pophousing.calculations.housing_metrics import (
     add_housing_derived_columns,
 )
@@ -38,8 +56,15 @@ from scripts.shared.data_cleaning.type_conversions import (
     parse_year_from_date,
 )
 
+"""
+========================================================================================================================
+E-5 Cleaning Pipeline
+========================================================================================================================
+"""
+
 
 def clean_e5_data(raw_e5_df, schema_config, geography_config):
+    """Clean and validate raw E-5 data in canonical column order. Test file: scripts/unit_tests/pophousing/cleaning/test_e5_pipeline.py"""
     housing_df = normalize_e5_columns(
         raw_e5_df, schema_config["e5_column_names"]
     )

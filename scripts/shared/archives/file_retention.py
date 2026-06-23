@@ -1,10 +1,35 @@
+"""
+file_retention.py — finds expired files and either archives or permanently deletes them.
+
+Data sources:
+    - {directory}/{FILENAME} — files evaluated by name pattern and modification age
+
+Outputs:
+    - {archive_directory}/{FILENAME} — uniquely named archived files when an archive is configured
+    - file deletion — source files are permanently removed when no archive directory is configured
+    - list[pathlib.Path] — archived destinations or deleted source paths
+
+Usage:
+    python scripts/shared/archives/file_retention.py
+
+Test Folders:
+    - scripts/unit_tests/shared/archives/
+"""
+
 import re
 import shutil
 import time
 from pathlib import Path
 
+"""
+========================================================================================================================
+File Retention
+========================================================================================================================
+"""
+
 
 def find_files_older_than(directory, max_age_days, filename_pattern):
+    """Find matching files at or beyond an age threshold. Test file: scripts/unit_tests/shared/archives/test_file_retention.py"""
     if max_age_days < 0:
         raise ValueError("max_age_days must be non-negative")
 
@@ -26,6 +51,7 @@ def find_files_older_than(directory, max_age_days, filename_pattern):
 
 
 def archive_or_delete_files(file_paths, archive_directory):
+    """Archive files uniquely or delete them when no archive is configured. Test file: scripts/unit_tests/shared/archives/test_file_retention.py"""
     archived_or_deleted_paths = []
     archive_directory = Path(archive_directory) if archive_directory is not None else None
 

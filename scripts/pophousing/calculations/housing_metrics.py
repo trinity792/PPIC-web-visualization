@@ -1,8 +1,31 @@
+"""
+housing_metrics.py — derives housing-unit totals and recalculates vacancy and household rates.
+
+Data sources:
+    - pandas.DataFrame inputs — canonical Population & Housing unit and population values
+
+Outputs:
+    - pandas.DataFrame — housing records with derived totals or recalculated rates
+
+Usage:
+    python scripts/pophousing/calculations/housing_metrics.py
+
+Test Folders:
+    - scripts/unit_tests/pophousing/calculations/
+"""
+
 import numpy as np
 import pandas as pd
 
+"""
+========================================================================================================================
+Housing Metrics
+========================================================================================================================
+"""
+
 
 def add_housing_derived_columns(housing_df):
+    """Add single-family, multifamily, and vacant-unit totals. Test file: scripts/unit_tests/pophousing/calculations/test_housing_metrics.py"""
     required_columns = [
         "Single Family Detached Units",
         "Single Family Attached Units",
@@ -37,6 +60,7 @@ def add_housing_derived_columns(housing_df):
 
 
 def recalculate_housing_rates(housing_df, row_mask):
+    """Recalculate vacancy and persons-per-household rates for selected rows. Test file: scripts/unit_tests/pophousing/calculations/test_housing_metrics.py"""
     required_columns = [
         "Vacant Units",
         "Total Housing Units",

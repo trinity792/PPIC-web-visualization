@@ -1,3 +1,26 @@
+"""
+pophousing_pipeline.py — orchestrates acquisition, cleaning, enrichment, validation, and output of housing data.
+
+Data sources:
+    - California Department of Finance estimates pages — current E-5 workbook discovery
+    - {download_directory}/E-5-{YEAR}_Geo_InternetVersion.xlsx — downloaded or cached modern data
+    - {historical_data_path}.csv — canonical historical E-8 housing records
+    - lib/pophousing_config.py — paths, schemas, sources, and California geography settings
+
+Outputs:
+    - {current_data_path}.csv — validated canonical Population & Housing dataset
+    - {archive_directory}/{FILENAME}.csv — archived prior output and expired E-5 files
+    - {deletion_log_directory}/{WORKBOOK}_deletion-warning-{DAYS}-days.txt — retention warnings
+    - dict — output path, row count, year range, and geographic-level counts
+
+Usage:
+    python scripts/orchestrators/pophousing_pipeline.py
+
+Test Folders:
+    - scripts/unit_tests/orchestrators/
+    - scripts/unit_tests/pophousing/integration/
+"""
+
 from typing import NoReturn
 
 import pandas as pd
@@ -39,18 +62,33 @@ from scripts.pophousing.validation.historical_data_validator import validate_his
 from scripts.shared.archives.file_retention import archive_or_delete_files
 from scripts.shared.downloads.http_downloads import HTTPDownloadError
 
+"""
+========================================================================================================================
+Pipeline Errors
+========================================================================================================================
+"""
+
 
 class PipelinePhaseError(RuntimeError):
-    """Raised when a named pipeline phase cannot complete."""
+    """Report failure of a named pipeline phase. Test file: scripts/unit_tests/orchestrators/test_pophousing_pipeline.py"""
 
 
 def _raise_phase_error(phase_name, error) -> NoReturn:
+    """Wrap an exception with its pipeline phase. Test file: scripts/unit_tests/orchestrators/test_pophousing_pipeline.py"""
     if isinstance(error, PipelinePhaseError):
         raise error
     raise PipelinePhaseError(f"{phase_name} failed: {error}") from error
 
 
+"""
+========================================================================================================================
+Population & Housing Pipeline
+========================================================================================================================
+"""
+
+
 def main():
+    """Run all six pipeline phases and return an output summary. Test file: scripts/unit_tests/orchestrators/test_pophousing_pipeline.py"""
     try:
         paths = get_paths()
         source_settings = get_source_settings()
@@ -247,6 +285,8 @@ def main():
     except Exception as error:
         _raise_phase_error("Phase 6", error)
 
+
+# ── Main Entry Point ──────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     main()

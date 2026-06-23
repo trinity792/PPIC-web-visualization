@@ -1,7 +1,31 @@
+"""
+rate_normalization.py — detects and converts vacancy rates stored as decimal fractions.
+
+Data sources:
+    - pandas.DataFrame inputs — housing records containing year, rate, and geographic level
+
+Outputs:
+    - pandas.Series — mask identifying decimal-fraction rates
+    - pandas.DataFrame — housing records with selected rates converted to percentages
+
+Usage:
+    python scripts/pophousing/calculations/rate_normalization.py
+
+Test Folders:
+    - scripts/unit_tests/pophousing/calculations/
+"""
+
 import pandas as pd
+
+"""
+========================================================================================================================
+Rate Normalization
+========================================================================================================================
+"""
 
 
 def find_decimal_fraction_rates(housing_df, year_col, rate_col, level_col, min_year):
+    """Identify recent non-state rates stored as decimal fractions. Test file: scripts/unit_tests/pophousing/calculations/test_rate_normalization.py"""
     required_columns = [year_col, rate_col, level_col]
     missing_columns = [
         column for column in required_columns if column not in housing_df.columns
@@ -20,6 +44,7 @@ def find_decimal_fraction_rates(housing_df, year_col, rate_col, level_col, min_y
 
 
 def normalize_decimal_fraction_rates(housing_df, rate_col, mask):
+    """Convert selected decimal-fraction rates to percentages. Test file: scripts/unit_tests/pophousing/calculations/test_rate_normalization.py"""
     if rate_col not in housing_df.columns:
         raise KeyError(f"missing column: {rate_col}")
     if not housing_df.index.equals(mask.index):

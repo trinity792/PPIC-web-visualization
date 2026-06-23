@@ -1,11 +1,35 @@
+"""
+historical_modern_merge.py — loads, filters, and combines historical E-8 and modern E-5 housing data.
+
+Data sources:
+    - {historical_file_path}.csv — historical E-8 housing records in the canonical schema
+    - pandas.DataFrame inputs — historical and modern housing records supplied by the pipeline
+
+Outputs:
+    - pandas.DataFrame — schema-aligned, filtered, merged, or overlap-resolved housing records
+
+Usage:
+    python scripts/pophousing/merging/historical_modern_merge.py
+
+Test Folders:
+    - scripts/unit_tests/pophousing/merging/
+"""
+
 from pathlib import Path
 
 import pandas as pd
 
 from scripts.pophousing.config.schemas import get_schema_config
 
+"""
+========================================================================================================================
+Historical Data Preparation
+========================================================================================================================
+"""
+
 
 def load_historical_housing_data(historical_file_path):
+    """Load canonical historical housing data and label it as E-8. Test file: scripts/unit_tests/pophousing/merging/test_historical_modern_merge.py"""
     historical_file_path = Path(historical_file_path)
     if not historical_file_path.is_file():
         raise FileNotFoundError(
@@ -33,6 +57,7 @@ def load_historical_housing_data(historical_file_path):
 
 
 def filter_historical_years(historical_housing_df, max_year):
+    """Keep valid historical records through the inclusive maximum year. Test file: scripts/unit_tests/pophousing/merging/test_historical_modern_merge.py"""
     year_column = "Year"
     if year_column not in historical_housing_df.columns:
         raise KeyError(f"missing column: {year_column}")
@@ -49,7 +74,15 @@ def filter_historical_years(historical_housing_df, max_year):
     return result.loc[result[year_column].le(max_year)].reset_index(drop=True)
 
 
+"""
+========================================================================================================================
+Dataset Merge
+========================================================================================================================
+"""
+
+
 def merge_historical_and_modern_data(historical_housing_df, modern_housing_df):
+    """Combine housing dataframes that share the same schema. Test file: scripts/unit_tests/pophousing/merging/test_historical_modern_merge.py"""
     historical_columns = historical_housing_df.columns.tolist()
     modern_columns = modern_housing_df.columns.tolist()
     historical_only_columns = [
@@ -73,6 +106,7 @@ def merge_historical_and_modern_data(historical_housing_df, modern_housing_df):
 
 
 def resolve_source_overlap(merged_housing_df, key_columns, source_priority):
+    """Resolve duplicate keys according to source priority. Test file: scripts/unit_tests/pophousing/merging/test_historical_modern_merge.py"""
     if len(source_priority) != len(set(source_priority)):
         raise ValueError("source_priority contains duplicates")
 

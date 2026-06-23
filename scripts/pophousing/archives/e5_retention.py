@@ -1,3 +1,20 @@
+"""
+e5_retention.py — archives expired DoF E-5 workbooks and writes advance deletion warnings.
+
+Data sources:
+    - {download_directory}/E-5-{YEAR}_Geo_InternetVersion.xlsx — cached E-5 workbooks
+
+Outputs:
+    - {archive_directory}/E-5-{YEAR}_Geo_InternetVersion.xlsx — archived expired workbooks
+    - {deletion_log_directory}/{WORKBOOK}_deletion-warning-{DAYS}-days.txt — warning logs
+
+Usage:
+    python scripts/pophousing/archives/e5_retention.py
+
+Test Folders:
+    - scripts/unit_tests/pophousing/archives/
+"""
+
 import math
 import re
 import time
@@ -5,6 +22,12 @@ from datetime import datetime
 from pathlib import Path
 
 from scripts.shared.archives.file_retention import archive_or_delete_files, find_files_older_than
+
+"""
+========================================================================================================================
+E-5 Retention
+========================================================================================================================
+"""
 
 
 def cleanup_old_e5_files(
@@ -15,6 +38,7 @@ def cleanup_old_e5_files(
     warning_days=(15, 10, 5, 1),
     deletion_log_directory=None,
 ):
+    """Archive expired E-5 workbooks and create due warnings. Test file: scripts/unit_tests/pophousing/archives/test_e5_retention.py"""
     download_directory = Path(download_directory)
     if not download_directory.exists():
         return {"archived_files": [], "warning_files": []}
@@ -41,6 +65,7 @@ def cleanup_old_e5_files(
 
 
 def write_deletion_warnings(file_paths, warning_days, deletion_log_directory, max_age_days=60):
+    """Write one warning log per file at configured age thresholds. Test file: scripts/unit_tests/pophousing/archives/test_e5_retention.py"""
     if max_age_days <= 0:
         raise ValueError("max_age_days must be greater than zero")
 

@@ -1,3 +1,20 @@
+"""
+final_dataset_validator.py — validates the complete canonical Population & Housing dataset.
+
+Data sources:
+    - pandas.DataFrame input — finalized Population & Housing records
+    - validation_config — schema, key, geography, year, and numeric-range rules
+
+Outputs:
+    - tuple — validity flag and detailed validation-message list
+
+Usage:
+    python scripts/pophousing/validation/final_dataset_validator.py
+
+Test Folders:
+    - scripts/unit_tests/pophousing/validation/
+"""
+
 import pandas as pd
 
 from scripts.shared.validation.dataframe_validators import (
@@ -6,8 +23,15 @@ from scripts.shared.validation.dataframe_validators import (
     validate_required_columns,
 )
 
+"""
+========================================================================================================================
+Final Dataset Validation
+========================================================================================================================
+"""
+
 
 def validate_final_housing_dataset(housing_df, validation_config):
+    """Validate final housing data against all configured output rules. Test file: scripts/unit_tests/pophousing/validation/test_final_dataset_validator.py"""
     messages = []
     if housing_df.empty:
         messages.append("Final housing dataset is empty")

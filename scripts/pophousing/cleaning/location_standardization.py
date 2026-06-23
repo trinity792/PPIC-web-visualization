@@ -1,11 +1,35 @@
+"""
+location_standardization.py — standardizes configured city and town names in housing records.
+
+Data sources:
+    - pandas.DataFrame inputs — classified housing locations
+    - lib/pophousing_config.py — canonical and historical city-name mappings
+
+Outputs:
+    - pandas.DataFrame — selected geographic levels with canonical location names
+
+Usage:
+    python scripts/pophousing/cleaning/location_standardization.py
+
+Test Folders:
+    - scripts/unit_tests/pophousing/cleaning/
+"""
+
 import re
 
 import pandas as pd
 
 from scripts.pophousing.config.geography import get_geography_config
 
+"""
+========================================================================================================================
+Location Standardization
+========================================================================================================================
+"""
+
 
 def standardize_location_column(housing_df, location_col, geo_col, only_levels):
+    """Standardize location names for selected geographic levels. Test file: scripts/unit_tests/pophousing/cleaning/test_location_standardization.py"""
     missing_columns = [
         column for column in (location_col, geo_col) if column not in housing_df.columns
     ]
@@ -18,6 +42,7 @@ def standardize_location_column(housing_df, location_col, geo_col, only_levels):
     protected_city_names = config["proper_names_ending_in_city"]
 
     def standardize_name(location):
+        """Return one canonical location name. Test file: scripts/unit_tests/pophousing/cleaning/test_location_standardization.py"""
         if pd.isna(location):
             return location
         normalized_location = str(location).strip()

@@ -1,7 +1,31 @@
+"""
+cleaning_validators.py — validates cleaned E-5 structure, keys, levels, and numeric values.
+
+Data sources:
+    - pandas.DataFrame input — cleaned canonical E-5 housing records
+    - validation_config — required columns, keys, levels, and nonnegative fields
+
+Outputs:
+    - tuple — validity flag and validation-message list
+
+Usage:
+    python scripts/pophousing/validation/cleaning_validators.py
+
+Test Folders:
+    - scripts/unit_tests/pophousing/validation/
+"""
+
 import pandas as pd
+
+"""
+========================================================================================================================
+Cleaning Validation
+========================================================================================================================
+"""
 
 
 def validate_cleaned_e5_data(housing_df, validation_config):
+    """Validate cleaned E-5 data against configured rules. Test file: scripts/unit_tests/pophousing/validation/test_cleaning_validators.py"""
     messages = []
     if housing_df.empty:
         messages.append("Cleaned E-5 data is empty")

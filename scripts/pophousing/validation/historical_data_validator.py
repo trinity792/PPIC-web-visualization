@@ -1,3 +1,20 @@
+"""
+historical_data_validator.py — loads and validates canonical historical Population & Housing CSV data.
+
+Data sources:
+    - {file_path}.csv — historical Population & Housing records
+    - validation_config — required years, levels, keys, null limits, and population bounds
+
+Outputs:
+    - tuple — validity flag and detailed validation-message list
+
+Usage:
+    python scripts/pophousing/validation/historical_data_validator.py
+
+Test Folders:
+    - scripts/unit_tests/pophousing/validation/
+"""
+
 from pathlib import Path
 
 import pandas as pd
@@ -9,8 +26,15 @@ from scripts.shared.validation.dataframe_validators import (
     validate_required_columns,
 )
 
+"""
+========================================================================================================================
+Historical Data Validation
+========================================================================================================================
+"""
+
 
 def validate_historical_housing_data(file_path, validation_config):
+    """Load and validate a historical housing CSV. Test file: scripts/unit_tests/pophousing/validation/test_historical_data_validator.py"""
     file_path = Path(file_path)
     if not file_path.is_file():
         raise FileNotFoundError(f"Historical data file not found: {file_path}")

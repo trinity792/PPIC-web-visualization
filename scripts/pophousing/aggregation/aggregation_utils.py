@@ -1,7 +1,30 @@
+"""
+aggregation_utils.py — provides shared row filtering, deduplication, and additive aggregation helpers.
+
+Data sources:
+    - pandas.DataFrame inputs — Population & Housing records supplied by aggregation stages
+
+Outputs:
+    - pandas.DataFrame — filtered, deduplicated, or aggregated housing records
+
+Usage:
+    python scripts/pophousing/aggregation/aggregation_utils.py
+
+Test Folders:
+    - scripts/unit_tests/pophousing/aggregation/
+"""
+
 import pandas as pd
+
+"""
+========================================================================================================================
+Aggregation Helpers
+========================================================================================================================
+"""
 
 
 def remove_existing_geographic_level(housing_df, level_col, level_name):
+    """Remove rows for a named geographic level. Test file: scripts/unit_tests/pophousing/aggregation/test_aggregation_utils.py"""
     if level_col not in housing_df.columns:
         raise KeyError(f"missing column: {level_col}")
     return housing_df.loc[~housing_df[level_col].eq(level_name)].copy().reset_index(
@@ -10,6 +33,7 @@ def remove_existing_geographic_level(housing_df, level_col, level_name):
 
 
 def deduplicate_geographic_rows(housing_df, location_col, year_col, level_col, preferred_level):
+    """Deduplicate location-year rows while preferring one level. Test file: scripts/unit_tests/pophousing/aggregation/test_aggregation_utils.py"""
     required_columns = [location_col, year_col, level_col]
     missing_columns = [
         column for column in required_columns if column not in housing_df.columns
@@ -38,6 +62,7 @@ def deduplicate_geographic_rows(housing_df, location_col, year_col, level_col, p
 
 
 def _aggregate_additive_columns(dataframe, group_col, excluded_columns):
+    """Sum numeric additive columns by a grouping column. Test file: scripts/unit_tests/pophousing/aggregation/test_aggregation_utils.py"""
     if dataframe.empty:
         return pd.DataFrame(columns=[group_col])
 

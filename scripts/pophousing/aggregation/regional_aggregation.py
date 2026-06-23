@@ -1,3 +1,20 @@
+"""
+regional_aggregation.py — builds regional Population & Housing rows from county records.
+
+Data sources:
+    - pandas.DataFrame inputs — canonical county-level housing records
+    - regions_mapping — region names mapped to their member counties
+
+Outputs:
+    - pandas.DataFrame — original records with recalculated regional aggregates
+
+Usage:
+    python scripts/pophousing/aggregation/regional_aggregation.py
+
+Test Folders:
+    - scripts/unit_tests/pophousing/aggregation/
+"""
+
 import pandas as pd
 
 from scripts.pophousing.aggregation.aggregation_utils import (
@@ -7,10 +24,19 @@ from scripts.pophousing.aggregation.aggregation_utils import (
 )
 from scripts.pophousing.calculations.housing_metrics import recalculate_housing_rates
 
+# ── Constants ─────────────────────────────────────────────────────────────────
+
 _RATE_COLUMNS = {"Vacancy Rate (%)", "Persons Per Household"}
+
+"""
+========================================================================================================================
+Regional Aggregation
+========================================================================================================================
+"""
 
 
 def build_regional_rows(housing_df, regions_mapping, location_col, level_col, year_col):
+    """Aggregate county records into configured regional rows. Test file: scripts/unit_tests/pophousing/aggregation/test_regional_aggregation.py"""
     required_columns = [location_col, level_col, year_col]
     missing_columns = [
         column for column in required_columns if column not in housing_df.columns
@@ -54,6 +80,7 @@ def build_regional_rows(housing_df, regions_mapping, location_col, level_col, ye
 
 
 def add_regional_data(housing_df, regions_mapping):
+    """Replace regional rows with recalculated county aggregates. Test file: scripts/unit_tests/pophousing/aggregation/test_regional_aggregation.py"""
     level_column = "Geographic Level"
     base_rows = remove_existing_geographic_level(
         housing_df, level_column, "Region"
