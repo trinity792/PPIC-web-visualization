@@ -294,7 +294,7 @@ Shared scripts and Population & Housing scripts must remain in separate director
 > - `scripts/orchestrators/`
 >   - `pophousing_pipeline.py`
 
-## `config.py`
+## `pophousing_config.py`
 
 **What it does:** Defines source URLs, request settings, file paths, E-5 column names, California counties, towns, regions, city-name mappings, incorporation dates, cache limits, and historical file configurations.
 
@@ -303,6 +303,10 @@ Shared scripts and Population & Housing scripts must remain in separate director
 **Migration:** Keep the configuration Population & Housing-specific. Shared scripts should not import it.
 
 > [!flag] Move and Split
+> - `lib/config.py`
+>   - Project-wide paths and generic HTTP defaults only
+> - `lib/pophousing_config.py`
+>   - Population & Housing source constants, schemas, California geography, and retention policy
 > - `scripts/pophousing/config/paths.py`
 >   - Data, download, archive, output, and log paths
 > - `scripts/pophousing/config/sources.py`
@@ -311,7 +315,7 @@ Shared scripts and Population & Housing scripts must remain in separate director
 >   - E-5 and E-8 column definitions and historical file schemas
 > - `scripts/pophousing/config/geography.py`
 >   - California counties, towns, regions, ambiguous names, and city-name mappings
-> - Do not create a duplicate shared configuration module.
+> - Keep dataset-specific values out of the shared configuration module.
 > - Pass required configuration values into shared functions as arguments.
 
 ## `logging_config.py`

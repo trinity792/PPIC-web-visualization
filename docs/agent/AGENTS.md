@@ -48,13 +48,14 @@ This VS Code workspace has two folders:
 - Run tests before committing
 - Check `docs/agent/` for project context before architectural changes;
   if not found there, check other folders within `docs/`
-- Read `lib/config.py` before making data-related changes — it is the single
-  source of truth for regions, geographic classifications, and column definitions
-- "Follow Python conventions in `docs/agent/python-conventions.md` when writing or modifying `.py` files."
+- Read `lib/pophousing_config.py` before making Population & Housing data changes —
+  it is the source of truth for regions, geographic classifications, and column definitions
+- "Follow Python conventions in `docs/agent/python_conventions.md` when writing or modifying `.py` files."
 
 ⚠️ **Ask first:**
 - Adding new dependencies (npm or pip)
-- Modifying `lib/config.py`
+- Modifying `lib/config.py` or a module-specific root config such as
+  `lib/pophousing_config.py`
 - Changing data schemas or output file formats
 - Restructuring folders under `scripts/` or `lib/`
 
@@ -72,7 +73,9 @@ This VS Code workspace has two folders:
 
 ## Context
 
-For full legacy codebase understanding, read `docs/technical/previous-tool-analysis.md`.
+For full legacy codebase understanding, read `docs/PPIC Summer 2026/human/previous_tool_analysis.md`.
+
+For the full project spec, read `docs/PPIC Summer 2026/technical/projectSpec.md`
 
 Additional context files (read when relevant):
-- `docs/agent/CLAUDE.md` — Claude-specific instructions
+- `CLAUDE.md` — Claude-specific instructions

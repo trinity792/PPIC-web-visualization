@@ -10,9 +10,10 @@ import logging
 import re
 from typing import Dict, List, Optional, Tuple
 
-import config
 import numpy as np
 import pandas as pd
+
+from lib import pophousing_config as config
 
 logger = logging.getLogger(__name__)
 

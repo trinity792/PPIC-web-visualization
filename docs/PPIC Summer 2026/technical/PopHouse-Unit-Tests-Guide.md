@@ -189,7 +189,7 @@ def test_fetch_response_success():
 
 ### Config Fixtures — From the Active Config Module
 
-Tests should import configuration from the module used by the source under test. Phase 1 and Phase 2 use `scripts/pophousing/config/paths.py` and `scripts/pophousing/config/sources.py`. Modules that still depend on legacy geography or schema constants may import those values from `lib/config.py`. Don't duplicate configuration values in test code — that's how drift happens.
+Tests should import configuration from the module used by the source under test. Phase 1 and Phase 2 use `scripts/pophousing/config/paths.py` and `scripts/pophousing/config/sources.py`. Modules that still depend on Population & Housing geography or schema constants may import those values from `lib/pophousing_config.py`. Don't duplicate configuration values in test code — that's how drift happens.
 
 ```python
 from scripts.pophousing.config.sources import get_source_settings
@@ -784,7 +784,7 @@ def multi_year_county_df():
 Pophousing tests import real configuration values. Don't duplicate mappings or lists:
 
 ```python
-from lib.config import (
+from lib.pophousing_config import (
     REGIONS_MAPPING, COUNTY_LEVEL, ALL_TOWNS,
     CITY_NAME_MAPPINGS, HISTORICAL_NAME_STANDARDIZATION,
     AMBIGUOUS_CITY_NAMES, E5_COLUMN_NAMES,

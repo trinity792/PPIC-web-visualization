@@ -1,6 +1,6 @@
 from datetime import date
 
-from lib.config import E5_COLUMN_NAMES
+from lib.pophousing_config import E5_COLUMN_NAMES
 
 
 def get_schema_config():

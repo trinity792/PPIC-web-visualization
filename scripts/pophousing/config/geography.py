@@ -1,4 +1,4 @@
-from lib.config import (
+from lib.pophousing_config import (
     ALL_TOWNS,
     AMBIGUOUS_CITY_NAMES,
     CITY_NAME_MAPPINGS,

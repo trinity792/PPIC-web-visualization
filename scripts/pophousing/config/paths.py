@@ -1,15 +1,21 @@
 from pathlib import Path
 
+from lib.pophousing_config import (
+    ARCHIVE_DATA_PATH,
+    CURRENT_DATA_PATH,
+    DELETION_LOG_DIR,
+    DOWNLOAD_DIR,
+    HISTORICAL_DATA_PATH,
+    ROOT_DIR,
+)
+
 
 def get_paths():
-    project_root = Path(__file__).resolve().parents[3]
-    data_directory = project_root / "data"
-    cleaned_housing_directory = data_directory / "data-cleaned" / "housing-population"
     return {
-        "project_root": project_root,
-        "download_directory": data_directory / "data-raw" / "housing-population",
-        "archive_directory": data_directory / "archive" / "housing-population",
-        "current_data_path": cleaned_housing_directory / "PopHousing_Current.csv",
-        "historical_data_path": cleaned_housing_directory / "PopHousing_Current.csv",
-        "deletion_log_directory": project_root / "logs" / "deletions",
+        "project_root": Path(ROOT_DIR),
+        "download_directory": Path(DOWNLOAD_DIR),
+        "archive_directory": Path(ARCHIVE_DATA_PATH),
+        "current_data_path": Path(CURRENT_DATA_PATH),
+        "historical_data_path": Path(HISTORICAL_DATA_PATH),
+        "deletion_log_directory": Path(DELETION_LOG_DIR),
     }

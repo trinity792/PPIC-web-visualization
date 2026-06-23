@@ -1,6 +1,7 @@
 # June 18th 2026
 - started refractor of PopHousing project
-- Need to create a general config.py file. Current one is just for the pophousing project
+- Split the former Population & Housing-only config into general `lib/config.py`
+  and specialized `lib/pophousing_config.py`.
 - once established, create a style-guide.md file for AI & people modifying the code -> then CLAUDE.md & whatever chatgpt's version is
 
 ---
@@ -20,7 +21,8 @@
 ## Refractor Guide
 | Existing file | New location | Why |
 | --- | --- | --- |
-| `config.py` | `lib/config.py` | Shared by everything: paths, regions, column defs |
+| General project config | `lib/config.py` | Shared repository paths and HTTP defaults only |
+| Population & Housing config | `lib/pophousing_config.py` | DOF, E-5/E-8, housing schema, and California geography rules |
 | `data_cleaning_utils.py` | `lib/data_cleaning_utils.py` | Shared cleaning functions |
 | `enhanced_forward_fill_helpers.py` | `lib/forward_fill_helpers.py` | Shared helper |
 | `logging_config.py` | `lib/logging_config.py` | Shared logging setup |
@@ -46,4 +48,3 @@ RE: [[pophousing-pipeline-refractor]]
   - Based on that analysis propose changes to make to "docs/PPIC Summer 2026/trinitys_notes/pophousing pipeline refractor.md" and provide justifications. Wait for user approval before making the changes. The pophousing pipeline refractor document is to act as an implementation guide.
   - Where possible reuse scripts that already exist rather than creating inline solutions. If an inline solution can be generalized, provide the user with what function to add to an existing script and await confirmation
   - Where possible resuse existing code during the refractor (from the original scripts in "/Users/trinity/Documents/Employment/PPIC/Previous Tool/Automated Data Pipeline/CA Population Housing/production_pipeline" -> scripts described in "docs/PPIC Summer 2026/trinitys_notes/pophousing-pipeline-refractor.md")
-
