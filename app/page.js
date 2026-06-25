@@ -1,5 +1,6 @@
 import { COLORS } from "@/lib/constants";
 import PopHousingLineSection from "@/components/charts/PopHousingLineSection";
+import ComponentsOfChangeLineSection from "@/components/charts/ComponentsOfChangeLineSection";
 
 export default function Home() {
   return (
@@ -25,6 +26,24 @@ export default function Home() {
       </p>
 
       <PopHousingLineSection />
+
+      <section style={{ marginTop: "40px" }}>
+        <h2
+          style={{
+            fontSize: "1.5rem",
+            fontWeight: 600,
+            color: COLORS.gray7,
+            marginBottom: "4px",
+          }}
+        >
+          Components of Change
+        </h2>
+        <p style={{ marginTop: 0, marginBottom: "24px", color: COLORS.gray5 }}>
+          Births, deaths, and migration trends from Department of Finance E-6 and Census component estimates.
+        </p>
+
+        <ComponentsOfChangeLineSection />
+      </section>
     </main>
   );
 }

@@ -2,7 +2,8 @@
 geography.py — exposes defensive copies of Population & Housing geography configuration.
 
 Data sources:
-    - lib/pophousing_config.py — regions, counties, towns, and city-name mappings
+    - scripts/shared/geography/california_geography.py — shared California county, region, and state geography
+    - lib/pophousing_config.py — towns, ambiguous names, and city-name mappings
 
 Outputs:
     - dict — geography names, mappings, valid levels, and classification thresholds
@@ -18,11 +19,10 @@ from lib.pophousing_config import (
     ALL_TOWNS,
     AMBIGUOUS_CITY_NAMES,
     CITY_NAME_MAPPINGS,
-    COUNTY_LEVEL,
     HISTORICAL_NAME_STANDARDIZATION,
     PROPER_NAMES_ENDING_IN_CITY,
-    REGIONS_MAPPING,
 )
+from scripts.shared.geography.california_geography import get_california_geography
 
 """
 ========================================================================================================================
@@ -33,14 +33,14 @@ Geography Configuration
 
 def get_geography_config():
     """Return isolated geography configuration values. Test file: scripts/unit_tests/pophousing/config/test_geography.py"""
-    county_names = set(COUNTY_LEVEL)
-    county_names.add("San Francisco")
+    california = get_california_geography()
     return {
-        "state_name": "California",
-        "county_names": county_names,
-        "region_names": set(REGIONS_MAPPING),
+        "state_name": california["state_name"],
+        "county_names": set(california["county_names"]),
+        "region_names": set(california["region_names"]),
         "regions_mapping": {
-            region: list(counties) for region, counties in REGIONS_MAPPING.items()
+            region: list(counties)
+            for region, counties in california["regions_mapping"].items()
         },
         "town_names": set(ALL_TOWNS),
         "ambiguous_city_names": set(AMBIGUOUS_CITY_NAMES),

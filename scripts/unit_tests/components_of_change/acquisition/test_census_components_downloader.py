@@ -1,0 +1,129 @@
+from types import SimpleNamespace
+from unittest.mock import Mock
+
+import pandas as pd
+import pytest
+
+from scripts.components_of_change.acquisition import census_components_downloader
+from scripts.components_of_change.acquisition.census_components_downloader import CensusComponentsDiscoveryError
+from scripts.components_of_change.config.sources import get_source_settings
+from scripts.shared.downloads.http_downloads import HTTPDownloadError
+
+
+def _settings(**overrides):
+    settings = get_source_settings()
+    settings.update(overrides)
+    return settings
+
+
+"""
+========================================================================================================================
+get_census_components_url
+========================================================================================================================
+"""
+
+
+def test_get_census_components_url_first_year_succeeds(monkeypatch):
+    # Arrange
+    mock_fetch = Mock(return_value=SimpleNamespace(content=b""))
+    monkeypatch.setattr(census_components_downloader, "fetch_response", mock_fetch)
+
+    # Act
+    url = census_components_downloader.get_census_components_url(_settings(census_initial_year=2024))
+
+    # Assert
+    assert "co-est2024-alldata.csv" in url
+    assert mock_fetch.call_count == 1
+
+
+def test_get_census_components_url_walks_backward_until_available(monkeypatch):
+    # Arrange: the two most recent years 404, the third responds.
+    responses = [
+        HTTPDownloadError("404"),
+        HTTPDownloadError("404"),
+        SimpleNamespace(content=b""),
+    ]
+    monkeypatch.setattr(census_components_downloader, "fetch_response", Mock(side_effect=responses))
+
+    # Act
+    url = census_components_downloader.get_census_components_url(_settings(census_initial_year=2024))
+
+    # Assert
+    assert "co-est2022-alldata.csv" in url
+
+
+def test_get_census_components_url_all_years_fail_raises(monkeypatch):
+    # Arrange
+    monkeypatch.setattr(
+        census_components_downloader,
+        "fetch_response",
+        Mock(side_effect=HTTPDownloadError("404")),
+    )
+
+    # Act / Assert
+    with pytest.raises(CensusComponentsDiscoveryError, match="within 3 years"):
+        census_components_downloader.get_census_components_url(
+            _settings(census_initial_year=2024, max_lookback_years=3)
+        )
+
+
+def test_get_census_components_url_chains_last_error(monkeypatch):
+    # Arrange
+    monkeypatch.setattr(
+        census_components_downloader,
+        "fetch_response",
+        Mock(side_effect=HTTPDownloadError("network down")),
+    )
+
+    # Act / Assert
+    with pytest.raises(CensusComponentsDiscoveryError) as exc_info:
+        census_components_downloader.get_census_components_url(
+            _settings(census_initial_year=2024, max_lookback_years=2)
+        )
+    assert isinstance(exc_info.value.__cause__, HTTPDownloadError)
+
+
+def test_get_census_components_url_override_limits_attempts(monkeypatch):
+    # Arrange
+    mock_fetch = Mock(side_effect=HTTPDownloadError("404"))
+    monkeypatch.setattr(census_components_downloader, "fetch_response", mock_fetch)
+
+    # Act / Assert
+    with pytest.raises(CensusComponentsDiscoveryError):
+        census_components_downloader.get_census_components_url(
+            _settings(census_initial_year=2024), max_lookback_years=2
+        )
+    assert mock_fetch.call_count == 2
+
+
+"""
+========================================================================================================================
+download_census_components
+========================================================================================================================
+"""
+
+
+def test_download_census_components_reads_local_csv(tmp_path):
+    # Arrange
+    csv_path = tmp_path / "co-est2024-alldata.csv"
+    pd.DataFrame({"STNAME": ["California"], "CTYNAME": ["Alameda"]}).to_csv(csv_path, index=False)
+
+    # Act
+    result = census_components_downloader.download_census_components(csv_path)
+
+    # Assert
+    assert list(result.columns) == ["STNAME", "CTYNAME"]
+    assert result.loc[0, "CTYNAME"] == "Alameda"
+
+
+def test_download_census_components_uses_latin1_python_engine(monkeypatch):
+    # Arrange
+    mock_read = Mock(return_value=pd.DataFrame())
+    monkeypatch.setattr(census_components_downloader.pd, "read_csv", mock_read)
+
+    # Act
+    census_components_downloader.download_census_components("https://example.com/data.csv")
+
+    # Assert
+    assert mock_read.call_args.kwargs["engine"] == "python"
+    assert mock_read.call_args.kwargs["encoding"] == "latin1"

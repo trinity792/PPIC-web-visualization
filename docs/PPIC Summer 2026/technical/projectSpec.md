@@ -1,13 +1,13 @@
 
 # Project Specification, Architecture & API Reference
 Web **Visualizations** Project
-Last Updated: June 23rd, 2026
+Last Updated: June 25th, 2026
 
 ---
 
 A single reference for the **web-data-visualization** project: what it is, how the codebase is laid out, the architecture every data module follows, and the conventions every contributor is expected to follow.
 
-The project is organized as a set of **data modules** — one per dataset — that each flow from a public data source through an ETL (**Extract-Transform-Load** — it's the scrape → clean → save data flow) pipeline to interactive charts on a shared website. **Population & Housing (PopHousing)** is the first module to be refactored from the legacy notebooks/Shiny app into this structure, and currently the only one. This document covers the project-wide scaffolding first, then uses PopHousing as the **reference implementation** that future modules should mirror.
+The project is organized as a set of **data modules** — one per dataset — that each flow from a public data source through an ETL (**Extract-Transform-Load** — it's the scrape → clean → save data flow) pipeline to interactive charts on a shared website. **Population & Housing (PopHousing)** is the first module refactored from the legacy notebooks/Shiny app into this structure, and **Components of Change** is the second — the first module built by *following* PopHousing's template rather than defining it, which is the project's first evidence that the module shape generalizes. This document covers the project-wide scaffolding first, uses PopHousing as the **reference implementation** that future modules should mirror, then documents Components of Change as a second worked example.
 
 ### How to read this document:
 
@@ -44,11 +44,12 @@ A **module** is one dataset's full vertical slice: its ETL pipeline under `scrip
 
 | Module | Source | Status |
 |---|---|---|
-| **Population & Housing** (PopHousing) | CA Dept. of Finance E-5 (modern) + E-8 (historical) estimates | **Active** — first module migrated. Modern path complete; historical (E-8) build and logging still stubbed. |
+| **Population & Housing** (PopHousing) | CA Dept. of Finance E-5 (modern) + E-8 (historical) estimates | **Active** — first module migrated. End-to-end complete, including the E-8 historical build; only cross-module logging remains stubbed. |
+| **Components of Change** | CA Dept. of Finance E-6 + U.S. Census county population component estimates | **Active** — second module migrated, built by mirroring PopHousing. Full pipeline, data contract, API route, and charts complete. |
 | **Demographic Projections** | (legacy notebook dataset) | **Planned** — directories reserved under `data/data-raw/demographic-projections/` and `data/data-cleaned/demographic-projections/`; no pipeline yet. |
 | *Remaining legacy datasets* | V1 notebooks | **Not started** — to be migrated into the same module shape. |
 
-The rest of this document documents the **project-wide architecture and conventions** (which apply to every module), then **The PopHousing Module** as the concrete reference implementation.
+The rest of this document documents the **project-wide architecture and conventions** (which apply to every module), then **The PopHousing Module** as the concrete reference implementation and **The Components of Change Module** as a second worked example.
 
 ---
 ## Tech Stack
@@ -79,27 +80,33 @@ Folders marked *(PopHousing)* are this first module's slice; the same shape repe
 ```
 web-data-visualization/
 ├── app/                          ← Next.js App Router
-│   ├── api/pophousing/route.js   ← GET /api/pophousing endpoint        (PopHousing)
+│   ├── api/pophousing/route.js              ← GET /api/pophousing endpoint            (PopHousing)
+│   ├── api/components-of-change/route.js    ← GET /api/components-of-change endpoint   (Components)
 │   ├── layout.js  page.js        ← root layout + landing page
 │   └── globals.css
 ├── components/
 │   ├── Navbar.js                 ← shared site shell
 │   └── charts/
-│       ├── LineChart.js              ← shared presentational Plotly wrapper
-│       └── PopHousingLineSection.js  ← client section (controls + fetch)  (PopHousing)
+│       ├── LineChart.js                     ← shared presentational Plotly wrapper
+│       ├── PopHousingLineSection.js         ← client section (controls + fetch)  (PopHousing)
+│       └── ComponentsOfChangeLineSection.js ← client section (controls + fetch)  (Components)
 ├── lib/
 │   ├── config.py                 ← shared project paths + generic HTTP defaults
 │   ├── pophousing_config.py      ← PopHousing source of truth: geography, regions, columns
 │   ├── constants.js              ← shared brand palette + Plotly color cycle
-│   └── data/pop_housing.js       ← server-only data-access layer over the CSV  (PopHousing)
+│   ├── data/pop_housing.js              ← server-only data-access layer over the CSV  (PopHousing)
+│   └── data/components_of_change.js     ← server-only data-access layer over the CSV  (Components)
 ├── scripts/                      ← Python ETL (see Module Reference)
-│   ├── shared/                   ← project-independent mechanisms (cross-module)
+│   ├── shared/                   ← cross-module mechanisms + reference data (downloads, data_cleaning, validation, visualizations, logging, geography)
 │   ├── pophousing/               ← California / E-5 / E-8 domain logic  (PopHousing module)
+│   ├── components_of_change/     ← E-6 / Census components domain logic  (Components module)
 │   ├── orchestrators/            ← per-module pipeline sequencing
 │   └── unit_tests/               ← pytest suite (mirrors source tree)
 ├── data/                         ← raw, cleaned, and archived data (git-ignored)
 │   ├── data-raw/housing-population/             ← PopHousing raw E-5 workbooks
 │   ├── data-cleaned/housing-population/PopHousing_Current.csv   ← PopHousing contract
+│   ├── data-raw/components-of-change/           ← Components raw E-6 / Census downloads + GeoJSON
+│   ├── data-cleaned/components-of-change/ComponentsOfChange_Current.csv  ← Components contract
 │   ├── data-raw/demographic-projections/        ← reserved for the next module
 │   ├── data-cleaned/demographic-projections/    ← reserved for the next module
 │   └── archive/housing-population/
@@ -141,7 +148,7 @@ The `scripts/` tree enforces a strict separation that is the central architectur
 
 | Layer | Directory | Role | May import from |
 |---|---|---|---|
-| **Shared** | `scripts/shared/` | Project-*independent* mechanisms (file retention, HTTP, generic DataFrame ops, generic validators, logging). Used by **every** module. | stdlib, third-party only |
+| **Shared** | `scripts/shared/` | Project-*independent* **mechanisms** (file retention, HTTP, generic DataFrame ops, generic validators, logging, chart builders) **plus cross-module reference data** (e.g. `geography/california_geography.py`). Used by **every** module. | stdlib, third-party, and the project config layer (`lib/`) for reference data |
 | **Domain** | `scripts/<module>/` (e.g. `pophousing/`) | Dataset-specific knowledge: schemas, geography/business rules, formulas, source-specific parsing, domain validation. | `scripts/shared/` |
 | **Orchestration** | `scripts/orchestrators/` | One entry point per module; sequences the phases, handles logging and errors. Contains no transformation logic. | shared + that module's domain |
 
@@ -154,9 +161,9 @@ shared helpers  →  <module> domain modules  →  <module> pipeline orchestrato
 The rules that follow from it:
 
 - `scripts/shared/` **must never import from** any module's domain package.
-- Shared functions receive column names, mappings, paths, and thresholds **as arguments** — they never reach for a specific dataset's columns or business rules on their own. If a shared function "knows" a California county name, the boundary has leaked.
+- Shared **mechanisms** receive column names, mappings, paths, and thresholds **as arguments** — they never reach for a specific dataset's columns or business rules on their own. If a shared *mechanism* "knows" a California county name, the boundary has leaked. The exception is an explicit shared **reference-data** provider (`shared/geography/california_geography.py`): reference data that two or more modules genuinely share *does* live in shared and may name real places — that is the point of it, and it reads only from the project config layer (`lib/`), never from a module.
 - Before writing a new domain helper, check whether a shared equivalent already exists. Duplicate implementations are only allowed when the behavior genuinely differs and cannot be expressed through arguments or callbacks — and the reason must be documented beside the specialized copy.
-- Modules do not import each other's domain packages; anything two modules both need belongs in `scripts/shared/`.
+- Modules do not import each other's domain packages; anything two modules both need belongs in `scripts/shared/` — as a generic mechanism if it is one, or as a reference-data provider if it is shared data (this is why California county/region geography lives in `shared/geography/`, consumed by both PopHousing and Components of Change).
 
 This is the same boundary the unit-testing guide enforces: tests for `scripts/shared/` use generic DataFrames and generic filenames; a module's tests use its real domain data.
 ### Worker vs. orchestrator functions
@@ -199,14 +206,27 @@ The raw E-5 workbook is not tabular. A county name appears once as a header row,
 ---
 ## Module Reference
 
-One entry per script. Each entry gives the file's **role**, a short explainer of what it does and why it exists, and a table of its public functions. Roles: **Shared mechanism** (domain-free), **Domain worker** (one transformation), **Domain orchestrator** (sequences workers), **Config**, **Stub** (signatures present, body `TODO` — see *Implementation Status*).
+One entry per script. Each entry gives the file's **role**, a short explainer of what it does and why it exists, and a table of its public functions. Roles: **Shared mechanism** (domain-free), **Shared reference data** (cross-module data), **Domain worker** (one transformation), **Domain orchestrator** (sequences workers), **Config**, **Stub** (signatures present, body `TODO` — see *Implementation Status*).
 
-The reading order follows the dependency direction: the cross-module `scripts/shared/` layer first (used by every module, documented here because PopHousing is its only consumer so far), then PopHousing's own domain packages that compose it, then the orchestrator that runs everything.
+The reading order follows the dependency direction: the cross-module `scripts/shared/` layer first (used by every module), then PopHousing's own domain packages that compose it, then the orchestrator that runs everything.
 
 ---
 ### `scripts/shared/` — project-independent mechanisms
 
-These modules know nothing about California, housing, or the DOF. They take column names, paths, patterns, and thresholds **as arguments**. They are the reusable foundation the domain layer builds on.
+Most of these modules know nothing about California, housing, or the DOF — they take column names, paths, patterns, and thresholds **as arguments** and are the reusable foundation the domain layer builds on. The one deliberate exception is the **reference-data** provider `geography/california_geography.py`, which owns California place names that more than one California module needs (see *The dependency boundary*).
+
+#### [`shared/geography/california_geography.py`](../../../scripts/shared/geography/california_geography.py) — *Shared reference data*
+The single owner of California county, region, and state reference geography, consumed by both PopHousing and Components of Change so neither reaches into the other's config. Reads the canonical county list and region-to-county mapping from the project config layer (`lib/pophousing_config.py`) and returns fresh, independently-mutable copies.
+
+| Function | Responsibility |
+|---|---|
+| `get_california_geography()` | Return `{state_name, county_names (incl. San Francisco), region_names, regions_mapping}` as fresh copies. |
+
+#### [`shared/archives/file_retention.py`](../../../scripts/shared/archives/file_retention.py) — *Shared mechanism*
+Generic file-age lookup and disposition. The mechanical half of the retention policy: find old files, then move or delete them. The *policy* (which files, how old, archive vs. delete) is supplied by the caller, so the same code serves E-5 retention today and any future dataset.
+
+| Function                                                           | Responsibility                                                                                                                                                                                                  |
+| ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 
 #### [`shared/archives/file_retention.py`](../../../scripts/shared/archives/file_retention.py) — *Shared mechanism*
 Generic file-age lookup and disposition. The mechanical half of the retention policy: find old files, then move or delete them. The *policy* (which files, how old, archive vs. delete) is supplied by the caller, so the same code serves E-5 retention today and any future dataset.
@@ -283,7 +303,7 @@ Each pipeline config module exposes one `get_*()` function returning a plain dic
 `get_schema_config()` — E-5 column names, the raw→pipeline rename map, the numeric/output/required column lists, the anchor row (`Alameda`), summary/header patterns, and the **cleaning** and **final** validation configs consumed by the validators.
 
 #### [`config/geography.py`](../../../scripts/pophousing/config/geography.py) — *Config*
-`get_geography_config()` — county/region/town/ambiguous-name sets, the region→county mapping, name-standardization maps, the five valid geographic levels, the default level, and population thresholds for ambiguous classification.
+`get_geography_config()` — county/region/town/ambiguous-name sets, the region→county mapping, name-standardization maps, the five valid geographic levels, the default level, and population thresholds for ambiguous classification. The county/region/state names and region→county mapping come from the shared [`california_geography`](../../../scripts/shared/geography/california_geography.py) provider; the town, ambiguous-name, and city-name-mapping pieces remain PopHousing-specific (from `lib/pophousing_config.py`).
 
 ---
 
@@ -300,8 +320,8 @@ Locates, caches, downloads, and loads the current **E-5** workbook. Combines the
 | `get_most_recent_e5_file(download_directory, filename_pattern, fallback_max_age_days)` | Offline fallback: load the newest valid local workbook within the age limit, or `None`. |
 | `_read_e5_workbook(path)` | Read the **second** worksheet (the data sheet); convert a missing `openpyxl` into a clear `RuntimeError`. |
 
-#### [`acquisition/dof_historical_downloader.py`](../../../scripts/pophousing/acquisition/dof_historical_downloader.py) — *Stub*
-Intended **E-8** historical workbook discovery/download: `get_historical_landing_page_urls`, `find_geography_workbook_url`, `download_historical_e8_files`. Bodies are `TODO`.
+#### [`acquisition/dof_historical_downloader.py`](../../../scripts/pophousing/acquisition/dof_historical_downloader.py) — *Domain worker*
+**E-8** historical workbook discovery/download over the shared HTTP layer: `get_historical_landing_page_urls`, `find_geography_workbook_url`, `download_historical_e8_files`. Raises **`E8DiscoveryError`** naming the broken structural/network assumption, mirroring the E-5 downloader.
 
 ---
 
@@ -449,9 +469,9 @@ Each composes the shared validators with domain rules and returns `(is_valid, me
 
 ---
 
-### `scripts/pophousing/historical/` — the E-8 build path *(all stubs)*
+### `scripts/pophousing/historical/` — the E-8 build path
 
-Scaffolded but not yet implemented. When built, these turn raw E-8 workbooks into the historical dataset Phase 4 consumes, reusing the same cleaning/classification/metric helpers as the E-5 path (no duplicate logic).
+Implemented: these turn raw E-8 workbooks into the historical dataset Phase 4 consumes, reusing the same cleaning/classification/metric helpers as the E-5 path (no duplicate logic). `build_historical_housing_dataset(file_configs)` is the entry point; per-era cleaners flatten each decade's layout, `standardize_e8_data` drops census-date rows and bounds years, and boundary-year resolution + missing-county recovery reconcile the decade seams.
 
 | Script | Intended responsibility |
 |---|---|
@@ -487,7 +507,7 @@ All of the module's tunable behavior lives in its `config/` functions, not scatt
 | Source priority on overlap | `E-5` over `E-8` | orchestrator |
 
 > [!flag] Current wiring note
-> `paths.get_paths()` currently points both `historical_data_path` and `current_data_path` at the same file (`PopHousing_Current.csv`). The dedicated E-8 historical-build pipeline that would populate a separate historical source is still stubbed, so Phase 4 reads historical rows from the current output. Revisit this when the `historical/` modules are implemented.
+> `paths.get_paths()` currently points both `historical_data_path` and `current_data_path` at the same file (`PopHousing_Current.csv`), so Phase 4 reads historical rows from the current output. The `historical/` E-8 build is now implemented as a standalone entry point (`build_historical_housing_dataset`) returning the canonical historical dataset, but it is **not yet wired into the main pipeline** to populate a separate historical source. Revisit this wiring (and split the two paths) when promoting the E-8 build into the orchestrated run.
 
 ---
 
@@ -568,6 +588,138 @@ PopHousing's performance choices — the patterns below carry over to any module
 
 ---
 
+# The Components of Change Module
+
+The **Components of Change** module is the **second dataset migrated** into the architecture above, and the first one built by *following* the PopHousing template rather than defining it — the project's first confirmation that the module shape generalizes. It tracks the drivers of annual population change — births, deaths, and the migration flows beneath them — for California counties, the nine custom regions, the state, and (from the Census source) every U.S. state.
+
+It departs from PopHousing in two deliberate ways, both worth understanding before reading the code:
+
+- **Two sources stay side by side in the contract.** Instead of collapsing to one canonical row per place-year, it keeps both the **DoF** and **Census** rows, tagged by `Source`; the frontend picks which to show. The contract grain is therefore `(Location, Year, Source)`.
+- **It saves incrementally.** PopHousing rewrites its CSV every run; Components writes **only when new source years are detected**, so the frequent re-runs its dual-source acquisition invites do not churn the contract.
+
+## Sources & Pipeline
+
+| Source | Provides | Boundary year |
+|---|---|---|
+| **CA Dept. of Finance E-6** | California county / region / state components of change | DoF rows start 1990 (`dof_boundary_year`) |
+| **U.S. Census county population estimates** | National county + state components | Census rows start 2010 (`census_boundary_year`) |
+
+The entry point is [`scripts/orchestrators/components_of_change_pipeline.py`](../../../scripts/orchestrators/components_of_change_pipeline.py). `build_components_dataset()` runs five phases, each wrapped so any exception re-raises as a **`ComponentsPipelinePhaseError`** tagged with the phase name. It returns a summary dict: dataframe, per-source *new-data* and *fallback* flags, output path (`None` when nothing changed), and row count.
+
+| Phase | Name | What happens | Primary modules |
+|---|---|---|---|
+| **1** | Setup & Load | Resolve config; load the existing canonical CSV as the historical + fallback source. | `config/*`, `merging/historical_merge` |
+| **2** | Acquisition (resilient) | Acquire each source through `acquire_with_fallback`: live discovery/download → manual raw CSV → last-saved rows for that source. The DoF step has both a primary and a positional URL-discovery strategy. | `acquisition/*`, `shared/downloads/http_downloads` |
+| **3** | Cleaning | `clean_e6` and `clean_census_components` normalize each source to the canonical schema; on failure they fall back to manual/saved rows so one broken source never fails the run. | `cleaning/*`, `calculations/demographic_rates` |
+| **4** | Merge & Change Detection | Combine each cleaned source with its historical rows, merge DoF + Census, and flag whether genuinely new source years arrived. | `merging/historical_merge`, `aggregation/regional_aggregation` |
+| **5** | Finalize, Validate & Save | Assign geographic level, enforce output column order, validate, and **archive + save only when new source data was detected** (otherwise the run is read-only). | `output/finalize_dataset`, `validation/dataset_validator` |
+
+### Acquisition & cleaning resilience (Phases 2–3)
+
+`acquire_with_fallback` is the module's analogue of PopHousing's defensive E-5 acquisition, generalized into a shared-style helper: it tries each live strategy in turn, then a manually-placed raw CSV (`E6_Downloaded.csv` / `Census_Components_Downloaded.csv` under `data/data-raw/components-of-change/`), then the rows already saved for that source in the canonical CSV. Cleaning repeats the same ladder, so a DoF outage still yields a complete dataset from Census plus saved DoF rows — with the run's `*_failed` / `*_used_manual` flags recording exactly which path was taken.
+
+---
+
+## Module Reference (Components of Change)
+
+Same layering as PopHousing: `scripts/shared/` mechanisms (documented above) → `scripts/components_of_change/` domain packages → the orchestrator. Only the domain packages are listed here.
+
+#### `acquisition/` — getting the two sources
+| Script | Public functions |
+|---|---|
+| `dof_e6_downloader.py` | `get_e6_file_url`, `get_e6_file_url_positional` (fallback discovery strategy), `download_e6_workbook` |
+| `census_components_downloader.py` | `get_census_components_url` (walks back through recent years), `download_census_components` |
+| `source_fallback.py` | `acquire_with_fallback` — generic *live → manual → saved* ladder used by both sources |
+
+#### `cleaning/` — normalizing each source to the canonical schema
+| Script | Public functions |
+|---|---|
+| `e6_cleaner.py` | `normalize_e6_columns`, `repair_truncated_county_names`, `forward_fill_locations_by_year_block`, `clean_e6` (orchestrator) |
+| `census_cleaner.py` | `map_state_abbreviations`, `reshape_census_wide_to_long`, `clean_census_components` (orchestrator) |
+
+#### `calculations/` · `aggregation/` — derived metrics and regions
+| Script | Public functions |
+|---|---|
+| `calculations/demographic_rates.py` | `add_crude_rates` (per-1,000 birth/death/migration rates), `recalculate_population_change` |
+| `aggregation/regional_aggregation.py` | `build_regional_rows`, `add_regional_data` — roll California counties into the nine regions |
+
+#### `merging/` — combining sources and detecting change
+| Script | Public functions |
+|---|---|
+| `historical_merge.py` | `load_canonical_dataset`, `combine_source_with_historical`, `detect_new_source_data` (drives the incremental save), `merge_dof_and_census` |
+
+#### `output/` · `validation/` — contract and gates
+| Script | Public functions |
+|---|---|
+| `output/finalize_dataset.py` | `assign_geographic_level`, `prepare_components_output`, `write_components_output`, `archive_and_save` |
+| `validation/dataset_validator.py` | `validate_components_dataset` — the final gate before save |
+| `validation/input_validators.py` | `validate_parameters` / `validate_locations` / `validate_source` / `validate_subset` / `validate_metric_of_change` / `validate_year_bounds`, plus `expand_locations`, `locations_for_subset` (shared by the notebook/API surfaces) |
+
+#### `visualizations.py` — notebook-facing charts
+Thin line / bar / choropleth wrappers over the new cross-module [`scripts/shared/visualizations/`](../../../scripts/shared/visualizations/) (`line_chart`, `bar_chart`, `choropleth_map`) — generic Plotly figure builders added with this module and available to every future one.
+
+---
+
+## Configuration Reference (Components of Change)
+
+| Setting | Value | Source |
+|---|---|---|
+| DoF estimates URL | `https://dof.ca.gov/forecasting/demographics/estimates/` | `sources.py` |
+| Census CSV template | `…/2020-{year}/counties/totals/co-est{year}-alldata.csv` | `sources.py` |
+| Census lookback | start at current year, up to `max_lookback_years` (10) back | `sources.py` |
+| E-6 worksheet index | 1 (second sheet) | `sources.py` |
+| DoF / Census boundary years | 1990 / 2010 | `sources.py` |
+| Manual fallback filenames | `E6_Downloaded.csv`, `Census_Components_Downloaded.csv` | `sources.py`, `paths.py` |
+| Valid geographic levels | State, Region, County, Other | `geography.py` |
+| Duplicate key | `Location, Year, Source` | `columns.py` |
+
+Components sources its California county/region names from the shared [`california_geography`](../../../scripts/shared/geography/california_geography.py) provider — the same single source of truth PopHousing uses — so the geography no longer crosses the module boundary.
+
+> [!flag] Remaining cross-module import
+> One boundary crossing still exists outside geography: [`components_of_change/aggregation/regional_aggregation.py`](../../../scripts/components_of_change/aggregation/regional_aggregation.py) imports the private `_aggregate_additive_columns` helper from `pophousing.aggregation.aggregation_utils`. That additive-sum helper is the natural next thing to promote into `scripts/shared/` (it carries no domain knowledge); it was left in place here because the requested change was scoped to geography.
+
+---
+
+## Data Contract (Components of Change)
+
+The pipeline's output — `data/data-cleaned/components-of-change/ComponentsOfChange_Current.csv` — is the module's contract; changing it is an "ask first" action.
+
+**Grain:** one row per `(Location, Year, Source)` — both `DoF` and `Census` rows can coexist for the same place and year.
+
+**Geographic levels:** `County` (CA), `Region` (9 custom CA regions), `State` (California **and** every U.S. state, by two-letter abbreviation, from Census). National `States` data is Census-only.
+
+**Year coverage:** 1991–present (currently through 2024).
+
+**Columns** (output order, from `columns.get_columns_config()`):
+
+```
+Geographic Level, Location, Year,
+Total Population, Percent Change in Population, Numeric Change in Population,
+Births, Deaths, Natural Increase,
+Net Migration, Net Foreign Immigration, Net Domestic Migration,
+Crude Birth Rate, Crude Death Rate, Crude Migration Rate,
+Crude Domestic Migration Rate, Crude Foreign Migration Rate, Source
+```
+
+The five `Crude … Rate` columns are per-1,000-population rates derived in `calculations/demographic_rates.py`.
+
+---
+
+## Frontend (Components of Change)
+
+Same three-tier read path as PopHousing, with one extra dimension — **source**.
+
+### `lib/data/components_of_change.js` — data-access layer (server-only)
+Owns reading, parsing, and filtering of the CSV (`node:fs`, never imported into a client component). `queryLineSeries({ parameter, subset, source, locations, startYear, endYear })` filters by source → geographic level → location → year and returns one series per location plus the observed `yearRange`. Exports `AVAILABLE_PARAMETERS`, `AVAILABLE_SOURCES` (`DoF`, `Census`), `AVAILABLE_SUBSETS`, and `SUBSET_TO_LEVELS`.
+
+### `app/api/components-of-change/route.js` — API endpoint (orchestrator)
+`GET /api/components-of-change` — validates `parameter`, `subset`, and `source` (defaulting `source` to `DoF`), enforces that the `States` subset is **Census-only**, then delegates to the data module. Errors carry a `source` string (`"components_of_change API: …"`) identifying the failed stage, mirroring PopHousing.
+
+### React components
+`charts/ComponentsOfChangeLineSection.js` is the client section (metric / subset / source controls + fetch + loading/empty/error states); it reuses the shared `LineChart` and `lib/constants.js` palette.
+
+---
+
 ## Conventions & Standards
 
 *Project-wide — these apply to every module, not just PopHousing.*
@@ -592,9 +744,9 @@ Every `.py` file follows [`docs/agent/python_conventions.md`](../agent/python_co
 
 ### The dependency boundary (restated, because it matters)
 - `scripts/shared/` may not import any module's domain package.
-- Shared functions take config as arguments; they never embed a dataset's columns or business rules.
+- Shared *mechanisms* take config as arguments; they never embed a dataset's columns or business rules. Shared *reference-data* providers (e.g. `geography/california_geography.py`) are the explicit exception — they own data multiple modules share and may name real places, reading only from `lib/`.
 - One canonical implementation per policy within a module (in PopHousing: name standardization, geographic classification, housing formulas) — no duplicate copies across its sub-packages.
-- Modules never import each other; shared needs go in `scripts/shared/`.
+- Modules never import each other; shared needs go in `scripts/shared/` (a mechanism if generic, a reference-data provider if shared data).
 
 ### Working agreements (`AGENTS.md`)
 - Make the smallest working change; match existing patterns; don't touch unrelated files.
@@ -619,7 +771,7 @@ Validators **return structured results rather than printing**; only the orchestr
 
 ## Testing
 
-*Project-wide standard; the current suite covers the PopHousing module.*
+*Project-wide standard; the current suite covers the PopHousing and Components of Change modules.*
 
 The pytest suite lives in `scripts/unit_tests/`, **mirroring the source tree** (each source file → a `test_{module}.py` in the same relative position). Full requirements are in [`PopHouse-Unit-Tests-Guide.md`](./PopHouse-Unit-Tests-Guide.md). Highlights:
 
@@ -634,16 +786,19 @@ The pytest suite lives in `scripts/unit_tests/`, **mirroring the source tree** (
 
 ## Implementation Status
 
-**Project:** one module (PopHousing) is active; the rest of the legacy datasets are not yet migrated (see *Modules*). The cross-module `scripts/shared/` layer exists and is exercised by PopHousing.
+**Project:** two modules (PopHousing, Components of Change) are active and complete end-to-end; the rest of the legacy datasets are not yet migrated (see *Modules*). The cross-module `scripts/shared/` layer is now exercised by both — including the `shared/visualizations/` builders added with Components.
 
-**Within PopHousing:** the **modern E-5 path is fully implemented** end-to-end (acquisition → cleaning → merge → enrichment → validation → output) and the **frontend read path is complete**. These are scaffolded with signatures but `TODO` bodies:
+**Within PopHousing:** the **E-5 modern path and E-8 historical build are both implemented** end-to-end (acquisition → cleaning → merge → enrichment → validation → output), and the **frontend read path is complete**. The E-8 build (`pophousing/historical/*`, `acquisition/dof_historical_downloader.py`) reuses the canonical E-5 cleaning/classification/metric helpers rather than duplicating them, with mirrored unit tests.
+
+**Within Components of Change:** the full pipeline, dual-source acquisition with fallback, data contract, API route, and charts are complete.
+
+The remaining scaffolded-but-`TODO` surface is project-wide:
 
 | Area | Scripts | Effect |
 |---|---|---|
-| **E-8 historical build** | `pophousing/historical/*`, `acquisition/dof_historical_downloader.py` | The pipeline cannot yet *build* the historical dataset from raw E-8 workbooks; Phase 4 reads historical rows from the existing `PopHousing_Current.csv`. |
-| **Logging** | `shared/logging/pipeline_logging.py`, `shared/logging/dataframe_logging.py` | The logging surface is defined but inert; orchestrators are structured to pass in a log directory once implemented. *(Cross-module — benefits every future module.)* |
+| **Logging** | `shared/logging/pipeline_logging.py`, `shared/logging/dataframe_logging.py` | The logging surface is defined but inert; orchestrators are structured to pass in a log directory once implemented. *(Cross-module — benefits every module.)* |
 
-When implementing these, follow the dependency boundary and reuse the canonical cleaning/classification/metric helpers rather than writing duplicates.
+When implementing it, follow the dependency boundary and reuse shared helpers rather than writing duplicates.
 
 ---
 
