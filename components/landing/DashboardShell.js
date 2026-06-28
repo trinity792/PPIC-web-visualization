@@ -20,7 +20,7 @@ export default function DashboardShell({ category, children }) {
         <CardTitle className="font-serif text-3xl leading-tight sm:text-5xl">
           <Link
             href={category.modulePath}
-            className="hover:text-[var(--ppic-brand)]"
+            className="hover:text-(--ppic-brand)"
           >
             {category.title}
           </Link>

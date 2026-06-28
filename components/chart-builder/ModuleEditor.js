@@ -155,7 +155,7 @@ function ChartWorkspace() {
         <Card className="min-w-0 min-h-[calc(100svh-12rem)] overflow-hidden shadow-sm">
           <CardHeader className="border-b">
             <CardTitle className="flex items-center gap-2 text-lg">
-              <BarChart3 className="size-5 text-[var(--ppic-brand)]" />
+              <BarChart3 className="size-5 text-(--ppic-brand)" />
               {schema.label}
             </CardTitle>
             <CardDescription>

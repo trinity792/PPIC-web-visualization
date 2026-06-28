@@ -67,7 +67,7 @@ export default function UiKitPage() {
               <a
                 key={t.id}
                 href={`#${t.id}`}
-                className="block rounded-lg px-3 py-1.5 text-[15px] text-neutral-700 transition-colors hover:bg-white hover:text-[var(--ppic-orange-300)]"
+                className="block rounded-lg px-3 py-1.5 text-[15px] text-neutral-700 transition-colors hover:bg-white hover:text-(--ppic-orange-300)"
                 style={{ fontFamily: "var(--font-sans)" }}
               >
                 {t.label}

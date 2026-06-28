@@ -446,7 +446,7 @@ export default function ChartSidebar() {
   return (
     <Sidebar
       collapsible="offcanvas"
-      className="top-[7.5rem] h-[calc(100svh-7.5rem)]"
+      className="top-30 h-[calc(100svh-7.5rem)]"
     >
       <SidebarHeader className="gap-4 p-4">
         <div>
