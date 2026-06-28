@@ -34,7 +34,7 @@ const trend = [
 
 function StatCard({ label, value }) {
   return (
-    <div className="rounded-xl bg-[var(--ppic-card)] px-7 py-8 text-center shadow-[0px_4px_4px_0px_rgba(0,0,0,0.12)]">
+    <div className="rounded-xl bg-(--ppic-card) px-7 py-8 text-center shadow-[0px_4px_4px_0px_rgba(0,0,0,0.12)]">
       <p className="text-[18px] text-neutral-700" style={{ fontFamily: "var(--font-heading)" }}>
         {label}
       </p>

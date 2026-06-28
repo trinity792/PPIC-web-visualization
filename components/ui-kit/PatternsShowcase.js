@@ -37,7 +37,7 @@ export function PatternsShowcase() {
           >
             Housing Module
           </h3>
-          <div className="mb-4 h-[3px] w-10 rounded-full" style={{ backgroundColor: "var(--ppic-orange-300)" }} />
+          <div className="mb-4 h-0.75 w-10 rounded-full" style={{ backgroundColor: "var(--ppic-orange-300)" }} />
 
           <Accordion type="multiple" defaultValue={["sources", "preset"]}>
             <AccordionItem value="sources">
