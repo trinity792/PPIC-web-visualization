@@ -1,23 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { COLORS } from "@/lib/constants";
-import LineChart from "@/components/charts/LineChart";
+import React, { useEffect, useMemo, useState } from "react";
+import PlotlyChart from "@/components/charts/PlotlyChart";
+import { COMPONENTS_OF_CHANGE_SCHEMA } from "@/lib/visualization/moduleSchemas/componentsOfChange";
+import { toPlotly } from "@/lib/visualization/toPlotly";
+import { Card, CardContent } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
-const PARAMETERS = [
-  "Total Population",
-  "Births",
-  "Deaths",
-  "Natural Increase",
-  "Net Migration",
-  "Net Foreign Immigration",
-  "Net Domestic Migration",
-  "Crude Birth Rate",
-  "Crude Death Rate",
-  "Crude Migration Rate",
-];
-
-const SOURCES = ["DoF", "Census"];
+// Curated metrics and sources come from the client-safe module schema (single
+// source of truth, shared with the server data module) — no longer duplicated.
+const PARAMETERS = COMPONENTS_OF_CHANGE_SCHEMA.curatedMeasures;
+const SOURCES = COMPONENTS_OF_CHANGE_SCHEMA.sources;
 
 const PRESETS = {
   Regions: { label: "California Regions", subset: "Regions", locations: null },
@@ -44,6 +45,22 @@ export default function ComponentsOfChangeLineSection() {
   const [series, setSeries] = useState([]);
   const [status, setStatus] = useState("loading");
   const [errorMessage, setErrorMessage] = useState("");
+  const plotly = useMemo(
+    () =>
+      toPlotly({
+        chartType: "line",
+        bindings: { x: "Year", y: parameter, series: "Location" },
+        series,
+        field: COMPONENTS_OF_CHANGE_SCHEMA.fields[parameter],
+        transforms: "actual",
+        labels: {
+          title: `${parameter} Over Time (${PRESETS[presetKey].label}, ${source})`,
+          xAxis: "Year",
+          yAxis: parameter,
+        },
+      }),
+    [parameter, presetKey, series, source],
+  );
 
   useEffect(() => {
     const preset = PRESETS[presetKey];
@@ -85,113 +102,76 @@ export default function ComponentsOfChangeLineSection() {
   }, [parameter, presetKey, source]);
 
   return (
-    <section
-      style={{
-        backgroundColor: COLORS.white,
-        borderRadius: "6px",
-        padding: "24px",
-        boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: "24px",
-          alignItems: "flex-end",
-          marginBottom: "20px",
-        }}
-      >
-        <label style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-          <span style={{ fontSize: "0.85rem", color: COLORS.gray5 }}>Metric</span>
-          <select
-            value={parameter}
-            onChange={(event) => setParameter(event.target.value)}
-            style={{
-              padding: "8px 10px",
-              borderRadius: "4px",
-              border: `1px solid ${COLORS.gray3}`,
-              fontSize: "0.95rem",
-              minWidth: "240px",
-            }}
-          >
-            {PARAMETERS.map((metric) => (
-              <option key={metric} value={metric}>
-                {metric}
-              </option>
-            ))}
-          </select>
-        </label>
+    <Card className="shadow-sm">
+      <CardContent className="pt-6">
+        {/* Controls */}
+        <div className="mb-5 flex flex-wrap items-end gap-6">
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs text-muted-foreground">Metric</Label>
+            <Select value={parameter} onValueChange={setParameter}>
+              <SelectTrigger className="min-w-60">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PARAMETERS.map((metric) => (
+                  <SelectItem key={metric} value={metric}>
+                    {metric}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-        <label style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-          <span style={{ fontSize: "0.85rem", color: COLORS.gray5 }}>Source</span>
-          <select
-            value={source}
-            onChange={(event) => setSource(event.target.value)}
-            style={{
-              padding: "8px 10px",
-              borderRadius: "4px",
-              border: `1px solid ${COLORS.gray3}`,
-              fontSize: "0.95rem",
-              minWidth: "120px",
-            }}
-          >
-            {SOURCES.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
-        </label>
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs text-muted-foreground">Source</Label>
+            <Select value={source} onValueChange={setSource}>
+              <SelectTrigger className="min-w-30">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SOURCES.map((item) => (
+                  <SelectItem key={item} value={item}>
+                    {item}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-          <span style={{ fontSize: "0.85rem", color: COLORS.gray5 }}>Locations</span>
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-            {Object.entries(PRESETS).map(([key, preset]) => {
-              const active = key === presetKey;
-              return (
-                <button
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs text-muted-foreground">Locations</Label>
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(PRESETS).map(([key, preset]) => (
+                <Button
                   key={key}
                   type="button"
+                  variant={key === presetKey ? "default" : "outline"}
+                  size="sm"
                   onClick={() => setPresetKey(key)}
-                  style={{
-                    padding: "8px 14px",
-                    borderRadius: "4px",
-                    border: `1px solid ${active ? COLORS.primaryOrange : COLORS.gray3}`,
-                    backgroundColor: active ? COLORS.primaryOrange : COLORS.white,
-                    color: active ? COLORS.white : COLORS.gray6,
-                    fontSize: "0.9rem",
-                    cursor: "pointer",
-                  }}
                 >
                   {preset.label}
-                </button>
-              );
-            })}
+                </Button>
+              ))}
+            </div>
           </div>
         </div>
-      </div>
 
-      {status === "loading" && (
-        <p style={{ color: COLORS.gray5, padding: "40px 0" }}>Loading chart...</p>
-      )}
-      {status === "empty" && (
-        <p style={{ color: COLORS.gray5, padding: "40px 0" }}>
-          No data available for this selection.
-        </p>
-      )}
-      {status === "error" && (
-        <p style={{ color: COLORS.burntOrange, padding: "40px 0" }}>
-          Could not load chart: {errorMessage}
-        </p>
-      )}
-      {status === "ready" && (
-        <LineChart
-          series={series}
-          title={`${parameter} Over Time (${PRESETS[presetKey].label}, ${source})`}
-          yTitle={parameter}
-        />
-      )}
-    </section>
+        {/* Chart / states */}
+        {status === "loading" && (
+          <p className="py-10 text-muted-foreground">Loading chart…</p>
+        )}
+        {status === "empty" && (
+          <p className="py-10 text-muted-foreground">
+            No data available for this selection.
+          </p>
+        )}
+        {status === "error" && (
+          <p className="py-10 text-destructive">Could not load chart: {errorMessage}</p>
+        )}
+        {status === "ready" && (
+          <PlotlyChart {...plotly} />
+        )}
+      </CardContent>
+    </Card>
   );
 }

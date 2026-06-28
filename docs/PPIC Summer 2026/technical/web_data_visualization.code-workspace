@@ -7,6 +7,9 @@
 		{
 			"name": "web-data-visualization",
 			"path": "../../.."
+		},
+		{
+			"path": "../../../../UI Kit for Data Visualization"
 		}
 	],
 	"settings": {}

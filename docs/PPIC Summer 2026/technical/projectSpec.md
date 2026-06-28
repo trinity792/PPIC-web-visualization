@@ -1,7 +1,7 @@
 
 # Project Specification, Architecture & API Reference
 Web **Visualizations** Project
-Last Updated: June 25th, 2026
+Last Updated: June 27th, 2026
 
 ---
 
@@ -40,7 +40,7 @@ Two design goals run through the entire codebase and should be treated as requir
 ---
 ## Modules
 
-A **module** is one dataset's full vertical slice: its ETL pipeline under `scripts/<module>/`, its cleaned-data contract under `data/data-cleaned/<module>/`, its data-access layer under `lib/data/`, its API route under `app/api/<module>/`, and its chart components under `components/charts/`. Project-independent machinery they all share lives in `scripts/shared/`.
+A **module** is one dataset's full vertical slice: its ETL pipeline under `scripts/<module>/`, its cleaned-data contract under `data/data-cleaned/<module>/`, its data-access layer under `lib/data/`, its API route under `app/api/<module>/`, and its **frontend field catalog** under `lib/visualization/moduleSchemas/` (which plugs it into the shared UI layer — chart editor + landing dashboards; see *Frontend Architecture (UI Layer)*). Project-independent machinery they all share lives in `scripts/shared/` (backend) and `lib/visualization/` + `components/{ui,chart-builder,charts,landing}/` (frontend).
 
 | Module | Source | Status |
 |---|---|---|
@@ -56,7 +56,7 @@ The rest of this document documents the **project-wide architecture and conventi
 
 | Layer | Technology |
 |---|---|
-| **Frontend** | Next.js 16 (App Router), React 19, Tailwind CSS 4, Plotly.js via `react-plotly.js` |
+| **Frontend** | Next.js 16 (App Router), React 19, Tailwind CSS 4, Plotly.js via `react-plotly.js`, shadcn/Radix UI primitives (`components/ui/`) |
 | **Backend / ETL** | Python 3.12, pandas, `requests`, BeautifulSoup (`bs4`), `openpyxl` |
 | **Testing** | pytest (backend); error handling surfaces messages identifying the failure source |
 | **Tooling** | `ruff` (lint + import sort), `.venv` for Python, ESLint for JS |
@@ -80,22 +80,32 @@ Folders marked *(PopHousing)* are this first module's slice; the same shape repe
 ```
 web-data-visualization/
 ├── app/                          ← Next.js App Router
-│   ├── api/pophousing/route.js              ← GET /api/pophousing endpoint            (PopHousing)
-│   ├── api/components-of-change/route.js    ← GET /api/components-of-change endpoint   (Components)
-│   ├── layout.js  page.js        ← root layout + landing page
-│   └── globals.css
+│   ├── page.js  layout.js  globals.css   ← landing (category dashboards) + shell + design tokens
+│   ├── [module]/page.js                  ← detailed module page = the chart editor   (per module)
+│   └── api/
+│       ├── pophousing/route.js           ← GET /api/pophousing             (PopHousing)
+│       ├── components-of-change/route.js ← GET /api/components-of-change    (Components)
+│       └── geography/route.js            ← GET /api/geography (county GeoJSON, choropleth)
 ├── components/
 │   ├── Navbar.js                 ← shared site shell
-│   └── charts/
-│       ├── LineChart.js                     ← shared presentational Plotly wrapper
-│       ├── PopHousingLineSection.js         ← client section (controls + fetch)  (PopHousing)
-│       └── ComponentsOfChangeLineSection.js ← client section (controls + fetch)  (Components)
+│   ├── ui/                       ← shadcn/Radix primitives (button, select, slider, dialog, table, …) + cn util
+│   ├── charts/                   ← PlotlyChart wrapper, ChartPreview, legacy line sections
+│   ├── chart-builder/            ← the dynamic chart editor (sidebar, config store, saved views, layers)
+│   └── landing/                  ← dashboard shell, chart tiles, stat cards, region table, dashboards/<category>
 ├── lib/
 │   ├── config.py                 ← shared project paths + generic HTTP defaults
 │   ├── pophousing_config.py      ← PopHousing source of truth: geography, regions, columns
 │   ├── constants.js              ← shared brand palette + Plotly color cycle
 │   ├── data/pop_housing.js              ← server-only data-access layer over the CSV  (PopHousing)
-│   └── data/components_of_change.js     ← server-only data-access layer over the CSV  (Components)
+│   ├── data/components_of_change.js     ← server-only data-access layer over the CSV  (Components)
+│   ├── data/geography.js                ← server-only county GeoJSON access  (choropleth)
+│   ├── data/query_shapes.js             ← shared row → line/category/two-period/pairs/matrix shaping
+│   ├── data/apiParams.js                ← shared API-route query-param helpers
+│   └── visualization/                   ← CLIENT-SAFE chart catalog + registries (no node:fs)
+│       ├── moduleSchemas/{pophousing,componentsOfChange}.js  ← per-module field catalog
+│       ├── fieldTypes.js  formatters.js  transformRegistry.js  toPlotly.js
+│       ├── chartRegistry.js  presetRegistry.js  validation.js
+│       └── categoryRegistry.js          ← landing categories + built-in dashboard views
 ├── scripts/                      ← Python ETL (see Module Reference)
 │   ├── shared/                   ← cross-module mechanisms + reference data (downloads, data_cleaning, validation, visualizations, logging, geography)
 │   ├── pophousing/               ← California / E-5 / E-8 domain logic  (PopHousing module)
@@ -107,6 +117,7 @@ web-data-visualization/
 │   ├── data-cleaned/housing-population/PopHousing_Current.csv   ← PopHousing contract
 │   ├── data-raw/components-of-change/           ← Components raw E-6 / Census downloads + GeoJSON
 │   ├── data-cleaned/components-of-change/ComponentsOfChange_Current.csv  ← Components contract
+│   ├── data-cleaned/geography/california-counties.geojson   ← county polygons (shared, choropleth)
 │   ├── data-raw/demographic-projections/        ← reserved for the next module
 │   ├── data-cleaned/demographic-projections/    ← reserved for the next module
 │   └── archive/housing-population/
@@ -135,13 +146,16 @@ This is the architecture **every module follows**. A module has two halves conne
                                                       │  (the contract)
    ┌──────────────────────── FRONTEND (Next.js) ──────▼──────────────────┐
    │                                                                     │
-   │   lib/data/<module>.js ──► /api/<module> ──► React chart components │
-   │   (reads + caches CSV)     (validates query)    (Plotly charts)     │
+   │   lib/data/<module>.js ──► /api/<module> ──► UI layer: chart editor │
+   │   (reads + caches CSV)     (validate +       + category dashboards  │
+   │                            view-dispatch)    (config ─► toPlotly ─► Plotly) │
+   │                                                                     │
+   │   client-safe lib/visualization/ catalog drives fields · charts · presets │
    │                                                                     │
    └─────────────────────────────────────────────────────────────────── ┘
 ```
 
-For PopHousing the source is the DOF website, the contract is `PopHousing_Current.csv`, the access layer is `lib/data/pop_housing.js`, and the route is `/api/pophousing`.
+For PopHousing the source is the DOF website, the contract is `PopHousing_Current.csv`, the access layer is `lib/data/pop_housing.js`, and the route is `/api/pophousing`. The **UI layer above the route is shared across all modules** — see *Frontend Architecture (UI Layer)*; a module plugs into it through its `lib/visualization/moduleSchemas/<module>.js` catalog.
 ### The three-layer backend
 
 The `scripts/` tree enforces a strict separation that is the central architectural theme of the project. Each module's pipeline is split into the same three layers:
@@ -536,40 +550,36 @@ The detailed unit-breakdown columns (`Single Family Detached`, etc.) are blank f
 
 ---
 
-## Frontend
+## Frontend (PopHousing)
 
-PopHousing's read path: a thin, three-tier path mirroring the backend's worker/orchestrator split. Each module supplies its own access layer, route, and chart section; `LineChart`, `Navbar`, and `lib/constants.js` are shared across modules.
+PopHousing feeds the shared **UI layer** documented in *Frontend Architecture (UI Layer)* below. This section covers the two **module-specific server pieces** — the data-access layer and the API route. The client-safe field catalog both the server and the browser read from lives in [`lib/visualization/moduleSchemas/pophousing.js`](../../../lib/visualization/moduleSchemas/pophousing.js).
 
 ### `lib/data/pop_housing.js` — data-access layer (server-only)
-Owns all reading, parsing, and filtering of the CSV. **Uses `node:fs`, so it must never be imported into a `"use client"` component.**
+Owns all reading, parsing, and filtering of the CSV. **Uses `node:fs`, so it must never be imported into a `"use client"` component.** Its numeric-column set, curated metric list, and subset map are **derived from the module schema** (single source of truth, no longer hand-listed here), and it shapes rows through the shared `lib/data/query_shapes.js` helpers.
 
-- `loadPopHousingData()` — reads and parses the CSV **once per server process** and caches the rows (`cachedRows`).
-- `queryLineSeries({ parameter, subset, locations, startYear, endYear })` — geo-level filter → optional location filter → year filter → one `{location, years, values}` series per location, plus the observed `yearRange`.
-- `getAvailableLocations(subset)` — distinct, sorted locations for a subset.
-- Exports `AVAILABLE_PARAMETERS`, `AVAILABLE_SUBSETS`, `SUBSET_TO_LEVELS`.
+- `loadPopHousingData()` — reads and parses the CSV **once per server process**, caching the rows (`cachedRows`).
+- **Query shapes**, one per chart family: `queryLineSeries`, `queryCategoryValues` (bar/ranking), `queryTwoPeriod` (dumbbell/slope), `queryMeasurePairs` (scatter/bubble), `queryMatrix` (heatmap), `queryGeoValues` (choropleth — joins county rows to GeoJSON `GEOID` via `lib/data/geography.js`).
+- **Landing helpers**: `queryStatewideStats(parameters)` and `queryRegionTable()` — latest-year statewide values + per-region totals for the dashboard, read server-side.
+- `getAvailableLocations(subset)`; exports `AVAILABLE_PARAMETERS` / `AVAILABLE_MEASURES` / `AVAILABLE_SUBSETS` / `SUBSET_TO_LEVELS` (all schema-derived).
 
-A deliberately minimal CSV parser (`split(",")`) is used instead of a dependency, justified by the dataset's fixed, comma-free schema.
+A deliberately minimal CSV parser (`split(",")`) avoids a dependency, justified by the dataset's fixed, comma-free schema.
 
 ### `app/api/pophousing/route.js` — API endpoint (orchestrator)
-`GET /api/pophousing` — validates query params and delegates to the data module. **No transformation logic of its own.**
+`GET /api/pophousing` — a thin validator/dispatcher with **no transformation logic**. A `view` param selects the query shape; param parsing and the `{ error, source }` 400 helper come from the shared `lib/data/apiParams.js`.
 
 | Param | Required | Meaning |
 |---|---|---|
-| `parameter` | yes | Metric column (must be in `AVAILABLE_PARAMETERS`). |
+| `view` | no (default `line`) | Query shape: `line`, `category`, `twoPeriod`, `pairs`, `matrix`, `geo`. |
 | `subset` | yes | Geographic grouping (`Regions`, `Counties`, `Cities`, `Towns`, `State`). |
+| `parameter` | most views | Metric column (valid measure). For `pairs`, use `xMeasure` / `yMeasure` (+ optional `sizeMeasure`) instead. |
 | `locations` | no | Comma-separated location filter. |
-| `startYear` / `endYear` | no | Integer year bounds. |
+| `startYear` / `endYear` | no | Integer year bounds (range views). |
+| `period` | no | Single year (`category` / `pairs` / `geo`). |
+| `topN` / `sort` | no | Ranking controls (`category` view). |
 
-Responses identify their failure source per the project goal: `400` with `source: "pop_housing API: parameter validation"` on bad input, `500` with `source: "pop_housing API: data load / query"` on a load/query error. Success returns `{ parameter, subset, series, yearRange }`.
+Errors carry a `source` string (`"pop_housing API: <stage>"`) identifying the failed stage. Success returns `{ view, parameter, subset, …shape }` — `series` for line, `records` for category/pairs/geo, `matrix` for heatmap — with the observed period / `yearRange`.
 
-### React components
-| Component | Role |
-|---|---|
-| `charts/PopHousingLineSection.js` | Client component: metric + location-preset controls, fetches `/api/pophousing`, manages `loading / ready / empty / error` states (errors render the message from the API). |
-| `charts/LineChart.js` | Presentational, props-driven Plotly wrapper. One trace per series, colored from `BASE_PLOTLY_COLORS`. Plotly is dynamically imported with `ssr: false`. |
-| `Navbar.js` / `app/page.js` / `app/layout.js` | Shell and landing page. |
-
-`lib/constants.js` holds the brand palette (`COLORS`) and the Plotly color cycle — the single styling source for charts.
+> The legacy `charts/PopHousingLineSection.js` (self-contained metric + location-preset line section) still exists and now renders through `toPlotly` + `PlotlyChart`, but the editor + dashboard (UI layer below) are the primary surface.
 
 ---
 
@@ -707,16 +717,104 @@ The five `Crude … Rate` columns are per-1,000-population rates derived in `cal
 
 ## Frontend (Components of Change)
 
-Same three-tier read path as PopHousing, with one extra dimension — **source**.
+Same module-specific server pieces as PopHousing, with one extra dimension — **source** — feeding the same shared UI layer below.
 
 ### `lib/data/components_of_change.js` — data-access layer (server-only)
-Owns reading, parsing, and filtering of the CSV (`node:fs`, never imported into a client component). `queryLineSeries({ parameter, subset, source, locations, startYear, endYear })` filters by source → geographic level → location → year and returns one series per location plus the observed `yearRange`. Exports `AVAILABLE_PARAMETERS`, `AVAILABLE_SOURCES` (`DoF`, `Census`), `AVAILABLE_SUBSETS`, and `SUBSET_TO_LEVELS`.
+Owns reading, parsing, and filtering of the CSV (`node:fs`, never imported into a client component). Mirrors PopHousing's query shapes (`queryLineSeries`, `queryCategoryValues`, `queryTwoPeriod`, `queryMeasurePairs`, `queryMatrix`, `queryGeoValues`), each taking the extra `source` filter, via the shared `query_shapes.js`. Numeric columns, curated metrics, subsets, and sources are derived from [`lib/visualization/moduleSchemas/componentsOfChange.js`](../../../lib/visualization/moduleSchemas/componentsOfChange.js). Exports `AVAILABLE_PARAMETERS` / `AVAILABLE_MEASURES`, `AVAILABLE_SOURCES` (`DoF`, `Census`), `AVAILABLE_SUBSETS`, `SUBSET_TO_LEVELS`.
 
 ### `app/api/components-of-change/route.js` — API endpoint (orchestrator)
-`GET /api/components-of-change` — validates `parameter`, `subset`, and `source` (defaulting `source` to `DoF`), enforces that the `States` subset is **Census-only**, then delegates to the data module. Errors carry a `source` string (`"components_of_change API: …"`) identifying the failed stage, mirroring PopHousing.
+`GET /api/components-of-change` — the same `view`-based dispatcher as PopHousing, plus `source` validation (defaulting to `DoF`) and the rule that the `States` subset is **Census-only**. Errors carry a `source` string (`"components_of_change API: …"`).
 
-### React components
-`charts/ComponentsOfChangeLineSection.js` is the client section (metric / subset / source controls + fetch + loading/empty/error states); it reuses the shared `LineChart` and `lib/constants.js` palette.
+The module reuses the entire UI layer below unchanged; its schema simply advertises `sources: ["DoF", "Census"]`, which makes the editor render a **Source** selector and gate silent source comparison (guardrail #6).
+
+---
+
+## Frontend Architecture (UI Layer)
+
+*Cross-module — every module renders through this shared layer; only the per-module data-access layer + API route (above) and the module schema differ.*
+
+The site has **two pages**, both built from the shared layer:
+
+| Page | Route | What it is |
+|---|---|---|
+| **Landing** | `/` (`app/page.js`) | A stack of **category dashboards** — one self-contained dashboard component per dataset category. |
+| **Detailed module page** | `/[module]` (`app/[module]/page.js`) | The **chart editor**: a dynamic sidebar + a live chart canvas + saved views, for one module. |
+
+Three ideas hold it together:
+
+- **A client-safe visualization layer** (`lib/visualization/`, no `node:fs`) is the single source of truth for fields, chart types, presets, transforms, validation, and category/built-in views. Both the browser and the server data modules import from it.
+- **Declarative configs, not figures.** A chart is plain JSON (`{ module, preset, chartType, bindings, filters, period, labels, appearance, layers }`); `toPlotly` turns config + fetched data into Plotly props. Saved views store the config, never a rendered figure.
+- **One server/client boundary.** `lib/data/*` (CSV / GeoJSON, `node:fs`) is server-only; `lib/visualization/*` is the client-safe seam the editor and dashboards import.
+
+### The client-safe visualization layer (`lib/visualization/`)
+
+| File | Responsibility |
+|---|---|
+| `moduleSchemas/<module>.js` | The module's **field catalog**: each field's kind / unit / comparison group / allowed transforms / chart roles, plus curated metrics, subsets, sources, `yearRange`, canonical columns. Read by both the editor and the server data module. |
+| `fieldTypes.js` | Field vocabulary + helpers (`isMeasure`, `areComparable`, `allowedTransforms`, `supportsRole`). |
+| `chartRegistry.js` | Per-chart-type descriptors: required/optional roles, role→kind constraints, sidebar sections, limits, defaults; `CATALOG_ROLE_FOR_BINDING`. |
+| `presetRegistry.js` | Task-based presets ("Trend over time", "Latest-year ranking", …) → a chart type + default bindings + sidebar layout. |
+| `transformRegistry.js` | Pure series transforms (`actual`, `indexed`, `percentChange`, `percentagePointChange`, `differenceFromBenchmark`, …), gated by each field's allowed transforms. |
+| `validation.js` | Bindings / comparability / complexity / geography-source checks → `{ level, code, message, suggestion }` findings (the guardrail enforcement point). |
+| `formatters.js` | Named value formatters (year, people, percent, …). |
+| `toPlotly.js` | The adapter: `(config + fetched data) → { data, layout, config }` for every chart type. |
+| `categoryRegistry.js` | Landing **categories** and **built-in views** — the declarative configs the dashboard tiles and "See more" deep-links use. |
+
+### Detailed component map — what renders each thing, front and back
+
+**Landing page (`/`)** — `app/page.js` renders one dashboard per live category via `components/landing/dashboards/` (a registry keyed by category id, so adding a category = add a dashboard component + a `categoryRegistry` entry).
+
+| Displayed element | Front end | Back end / data source |
+|---|---|---|
+| Page → one dashboard per category | `app/page.js` → `getDashboard(category.id)` → `<…Dashboard>` | `categoryRegistry.CATEGORIES` (live vs coming-soon) |
+| Dashboard container (title, description, grid) | `landing/DashboardShell.js` + `landing/dashboards/PopulationHousingDashboard.js` (async server component) | — (chrome) |
+| Chart tile (preview + "See more") | `landing/ChartTile.js` → `charts/ChartPreview.js` → `toPlotly` → `charts/PlotlyChart.js` | built-in view config (`categoryRegistry`) → `chartData.loadChartData` → `/api/<module>` (+ `/api/geography` for maps) |
+| Stat cards (population / household size / housing units) | `landing/StatCard.js` (server-rendered values) | `lib/data/pop_housing.js` `queryStatewideStats()` — latest State-level row |
+| Region table | `landing/RegionTable.js` (uses `ui/table`) | `lib/data/pop_housing.js` `queryRegionTable()` — latest Region rows |
+| "Coming soon" category cards | `app/page.js` + `ui/card`, `ui/badge` | `categoryRegistry` (status `coming-soon`) |
+
+**Detailed module page (`/[module]`)** — `app/[module]/page.js` resolves the module schema, optionally hydrates a `?view=` deep-link, and renders `components/chart-builder/ModuleEditor.js` (config store + sidebar + canvas).
+
+| Sidebar / canvas part | Front end | What it drives / where data comes from |
+|---|---|---|
+| Config state + validation | `chart-builder/chartConfigStore.js` (`useReducer` + context) | Holds the declarative config; re-runs `validation.js` on every change; feeds `seriesCount` back for complexity checks. |
+| Preset picker | `chart-builder/PresetPicker.js` | `presetRegistry` → seeds chart type + bindings. |
+| Chart-type select | `ChartSidebar.js` | `chartRegistry.CHART_TYPE_IDS`. |
+| Data section (module, geographic level, **Year-range slider**) | `ChartSidebar.js` (`ui/select`, `ui/slider`) | `schema.subsets`, `schema.yearRange`; sets `filters.subset` + `period`. |
+| Encodings (X / Y / series / color / size, "+ Add line") | `chart-builder/EncodingSection.js` | `chartRegistry` role constraints + `schema.fields` (only fields whose catalog allows the role). |
+| Comparison (source, transform, base year, benchmark, Top N) | `chart-builder/ComparisonSection.js` | `schema.sources`, `transformRegistry` (allowed transforms per field). |
+| Labels (title / subtitle / axes / legend / tooltip) | `chart-builder/LabelEditor.js` | Display-only overrides; never rewrite canonical field names (guardrail #1). |
+| Appearance (legend, markers, orientation, color scale, **PPIC watermark**) | `ChartSidebar.js` (`ui/select`, `ui/switch`) | `config.appearance`; consumed by `toPlotly`. |
+| Trace layers (selected places, benchmark, second source / measure, derived) | `chart-builder/LayerEditor.js` | Predefined layer types only (guardrail #2); validated in `validation.js`. |
+| Validation notices | `chart-builder/ValidationNotice.js` (`ui/alert`) | `config.validation` from `validation.js`. |
+| Saved views (Reset / Save / Export-Import / saved list) | `ChartSidebar.js` + `chart-builder/savedViews.js` | `localStorage` (`ppic.savedViews.v1`); serialize/deserialize the declarative config. |
+| Chart canvas | `ModuleEditor.js` `ChartWorkspace` → `toPlotly` → `charts/PlotlyChart.js` | `chart-builder/chartData.js` `loadChartData` → `/api/<module>` (+ `/api/geography`); `loading / empty / invalid / error / ready` states. |
+
+**Shared shell & rendering**
+
+| Element | Front end | Notes |
+|---|---|---|
+| Masthead / nav | `components/Navbar.js` | Brand bar; Tailwind tokens + `lib/constants.js` palette. |
+| Plotly wrapper | `charts/PlotlyChart.js` | `react-plotly.js` via `next/dynamic({ ssr: false })`; mobile mode-bar off. |
+| Data fetching | `chart-builder/chartData.js` | Picks the `view` per chart type, fans out trace-layer requests in parallel, caches geometry client-side, returns `{ response, series, geometry }`. |
+| Design system | `components/ui/*` + `app/globals.css` tokens | shadcn/Radix primitives; PPIC brand ramps + shadcn tokens drive the Tailwind v4 utilities. |
+
+### Request flow (one chart)
+
+```
+editor edits config ──► chartConfigStore (revalidate) ──► chartData.loadChartData
+        │                                                      │ picks view by chartType
+        │                                                      ▼
+        │                                    GET /api/<module>?view=…  (+ /api/geography)
+        │                                                      │ server-only lib/data/* + query_shapes
+        ▼                                                      ▼
+   toPlotly(config + data + geometry) ──► { data, layout, config } ──► PlotlyChart
+```
+
+The same `loadChartData` + `toPlotly` path renders both the editor canvas and every landing dashboard tile (`ChartPreview`), so a built-in view and a user-built view differ only in **where the config comes from**, not in kind.
+
+### Saved views & deep-links
+A saved or built-in view is the declarative config serialized to JSON (guardrail #8 — never a rendered figure). The landing "See more" button links to `/[module]?view=<id>`, which the module page hydrates into the editor via the config store's `LOAD_VIEW`. Users export/import the same JSON (copy-paste) and save named views to `localStorage`.
 
 ---
 
@@ -811,12 +909,12 @@ Migrate another legacy dataset by reproducing PopHousing's shape — it is the w
 2. `scripts/orchestrators/<module>_pipeline.py` — a `main()` that sequences the phases and tags failures with a `PipelinePhaseError`-style wrapper.
 3. `data/data-cleaned/<module>/<Dataset>.csv` — the module's data contract.
 4. `lib/data/<module>.js` — a server-only access layer that loads/caches/queries the CSV.
-5. `app/api/<module>/route.js` — a thin validating route over that layer.
-6. `components/charts/` — a client section + reuse of the shared `LineChart`.
+5. `app/api/<module>/route.js` — a thin `view`-dispatching route over that layer (reuse `lib/data/apiParams.js`).
+6. `lib/visualization/moduleSchemas/<module>.js` — the module's **field catalog**; registering it in `moduleRegistry.js` makes the `/[module]` editor work automatically (no per-module chart code). Optionally add built-in views in `categoryRegistry.js` and a dashboard component in `components/landing/dashboards/` to give the category a landing dashboard.
 7. `scripts/unit_tests/<module>/` — mirrored tests, written alongside the code.
 
 ### Extend the PopHousing module
-- **Add a chart/metric** — extend `AVAILABLE_PARAMETERS` in `lib/data/pop_housing.js` (and the mirrored client list in `PopHousingLineSection.js`); reuse `LineChart` or add a presentational component beside it.
-- **Add a geographic grouping** — extend `SUBSET_TO_LEVELS`; ensure the level exists in the data contract.
+- **Add a chart/metric** — add (or mark `curated`) the field in the module's catalog `lib/visualization/moduleSchemas/pophousing.js`. That single source feeds both the server data layer's `NUMERIC_COLUMNS`/`AVAILABLE_MEASURES` and the editor's metric list — there is no separate client list to keep in sync.
+- **Add a geographic grouping** — extend `subsets` in the module schema; ensure the level exists in the data contract.
 - **Add a pipeline transformation** — write a worker in the right `pophousing/` package (or a generic helper in `shared/` if it carries no domain knowledge), then call it from the relevant phase in the orchestrator. Add the mirrored test first.
-- **Change a Population & Housing column or schema** — update `lib/pophousing_config.py` / `schemas.py`, the data contract, and the frontend `NUMERIC_COLUMNS` set together. This is an "ask first" change.
+- **Change a Population & Housing column or schema** — update `lib/pophousing_config.py` / `schemas.py`, the data contract, and the frontend field catalog `lib/visualization/moduleSchemas/pophousing.js` (which derives `NUMERIC_COLUMNS`/curated metrics/canonical columns) together. This is an "ask first" change.

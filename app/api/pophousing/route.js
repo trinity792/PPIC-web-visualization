@@ -1,76 +1,143 @@
 /**
  * GET /api/pophousing
  *
- * Thin orchestrator over lib/data/pop_housing.js: validates query params, delegates
- * filtering/aggregation to the data-access module, and shapes the JSON response. It
- * contains no transformation logic of its own.
- *
- * Query params:
- *   parameter  - metric column (required), e.g. "Total Population"
- *   subset     - geographic grouping (required), e.g. "Regions"
- *   locations  - optional comma-separated location names
- *   startYear  - optional integer
- *   endYear    - optional integer
- *
- * On failure, returns a non-200 JSON body identifying the failure source, per the
- * project's error-handling goal (AGENTS.md).
+ * Thin orchestrator for all visualization query shapes. `view` selects the
+ * server-side query; filtering and shaping remain in lib/data/pop_housing.js.
  */
 
 import {
-  AVAILABLE_PARAMETERS,
+  AVAILABLE_MEASURES,
   AVAILABLE_SUBSETS,
+  queryCategoryValues,
+  queryGeoValues,
   queryLineSeries,
+  queryMatrix,
+  queryMeasurePairs,
+  queryTwoPeriod,
 } from "@/lib/data/pop_housing";
+import { integerParam, invalid, listParam } from "@/lib/data/apiParams";
+
+const VIEWS = ["line", "category", "twoPeriod", "pairs", "matrix", "geo"];
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
-  const parameter = searchParams.get("parameter");
+  const view = searchParams.get("view") || "line";
   const subset = searchParams.get("subset");
-  const locationsParam = searchParams.get("locations");
-  const startYearParam = searchParams.get("startYear");
-  const endYearParam = searchParams.get("endYear");
+  const parameter = searchParams.get("parameter");
+  const xMeasure = searchParams.get("xMeasure");
+  const yMeasure = searchParams.get("yMeasure");
+  const sizeMeasure = searchParams.get("sizeMeasure");
+  const locations = listParam(searchParams, "locations");
+  const startYear = integerParam(searchParams, "startYear");
+  const endYear = integerParam(searchParams, "endYear");
+  const period = integerParam(searchParams, "period");
+  const topN = integerParam(searchParams, "topN");
+  const sort = searchParams.get("sort") || "value";
 
-  if (!parameter || !AVAILABLE_PARAMETERS.includes(parameter)) {
-    return Response.json(
-      {
-        error: `Invalid or missing 'parameter'. Expected one of: ${AVAILABLE_PARAMETERS.join(", ")}`,
-        source: "pop_housing API: parameter validation",
-      },
-      { status: 400 },
+  if (!VIEWS.includes(view)) {
+    return invalid(
+      `Invalid 'view'. Expected one of: ${VIEWS.join(", ")}`,
+      "pop_housing API: view validation",
     );
   }
-
   if (!subset || !AVAILABLE_SUBSETS.includes(subset)) {
-    return Response.json(
-      {
-        error: `Invalid or missing 'subset'. Expected one of: ${AVAILABLE_SUBSETS.join(", ")}`,
-        source: "pop_housing API: subset validation",
-      },
-      { status: 400 },
+    return invalid(
+      `Invalid or missing 'subset'. Expected one of: ${AVAILABLE_SUBSETS.join(", ")}`,
+      "pop_housing API: subset validation",
     );
   }
-
-  const locations = locationsParam
-    ? locationsParam.split(",").map((s) => s.trim()).filter(Boolean)
-    : null;
-  const startYear = startYearParam ? Number.parseInt(startYearParam, 10) : null;
-  const endYear = endYearParam ? Number.parseInt(endYearParam, 10) : null;
+  if (view === "pairs") {
+    if (!AVAILABLE_MEASURES.includes(xMeasure) || !AVAILABLE_MEASURES.includes(yMeasure)) {
+      return invalid(
+        "'xMeasure' and 'yMeasure' must be valid measure fields.",
+        "pop_housing API: paired-measure validation",
+      );
+    }
+    if (sizeMeasure && !AVAILABLE_MEASURES.includes(sizeMeasure)) {
+      return invalid(
+        "'sizeMeasure' must be a valid measure field.",
+        "pop_housing API: size-measure validation",
+      );
+    }
+  } else if (!parameter || !AVAILABLE_MEASURES.includes(parameter)) {
+    return invalid(
+      `Invalid or missing 'parameter'. Expected one of: ${AVAILABLE_MEASURES.join(", ")}`,
+      "pop_housing API: parameter validation",
+    );
+  }
+  if (startYear !== null && endYear !== null && startYear > endYear) {
+    return invalid(
+      "'startYear' cannot be later than 'endYear'.",
+      "pop_housing API: period validation",
+    );
+  }
 
   try {
-    const { series, yearRange } = await queryLineSeries({
+    if (view === "category") {
+      const result = await queryCategoryValues({
+        parameter,
+        subset,
+        period,
+        topN,
+        sort,
+        locations,
+      });
+      return Response.json({ view, parameter, subset, ...result });
+    }
+    if (view === "twoPeriod") {
+      const result = await queryTwoPeriod({
+        parameter,
+        subset,
+        startYear,
+        endYear,
+        locations,
+      });
+      return Response.json({ view, parameter, subset, ...result });
+    }
+    if (view === "pairs") {
+      const result = await queryMeasurePairs({
+        xMeasure,
+        yMeasure,
+        sizeMeasure,
+        subset,
+        period,
+        locations,
+      });
+      return Response.json({
+        view,
+        xMeasure,
+        yMeasure,
+        sizeMeasure,
+        subset,
+        ...result,
+      });
+    }
+    if (view === "matrix") {
+      const result = await queryMatrix({
+        parameter,
+        subset,
+        startYear,
+        endYear,
+        locations,
+      });
+      return Response.json({ view, parameter, subset, ...result });
+    }
+    if (view === "geo") {
+      const result = await queryGeoValues({ parameter, subset, period });
+      return Response.json({ view, parameter, subset, ...result });
+    }
+
+    const result = await queryLineSeries({
       parameter,
       subset,
       locations,
       startYear,
       endYear,
     });
-    return Response.json({ parameter, subset, series, yearRange });
+    return Response.json({ view, parameter, subset, ...result });
   } catch (error) {
     return Response.json(
-      {
-        error: error.message,
-        source: "pop_housing API: data load / query",
-      },
+      { error: error.message, source: `pop_housing API: ${view} query` },
       { status: 500 },
     );
   }

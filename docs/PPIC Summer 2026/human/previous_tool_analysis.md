@@ -329,17 +329,17 @@ Key functions: `apply_1990_2000_forward_fill()`, `process_excel_file_simple()`, 
 
 Downloads the latest E-5 (2020–present) and merges it with the historical dataset.
 
-| Function | Description |
-|----------|-------------|
-| `cleanup_old_e5_files()` | Removes cached E-5 files older than 90 days. |
-| `get_e5_file_url()` | Finds the current E-5 URL (header → `202\d-202\d` landing page → `Geo_InternetVersion.xlsx`). |
-| `download_e5_data()` | Smart-cached download (reuses files < 90 days old). |
-| `get_most_recent_e5_file()` | Fallback to most recent cached file (≤ 180 days) if scraping fails. |
-| `clean_e5_data()` / `add_geographic_level_e5()` | Rename columns, strip summary rows, forward-fill, assign State/County/City/Town. |
-| `fix_vacancy_rate_decimal_fractions()` | Corrects 2020+ vacancy rates stored as decimals (0.05) rather than percentages (5.0). |
-| `standardize_san_francisco_classification()` | Duplicates SF as both City and County rows. |
-| `add_regional_data()` / `add_state_data_for_modern_years()` | Build regional and state aggregates. |
-| `main()` | Orchestrates clean → merge → dedupe → regionalize → fix → classify → save. |
+| Function                                                    | Description                                                                                   |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `cleanup_old_e5_files()`                                    | Removes cached E-5 files older than 90 days.                                                  |
+| `get_e5_file_url()`                                         | Finds the current E-5 URL (header → `202\d-202\d` landing page → `Geo_InternetVersion.xlsx`). |
+| `download_e5_data()`                                        | Smart-cached download (reuses files < 90 days old).                                           |
+| `get_most_recent_e5_file()`                                 | Fallback to most recent cached file (≤ 180 days) if scraping fails.                           |
+| `clean_e5_data()` / `add_geographic_level_e5()`             | Rename columns, strip summary rows, forward-fill, assign State/County/City/Town.              |
+| `fix_vacancy_rate_decimal_fractions()`                      | Corrects 2020+ vacancy rates stored as decimals (0.05) rather than percentages (5.0).         |
+| `standardize_san_francisco_classification()`                | Duplicates SF as both City and County rows.                                                   |
+| `add_regional_data()` / `add_state_data_for_modern_years()` | Build regional and state aggregates.                                                          |
+| `main()`                                                    | Orchestrates clean → merge → dedupe → regionalize → fix → classify → save.                    |
 
 > [!success] Verified output
 > Final `data/current/PopHousing_Current.csv` is **19,160 rows**, 1991–2025: **16,010 City**, **2,030 County**, **770 Town**, **315 Region**, **35 State**. SF appears as both a City and a County row.

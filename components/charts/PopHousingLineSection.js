@@ -1,22 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { COLORS } from "@/lib/constants";
-import LineChart from "@/components/charts/LineChart";
+import React, { useEffect, useMemo, useState } from "react";
+import PlotlyChart from "@/components/charts/PlotlyChart";
+import { POPHOUSING_SCHEMA } from "@/lib/visualization/moduleSchemas/pophousing";
+import { toPlotly } from "@/lib/visualization/toPlotly";
+import { Card, CardContent } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
-// UI-facing constants kept client-side. The data module (lib/data/pop_housing.js)
-// is server-only (node:fs), so it must not be imported here; these mirror the
-// curated parameter list and the subset names that module accepts.
-const PARAMETERS = [
-  "Total Population",
-  "Total Housing Units",
-  "Vacancy Rate (%)",
-  "Persons Per Household",
-  "Single Family Units",
-  "Multiple Family Units",
-];
+// Curated metric list comes from the client-safe module schema (single source of
+// truth, shared with the server data module) — no longer duplicated here.
+const PARAMETERS = POPHOUSING_SCHEMA.curatedMeasures;
 
-// Each preset maps to a single-subset API query (optionally pinned to locations).
+// Each location preset maps to a single-subset API query (optionally pinned).
 const PRESETS = {
   Regions: { label: "California Regions", subset: "Regions", locations: null },
   "Major Counties": {
@@ -41,6 +44,22 @@ export default function PopHousingLineSection() {
   const [series, setSeries] = useState([]);
   const [status, setStatus] = useState("loading"); // loading | ready | error | empty
   const [errorMessage, setErrorMessage] = useState("");
+  const plotly = useMemo(
+    () =>
+      toPlotly({
+        chartType: "line",
+        bindings: { x: "Year", y: parameter, series: "Location" },
+        series,
+        field: POPHOUSING_SCHEMA.fields[parameter],
+        transforms: "actual",
+        labels: {
+          title: `${parameter} Over Time (${PRESETS[presetKey].label})`,
+          xAxis: "Year",
+          yAxis: parameter,
+        },
+      }),
+    [parameter, presetKey, series],
+  );
 
   useEffect(() => {
     const preset = PRESETS[presetKey];
@@ -77,94 +96,60 @@ export default function PopHousingLineSection() {
   }, [parameter, presetKey]);
 
   return (
-    <section
-      style={{
-        backgroundColor: COLORS.white,
-        borderRadius: "6px",
-        padding: "24px",
-        boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-      }}
-    >
-      {/* Controls */}
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: "24px",
-          alignItems: "flex-end",
-          marginBottom: "20px",
-        }}
-      >
-        <label style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-          <span style={{ fontSize: "0.85rem", color: COLORS.gray5 }}>Metric</span>
-          <select
-            value={parameter}
-            onChange={(e) => setParameter(e.target.value)}
-            style={{
-              padding: "8px 10px",
-              borderRadius: "4px",
-              border: `1px solid ${COLORS.gray3}`,
-              fontSize: "0.95rem",
-              minWidth: "220px",
-            }}
-          >
-            {PARAMETERS.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
-        </label>
+    <Card className="shadow-sm">
+      <CardContent className="pt-6">
+        {/* Controls */}
+        <div className="mb-5 flex flex-wrap items-end gap-6">
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs text-muted-foreground">Metric</Label>
+            <Select value={parameter} onValueChange={setParameter}>
+              <SelectTrigger className="min-w-55">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PARAMETERS.map((p) => (
+                  <SelectItem key={p} value={p}>
+                    {p}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-          <span style={{ fontSize: "0.85rem", color: COLORS.gray5 }}>Locations</span>
-          <div style={{ display: "flex", gap: "8px" }}>
-            {Object.entries(PRESETS).map(([key, preset]) => {
-              const active = key === presetKey;
-              return (
-                <button
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs text-muted-foreground">Locations</Label>
+            <div className="flex gap-2">
+              {Object.entries(PRESETS).map(([key, preset]) => (
+                <Button
                   key={key}
                   type="button"
+                  variant={key === presetKey ? "default" : "outline"}
+                  size="sm"
                   onClick={() => setPresetKey(key)}
-                  style={{
-                    padding: "8px 14px",
-                    borderRadius: "4px",
-                    border: `1px solid ${active ? COLORS.primaryOrange : COLORS.gray3}`,
-                    backgroundColor: active ? COLORS.primaryOrange : COLORS.white,
-                    color: active ? COLORS.white : COLORS.gray6,
-                    fontSize: "0.9rem",
-                    cursor: "pointer",
-                  }}
                 >
                   {preset.label}
-                </button>
-              );
-            })}
+                </Button>
+              ))}
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Chart / states */}
-      {status === "loading" && (
-        <p style={{ color: COLORS.gray5, padding: "40px 0" }}>Loading chart…</p>
-      )}
-      {status === "empty" && (
-        <p style={{ color: COLORS.gray5, padding: "40px 0" }}>
-          No data available for this selection.
-        </p>
-      )}
-      {status === "error" && (
-        <p style={{ color: COLORS.burntOrange, padding: "40px 0" }}>
-          Could not load chart: {errorMessage}
-        </p>
-      )}
-      {status === "ready" && (
-        <LineChart
-          series={series}
-          title={`${parameter} Over Time (${PRESETS[presetKey].label})`}
-          yTitle={parameter}
-        />
-      )}
-    </section>
+        {/* Chart / states */}
+        {status === "loading" && (
+          <p className="py-10 text-muted-foreground">Loading chart…</p>
+        )}
+        {status === "empty" && (
+          <p className="py-10 text-muted-foreground">
+            No data available for this selection.
+          </p>
+        )}
+        {status === "error" && (
+          <p className="py-10 text-destructive">Could not load chart: {errorMessage}</p>
+        )}
+        {status === "ready" && (
+          <PlotlyChart {...plotly} />
+        )}
+      </CardContent>
+    </Card>
   );
 }

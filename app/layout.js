@@ -1,3 +1,5 @@
+/* eslint-disable react/prop-types */
+import React from "react";
 import { Orbitron, Source_Sans_3, Inter } from "next/font/google";
 import Navbar from "@/components/Navbar";
 import "./globals.css";
@@ -21,14 +23,15 @@ const inter = Inter({
 });
 
 export const metadata = {
-  title: "CA Housing & Population Data",
+  title: "PPIC Data Explorer",
+  description: "Interactive California population and housing data visualizations.",
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body
-        className={`${orbitron.variable} ${sourceSans.variable} ${inter.variable}`}
+        className={`${orbitron.variable} ${sourceSans.variable} ${inter.variable} font-body`}
       >
         <Navbar />
         {children}

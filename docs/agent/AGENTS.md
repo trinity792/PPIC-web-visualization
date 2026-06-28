@@ -20,12 +20,13 @@ non-developers can understand it and future contributors can extend it.
 
 ## Workspace
 
-This VS Code workspace has two folders:
+This VS Code workspace has three folders:
 
 - `web-data-visualization/` — the new project root. All work happens here.
 - `Previous Tool/` — read-only legacy reference. Contains `Visualization Tool/`
   (14 Jupyter notebooks across 5 datasets) and `Automated Data Pipeline/`
   (the Shiny web app and production ETL pipeline). Never modify this folder.
+  `UI Kit for Data Visualization/` - the UI kit for front end work. read-only reference.
 
 ## Commands
 
@@ -41,6 +42,9 @@ This VS Code workspace has two folders:
 - Ask before destructive or irreversible actions
 - Do not invent requirements, APIs, or test results
 - Restate the task briefly before major edits
+- Before writing new code, search the codebase for existing utilities or patterns
+  that already solve the problem; generalize shared logic into reusable functions
+  rather than duplicating it across files
 
 ## Boundaries
 
@@ -51,6 +55,19 @@ This VS Code workspace has two folders:
 - Read `lib/pophousing_config.py` before making Population & Housing data changes —
   it is the source of truth for regions, geographic classifications, and column definitions
 - "Follow Python conventions in `docs/agent/python_conventions.md` when writing or modifying `.py` files."
+- Reference `UI Kit for Data Visualization/` before implementing any frontend UI;
+  match its patterns for layout, typography, color usage, and component styling
+- Use the shared constants/theme module (e.g., `constants.js`) for all colors, fonts,
+  spacing, and design tokens — never hard-code these values in individual components.
+  When a new value is needed, add it to the constants file first, then import it.
+
+## Permissions
+
+- Reading, searching, listing, or viewing files **within the workspace** does not
+  require user approval — just do it
+- Running unit tests/unit checks or running npm does not require user approval - just do it
+- Only prompt for confirmation before destructive, irreversible, or out-of-scope actions
+  (e.g., deleting files, modifying configs listed under "Ask first")
 
 ⚠️ **Ask first:**
 - Adding new dependencies (npm or pip)
@@ -60,7 +77,7 @@ This VS Code workspace has two folders:
 - Restructuring folders under `scripts/` or `lib/`
 
 🚫 **Never:**
-- Modify anything under `Previous Tool/`
+- Modify anything under `Previous Tool/` or `UI Kit for Data Visualization`
 - Commit raw data files or cleaned CSVs to git
 - Rewrite working pipeline logic without explicit instruction
 - Suppress warnings with blanket `warnings.filterwarnings("ignore")`
