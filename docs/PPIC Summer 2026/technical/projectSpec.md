@@ -1,7 +1,7 @@
 
 # Project Specification, Architecture & API Reference
 Web **Visualizations** Project
-Last Updated: June 27th, 2026
+Last Updated: June 30th, 2026
 
 ---
 
@@ -739,6 +739,8 @@ The site has **two pages**, both built from the shared layer:
 | **Landing** | `/` (`app/page.js`) | A stack of **category dashboards** — one self-contained dashboard component per dataset category. |
 | **Detailed module page** | `/[module]` (`app/[module]/page.js`) | The **chart editor**: a dynamic sidebar + a live chart canvas + saved views, for one module. |
 
+A third, non-data page exists at `/ui-kit` (`app/ui-kit/page.js`, built from `components/ui-kit/`): a static **design-system showcase** of the PPIC palette, typography, components, and example charts. It is a reference surface, not part of the module data flow.
+
 Three ideas hold it together:
 
 - **A client-safe visualization layer** (`lib/visualization/`, no `node:fs`) is the single source of truth for fields, chart types, presets, transforms, validation, and category/built-in views. Both the browser and the server data modules import from it.
@@ -756,8 +758,13 @@ Three ideas hold it together:
 | `transformRegistry.js`      | Pure series transforms (`actual`, `indexed`, `percentChange`, `percentagePointChange`, `differenceFromBenchmark`, …), gated by each field's allowed transforms.                                                                             |
 | `validation.js`             | Bindings / comparability / complexity / geography-source checks → `{ level, code, message, suggestion }` findings (the guardrail enforcement point).                                                                                        |
 | `formatters.js`             | Named value formatters (year, people, percent, …).                                                                                                                                                                                          |
-| `toPlotly.js`               | The adapter: `(config + fetched data) → { data, layout, config }` for every chart type.                                                                                                                                                     |
+| `toPlotly.js`               | The adapter: `(config + fetched data) → { data, layout, config }` for every chart type. Builds each layout from the shared `plotlyDefaults` tokens and rules.                                                                                |
+| `plotlyDefaults.js`         | Shared Plotly defaults — the chart `config`, base-layout tokens (font, white surfaces, grid color), legend-placement rules (incl. the bottom-legend overlap anchor), and `wrapTitle`. Imported by both `toPlotly` and hand-built figures (the UI-kit showcase) so they render as one family. |
 | `categoryRegistry.js`       | Landing **categories** and **built-in views** — the declarative configs the dashboard tiles and "See more" deep-links use.                                                                                                                  |
+
+> [!flag] Plotly mutates `layout` in place
+> Plotly's `cleanLayout` writes to the layout object it is handed (it normalizes `layout.font.color`, among others). Any **shared or frozen** default must therefore be spread into a fresh object **per layout** — `font: { ...PLOTLY_FONT }`, never `font: PLOTLY_FONT` — or Plotly throws *"Cannot assign to read only property 'color'"*. `react-plotly.js` swallows that error (no `onError` prop is passed), so the only visible symptom is a **blank chart**: the div has `data` but no `_fullLayout`/SVG. `toPlotly` makes this fresh copy; `plotlyDefaults.js` documents the rule beside `PLOTLY_FONT`.
+> **Still outstanding (note, not fixed):** the `/ui-kit` `GraphsShowcase` reuses one module-level `baseLayout` (with nested `font`/`legend` objects) across its four charts, and Plotly mutates each chart's layout in place. It renders today only because those objects are not frozen — it is the same footgun and should build a fresh layout per chart.
 
 ### Detailed component map — what renders each thing, front and back
 

@@ -3,7 +3,6 @@ import React from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import ChartPreview from "@/components/charts/ChartPreview";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { getBuiltInView } from "@/lib/visualization/categoryRegistry";
 
@@ -26,12 +25,18 @@ export default function ChartTile({ viewId, modulePath }) {
             {view.labels.subtitle}
           </p>
         </div>
-        <Button asChild size="sm" variant="outline">
-          <Link href={`${modulePath}?view=${viewId}`}>
-            See more
-            <ArrowRight />
-          </Link>
-        </Button>
+        <Link
+          href={`${modulePath}?view=${viewId}`}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-4 py-1 text-[13px] hover:brightness-95"
+          style={{
+            backgroundColor: "var(--ppic-blue-50)",
+            borderColor: "#000",
+            color: "#0d0d0d",
+            fontFamily: "var(--font-heading)",
+          }}
+        >
+          See More <ArrowRight className="size-3.5" />
+        </Link>
       </div>
     </Card>
   );

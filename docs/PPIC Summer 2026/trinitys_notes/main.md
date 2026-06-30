@@ -1025,3 +1025,8 @@ This gives users real flexibility while preserving the project’s contract-driv
 ---
 
 # June 30, 2026
+## frontend-conventions.md
+Include:
+- Reuse components over creating new ones. Confirm with user before creating a new component
+- Refer to the UI Kit that exists as a page on the main website (not the standalone UI Kit)
+- 

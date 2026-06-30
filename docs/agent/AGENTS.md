@@ -42,9 +42,7 @@ This VS Code workspace has three folders:
 - Ask before destructive or irreversible actions
 - Do not invent requirements, APIs, or test results
 - Restate the task briefly before major edits
-- Before writing new code, search the codebase for existing utilities or patterns
-  that already solve the problem; generalize shared logic into reusable functions
-  rather than duplicating it across files
+- Before writing new code, search the codebase for existing utilities or patterns that already solve the problem; generalize shared logic into reusable functions rather than duplicating it across files
 
 ## Boundaries
 
@@ -54,8 +52,8 @@ This VS Code workspace has three folders:
   if not found there, check other folders within `docs/`
 - Read `lib/pophousing_config.py` before making Population & Housing data changes —
   it is the source of truth for regions, geographic classifications, and column definitions
-- "Follow Python conventions in `docs/agent/python_conventions.md` when writing or modifying `.py` files."
-- Reference `UI Kit for Data Visualization/` before implementing any frontend UI;
+- Follow Python conventions in `docs/agent/python_conventions.md` when writing or modifying `.py` files
+- Reference `docs/agent/frontend-conventions.md` before implementing any frontend UI;
   match its patterns for layout, typography, color usage, and component styling
 - Use the shared constants/theme module (e.g., `constants.js`) for all colors, fonts,
   spacing, and design tokens — never hard-code these values in individual components.
@@ -93,6 +91,3 @@ This VS Code workspace has three folders:
 For full legacy codebase understanding, read `docs/PPIC Summer 2026/human/previous_tool_analysis.md`.
 
 For the full project spec, read `docs/PPIC Summer 2026/technical/projectSpec.md`
-
-Additional context files (read when relevant):
-- `CLAUDE.md` — Claude-specific instructions

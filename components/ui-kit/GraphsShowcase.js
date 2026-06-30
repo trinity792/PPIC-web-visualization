@@ -1,36 +1,37 @@
 "use client";
 /* eslint-disable react/prop-types */
 import React from "react";
-import {
-  CartesianGrid,
-  Cell,
-  Legend,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Scatter,
-  ScatterChart,
-  Tooltip,
-  XAxis,
-  YAxis,
-  ZAxis,
-} from "recharts";
+import PlotlyChart from "@/components/charts/PlotlyChart";
 import { Section } from "./Section";
 import { COLORS, BASE_PLOTLY_COLORS } from "@/lib/constants";
+import {
+  DEFAULT_PLOTLY_CONFIG,
+  PLOTLY_FONT_FAMILY,
+  PLOTLY_GRID_COLOR,
+  PLOTLY_SURFACE,
+  legendFor,
+} from "@/lib/visualization/plotlyDefaults";
 
-const tooltipStyle = {
-  borderRadius: 12,
-  border: `1px solid ${COLORS.gray2}`,
-  fontFamily: "Inter",
-  fontSize: 13,
+const CHART_HEIGHT = 256;
+
+// Hand-built showcase figures reuse the production Plotly defaults so they read
+// as one family with the live charts: the shared config (mode bar hidden here),
+// surfaces, the bottom-legend rule (with its overlap-clearing anchor), and a
+// slightly lighter/smaller label than the production text token.
+const baseConfig = { ...DEFAULT_PLOTLY_CONFIG, displayModeBar: false };
+
+const baseLayout = {
+  // Bottom margin reserves room for the legendFor("bottom") anchor (y: -0.3).
+  margin: { t: 12, r: 16, b: 72, l: 48 },
+  font: { family: PLOTLY_FONT_FAMILY, size: 12, color: COLORS.gray5 },
+  ...PLOTLY_SURFACE,
+  ...legendFor("bottom"),
+  hoverlabel: { font: { family: PLOTLY_FONT_FAMILY, size: 13 } },
 };
-const axisTick = { fontSize: 12, fontFamily: "Inter", fill: COLORS.gray5 };
 
 /* ---------- shared card + property primitives ---------- */
 
-function GraphCard({ title, chart, properties, responsive = true }) {
+function GraphCard({ title, chart, properties }) {
   return (
     <div
       className="rounded-2xl border bg-white p-6 shadow-[0px_4px_4px_0px_rgba(0,0,0,0.08)]"
@@ -39,15 +40,7 @@ function GraphCard({ title, chart, properties, responsive = true }) {
       <h3 className="text-neutral-900" style={{ fontFamily: "var(--font-serif)", fontSize: 22 }}>
         {title}
       </h3>
-      <div className="mt-3 h-64 w-full">
-        {responsive ? (
-          <ResponsiveContainer width="100%" height="100%">
-            {chart}
-          </ResponsiveContainer>
-        ) : (
-          chart
-        )}
-      </div>
+      <div className="mt-3 w-full">{chart}</div>
       <dl className="mt-4 space-y-1.5 border-t pt-4" style={{ borderColor: COLORS.gray1 }}>
         {properties.map((p) => (
           <div key={p.label} className="flex items-start gap-3 text-[13px]" style={{ fontFamily: "var(--font-sans)" }}>
@@ -106,45 +99,124 @@ const dumbbellData = [
   { region: "Sacramento", start: 360, end: 590 },
 ];
 
-/* ---------- dumbbell (custom) ---------- */
+/* ---------- plotly figures ---------- */
 
-function Dumbbell() {
-  const min = 200;
-  const max = 1200;
-  const pct = (v) => ((v - min) / (max - min)) * 100;
-  return (
-    <div className="flex h-full flex-col justify-center gap-6 px-2">
-      {dumbbellData.map((d) => (
-        <div key={d.region} className="grid grid-cols-[110px_1fr] items-center gap-3">
-          <span className="text-[13px] text-neutral-700" style={{ fontFamily: "var(--font-sans)" }}>
-            {d.region}
-          </span>
-          <div className="relative h-4">
-            {/* track */}
-            <div className="absolute top-1/2 h-[3px] w-full -translate-y-1/2 rounded-full" style={{ backgroundColor: COLORS.gray1 }} />
-            {/* connecting segment */}
-            <div
-              className="absolute top-1/2 h-[3px] -translate-y-1/2 rounded-full"
-              style={{ left: `${pct(d.start)}%`, width: `${pct(d.end) - pct(d.start)}%`, backgroundColor: COLORS.gray3 }}
-            />
-            {/* start dot */}
-            <span
-              className="absolute top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white"
-              style={{ left: `${pct(d.start)}%`, backgroundColor: COLORS.blue3 }}
-              title={`2014 · ${d.start}k`}
-            />
-            {/* end dot */}
-            <span
-              className="absolute top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white"
-              style={{ left: `${pct(d.end)}%`, backgroundColor: COLORS.orange3 }}
-              title={`2024 · ${d.end}k`}
-            />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
+const donutFigure = {
+  data: [
+    {
+      type: "pie",
+      hole: 0.55,
+      labels: donutData.map((d) => d.name),
+      values: donutData.map((d) => d.value),
+      sort: false,
+      direction: "clockwise",
+      textinfo: "none",
+      marker: { colors: BASE_PLOTLY_COLORS, line: { color: "white", width: 1 } },
+      hovertemplate: "%{label}: %{value}M<extra></extra>",
+    },
+  ],
+  layout: { ...baseLayout, margin: { t: 12, r: 12, b: 72, l: 12 } },
+};
+
+const lineFigure = {
+  data: [
+    {
+      type: "scatter",
+      mode: "lines+markers",
+      name: "Owners",
+      x: lineData.map((d) => d.year),
+      y: lineData.map((d) => d.owners),
+      line: { color: COLORS.blue3, width: 2.5, shape: "spline" },
+      marker: { size: 6 },
+      hovertemplate: "%{x}: %{y}%<extra>Owners</extra>",
+    },
+    {
+      type: "scatter",
+      mode: "lines+markers",
+      name: "Renters",
+      x: lineData.map((d) => d.year),
+      y: lineData.map((d) => d.renters),
+      line: { color: COLORS.orange3, width: 2.5, shape: "spline" },
+      marker: { size: 6 },
+      hovertemplate: "%{x}: %{y}%<extra>Renters</extra>",
+    },
+  ],
+  layout: {
+    ...baseLayout,
+    xaxis: { showgrid: false, linecolor: COLORS.gray3, ticks: "outside", tickcolor: COLORS.gray3 },
+    yaxis: { gridcolor: PLOTLY_GRID_COLOR, zeroline: false, ticksuffix: "%" },
+  },
+};
+
+const scatterFigure = {
+  data: [
+    {
+      type: "scatter",
+      mode: "markers",
+      name: "Coastal",
+      x: scatterA.map((d) => d.income),
+      y: scatterA.map((d) => d.cost),
+      marker: { color: COLORS.blue3, size: 9 },
+      hovertemplate: "%{x}k income · %{y}k cost<extra>Coastal</extra>",
+    },
+    {
+      type: "scatter",
+      mode: "markers",
+      name: "Inland",
+      x: scatterB.map((d) => d.income),
+      y: scatterB.map((d) => d.cost),
+      marker: { color: COLORS.orange3, size: 9 },
+      hovertemplate: "%{x}k income · %{y}k cost<extra>Inland</extra>",
+    },
+  ],
+  layout: {
+    ...baseLayout,
+    // This chart has an x-axis title, so reserve extra bottom margin on top of the
+    // shared bottom-legend anchor so the legend clears the axis title/ticks.
+    margin: { ...baseLayout.margin, b: 104 },
+    xaxis: { gridcolor: PLOTLY_GRID_COLOR, zeroline: false, ticksuffix: "k", title: { text: "Income", font: { size: 12 } } },
+    yaxis: { gridcolor: PLOTLY_GRID_COLOR, zeroline: false, ticksuffix: "k" },
+  },
+};
+
+const dumbbellFigure = {
+  data: [
+    // Connecting segments (one polyline broken by nulls between regions).
+    {
+      type: "scatter",
+      mode: "lines",
+      x: dumbbellData.flatMap((d) => [d.start, d.end, null]),
+      y: dumbbellData.flatMap((d) => [d.region, d.region, null]),
+      line: { color: COLORS.gray3, width: 3 },
+      hoverinfo: "skip",
+      showlegend: false,
+    },
+    {
+      type: "scatter",
+      mode: "markers",
+      name: "2014",
+      x: dumbbellData.map((d) => d.start),
+      y: dumbbellData.map((d) => d.region),
+      marker: { color: COLORS.blue3, size: 13, line: { color: "white", width: 2 } },
+      hovertemplate: "%{y}: %{x}k<extra>2014</extra>",
+    },
+    {
+      type: "scatter",
+      mode: "markers",
+      name: "2024",
+      x: dumbbellData.map((d) => d.end),
+      y: dumbbellData.map((d) => d.region),
+      marker: { color: COLORS.orange3, size: 13, line: { color: "white", width: 2 } },
+      hovertemplate: "%{y}: %{x}k<extra>2024</extra>",
+    },
+  ],
+  layout: {
+    ...baseLayout,
+    margin: { t: 12, r: 16, b: 72, l: 96 },
+    xaxis: { gridcolor: PLOTLY_GRID_COLOR, zeroline: false, ticksuffix: "k" },
+    yaxis: { automargin: true, ticksuffix: "  " },
+  },
+};
 
 /* ---------- section ---------- */
 
@@ -154,36 +226,39 @@ export function GraphsShowcase() {
       id="graphs"
       eyebrow="Components"
       title="Example Graphs"
-      description="Chart types styled with the PPIC data palette. Categorical series cycle through BASE_PLOTLY_COLORS; comparison pairs lead with blue (baseline) and orange (current)."
+      description="Chart types styled with the PPIC data palette, rendered with Plotly. Categorical series cycle through BASE_PLOTLY_COLORS; comparison pairs lead with blue (baseline) and orange (current)."
     >
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Donut */}
         <GraphCard
           title="Donut · Population share by region"
           chart={
-            <PieChart>
-              <Tooltip contentStyle={tooltipStyle} formatter={(v) => `${v}M`} />
-              <Pie data={donutData} dataKey="value" nameKey="name" innerRadius={55} outerRadius={90} paddingAngle={2} stroke="none">
-                {donutData.map((_, i) => (
-                  <Cell key={i} fill={BASE_PLOTLY_COLORS[i % BASE_PLOTLY_COLORS.length]} />
-                ))}
-              </Pie>
-              <Legend wrapperStyle={{ fontFamily: "Inter", fontSize: 12 }} />
-            </PieChart>
+            <PlotlyChart
+              data={donutFigure.data}
+              layout={donutFigure.layout}
+              config={baseConfig}
+              height={CHART_HEIGHT}
+            />
           }
           properties={[
             { label: "Type", value: "Donut / arc" },
-            { label: "Inner radius", value: "55px" },
+            { label: "Hole", value: "0.55" },
             { label: "Slice colors", value: "BASE_PLOTLY_COLORS" },
-            { label: "Padding angle", value: "2°" },
+            { label: "Engine", value: "Plotly pie" },
           ]}
         />
 
         {/* Dumbbell */}
         <GraphCard
           title="Dumbbell · Median cost 2014 → 2024"
-          responsive={false}
-          chart={<Dumbbell />}
+          chart={
+            <PlotlyChart
+              data={dumbbellFigure.data}
+              layout={dumbbellFigure.layout}
+              config={baseConfig}
+              height={CHART_HEIGHT}
+            />
+          }
           properties={[
             { label: "Type", value: "Dumbbell / range" },
             {
@@ -196,7 +271,7 @@ export function GraphsShowcase() {
               ),
             },
             { label: "Connector", value: <Swatch color={COLORS.gray3} label="gray3" /> },
-            { label: "Track", value: <Swatch color={COLORS.gray1} label="gray1" /> },
+            { label: "Engine", value: "Plotly scatter" },
           ]}
         />
 
@@ -204,15 +279,12 @@ export function GraphsShowcase() {
         <GraphCard
           title="Line · Owner vs renter share"
           chart={
-            <LineChart data={lineData} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
-              <CartesianGrid stroke={COLORS.gray2} vertical={false} />
-              <XAxis dataKey="year" tick={axisTick} tickLine={false} axisLine={{ stroke: COLORS.gray3 }} />
-              <YAxis tick={axisTick} tickLine={false} axisLine={false} width={36} unit="%" />
-              <Tooltip contentStyle={tooltipStyle} />
-              <Legend wrapperStyle={{ fontFamily: "Inter", fontSize: 12 }} />
-              <Line type="monotone" dataKey="owners" name="Owners" stroke={COLORS.blue3} strokeWidth={2.5} dot={{ r: 3 }} />
-              <Line type="monotone" dataKey="renters" name="Renters" stroke={COLORS.orange3} strokeWidth={2.5} dot={{ r: 3 }} />
-            </LineChart>
+            <PlotlyChart
+              data={lineFigure.data}
+              layout={lineFigure.layout}
+              config={baseConfig}
+              height={CHART_HEIGHT}
+            />
           }
           properties={[
             { label: "Type", value: "Multi-series line" },
@@ -225,7 +297,7 @@ export function GraphsShowcase() {
                 </>
               ),
             },
-            { label: "Stroke", value: "2.5px · monotone" },
+            { label: "Stroke", value: "2.5px · spline" },
             { label: "Grid", value: "Horizontal only" },
           ]}
         />
@@ -234,16 +306,12 @@ export function GraphsShowcase() {
         <GraphCard
           title="Scatter · Income vs housing cost"
           chart={
-            <ScatterChart margin={{ top: 8, right: 12, left: -8, bottom: 4 }}>
-              <CartesianGrid stroke={COLORS.gray2} />
-              <XAxis type="number" dataKey="income" name="Income" unit="k" tick={axisTick} tickLine={false} axisLine={{ stroke: COLORS.gray3 }} />
-              <YAxis type="number" dataKey="cost" name="Cost" unit="k" tick={axisTick} tickLine={false} axisLine={false} width={40} />
-              <ZAxis range={[60, 60]} />
-              <Tooltip contentStyle={tooltipStyle} cursor={{ strokeDasharray: "3 3" }} />
-              <Legend wrapperStyle={{ fontFamily: "Inter", fontSize: 12 }} />
-              <Scatter name="Coastal" data={scatterA} fill={COLORS.blue3} />
-              <Scatter name="Inland" data={scatterB} fill={COLORS.orange3} />
-            </ScatterChart>
+            <PlotlyChart
+              data={scatterFigure.data}
+              layout={scatterFigure.layout}
+              config={baseConfig}
+              height={CHART_HEIGHT}
+            />
           }
           properties={[
             { label: "Type", value: "Scatter / XY" },
@@ -257,7 +325,7 @@ export function GraphsShowcase() {
               ),
             },
             { label: "Axes", value: "Income (k) × Cost (k)" },
-            { label: "Point size", value: "60" },
+            { label: "Markers", value: "9px" },
           ]}
         />
       </div>
