@@ -1,0 +1,314 @@
+/* ================================================================
+   AnuPpuccin Custom Overrides
+   
+   This CSS snippet replaces all hex color customizations from the
+   Style Settings JSON. Import this via:
+   Settings → Appearance → CSS Snippets → Enable
+   
+   IMPORTANT: The following settings MUST remain in Style Settings
+   JSON because they are class toggles, not CSS values:
+   
+   - Theme flavors (ctp-mocha, ctp-latte)
+   - Layout variant (anp-border-layout)
+   - Tab style (anp-mini-tab-toggle)
+   - Rainbow style (anp-simple-rainbow-color-toggle)
+   - Callout style (anp-callout-sleek)
+   - Status bar style (anp-floating-status-bar)
+   - Active line style (anp-no-highlight)
+   - All boolean toggles (anp-decoration-toggle, anp-header-color-toggle, etc.)
+   - Accent toggle + preset names
+   - Cursor style
+   
+   See the companion style-settings.json for those values.
+   ================================================================ */
+
+
+/* ================================================================
+   1. COLOR OVERRIDES (Catppuccin palette customization)
+   ================================================================ */
+
+/* -- Overlay colors (borders, dividers, subtle UI) -- */
+.theme-dark {
+  --ctp-custom-overlay2: #008080;
+  --ctp-custom-overlay1: #82D7D9;
+  --ctp-custom-overlay0: #82D7D9;
+}
+
+.theme-light {
+  --ctp-custom-overlay2: #525252;
+  --ctp-custom-overlay1: #CCCCCC;
+  --ctp-custom-overlay0: #008080;
+}
+
+
+/* ================================================================
+   2. HEADING COLORS
+   Requires: anp-header-color-toggle enabled in Style Settings
+   ================================================================ */
+
+/* H1 — Light */
+.theme-light .anp-header-color-toggle .cm-header-1,
+.theme-light .anp-header-color-toggle .HyperMD-header-1,
+.theme-light .anp-header-color-toggle .markdown-preview-view h1,
+.theme-light .anp-header-color-toggle .inline-title {
+  color: #4853BD !important;
+}
+/* H1 — Dark */
+.theme-dark .anp-header-color-toggle .cm-header-1,
+.theme-dark .anp-header-color-toggle .HyperMD-header-1,
+.theme-dark .anp-header-color-toggle .markdown-preview-view h1,
+.theme-dark .anp-header-color-toggle .inline-title {
+  color: #8B93E0 !important;
+}
+
+/* H2 — Light */
+.theme-light .anp-header-color-toggle .cm-header-2,
+.theme-light .anp-header-color-toggle .HyperMD-header-2,
+.theme-light .anp-header-color-toggle .markdown-preview-view h2 {
+  color: #4F537D !important;
+}
+/* H2 — Dark */
+.theme-dark .anp-header-color-toggle .cm-header-2,
+.theme-dark .anp-header-color-toggle .HyperMD-header-2,
+.theme-dark .anp-header-color-toggle .markdown-preview-view h2 {
+  color: #9498C4 !important;
+}
+
+/* H3 — Light */
+.theme-light .anp-header-color-toggle .cm-header-3,
+.theme-light .anp-header-color-toggle .HyperMD-header-3,
+.theme-light .anp-header-color-toggle .markdown-preview-view h3 {
+  color: #4F7D5B !important;
+}
+/* H3 — Dark */
+.theme-dark .anp-header-color-toggle .cm-header-3,
+.theme-dark .anp-header-color-toggle .HyperMD-header-3,
+.theme-dark .anp-header-color-toggle .markdown-preview-view h3 {
+  color: #8CC49A !important;
+}
+
+/* H4 — Light */
+.theme-light .anp-header-color-toggle .cm-header-4,
+.theme-light .anp-header-color-toggle .HyperMD-header-4,
+.theme-light .anp-header-color-toggle .markdown-preview-view h4 {
+  color: #508A60 !important;
+}
+/* H4 — Dark */
+.theme-dark .anp-header-color-toggle .cm-header-4,
+.theme-dark .anp-header-color-toggle .HyperMD-header-4,
+.theme-dark .anp-header-color-toggle .markdown-preview-view h4 {
+  color: #90CCA0 !important;
+}
+
+/* H1 divider — Light */
+.theme-light .anp-header-divider-color-toggle .cm-header-1,
+.theme-light .anp-header-divider-color-toggle .markdown-preview-view h1 {
+  border-bottom-color: #4853BD !important;
+}
+/* H1 divider — Dark */
+.theme-dark .anp-header-divider-color-toggle .cm-header-1,
+.theme-dark .anp-header-divider-color-toggle .markdown-preview-view h1 {
+  border-bottom-color: #8B93E0 !important;
+}
+
+
+/* ================================================================
+   3. TEXT DECORATION COLORS
+   Requires: anp-decoration-toggle enabled in Style Settings
+   ================================================================ */
+
+/* Bold — Light (muted rose) */
+.theme-light .anp-decoration-toggle .cm-strong,
+.theme-light .anp-decoration-toggle strong {
+  color: #BC4749 !important;
+}
+/* Bold — Dark (lighter rose) */
+.theme-dark .anp-decoration-toggle .cm-strong,
+.theme-dark .anp-decoration-toggle strong {
+  color: #E07A7C !important;
+}
+
+/* Italic — Light */
+.theme-light .anp-decoration-toggle .cm-em,
+.theme-light .anp-decoration-toggle em {
+  color: #4853BD !important;
+}
+/* Italic — Dark */
+.theme-dark .anp-decoration-toggle .cm-em,
+.theme-dark .anp-decoration-toggle em {
+  color: #8B93E0 !important;
+}
+
+
+/* ================================================================
+   4. ACCENT COLOR (links, interactive elements)
+   This overrides the theme accent for [[]] links, buttons, etc.
+   ================================================================ */
+
+/* Light mode accent */
+.theme-light {
+  --accent-h: 352;
+  --accent-s: 38%;
+  --accent-l: 33%;
+}
+/* Dark mode accent (lighter for readability) */
+.theme-dark {
+  --accent-h: 352;
+  --accent-s: 50%;
+  --accent-l: 65%;
+}
+
+/* If you want [[]] links to be a DIFFERENT color from the accent,
+   uncomment and customize the block below: */
+/*
+.cm-hmd-internal-link,
+.internal-link {
+  color: #YOURCOLOR !important;
+}
+*/
+
+
+/* ================================================================
+   5. TYPOGRAPHY
+   ================================================================ */
+
+/* Live Preview font */
+.is-live-preview .cm-editor .cm-content {
+  font-family: "New York", var(--font-text-theme), var(--font-interface);
+  font-weight: 400;
+}
+
+/* Bold weight */
+strong, .cm-strong {
+  font-weight: 700;
+}
+
+/* H1 */
+.markdown-preview-view h1,
+.HyperMD-header-1 {
+  font-size: 2em;
+  font-weight: 900;
+  /* line-height: 1.2; */
+}
+
+/* H2 */
+.markdown-preview-view h2,
+.HyperMD-header-2 {
+  font-size: 1.9em;
+  font-weight: 700;
+}
+
+/* H3 */
+.markdown-preview-view h3,
+.HyperMD-header-3 {
+  font-size: 1.6em;
+  font-weight: 500;
+}
+
+/* H4 */
+.markdown-preview-view h4,
+.HyperMD-header-4 {
+  font-weight: 300;
+}
+
+/* H5 */
+.markdown-preview-view h5,
+.HyperMD-header-5 {
+  font-weight: 200;
+}
+
+/* H6 */
+.markdown-preview-view h6,
+.HyperMD-header-6 {
+  font-size: 1.1em;
+  font-weight: 700;
+}
+
+
+/* ================================================================
+   6. WORKSPACE LAYOUT
+   Numeric values that supplement the class-based layout toggle
+   ================================================================ */
+
+/* Border layout */
+.anp-border-layout {
+  --anp-border-radius: 16px;
+  --anp-border-padding: 20px;
+}
+
+/* Card layout */
+.anp-card-layout {
+  --anp-card-radius: 8px;
+  --anp-card-layout-padding: 1px;
+}
+
+/* Stacked tabs */
+.mod-stacked .workspace-tab-header {
+  width: 30px;
+}
+
+/* Tab height */
+.anp-mini-tab-toggle .workspace-tab-header {
+  height: 40px;
+}
+
+/* Depth tab settings */
+.workspace-tab-header:not(.is-active) {
+  --anp-depth-tab-opacity: 0.6;
+  --anp-depth-tab-gap: 10px;
+}
+
+/* Safari tab settings */
+.anp-safari-tabs {
+  --anp-safari-tab-radius: 5px;
+  --anp-safari-tab-gap: 3px;
+}
+
+
+/* ================================================================
+   7. MISCELLANEOUS
+   ================================================================ */
+
+/* Tag radius */
+.tag {
+  border-radius: 2px;
+}
+
+/* Cards border width (Minimal Cards integration) */
+.cards .card {
+  border-width: 4px;
+}
+
+/* Rainbow folder opacity */
+.anp-simple-rainbow-color-toggle {
+  --anp-rainbow-folder-bg-opacity: 0.9;
+}
+
+/* Colorful frame opacity (frame is disabled but keeping value) */
+.anp-colorful-frame {
+  --anp-colorful-frame-opacity: 1;
+}
+
+/* Dark to indigo folder gradient — Light mode */
+.theme-light .nav-folder:nth-child(1) > .nav-folder-title { color: #1A1F4A; }
+.theme-light .nav-folder:nth-child(2) > .nav-folder-title { color: #222859; }
+.theme-light .nav-folder:nth-child(3) > .nav-folder-title { color: #2A3168; }
+.theme-light .nav-folder:nth-child(4) > .nav-folder-title { color: #323A77; }
+.theme-light .nav-folder:nth-child(5) > .nav-folder-title { color: #3A4386; }
+.theme-light .nav-folder:nth-child(6) > .nav-folder-title { color: #3E4795; }
+.theme-light .nav-folder:nth-child(7) > .nav-folder-title { color: #424DA4; }
+.theme-light .nav-folder:nth-child(8) > .nav-folder-title { color: #4550B0; }
+.theme-light .nav-folder:nth-child(9) > .nav-folder-title { color: #4853BD; }
+.theme-light .nav-folder:nth-child(10) > .nav-folder-title { color: #5E6BCA; }
+
+/* Indigo to light folder gradient — Dark mode */
+.theme-dark .nav-folder:nth-child(1) > .nav-folder-title { color: #5E6BCA; }
+.theme-dark .nav-folder:nth-child(2) > .nav-folder-title { color: #6873D0; }
+.theme-dark .nav-folder:nth-child(3) > .nav-folder-title { color: #727BD6; }
+.theme-dark .nav-folder:nth-child(4) > .nav-folder-title { color: #7C83DC; }
+.theme-dark .nav-folder:nth-child(5) > .nav-folder-title { color: #858CE1; }
+.theme-dark .nav-folder:nth-child(6) > .nav-folder-title { color: #8F95E6; }
+.theme-dark .nav-folder:nth-child(7) > .nav-folder-title { color: #999FEB; }
+.theme-dark .nav-folder:nth-child(8) > .nav-folder-title { color: #A3A8F0; }
+.theme-dark .nav-folder:nth-child(9) > .nav-folder-title { color: #ADB2F5; }
+.theme-dark .nav-folder:nth-child(10) > .nav-folder-title { color: #B7BCFA; }

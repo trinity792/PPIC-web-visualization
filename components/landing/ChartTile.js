@@ -16,7 +16,7 @@ export default function ChartTile({ viewId, modulePath }) {
   const view = getBuiltInView(viewId);
   return (
     <Card className="gap-2 overflow-hidden rounded-lg">
-      <div className="min-h-80">
+      <div className="min-h-[420px]">
         <ChartPreview viewId={viewId} />
       </div>
       <div className="flex items-center justify-between gap-3 border-t px-4 py-3">

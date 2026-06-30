@@ -4,6 +4,7 @@ import React from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { deriveLabels } from "@/lib/visualization/deriveLabels";
 import { useChartConfig } from "./chartConfigStore";
 
 const LABELS = [
@@ -15,7 +16,10 @@ const LABELS = [
 ];
 
 export default function LabelEditor() {
-  const { config, dispatch } = useChartConfig();
+  const { config, dispatch, schema } = useChartConfig();
+  // Live auto-labels the graph would use; shown as placeholders until the user
+  // types their own.
+  const auto = deriveLabels(config, schema);
 
   return (
     <div className="grid gap-4">
@@ -25,6 +29,7 @@ export default function LabelEditor() {
           <Input
             id={`label-${key}`}
             value={config.labels[key] || ""}
+            placeholder={auto[key] || ""}
             onChange={(event) =>
               dispatch({ type: "SET_LABEL", key, value: event.target.value })
             }

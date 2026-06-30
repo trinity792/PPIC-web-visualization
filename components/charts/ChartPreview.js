@@ -6,6 +6,7 @@ import { LoaderCircle } from "lucide-react";
 import PlotlyChart from "./PlotlyChart";
 import { loadChartData } from "@/components/chart-builder/chartData";
 import { getBuiltInView } from "@/lib/visualization/categoryRegistry";
+import { effectiveLabels } from "@/lib/visualization/deriveLabels";
 import { getModuleSchema } from "@/lib/visualization/moduleRegistry";
 import { toPlotly } from "@/lib/visualization/toPlotly";
 
@@ -33,6 +34,7 @@ export default function ChartPreview({ viewId }) {
     try {
       const normalized = toPlotly({
         ...config,
+        labels: effectiveLabels(config, schema),
         series: result.series,
         geometry: result.geometry,
         featureidkey: result.response?.featureidkey,
@@ -59,18 +61,18 @@ export default function ChartPreview({ viewId }) {
 
   if (status === "loading") {
     return (
-      <div className="flex h-80 items-center justify-center text-muted-foreground">
+      <div className="flex h-[420px] items-center justify-center text-muted-foreground">
         <LoaderCircle className="size-5 animate-spin" />
       </div>
     );
   }
   if (status === "error" || !plotly) {
     return (
-      <div className="flex h-80 items-center justify-center text-sm text-muted-foreground">
+      <div className="flex h-[420px] items-center justify-center text-sm text-muted-foreground">
         Preview unavailable
       </div>
     );
   }
 
-  return <PlotlyChart {...plotly} height={320} className="w-full" />;
+  return <PlotlyChart {...plotly} height={420} className="w-full" />;
 }

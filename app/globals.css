@@ -8,6 +8,9 @@
    =========================================================================== */
 :root {
   --font-size: 16px;
+  /* Chart-editor sidebar's top offset. Defaults to the navbar height; a scroll
+     listener lowers it toward 0 so the sidebar rides up as the navbar leaves. */
+  --sb-top: 7.5rem;
   --background: #ffffff;
   --foreground: oklch(0.145 0 0);
   --card: #ffffff;
@@ -161,6 +164,39 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+
+  /* PPIC brand ramps as real Tailwind color utilities (bg-ppic-orange-300,
+     text-ppic-brand, border-ppic-neutral-600, …). Registering them here lets
+     tailwind-merge dedupe them against other bg-/text-/border- utilities,
+     unlike the `bg-(--ppic-…)` arbitrary-property form. */
+  --color-ppic-orange-50: var(--ppic-orange-50);
+  --color-ppic-orange-100: var(--ppic-orange-100);
+  --color-ppic-orange-200: var(--ppic-orange-200);
+  --color-ppic-orange-300: var(--ppic-orange-300);
+  --color-ppic-orange-400: var(--ppic-orange-400);
+  --color-ppic-orange-500: var(--ppic-orange-500);
+  --color-ppic-orange-600: var(--ppic-orange-600);
+  --color-ppic-orange-700: var(--ppic-orange-700);
+  --color-ppic-blue-50: var(--ppic-blue-50);
+  --color-ppic-blue-100: var(--ppic-blue-100);
+  --color-ppic-blue-200: var(--ppic-blue-200);
+  --color-ppic-blue-300: var(--ppic-blue-300);
+  --color-ppic-blue-400: var(--ppic-blue-400);
+  --color-ppic-blue-500: var(--ppic-blue-500);
+  --color-ppic-blue-600: var(--ppic-blue-600);
+  --color-ppic-neutral-50: var(--ppic-neutral-50);
+  --color-ppic-neutral-100: var(--ppic-neutral-100);
+  --color-ppic-neutral-200: var(--ppic-neutral-200);
+  --color-ppic-neutral-300: var(--ppic-neutral-300);
+  --color-ppic-neutral-400: var(--ppic-neutral-400);
+  --color-ppic-neutral-500: var(--ppic-neutral-500);
+  --color-ppic-neutral-600: var(--ppic-neutral-600);
+  --color-ppic-brand: var(--ppic-brand);
+  --color-ppic-brand-soft: var(--ppic-brand-soft);
+  --color-ppic-data-blue: var(--ppic-data-blue);
+  --color-ppic-surface: var(--ppic-surface);
+  --color-ppic-card: var(--ppic-card);
+  --color-ppic-border: var(--ppic-border);
 
   /* Fonts wired to the next/font variables defined in app/layout.js */
   --font-display: var(--font-orbitron), sans-serif;

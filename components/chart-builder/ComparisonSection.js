@@ -55,29 +55,7 @@ export default function ComparisonSection() {
 
   return (
     <div className="grid gap-4">
-      {schema.sources?.length ? (
-        <div className="grid gap-2">
-          <Label htmlFor="comparison-source">Source</Label>
-          <Select
-            value={config.filters.source || ""}
-            onValueChange={(value) =>
-              dispatch({ type: "SET_FILTER", key: "source", value })
-            }
-          >
-            <SelectTrigger id="comparison-source">
-              <SelectValue placeholder="Choose a source" />
-            </SelectTrigger>
-            <SelectContent>
-              {schema.sources.map((source) => (
-                <SelectItem key={source} value={source}>
-                  {source}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      ) : null}
-
+      {/* Source lives in the Data Sources section; geographic level too. */}
       {transforms.length ? (
         <div className="grid gap-2">
           <Label htmlFor="comparison-transform">Transform</Label>

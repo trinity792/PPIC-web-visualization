@@ -42,6 +42,43 @@ function roleLabel(role) {
   return labels[role] || role;
 }
 
+// Geographic level (subset) — which set of places the data covers. Lives in
+// Encodings and is available for every chart type.
+function GeographicLevelControl() {
+  const { config, dispatch, schema } = useChartConfig();
+  const subsets =
+    config.chartType === "choroplethMap" && schema.subsets?.Counties
+      ? ["Counties"]
+      : Object.keys(schema.subsets || {});
+
+  if (!subsets.length) return null;
+
+  function setSubset(value) {
+    dispatch({ type: "SET_FILTER", key: "subset", value });
+    if (value === "States" && schema.sources?.includes("Census")) {
+      dispatch({ type: "SET_FILTER", key: "source", value: "Census" });
+    }
+  }
+
+  return (
+    <div className="grid gap-2">
+      <Label htmlFor="encoding-geographic-level">Geographic level</Label>
+      <Select value={config.filters.subset || ""} onValueChange={setSubset}>
+        <SelectTrigger id="encoding-geographic-level">
+          <SelectValue placeholder="Choose a level" />
+        </SelectTrigger>
+        <SelectContent>
+          {subsets.map((subset) => (
+            <SelectItem key={subset} value={subset}>
+              {subset}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
 export default function EncodingSection() {
   const { config, dispatch, schema } = useChartConfig();
   const chart = getChartType(config.chartType);
@@ -53,6 +90,7 @@ export default function EncodingSection() {
 
   return (
     <div className="grid gap-4">
+      <GeographicLevelControl />
       {roles.map((role) => {
         const accepted = chart.roleConstraints[role] || [];
         const catalogRole = CATALOG_ROLE_FOR_BINDING[role];

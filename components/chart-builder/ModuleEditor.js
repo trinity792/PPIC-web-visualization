@@ -4,7 +4,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { AlertCircle, BarChart3, LoaderCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -16,12 +15,17 @@ import {
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import PlotlyChart from "@/components/charts/PlotlyChart";
 import { toPlotly } from "@/lib/visualization/toPlotly";
+import { effectiveLabels } from "@/lib/visualization/deriveLabels";
 import { getModuleSchema } from "@/lib/visualization/moduleRegistry";
 import { hasBlockingErrors } from "@/lib/visualization/validation";
-import ChartSidebar from "./ChartSidebar";
+import ChartSidebar, {
+  SIDEBAR_MAX_SCALE,
+  SIDEBAR_MIN_SCALE,
+} from "./ChartSidebar";
 import {
   ChartConfigProvider,
   useChartConfig,
@@ -52,6 +56,9 @@ function ViewHydrator({ viewId, hasBuiltInView }) {
 
 function ChartWorkspace() {
   const { config, dispatch, schema } = useChartConfig();
+  const { state, isMobile, openMobile } = useSidebar();
+  // Closed sidebar → show the reopen toggle (mobile tracks its own open state).
+  const showOpenTrigger = isMobile ? !openMobile : state === "collapsed";
   const [result, setResult] = useState(null);
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState(null);
@@ -125,7 +132,7 @@ function ChartWorkspace() {
         id: config.transform,
         baseYear: config.period.baseYear,
       },
-      labels: config.labels,
+      labels: effectiveLabels(config, schema),
       appearance: config.appearance,
       period: {
         ...config.period,
@@ -139,23 +146,17 @@ function ChartWorkspace() {
 
   return (
     <SidebarInset className="min-w-0 overflow-x-hidden bg-muted/35">
-      <header className="flex min-h-14 items-center gap-3 border-b bg-background px-4 sm:px-6">
-        <SidebarTrigger />
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate font-heading text-lg font-semibold">
-            {config.labels.title || schema.label}
-          </h1>
-        </div>
-        <Badge variant="outline" className="hidden sm:inline-flex">
-          {config.chartType}
-        </Badge>
-      </header>
+      {/* When the sidebar is closed, a toggle parks at the left edge of the page
+          to reopen it; the open-state toggle lives inside the sidebar itself. */}
+      {showOpenTrigger ? (
+        <SidebarTrigger className="fixed left-2 top-[calc(var(--sb-top)+0.5rem)] z-20 size-8 rounded-md border bg-background shadow-sm" />
+      ) : null}
 
       <main className="flex-1 p-4 sm:p-6">
         <Card className="min-w-0 min-h-[calc(100svh-12rem)] overflow-hidden shadow-sm">
           <CardHeader className="border-b">
             <CardTitle className="flex items-center gap-2 text-lg">
-              <BarChart3 className="size-5 text-(--ppic-brand)" />
+              <BarChart3 className="size-5 text-ppic-brand" />
               {schema.label}
             </CardTitle>
             <CardDescription>
@@ -202,6 +203,13 @@ function ChartWorkspace() {
   );
 }
 
+const SIDEBAR_SCALE_KEY = "chartSidebarScale";
+
+function clampScale(value) {
+  if (!Number.isFinite(value)) return SIDEBAR_MIN_SCALE;
+  return Math.min(SIDEBAR_MAX_SCALE, Math.max(SIDEBAR_MIN_SCALE, value));
+}
+
 export default function ModuleEditor({
   moduleId,
   initialConfig,
@@ -209,11 +217,26 @@ export default function ModuleEditor({
   hasBuiltInView = false,
 }) {
   const schema = getModuleSchema(moduleId);
+  const [scale, setScale] = useState(SIDEBAR_MIN_SCALE);
+
+  // Restore the persisted drag width on mount (client-only, avoids hydration
+  // mismatch).
+  useEffect(() => {
+    const saved = Number(window.localStorage.getItem(SIDEBAR_SCALE_KEY));
+    if (saved) setScale(clampScale(saved));
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(SIDEBAR_SCALE_KEY, String(scale));
+  }, [scale]);
+
   return (
     <ChartConfigProvider schema={schema} initialConfig={initialConfig}>
-      <SidebarProvider>
+      <SidebarProvider
+        style={{ "--sidebar-width": `${(16 * scale).toFixed(3)}rem` }}
+      >
         <ViewHydrator viewId={viewId} hasBuiltInView={hasBuiltInView} />
-        <ChartSidebar />
+        <ChartSidebar scale={scale} onScaleChange={setScale} />
         <ChartWorkspace />
       </SidebarProvider>
     </ChartConfigProvider>

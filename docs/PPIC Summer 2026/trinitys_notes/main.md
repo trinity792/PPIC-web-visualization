@@ -997,3 +997,31 @@ A saved user view should look like this:
 ```
 
 This gives users real flexibility while preserving the project’s contract-driven architecture and preventing invalid or misleading charts.
+
+
+---
+
+# June 29, 2026
+## Tweaks
+- [x] If user hasn't edited the the labels, they should auto populate dynamically based on what the graph outputs
+- [x] Remove the "Too many series" recommendation
+- [x] Make sidebar adjustable
+- [x] Change sidebar buttons to match UI mockup
+- [ ] Landing dashboard: Figure out why "Housing units by county/Total housing units over time" map is unavailable
+- [ ] Landing Dashboard: Adjust scaling of maps to ensure no text overlap.
+- [ ] Add placehold log page to audit logs without needing to view terminal
+- [ ] Outline how to structure the logs to be easily read by non devs.
+- [x] Sidebar: Data sources on chat with one dataset should read the name of the dataset, not the name of the module.
+- [x] The top bar above the graph box and below the navbar with the name of the preset, name of the chart type, and sidebar toggle needs to go. Move sidebar toggle to within the sidebar when its open then slide to left of page when sidebar closes.
+- [x] Scrolling behavior of sidebar on chart editor page does not match page scrolling. When scrolling down the navbar disappears while the sidebar stays static: it should move up (but shouldn't be hidden like the navbar)
+- [x] Landing: replace the "Housing units by county/Total housing units over time" map with a chloropleth map of persons per household
+- 
+- [ ] Change graph editor encodings for map. Currently the "Color" field indicates what variables to count (ie persons per household, vacancy rates, etc.)
+- [x] Change chloropleth map colors to be scaled from light orange to dark blue
+
+## To Add
+- [ ] frontend-conventions.md
+
+---
+
+# June 30, 2026

@@ -16,7 +16,6 @@ The project is organized as a set of **data modules** — one per dataset — th
 
 ---
 ## Project Overview
-
 This is a **migration/refactor project at PPIC (Public Policy Institute of California)**. The legacy tooling existed in two disconnected pieces:
 
 - **V1** — Jupyter notebooks (14 notebooks across 5 datasets) that visualized California demographic data.
@@ -748,17 +747,17 @@ Three ideas hold it together:
 
 ### The client-safe visualization layer (`lib/visualization/`)
 
-| File | Responsibility |
-|---|---|
+| File                        | Responsibility                                                                                                                                                                                                                              |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `moduleSchemas/<module>.js` | The module's **field catalog**: each field's kind / unit / comparison group / allowed transforms / chart roles, plus curated metrics, subsets, sources, `yearRange`, canonical columns. Read by both the editor and the server data module. |
-| `fieldTypes.js` | Field vocabulary + helpers (`isMeasure`, `areComparable`, `allowedTransforms`, `supportsRole`). |
-| `chartRegistry.js` | Per-chart-type descriptors: required/optional roles, role→kind constraints, sidebar sections, limits, defaults; `CATALOG_ROLE_FOR_BINDING`. |
-| `presetRegistry.js` | Task-based presets ("Trend over time", "Latest-year ranking", …) → a chart type + default bindings + sidebar layout. |
-| `transformRegistry.js` | Pure series transforms (`actual`, `indexed`, `percentChange`, `percentagePointChange`, `differenceFromBenchmark`, …), gated by each field's allowed transforms. |
-| `validation.js` | Bindings / comparability / complexity / geography-source checks → `{ level, code, message, suggestion }` findings (the guardrail enforcement point). |
-| `formatters.js` | Named value formatters (year, people, percent, …). |
-| `toPlotly.js` | The adapter: `(config + fetched data) → { data, layout, config }` for every chart type. |
-| `categoryRegistry.js` | Landing **categories** and **built-in views** — the declarative configs the dashboard tiles and "See more" deep-links use. |
+| `fieldTypes.js`             | Field vocabulary + helpers (`isMeasure`, `areComparable`, `allowedTransforms`, `supportsRole`).                                                                                                                                             |
+| `chartRegistry.js`          | Per-chart-type descriptors: required/optional roles, role→kind constraints, sidebar sections, limits, defaults; `CATALOG_ROLE_FOR_BINDING`.                                                                                                 |
+| `presetRegistry.js`         | Task-based presets ("Trend over time", "Latest-year ranking", …) → a chart type + default bindings + sidebar layout.                                                                                                                        |
+| `transformRegistry.js`      | Pure series transforms (`actual`, `indexed`, `percentChange`, `percentagePointChange`, `differenceFromBenchmark`, …), gated by each field's allowed transforms.                                                                             |
+| `validation.js`             | Bindings / comparability / complexity / geography-source checks → `{ level, code, message, suggestion }` findings (the guardrail enforcement point).                                                                                        |
+| `formatters.js`             | Named value formatters (year, people, percent, …).                                                                                                                                                                                          |
+| `toPlotly.js`               | The adapter: `(config + fetched data) → { data, layout, config }` for every chart type.                                                                                                                                                     |
+| `categoryRegistry.js`       | Landing **categories** and **built-in views** — the declarative configs the dashboard tiles and "See more" deep-links use.                                                                                                                  |
 
 ### Detailed component map — what renders each thing, front and back
 

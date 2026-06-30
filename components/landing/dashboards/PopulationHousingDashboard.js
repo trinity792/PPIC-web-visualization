@@ -38,10 +38,10 @@ export default async function PopulationHousingDashboard({ category }) {
 
   return (
     <DashboardShell category={category}>
-      {/* Row 1: stacked-area trend + county heatmap */}
+      {/* Row 1: stacked-area trend + persons-per-household county map */}
       <div className="grid gap-5 lg:grid-cols-2">
         <ChartTile viewId="population-area" modulePath="/pophousing" />
-        <ChartTile viewId="housing-units-heatmap" modulePath="/pophousing" />
+        <ChartTile viewId="persons-per-household-map" modulePath="/pophousing" />
       </div>
 
       {/* Row 2: statewide snapshot */}

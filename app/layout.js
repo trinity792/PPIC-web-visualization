@@ -29,7 +29,10 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
+    // suppressHydrationWarning: some browser extensions inject attributes onto
+    // <html> before React hydrates (e.g. content-filter "channel" data-* attrs),
+    // which is otherwise reported as a hydration mismatch.
+    <html lang="en" suppressHydrationWarning>
       <body
         className={`${orbitron.variable} ${sourceSans.variable} ${inter.variable} font-body`}
       >

@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 
 export default function Navbar() {
   return (
-    <nav className="relative z-30 min-h-30 bg-(--ppic-brand) text-white shadow-sm">
+    <nav className="relative z-30 min-h-30 bg-ppic-brand text-white shadow-sm">
       <div className="mx-auto flex max-w-400 flex-col gap-4 px-5 py-4 sm:px-10 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-4 sm:gap-6">
           <Link
