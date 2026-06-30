@@ -1,1 +1,1 @@
-Live site is hosted on [Vercel](https://vercel.com/ppic/ppic-web-visualization/4kanH3nbMyHxX6Vx8gBaZAfrJV4F) (temporarily)
+Live site is hosted on [Vercel](https://vercel.com/ppic/ppic-web-visualization/4kanH3nbMyHxX6Vx8gBaZAfrJV4F) (temp)
