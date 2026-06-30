@@ -1029,4 +1029,35 @@ This gives users real flexibility while preserving the project’s contract-driv
 Include:
 - Reuse components over creating new ones. Confirm with user before creating a new component
 - Refer to the UI Kit that exists as a page on the main website (not the standalone UI Kit)
-- 
+## ToDo
+- [ ] Finish AI Comparison Guide
+- [ ] Refractor age-sex-race projections
+- [ ] Apply frontend-conventions.md formatting changes to all existing js files. See quote below
+- [ ] Update GraphEditor/Sidebar behavior and selections
+- [ ] Add project spec as a page on the website w/ Obsidian rendering & 61a/b/c like table of contents sidebar but matching graph editor sidebar (design in figma)
+> [!quote]
+> ## Component File Header (Required)
+> Every component file begins with a JSDoc block containing these sections in order:
+> 1. **Filename and purpose** — one line: `ComponentName.js — what it renders`
+> 2. **Props** — every prop with its type and a brief description
+> 3. **Data sources** — what data the component expects and where it originates
+> 4. **UI Kit reference** — whether this component implements a UI Kit pattern (or is unique)
+> 
+> ```js
+> /**
+> * RegionLineChart.js — time-series line chart for a selected set of regions.
+> *
+> * Props:
+> *   data          {Array<Object>}  — rows from PopHousing_Current, pre-filtered by the page
+> *   locations     {Array<string>}  — selected location names to plot
+> *   parameter     {string}         — column name to chart (e.g., "Total Population")
+> *   baseYear      {number|null}    — if set, index all series to 100 at this year
+> *   yearRange     {[number,number]} — start and end year for the x-axis
+> *
+> * Data sources:
+> *   - /api/pophousing (Next.js API route, sourced from PopHousing_Current.csv)
+> *
+> * UI Kit reference:
+> *   - Implements the "Chart Container" pattern from the UI Kit page
+>  */
+> ```
