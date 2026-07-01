@@ -1,7 +1,30 @@
 "use client";
+
+/**
+ * sheet.js — edge-aligned modal sheet composition primitives.
+ *
+ * Props:
+ *   className {string}    — optional utility classes on styled primitives
+ *   side      {string}    — sheet edge ("top"|"right"|"bottom"|"left")
+ *   children  {ReactNode} — sheet content
+ *   ...props  {Object}    — corresponding Radix Dialog attributes
+ *
+ * Data sources:
+ *   - Open state and content via props from parent components
+ *
+ * UI Kit reference:
+ *   - Implements the shared mobile "Sheet" pattern
+ */
+
+/* eslint-disable react/prop-types */
+
+import React from "react";
+
 import * as SheetPrimitive from "@radix-ui/react-dialog";
+
 import { XIcon } from "lucide-react";
-import { cn } from "./utils";
+
+import { cn } from "@/components/ui/utils";
 function Sheet({ ...props }) {
   return <SheetPrimitive.Root data-slot="sheet" {...props} />;
 }

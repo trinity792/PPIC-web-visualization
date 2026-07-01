@@ -1,8 +1,30 @@
 "use client";
+
+/**
+ * calendar.js — styled react-day-picker calendar primitive.
+ *
+ * Props:
+ *   className       {string}  — optional container classes
+ *   classNames      {Object}  — react-day-picker class overrides
+ *   showOutsideDays {boolean} — display days outside the active month
+ *   ...props        {Object}  — react-day-picker attributes
+ *
+ * Data sources:
+ *   - Date selection state via props from parent components
+ *
+ * UI Kit reference:
+ *   - Implements the shared "Calendar" pattern
+ */
+
+/* eslint-disable react/prop-types */
+
+import React from "react";
+
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { DayPicker } from "react-day-picker";
-import { cn } from "./utils";
-import { buttonVariants } from "./button";
+
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/components/ui/utils";
 function Calendar({
   className,
   classNames,

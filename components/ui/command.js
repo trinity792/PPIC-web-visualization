@@ -1,14 +1,38 @@
 "use client";
+
+/**
+ * command.js — command palette, search input, list, group, and item primitives.
+ *
+ * Props:
+ *   className   {string}    — optional utility classes on styled primitives
+ *   title       {string}    — accessible command-dialog title
+ *   description {string}    — accessible command-dialog description
+ *   children    {ReactNode} — command content
+ *   ...props    {Object}    — corresponding cmdk or dialog attributes
+ *
+ * Data sources:
+ *   - Command options and state via props from parent components
+ *
+ * UI Kit reference:
+ *   - Implements the shared command-palette and searchable-list patterns
+ */
+
+/* eslint-disable react/prop-types */
+
+import React from "react";
+
 import { Command as CommandPrimitive } from "cmdk";
+
 import { SearchIcon } from "lucide-react";
-import { cn } from "./utils";
+
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle
-} from "./dialog";
+} from "@/components/ui/dialog";
+import { cn } from "@/components/ui/utils";
 function Command({
   className,
   ...props

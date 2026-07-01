@@ -1,5 +1,24 @@
 "use client";
-import { cn } from "./utils";
+
+/**
+ * table.js — responsive semantic table composition primitives.
+ *
+ * Props:
+ *   className {string} — optional utility classes on table primitives
+ *   ...props  {Object} — native table-element attributes and children
+ *
+ * Data sources:
+ *   - Rows and cells via props from parent components
+ *
+ * UI Kit reference:
+ *   - Implements the shared "Data Table" pattern
+ */
+
+/* eslint-disable react/prop-types */
+
+import React from "react";
+
+import { cn } from "@/components/ui/utils";
 function Table({ className, ...props }) {
   return <div
     data-slot="table-container"

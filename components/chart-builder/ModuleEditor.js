@@ -1,8 +1,35 @@
 "use client";
 
+/**
+ * ModuleEditor.js — chart-builder orchestrator for one registered data module.
+ *
+ * Props:
+ *   moduleId       {string}      — registered module identifier
+ *   initialConfig  {Object}      — validated initial chart configuration
+ *   viewId         {string|null} — saved or built-in deep-link view identifier
+ *   hasBuiltInView {boolean}     — whether initialConfig already represents viewId
+ *
+ * Data sources:
+ *   - Module schema from lib/visualization/moduleRegistry.js
+ *   - Chart data through chartData.js and the module API route
+ *   - Saved views from browser localStorage through savedViews.js
+ *
+ * UI Kit reference:
+ *   - Composes the "Editor Sidebar", "Chart Container", and alert patterns
+ */
+
 /* eslint-disable react/prop-types */
+
 import React, { useEffect, useMemo, useState } from "react";
+
 import { AlertCircle, BarChart3, LoaderCircle } from "lucide-react";
+
+import ChartSidebar from "@/components/chart-builder/ChartSidebar";
+import {
+  ChartConfigProvider,
+  useChartConfig,
+} from "@/components/chart-builder/chartConfigStore";
+import PlotlyChart from "@/components/charts/PlotlyChart";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Card,
@@ -17,21 +44,69 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
-import PlotlyChart from "@/components/charts/PlotlyChart";
-import { toPlotly } from "@/lib/visualization/toPlotly";
+
+import {
+  hasChartData,
+  loadChartData,
+  seriesCountOf,
+} from "@/components/chart-builder/chartData";
+import { deserialize, getView } from "@/components/chart-builder/savedViews";
 import { effectiveLabels } from "@/lib/visualization/deriveLabels";
 import { getModuleSchema } from "@/lib/visualization/moduleRegistry";
+import { toPlotly } from "@/lib/visualization/toPlotly";
 import { hasBlockingErrors } from "@/lib/visualization/validation";
-import ChartSidebar, {
-  SIDEBAR_MAX_SCALE,
-  SIDEBAR_MIN_SCALE,
-} from "./ChartSidebar";
-import {
-  ChartConfigProvider,
-  useChartConfig,
-} from "./chartConfigStore";
-import { hasChartData, loadChartData, seriesCountOf } from "./chartData";
-import { deserialize, getView } from "./savedViews";
+
+import { CHART_SIDEBAR } from "@/lib/constants";
+
+const SIDEBAR_SCALE_KEY = "chartSidebarScale";
+
+function clampScale(value) {
+  if (!Number.isFinite(value)) return CHART_SIDEBAR.minScale;
+  return Math.min(
+    CHART_SIDEBAR.maxScale,
+    Math.max(CHART_SIDEBAR.minScale, value),
+  );
+}
+
+export default function ModuleEditor({
+  moduleId,
+  initialConfig,
+  viewId,
+  hasBuiltInView = false,
+}) {
+  const schema = getModuleSchema(moduleId);
+  const [scale, setScale] = useState(CHART_SIDEBAR.minScale);
+
+  // Restore persisted client-only state after hydration.
+  useEffect(() => {
+    const saved = Number(window.localStorage.getItem(SIDEBAR_SCALE_KEY));
+    if (saved) setScale(clampScale(saved));
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(SIDEBAR_SCALE_KEY, String(scale));
+  }, [scale]);
+
+  return (
+    <ChartConfigProvider schema={schema} initialConfig={initialConfig}>
+      <SidebarProvider
+        style={{
+          "--sidebar-width": `${(CHART_SIDEBAR.baseRem * scale).toFixed(3)}rem`,
+        }}
+      >
+        <ViewHydrator viewId={viewId} hasBuiltInView={hasBuiltInView} />
+        <ChartSidebar scale={scale} onScaleChange={setScale} />
+        <ChartWorkspace />
+      </SidebarProvider>
+    </ChartConfigProvider>
+  );
+}
+
+/**
+ * ======================================================================
+ * Tightly Coupled Sub-components
+ * ======================================================================
+ */
 
 function ViewHydrator({ viewId, hasBuiltInView }) {
   const { dispatch, schema } = useChartConfig();
@@ -114,34 +189,42 @@ function ChartWorkspace() {
     return () => controller.abort();
   }, [requestKey, schema]);
 
-  const plotly = useMemo(() => {
-    if (!result) return null;
-    return toPlotly({
-      chartType: config.chartType,
-      bindings: config.bindings,
-      series: result.series,
-      geometry: result.geometry,
-      featureidkey: result.response?.featureidkey,
-      field:
-        schema.fields[
-          config.bindings.y ||
-            config.bindings.color ||
-            config.bindings.start
-        ],
-      transforms: {
-        id: config.transform,
-        baseYear: config.period.baseYear,
-      },
-      labels: effectiveLabels(config, schema),
-      appearance: config.appearance,
-      period: {
-        ...config.period,
-        startYear: result.response?.startYear ?? config.period.startYear,
-        endYear: result.response?.endYear ?? config.period.endYear,
-      },
-      referenceLines: config.referenceLines,
-      layers: config.layers,
-    });
+  const { plotly, renderError } = useMemo(() => {
+    if (!result) return { plotly: null, renderError: null };
+
+    try {
+      return {
+        plotly: toPlotly({
+          chartType: config.chartType,
+          bindings: config.bindings,
+          series: result.series,
+          geometry: result.geometry,
+          featureidkey: result.response?.featureidkey,
+          field:
+            schema.fields[
+              config.bindings.y ||
+                config.bindings.color ||
+                config.bindings.start
+            ],
+          transforms: {
+            id: config.transform,
+            baseYear: config.period.baseYear,
+          },
+          labels: effectiveLabels(config, schema),
+          appearance: config.appearance,
+          period: {
+            ...config.period,
+            startYear: result.response?.startYear ?? config.period.startYear,
+            endYear: result.response?.endYear ?? config.period.endYear,
+          },
+          referenceLines: config.referenceLines,
+          layers: config.layers,
+        }),
+        renderError: null,
+      };
+    } catch (nextError) {
+      return { plotly: null, renderError: nextError };
+    }
   }, [config, result, schema.fields]);
 
   return (
@@ -156,7 +239,7 @@ function ChartWorkspace() {
         <Card className="min-w-0 min-h-[calc(100svh-12rem)] overflow-hidden shadow-sm">
           <CardHeader className="border-b">
             <CardTitle className="flex items-center gap-2 text-lg">
-              <BarChart3 className="size-5 text-ppic-brand" />
+              <BarChart3 aria-hidden="true" className="size-5 text-ppic-brand" />
               {schema.label}
             </CardTitle>
             <CardDescription>
@@ -166,8 +249,11 @@ function ChartWorkspace() {
           </CardHeader>
           <CardContent className="flex min-w-0 min-h-130 items-center justify-center overflow-hidden px-2 pt-6 sm:px-6">
             {status === "loading" ? (
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <LoaderCircle className="size-5 animate-spin" />
+              <div
+                role="status"
+                className="flex items-center gap-2 text-muted-foreground"
+              >
+                <LoaderCircle aria-hidden="true" className="size-5 animate-spin" />
                 Loading visualization…
               </div>
             ) : null}
@@ -183,62 +269,24 @@ function ChartWorkspace() {
                 source, and period.
               </div>
             ) : null}
-            {status === "error" ? (
+            {status === "error" || renderError ? (
               <Alert variant="destructive" className="max-w-xl">
-                <AlertCircle />
+                <AlertCircle aria-hidden="true" />
                 <AlertTitle>Visualization could not be loaded</AlertTitle>
                 <AlertDescription>
-                  <p>{error?.message}</p>
+                  <p>{error?.message || renderError?.message}</p>
                   {error?.source ? <p>Source: {error.source}</p> : null}
+                  {renderError ? <p>Source: chart rendering adapter</p> : null}
+                  <p>Try refreshing or adjust the graph-editor selections.</p>
                 </AlertDescription>
               </Alert>
             ) : null}
-            {status === "ready" && plotly ? (
+            {status === "ready" && plotly && !renderError ? (
               <PlotlyChart {...plotly} className="min-w-0 w-full" />
             ) : null}
           </CardContent>
         </Card>
       </main>
     </SidebarInset>
-  );
-}
-
-const SIDEBAR_SCALE_KEY = "chartSidebarScale";
-
-function clampScale(value) {
-  if (!Number.isFinite(value)) return SIDEBAR_MIN_SCALE;
-  return Math.min(SIDEBAR_MAX_SCALE, Math.max(SIDEBAR_MIN_SCALE, value));
-}
-
-export default function ModuleEditor({
-  moduleId,
-  initialConfig,
-  viewId,
-  hasBuiltInView = false,
-}) {
-  const schema = getModuleSchema(moduleId);
-  const [scale, setScale] = useState(SIDEBAR_MIN_SCALE);
-
-  // Restore the persisted drag width on mount (client-only, avoids hydration
-  // mismatch).
-  useEffect(() => {
-    const saved = Number(window.localStorage.getItem(SIDEBAR_SCALE_KEY));
-    if (saved) setScale(clampScale(saved));
-  }, []);
-
-  useEffect(() => {
-    window.localStorage.setItem(SIDEBAR_SCALE_KEY, String(scale));
-  }, [scale]);
-
-  return (
-    <ChartConfigProvider schema={schema} initialConfig={initialConfig}>
-      <SidebarProvider
-        style={{ "--sidebar-width": `${(16 * scale).toFixed(3)}rem` }}
-      >
-        <ViewHydrator viewId={viewId} hasBuiltInView={hasBuiltInView} />
-        <ChartSidebar scale={scale} onScaleChange={setScale} />
-        <ChartWorkspace />
-      </SidebarProvider>
-    </ChartConfigProvider>
   );
 }

@@ -1,5 +1,25 @@
+/**
+ * alert.js — semantic alert container, title, and description primitives.
+ *
+ * Props:
+ *   className {string} — optional utility classes
+ *   variant   {string} — visual treatment ("default"|"destructive")
+ *   ...props  {Object} — native div attributes and children
+ *
+ * Data sources:
+ *   - Via props from parent components
+ *
+ * UI Kit reference:
+ *   - Implements the shared "Alert" pattern
+ */
+
+/* eslint-disable react/prop-types */
+
+import React from "react";
+
 import { cva } from "class-variance-authority";
-import { cn } from "./utils";
+
+import { cn } from "@/components/ui/utils";
 const alertVariants = cva(
   "relative w-full rounded-lg border px-4 py-3 text-sm grid has-[>svg]:grid-cols-[calc(var(--spacing)*4)_1fr] grid-cols-[0_1fr] has-[>svg]:gap-x-3 gap-y-0.5 items-start [&>svg]:size-4 [&>svg]:translate-y-0.5 [&>svg]:text-current",
   {

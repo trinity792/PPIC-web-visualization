@@ -1,12 +1,30 @@
+/**
+ * Navbar.js — global PPIC brand navigation, module links, and search control.
+ *
+ * Props:
+ *   None.
+ *
+ * Data sources:
+ *   - Static application routes defined in this file
+ *
+ * UI Kit reference:
+ *   - Implements the global "Navigation Header" and search-input patterns
+ */
+
 import React from "react";
 import Link from "next/link";
+
 import { Search } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 export default function Navbar() {
   return (
-    <nav className="relative z-30 min-h-30 bg-ppic-brand text-white shadow-sm">
+    <nav
+      aria-label="Primary navigation"
+      className="relative z-30 min-h-30 bg-ppic-brand text-white shadow-sm"
+    >
       <div className="mx-auto flex max-w-400 flex-col gap-4 px-5 py-4 sm:px-10 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-4 sm:gap-6">
           <Link
@@ -15,7 +33,7 @@ export default function Navbar() {
           >
             PPIC
           </Link>
-          <div className="h-14 w-px bg-white/45" />
+          <div aria-hidden="true" className="h-14 w-px bg-white/45" />
           <div className="font-heading text-sm leading-relaxed tracking-[0.12em] sm:text-lg">
             <div>PUBLIC POLICY</div>
             <div>INSTITUTE OF CALIFORNIA</div>
@@ -32,7 +50,7 @@ export default function Navbar() {
               className="border-0 bg-white text-foreground shadow-none focus-visible:ring-0"
             />
             <Button type="submit" variant="ghost" size="icon" aria-label="Search">
-              <Search className="text-muted-foreground" />
+              <Search aria-hidden="true" className="text-muted-foreground" />
             </Button>
           </form>
           <div className="flex flex-wrap gap-x-8 gap-y-2 font-body text-sm">

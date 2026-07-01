@@ -21,7 +21,7 @@ def test_get_paths_uses_demographic_projections_directories():
         "demographic-projections",
     )
     assert paths["archive_directory"].parts[-2:] == (
-        "data-archive",
+        "archive",
         "demographic-projections",
     )
     assert paths["current_data_path"].parts[-3:] == (

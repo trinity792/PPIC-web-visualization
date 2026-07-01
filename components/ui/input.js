@@ -1,4 +1,23 @@
-import { cn } from "./utils";
+/**
+ * input.js — styled native text-input primitive.
+ *
+ * Props:
+ *   className {string} — optional utility classes
+ *   type      {string} — native input type
+ *   ...props  {Object} — native input attributes
+ *
+ * Data sources:
+ *   - Via props from parent components
+ *
+ * UI Kit reference:
+ *   - Implements the shared "Text Input" pattern
+ */
+
+/* eslint-disable react/prop-types */
+
+import React from "react";
+
+import { cn } from "@/components/ui/utils";
 function Input({ className, type, ...props }) {
   return <input
     type={type}

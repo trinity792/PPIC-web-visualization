@@ -1,47 +1,21 @@
+/**
+ * TypographyShowcase.js — PPIC type roles, specimens, and scale metadata.
+ *
+ * Props:
+ *   None.
+ *
+ * Data sources:
+ *   - Static typography specimens defined in this file
+ *
+ * UI Kit reference:
+ *   - Documents the canonical "Typography" foundation
+ */
+
 /* eslint-disable react/prop-types */
+
 import React from "react";
-import { Section, Panel, Caption } from "./Section";
 
-function Row({ family, role, sample, style }) {
-  const size = typeof style.fontSize === "number" ? `${style.fontSize}px` : style.fontSize;
-  const weight = style.fontWeight ?? 400;
-  const lineHeight =
-    style.lineHeight === undefined
-      ? "normal"
-      : typeof style.lineHeight === "number"
-        ? style.lineHeight.toFixed(2)
-        : style.lineHeight;
-  const tracking = style.letterSpacing ?? "0";
-
-  return (
-    <div className="border-b py-5 last:border-b-0" style={{ borderColor: "var(--ppic-neutral-50)" }}>
-      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-        <span
-          className="text-[13px] uppercase tracking-[0.16em]"
-          style={{ fontFamily: "var(--font-sans)", color: "var(--ppic-orange-300)" }}
-        >
-          {family}
-        </span>
-        <span className="text-[12px] uppercase tracking-wide text-neutral-500" style={{ fontFamily: "var(--font-sans)" }}>
-          {role}
-        </span>
-      </div>
-      <p className="text-neutral-900" style={style}>
-        {sample}
-      </p>
-      {/* spec line — size · weight · line spacing · tracking */}
-      <div
-        className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-[12px] text-neutral-500"
-        style={{ fontFamily: "var(--font-sans)" }}
-      >
-        <span>Size {size}</span>
-        <span>Weight {weight}</span>
-        <span>Line spacing {lineHeight}</span>
-        <span>Tracking {tracking}</span>
-      </div>
-    </div>
-  );
-}
+import { Caption, Panel, Section } from "@/components/ui-kit/Section";
 
 export function TypographyShowcase() {
   return (
@@ -57,25 +31,37 @@ export function TypographyShowcase() {
             family="Inter"
             role="Super heading / eyebrow"
             sample="FOUNDATIONS · COMPONENTS · PATTERNS"
-            style={{ fontFamily: "var(--font-sans)", fontSize: 12, fontWeight: 600, lineHeight: 1.4, letterSpacing: "0.22em", textTransform: "uppercase" }}
+            className="font-sans text-xs font-semibold uppercase leading-[1.4] tracking-[0.22em]"
+            size="12px"
+            weight={600}
+            lineHeight="1.40"
+            tracking="0.22em"
           />
           <Row
             family="Orbitron"
             role="Wordmark / Logo"
             sample="PPIC"
-            style={{ fontFamily: "var(--font-display)", fontWeight: 900, fontSize: 52, lineHeight: 1.0, letterSpacing: "0.08em" }}
+            className="font-display text-[52px] font-black leading-none tracking-[0.08em]"
+            size="52px"
+            weight={900}
+            lineHeight="1.00"
+            tracking="0.08em"
           />
           <Row
             family="Georgia"
             role="Display headline"
             sample="California Population & Housing Trends"
-            style={{ fontFamily: "var(--font-serif)", fontSize: 34, lineHeight: 1.15 }}
+            className="font-serif text-[34px] leading-[1.15]"
+            size="34px"
+            lineHeight="1.15"
           />
           <Row
             family="Georgia"
             role="Big stat numeral"
             sample="39.5M"
-            style={{ fontFamily: "var(--font-serif)", fontSize: 56, lineHeight: 1.0 }}
+            className="font-serif text-[56px] leading-none"
+            size="56px"
+            lineHeight="1.00"
           />
         </Panel>
 
@@ -84,24 +70,65 @@ export function TypographyShowcase() {
             family="Source Sans 3"
             role="Section heading"
             sample="Data Sources"
-            style={{ fontFamily: "var(--font-heading)", fontSize: 28, lineHeight: 1.2, letterSpacing: "0.06em" }}
+            className="font-heading text-[28px] leading-[1.2] tracking-[0.06em]"
+            size="28px"
+            lineHeight="1.20"
+            tracking="0.06em"
           />
           <Row
             family="Source Sans 3"
             role="Body / paragraph"
             sample="Net migration and total housing units across California regions, 2013–2026."
-            style={{ fontFamily: "var(--font-body)", fontSize: 16, lineHeight: 1.6 }}
+            className="font-body text-base leading-[1.6]"
+            size="16px"
+            lineHeight="1.60"
           />
           <Row
             family="Inter"
             role="Label / caption"
             sample="X Axis: Year · Y Axis: Total Population"
-            style={{ fontFamily: "var(--font-sans)", fontSize: 13, lineHeight: 1.4, letterSpacing: "0.04em" }}
+            className="font-sans text-[13px] leading-[1.4] tracking-[0.04em]"
+            size="13px"
+            lineHeight="1.40"
+            tracking="0.04em"
           />
         </Panel>
       </div>
 
       <Caption>Type scale — eyebrow 12 · display 52 · h1 34 · h2 28 · body 16 · caption 13</Caption>
     </Section>
+  );
+}
+
+// ── Tightly coupled sub-components ───────────────────────────────────
+
+function Row({
+  family,
+  role,
+  sample,
+  className,
+  size,
+  weight = 400,
+  lineHeight = "normal",
+  tracking = "0",
+}) {
+  return (
+    <div className="border-b border-ppic-neutral-50 py-5 last:border-b-0">
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+        <span className="font-sans text-[13px] uppercase tracking-[0.16em] text-ppic-brand">
+          {family}
+        </span>
+        <span className="font-sans text-xs uppercase tracking-wide text-neutral-500">
+          {role}
+        </span>
+      </div>
+      <p className={`text-neutral-900 ${className}`}>{sample}</p>
+      <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 font-sans text-xs text-neutral-500">
+        <span>Size {size}</span>
+        <span>Weight {weight}</span>
+        <span>Line spacing {lineHeight}</span>
+        <span>Tracking {tracking}</span>
+      </div>
+    </div>
   );
 }

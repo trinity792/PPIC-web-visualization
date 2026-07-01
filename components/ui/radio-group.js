@@ -1,7 +1,28 @@
 "use client";
+
+/**
+ * radio-group.js — accessible Radix radio-group and item primitives.
+ *
+ * Props:
+ *   className {string} — optional utility classes
+ *   ...props  {Object} — corresponding Radix RadioGroup attributes
+ *
+ * Data sources:
+ *   - Selected value and options via props from parent components
+ *
+ * UI Kit reference:
+ *   - Implements the shared "Radio Group" pattern
+ */
+
+/* eslint-disable react/prop-types */
+
+import React from "react";
+
 import * as RadioGroupPrimitive from "@radix-ui/react-radio-group";
+
 import { CircleIcon } from "lucide-react";
-import { cn } from "./utils";
+
+import { cn } from "@/components/ui/utils";
 function RadioGroup({
   className,
   ...props

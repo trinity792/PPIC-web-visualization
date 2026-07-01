@@ -1,9 +1,30 @@
 "use client";
+
+/**
+ * GraphsShowcase.js — Plotly chart-type specimens and their visual properties.
+ *
+ * Props:
+ *   None.
+ *
+ * Data sources:
+ *   - Static demonstration datasets defined in this file
+ *
+ * UI Kit reference:
+ *   - Documents the "Chart Container" pattern and supported chart types
+ */
+
 /* eslint-disable react/prop-types */
+
 import React from "react";
+
 import PlotlyChart from "@/components/charts/PlotlyChart";
-import { Section } from "./Section";
-import { COLORS, BASE_PLOTLY_COLORS } from "@/lib/constants";
+import { Section } from "@/components/ui-kit/Section";
+
+import {
+  BASE_PLOTLY_COLORS,
+  COLORS,
+  UI_KIT_CHART_HEIGHT,
+} from "@/lib/constants";
 import {
   DEFAULT_PLOTLY_CONFIG,
   PLOTLY_FONT_FAMILY,
@@ -12,16 +33,17 @@ import {
   legendFor,
 } from "@/lib/visualization/plotlyDefaults";
 
-const CHART_HEIGHT = 256;
+/**
+ * ======================================================================
+ * Chart Configuration and Data
+ * ======================================================================
+ */
 
-// Hand-built showcase figures reuse the production Plotly defaults so they read
-// as one family with the live charts: the shared config (mode bar hidden here),
-// surfaces, the bottom-legend rule (with its overlap-clearing anchor), and a
-// slightly lighter/smaller label than the production text token.
+// Shared production defaults keep showcase figures visually aligned with live charts.
 const baseConfig = { ...DEFAULT_PLOTLY_CONFIG, displayModeBar: false };
 
 const baseLayout = {
-  // Bottom margin reserves room for the legendFor("bottom") anchor (y: -0.3).
+  // Reserve enough bottom space for the shared bottom-legend anchor.
   margin: { t: 12, r: 16, b: 72, l: 48 },
   font: { family: PLOTLY_FONT_FAMILY, size: 12, color: COLORS.gray5 },
   ...PLOTLY_SURFACE,
@@ -29,40 +51,7 @@ const baseLayout = {
   hoverlabel: { font: { family: PLOTLY_FONT_FAMILY, size: 13 } },
 };
 
-/* ---------- shared card + property primitives ---------- */
-
-function GraphCard({ title, chart, properties }) {
-  return (
-    <div
-      className="rounded-2xl border bg-white p-6 shadow-[0px_4px_4px_0px_rgba(0,0,0,0.08)]"
-      style={{ borderColor: COLORS.gray2 }}
-    >
-      <h3 className="text-neutral-900" style={{ fontFamily: "var(--font-serif)", fontSize: 22 }}>
-        {title}
-      </h3>
-      <div className="mt-3 w-full">{chart}</div>
-      <dl className="mt-4 space-y-1.5 border-t pt-4" style={{ borderColor: COLORS.gray1 }}>
-        {properties.map((p) => (
-          <div key={p.label} className="flex items-start gap-3 text-[13px]" style={{ fontFamily: "var(--font-sans)" }}>
-            <dt className="w-32 shrink-0 uppercase tracking-[0.1em] text-neutral-500">{p.label}</dt>
-            <dd className="flex flex-wrap items-center gap-2 text-neutral-800">{p.value}</dd>
-          </div>
-        ))}
-      </dl>
-    </div>
-  );
-}
-
-function Swatch({ color, label }) {
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      <span className="size-3.5 rounded-[3px]" style={{ backgroundColor: color }} />
-      {label && <span className="text-neutral-700">{label}</span>}
-    </span>
-  );
-}
-
-/* ---------- data ---------- */
+// ── Demonstration data ───────────────────────────────────────────────
 
 const donutData = [
   { name: "Bay Area", value: 7.7 },
@@ -99,7 +88,7 @@ const dumbbellData = [
   { region: "Sacramento", start: 360, end: 590 },
 ];
 
-/* ---------- plotly figures ---------- */
+// ── Plotly figures ───────────────────────────────────────────────────
 
 const donutFigure = {
   data: [
@@ -111,7 +100,7 @@ const donutFigure = {
       sort: false,
       direction: "clockwise",
       textinfo: "none",
-      marker: { colors: BASE_PLOTLY_COLORS, line: { color: "white", width: 1 } },
+      marker: { colors: BASE_PLOTLY_COLORS, line: { color: COLORS.white, width: 1 } },
       hovertemplate: "%{label}: %{value}M<extra></extra>",
     },
   ],
@@ -197,7 +186,11 @@ const dumbbellFigure = {
       name: "2014",
       x: dumbbellData.map((d) => d.start),
       y: dumbbellData.map((d) => d.region),
-      marker: { color: COLORS.blue3, size: 13, line: { color: "white", width: 2 } },
+      marker: {
+        color: COLORS.blue3,
+        size: 13,
+        line: { color: COLORS.white, width: 2 },
+      },
       hovertemplate: "%{y}: %{x}k<extra>2014</extra>",
     },
     {
@@ -206,7 +199,11 @@ const dumbbellFigure = {
       name: "2024",
       x: dumbbellData.map((d) => d.end),
       y: dumbbellData.map((d) => d.region),
-      marker: { color: COLORS.orange3, size: 13, line: { color: "white", width: 2 } },
+      marker: {
+        color: COLORS.orange3,
+        size: 13,
+        line: { color: COLORS.white, width: 2 },
+      },
       hovertemplate: "%{y}: %{x}k<extra>2024</extra>",
     },
   ],
@@ -218,7 +215,11 @@ const dumbbellFigure = {
   },
 };
 
-/* ---------- section ---------- */
+/**
+ * ======================================================================
+ * Showcase Component
+ * ======================================================================
+ */
 
 export function GraphsShowcase() {
   return (
@@ -232,12 +233,13 @@ export function GraphsShowcase() {
         {/* Donut */}
         <GraphCard
           title="Donut · Population share by region"
+          summary="Southern California has the largest population share at 23.8 million; the Bay Area follows at 7.7 million."
           chart={
             <PlotlyChart
               data={donutFigure.data}
               layout={donutFigure.layout}
               config={baseConfig}
-              height={CHART_HEIGHT}
+              height={UI_KIT_CHART_HEIGHT}
             />
           }
           properties={[
@@ -251,12 +253,13 @@ export function GraphsShowcase() {
         {/* Dumbbell */}
         <GraphCard
           title="Dumbbell · Median cost 2014 → 2024"
+          summary="Median costs increase in every displayed region from 2014 to 2024."
           chart={
             <PlotlyChart
               data={dumbbellFigure.data}
               layout={dumbbellFigure.layout}
               config={baseConfig}
-              height={CHART_HEIGHT}
+              height={UI_KIT_CHART_HEIGHT}
             />
           }
           properties={[
@@ -278,12 +281,13 @@ export function GraphsShowcase() {
         {/* Line */}
         <GraphCard
           title="Line · Owner vs renter share"
+          summary="The owner share rises from 54.9 percent in 2018 to 56.4 percent in 2024 while the renter share declines."
           chart={
             <PlotlyChart
               data={lineFigure.data}
               layout={lineFigure.layout}
               config={baseConfig}
-              height={CHART_HEIGHT}
+              height={UI_KIT_CHART_HEIGHT}
             />
           }
           properties={[
@@ -305,12 +309,13 @@ export function GraphsShowcase() {
         {/* Scatter */}
         <GraphCard
           title="Scatter · Income vs housing cost"
+          summary="The sample shows housing costs increasing with income for both coastal and inland observations."
           chart={
             <PlotlyChart
               data={scatterFigure.data}
               layout={scatterFigure.layout}
               config={baseConfig}
-              height={CHART_HEIGHT}
+              height={UI_KIT_CHART_HEIGHT}
             />
           }
           properties={[
@@ -330,5 +335,45 @@ export function GraphsShowcase() {
         />
       </div>
     </Section>
+  );
+}
+
+// ── Tightly coupled sub-components ───────────────────────────────────
+
+function GraphCard({ title, summary, chart, properties }) {
+  return (
+    <div className="rounded-2xl border border-ppic-border bg-white p-6 shadow-[0_4px_4px_rgba(0,0,0,0.08)]">
+      <h3 className="font-serif text-[22px] text-neutral-900">{title}</h3>
+      <div className="mt-3 w-full">{chart}</div>
+      <p className="sr-only">{summary}</p>
+      <dl className="mt-4 space-y-1.5 border-t border-ppic-neutral-50 pt-4">
+        {properties.map((property) => (
+          <div
+            key={property.label}
+            className="flex items-start gap-3 font-sans text-[13px]"
+          >
+            <dt className="w-32 shrink-0 uppercase tracking-[0.1em] text-neutral-500">
+              {property.label}
+            </dt>
+            <dd className="flex flex-wrap items-center gap-2 text-neutral-800">
+              {property.value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
+function Swatch({ color, label }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span
+        aria-hidden="true"
+        className="size-3.5 rounded-[3px]"
+        style={{ backgroundColor: color }}
+      />
+      {label && <span className="text-neutral-700">{label}</span>}
+    </span>
   );
 }

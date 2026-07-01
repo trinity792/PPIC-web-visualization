@@ -1,7 +1,23 @@
 "use client";
 
+/**
+ * EncodingSection.js — field-binding and geographic-level controls for a chart.
+ *
+ * Props:
+ *   None.
+ *
+ * Data sources:
+ *   - Chart configuration and module schema from ChartConfigProvider
+ *
+ * UI Kit reference:
+ *   - Implements graph-editor encoding controls and layer actions
+ */
+
 import React from "react";
+
 import { Plus } from "lucide-react";
+
+import LayerEditor from "@/components/chart-builder/LayerEditor";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -11,14 +27,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
+import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import {
   CATALOG_ROLE_FOR_BINDING,
   getChartType,
 } from "@/lib/visualization/chartRegistry";
 import { isMeasure, supportsRole } from "@/lib/visualization/fieldTypes";
 import { getPreset } from "@/lib/visualization/presetRegistry";
-import { useChartConfig } from "./chartConfigStore";
-import LayerEditor from "./LayerEditor";
 
 const NONE = "__none__";
 
@@ -40,43 +56,6 @@ function roleLabel(role) {
     size: "Bubble size",
   };
   return labels[role] || role;
-}
-
-// Geographic level (subset) — which set of places the data covers. Lives in
-// Encodings and is available for every chart type.
-function GeographicLevelControl() {
-  const { config, dispatch, schema } = useChartConfig();
-  const subsets =
-    config.chartType === "choroplethMap" && schema.subsets?.Counties
-      ? ["Counties"]
-      : Object.keys(schema.subsets || {});
-
-  if (!subsets.length) return null;
-
-  function setSubset(value) {
-    dispatch({ type: "SET_FILTER", key: "subset", value });
-    if (value === "States" && schema.sources?.includes("Census")) {
-      dispatch({ type: "SET_FILTER", key: "source", value: "Census" });
-    }
-  }
-
-  return (
-    <div className="grid gap-2">
-      <Label htmlFor="encoding-geographic-level">Geographic level</Label>
-      <Select value={config.filters.subset || ""} onValueChange={setSubset}>
-        <SelectTrigger id="encoding-geographic-level">
-          <SelectValue placeholder="Choose a level" />
-        </SelectTrigger>
-        <SelectContent>
-          {subsets.map((subset) => (
-            <SelectItem key={subset} value={subset}>
-              {subset}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
-  );
 }
 
 export default function EncodingSection() {
@@ -136,12 +115,49 @@ export default function EncodingSection() {
         <LayerEditor
           trigger={
             <Button type="button" variant="outline" className="w-full">
-              <Plus />
+              <Plus aria-hidden="true" />
               Add line
             </Button>
           }
         />
       ) : null}
+    </div>
+  );
+}
+
+// ── Tightly coupled sub-components ───────────────────────────────────
+
+function GeographicLevelControl() {
+  const { config, dispatch, schema } = useChartConfig();
+  const subsets =
+    config.chartType === "choroplethMap" && schema.subsets?.Counties
+      ? ["Counties"]
+      : Object.keys(schema.subsets || {});
+
+  if (!subsets.length) return null;
+
+  function setSubset(value) {
+    dispatch({ type: "SET_FILTER", key: "subset", value });
+    if (value === "States" && schema.sources?.includes("Census")) {
+      dispatch({ type: "SET_FILTER", key: "source", value: "Census" });
+    }
+  }
+
+  return (
+    <div className="grid gap-2">
+      <Label htmlFor="encoding-geographic-level">Geographic level</Label>
+      <Select value={config.filters.subset || ""} onValueChange={setSubset}>
+        <SelectTrigger id="encoding-geographic-level">
+          <SelectValue placeholder="Choose a level" />
+        </SelectTrigger>
+        <SelectContent>
+          {subsets.map((subset) => (
+            <SelectItem key={subset} value={subset}>
+              {subset}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }

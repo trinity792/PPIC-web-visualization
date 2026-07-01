@@ -1,8 +1,24 @@
 "use client";
 
+/**
+ * LayerEditor.js — dialog for adding comparison and reference layers to a chart.
+ *
+ * Props:
+ *   trigger {ReactNode} — control that opens the layer editor dialog
+ *
+ * Data sources:
+ *   - Chart configuration and module schema from ChartConfigProvider
+ *
+ * UI Kit reference:
+ *   - Implements graph-editor dialog, badge, input, and select patterns
+ */
+
 /* eslint-disable react/prop-types */
+
 import React, { useMemo, useState } from "react";
+
 import { Plus, Trash2 } from "lucide-react";
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,8 +39,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
+import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import { areComparable, isMeasure } from "@/lib/visualization/fieldTypes";
-import { useChartConfig } from "./chartConfigStore";
 
 const LAYER_TYPES = {
   selectedPlaces: {
@@ -61,12 +78,24 @@ const DERIVED_TRANSFORMS = [
   ["differenceFromBenchmark", "Difference from benchmark"],
 ];
 
+/**
+ * ======================================================================
+ * Layer Construction Helpers
+ * ======================================================================
+ */
+
 function makeId() {
   return (
     globalThis.crypto?.randomUUID?.() ||
     `layer-${Date.now().toString(36)}`
   );
 }
+
+/**
+ * ======================================================================
+ * Layer Editor Component
+ * ======================================================================
+ */
 
 export default function LayerEditor({ trigger }) {
   const { config, dispatch, schema } = useChartConfig();
@@ -139,7 +168,7 @@ export default function LayerEditor({ trigger }) {
         <DialogTrigger asChild>
           {trigger || (
             <Button type="button" variant="outline">
-              <Plus />
+              <Plus aria-hidden="true" />
               Add layer
             </Button>
           )}
@@ -277,7 +306,7 @@ export default function LayerEditor({ trigger }) {
             aria-label={`Remove ${layer.label}`}
             onClick={() => dispatch({ type: "REMOVE_LAYER", id: layer.id })}
           >
-            <Trash2 />
+            <Trash2 aria-hidden="true" />
           </Button>
         </div>
       ))}

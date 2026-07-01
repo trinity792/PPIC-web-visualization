@@ -1,3 +1,16 @@
+/**
+ * chartData.js — API query construction and layered chart-data loading.
+ *
+ * Props:
+ *   None.
+ *
+ * Data sources:
+ *   - Module API routes selected through schema.apiPath
+ *
+ * UI Kit reference:
+ *   - None — data-loading utility that does not render UI
+ */
+
 import { getChartType } from "@/lib/visualization/chartRegistry";
 
 const QUERY_SHAPES = Object.freeze({

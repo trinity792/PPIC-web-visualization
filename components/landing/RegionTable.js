@@ -1,5 +1,21 @@
+/**
+ * RegionTable.js — latest population and housing estimates by California region.
+ *
+ * Props:
+ *   regionRows {Array<Object>} — region, population, and housing-unit records
+ *   year       {number|null}   — latest estimate year, when available
+ *
+ * Data sources:
+ *   - Via props from queryRegionTable() in lib/data/pop_housing.js
+ *
+ * UI Kit reference:
+ *   - Implements the "Data Table" pattern
+ */
+
 /* eslint-disable react/prop-types */
+
 import React from "react";
+
 import {
   Table,
   TableBody,
@@ -10,13 +26,12 @@ import {
 } from "@/components/ui/table";
 
 const NUMBER = new Intl.NumberFormat("en-US");
-const cell = (value) => (value == null ? "—" : NUMBER.format(value));
 
-/**
- * Presentational region table: population + housing units per region for the
- * latest available year. Data is computed server-side (lib/data/pop_housing.js).
- */
-export default function RegionTable({ rows = [], year }) {
+function formatCell(value) {
+  return value == null ? "—" : NUMBER.format(value);
+}
+
+export default function RegionTable({ regionRows = [], year = null }) {
   return (
     <div className="flex h-full flex-col">
       <div className="border-b px-4 py-3">
@@ -35,17 +50,25 @@ export default function RegionTable({ rows = [], year }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((row) => (
-              <TableRow key={row.region}>
-                <TableCell className="font-medium">{row.region}</TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {cell(row.population)}
-                </TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {cell(row.housingUnits)}
+            {regionRows.length ? (
+              regionRows.map((regionRow) => (
+                <TableRow key={regionRow.region}>
+                  <TableCell className="font-medium">{regionRow.region}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {formatCell(regionRow.population)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {formatCell(regionRow.housingUnits)}
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={3} className="py-8 text-center text-muted-foreground">
+                  Regional estimates are unavailable. Try refreshing the page.
                 </TableCell>
               </TableRow>
-            ))}
+            )}
           </TableBody>
         </Table>
       </div>

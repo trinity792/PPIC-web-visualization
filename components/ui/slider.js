@@ -1,7 +1,29 @@
 "use client";
+
+/**
+ * slider.js — single- or multi-thumb Radix slider primitive.
+ *
+ * Props:
+ *   className   {string}        — optional utility classes
+ *   defaultValue {Array<number>} — initial uncontrolled values
+ *   value       {Array<number>} — controlled values
+ *   min         {number}        — minimum slider value
+ *   max         {number}        — maximum slider value
+ *   ...props    {Object}        — Radix Slider attributes
+ *
+ * Data sources:
+ *   - Slider values via props from parent components
+ *
+ * UI Kit reference:
+ *   - Implements the shared single- and range-slider patterns
+ */
+
+/* eslint-disable react/prop-types */
+
 import * as React from "react";
 import * as SliderPrimitive from "@radix-ui/react-slider";
-import { cn } from "./utils";
+
+import { cn } from "@/components/ui/utils";
 function Slider({
   className,
   defaultValue,

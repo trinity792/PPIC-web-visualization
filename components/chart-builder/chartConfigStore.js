@@ -1,6 +1,22 @@
 "use client";
 
+/**
+ * chartConfigStore.js — reducer and React context for chart-editor configuration.
+ *
+ * Props:
+ *   schema        {Object}    — registered module schema
+ *   initialConfig {Object}    — initial declarative chart configuration
+ *   children      {ReactNode} — chart-builder consumers of the context
+ *
+ * Data sources:
+ *   - Schema and initial configuration via props from ModuleEditor
+ *
+ * UI Kit reference:
+ *   - None — state-management utility that does not render visible UI
+ */
+
 /* eslint-disable react/prop-types */
+
 import {
   default as React,
   createContext,
@@ -8,6 +24,7 @@ import {
   useMemo,
   useReducer,
 } from "react";
+
 import { getChartType } from "@/lib/visualization/chartRegistry";
 import {
   getPreset,
@@ -19,6 +36,12 @@ import {
   isMeasure,
 } from "@/lib/visualization/fieldTypes";
 import { validateConfig } from "@/lib/visualization/validation";
+
+/**
+ * ======================================================================
+ * Configuration Construction Helpers
+ * ======================================================================
+ */
 
 const ChartConfigContext = createContext(null);
 
@@ -157,6 +180,12 @@ export function createChartConfig(schema, initialConfig = {}) {
     schema,
   );
 }
+
+/**
+ * ======================================================================
+ * Configuration Reducer
+ * ======================================================================
+ */
 
 function presetForChartType(chartType) {
   const id = PRESET_ORDER.find((presetId) => PRESETS[presetId].chartType === chartType);
@@ -303,6 +332,12 @@ export function reduceChartConfig(config, action, schema) {
 
   return revalidate(next, schema);
 }
+
+/**
+ * ======================================================================
+ * Context Provider and Hook
+ * ======================================================================
+ */
 
 export function ChartConfigProvider({ schema, initialConfig, children }) {
   const [config, dispatch] = useReducer(

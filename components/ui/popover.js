@@ -1,6 +1,29 @@
 "use client";
+
+/**
+ * popover.js — Radix popover root, trigger, anchor, and content primitives.
+ *
+ * Props:
+ *   className  {string}    — optional content utility classes
+ *   align      {string}    — content alignment relative to its trigger
+ *   sideOffset {number}    — distance between trigger and content
+ *   children   {ReactNode} — popover content
+ *   ...props   {Object}    — corresponding Radix Popover attributes
+ *
+ * Data sources:
+ *   - Open state and content via props from parent components
+ *
+ * UI Kit reference:
+ *   - Implements the shared "Popover" pattern
+ */
+
+/* eslint-disable react/prop-types */
+
+import React from "react";
+
 import * as PopoverPrimitive from "@radix-ui/react-popover";
-import { cn } from "./utils";
+
+import { cn } from "@/components/ui/utils";
 function Popover({
   ...props
 }) {

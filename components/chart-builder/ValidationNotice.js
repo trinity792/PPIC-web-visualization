@@ -1,7 +1,22 @@
 "use client";
 
+/**
+ * ValidationNotice.js — actionable chart-configuration findings and help codes.
+ *
+ * Props:
+ *   None.
+ *
+ * Data sources:
+ *   - Validation findings from ChartConfigProvider
+ *
+ * UI Kit reference:
+ *   - Implements error and recommendation alert patterns
+ */
+
 import React from "react";
+
 import { AlertCircle, AlertTriangle, CircleHelp } from "lucide-react";
+
 import {
   Alert,
   AlertDescription,
@@ -12,7 +27,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useChartConfig } from "./chartConfigStore";
+
+import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 
 export default function ValidationNotice() {
   const { config } = useChartConfig();
@@ -29,12 +45,12 @@ export default function ValidationNotice() {
             variant={destructive ? "destructive" : "default"}
             className={destructive ? undefined : "border-amber-400/60"}
           >
-            <Icon />
+            <Icon aria-hidden="true" />
             <AlertTitle className="flex items-center gap-1.5">
               {destructive ? "Configuration error" : "Recommendation"}
               <Tooltip>
                 <TooltipTrigger type="button" aria-label={finding.code}>
-                  <CircleHelp className="size-3.5" />
+                  <CircleHelp aria-hidden="true" className="size-3.5" />
                 </TooltipTrigger>
                 <TooltipContent>{finding.code}</TooltipContent>
               </Tooltip>

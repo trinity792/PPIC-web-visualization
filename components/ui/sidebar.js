@@ -1,34 +1,73 @@
 "use client";
+
+/**
+ * sidebar.js — responsive sidebar provider and composition primitives.
+ *
+ * Props:
+ *   defaultOpen  {boolean}   — initial uncontrolled open state
+ *   open         {boolean}   — optional controlled open state
+ *   onOpenChange {Function}  — controlled-state callback
+ *   className    {string}    — optional utility classes on styled primitives
+ *   style        {Object}    — computed CSS custom-property overrides
+ *   side         {string}    — sidebar edge
+ *   variant      {string}    — sidebar visual variant
+ *   collapsible  {string}    — collapse behavior
+ *   size         {string}    — menu-button size
+ *   isActive     {boolean}   — menu-button active state
+ *   tooltip      {ReactNode} — optional collapsed-button tooltip
+ *   children     {ReactNode} — sidebar content
+ *   ...props     {Object}    — native or Radix primitive attributes
+ *
+ * Data sources:
+ *   - Controlled state via props, viewport state from useIsMobile, and cookie persistence
+ *
+ * UI Kit reference:
+ *   - Implements the shared responsive "Sidebar" and sidebar-menu patterns
+ */
+
+/* eslint-disable react/prop-types */
+
 import * as React from "react";
+
 import { Slot } from "@radix-ui/react-slot";
 import { cva } from "class-variance-authority";
+
 import { PanelLeftIcon } from "lucide-react";
-import { useIsMobile } from "./use-mobile";
-import { cn } from "./utils";
-import { Button } from "./button";
-import { Input } from "./input";
-import { Separator } from "./separator";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle
-} from "./sheet";
-import { Skeleton } from "./skeleton";
+} from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger
-} from "./tooltip";
+} from "@/components/ui/tooltip";
+
+import { useIsMobile } from "@/components/ui/use-mobile";
+import { cn } from "@/components/ui/utils";
+
+import { UI_SIDEBAR } from "@/lib/constants";
+
 const SIDEBAR_COOKIE_NAME = "sidebar_state";
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
-const SIDEBAR_WIDTH = "16rem";
-const SIDEBAR_WIDTH_MOBILE = "18rem";
-const SIDEBAR_WIDTH_ICON = "3rem";
 const SIDEBAR_KEYBOARD_SHORTCUT = "b";
 const SidebarContext = React.createContext(null);
+
+/**
+ * ======================================================================
+ * Sidebar State and Root
+ * ======================================================================
+ */
+
 function useSidebar() {
   const context = React.useContext(SidebarContext);
   if (!context) {
@@ -92,8 +131,8 @@ function SidebarProvider({
         <div
     data-slot="sidebar-wrapper"
     style={{
-      "--sidebar-width": SIDEBAR_WIDTH,
-      "--sidebar-width-icon": SIDEBAR_WIDTH_ICON,
+      "--sidebar-width": UI_SIDEBAR.width,
+      "--sidebar-width-icon": UI_SIDEBAR.iconWidth,
       ...style
     }}
     className={cn(
@@ -136,7 +175,7 @@ function Sidebar({
       data-mobile="true"
       className="bg-sidebar text-sidebar-foreground w-(--sidebar-width) p-0 [&>button]:hidden"
       style={{
-        "--sidebar-width": SIDEBAR_WIDTH_MOBILE
+        "--sidebar-width": UI_SIDEBAR.mobileWidth
       }}
       side={side}
     >
@@ -211,6 +250,13 @@ function SidebarTrigger({
       <span className="sr-only">Toggle Sidebar</span>
     </Button>;
 }
+
+/**
+ * ======================================================================
+ * Sidebar Layout Primitives
+ * ======================================================================
+ */
+
 function SidebarRail({ className, ...props }) {
   const { toggleSidebar } = useSidebar();
   return <button
@@ -292,6 +338,13 @@ function SidebarContent({ className, ...props }) {
     {...props}
   />;
 }
+
+/**
+ * ======================================================================
+ * Sidebar Groups and Menus
+ * ======================================================================
+ */
+
 function SidebarGroup({ className, ...props }) {
   return <div
     data-slot="sidebar-group"

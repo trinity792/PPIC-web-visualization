@@ -1,9 +1,17 @@
 /**
- * Category dashboard registry: maps a category id to the dashboard component that
- * renders its landing-page tiles. Adding a new category means adding a dashboard
- * component here (plus its entry in lib/visualization/categoryRegistry.js).
+ * index.js — category-to-dashboard component registry for the landing page.
+ *
+ * Props:
+ *   None.
+ *
+ * Data sources:
+ *   - Category identifiers from lib/visualization/categoryRegistry.js
+ *
+ * UI Kit reference:
+ *   - None — registry utility that does not render UI
  */
-import PopulationHousingDashboard from "./PopulationHousingDashboard";
+
+import PopulationHousingDashboard from "@/components/landing/dashboards/PopulationHousingDashboard";
 
 export const DASHBOARDS = Object.freeze({
   "population-housing": PopulationHousingDashboard,

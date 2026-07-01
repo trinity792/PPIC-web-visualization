@@ -7,7 +7,7 @@
  *   None.
  *
  * Data sources:
- *   - Static link to this repository's GitHub issue form
+ *   - Static link to the PPIC bug report Google Form
  *
  * UI Kit reference:
  *   - Composes the shared small Button and Dialog patterns
@@ -28,8 +28,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 
-const GITHUB_NEW_ISSUE_URL =
-  "https://github.com/trinity792/PPIC-web-visualization/issues/new?template=bug_report.md";
+const BUG_REPORT_FORM_URL = "https://forms.gle/Tp8Ah1hyswFLtKgh9";
 const CONTACT_EMAIL = "jones@ppic.org";
 
 export default function ReportProblemDialog() {
@@ -58,18 +57,13 @@ export default function ReportProblemDialog() {
         <DialogHeader>
           <DialogTitle>Report a problem</DialogTitle>
           <DialogDescription>
-            Bug reports submitted through GitHub may be publicly visible.
+            Click Continue to open the bug report form in a new tab.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3 text-sm leading-6 text-ppic-neutral-500">
+        <div className="text-sm leading-6 text-ppic-neutral-500">
           <p>
-            Do not include proprietary, confidential, unpublished, personally
-            identifiable, or otherwise sensitive information in your report.
-          </p>
-          <p>
-            For questions, sensitive issues, or help deciding what to include,
-            email Trinity at{" "}
+            If you have any questions, email Trinity at{" "}
             <button
               type="button"
               className="font-medium text-foreground underline underline-offset-2 hover:text-ppic-neutral-400"
@@ -89,11 +83,11 @@ export default function ReportProblemDialog() {
           </DialogClose>
           <Button asChild>
             <a
-              href={GITHUB_NEW_ISSUE_URL}
+              href={BUG_REPORT_FORM_URL}
               target="_blank"
               rel="noreferrer"
             >
-              Continue to public report
+              Continue
             </a>
           </Button>
         </DialogFooter>

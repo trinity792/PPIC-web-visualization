@@ -1,7 +1,29 @@
 "use client";
+
+/**
+ * dialog.js — accessible modal dialog composition primitives.
+ *
+ * Props:
+ *   className {string}    — optional utility classes on styled primitives
+ *   children  {ReactNode} — dialog content
+ *   ...props  {Object}    — corresponding Radix Dialog attributes
+ *
+ * Data sources:
+ *   - Open state and content via props from parent components
+ *
+ * UI Kit reference:
+ *   - Implements the shared "Dialog" pattern
+ */
+
+/* eslint-disable react/prop-types */
+
+import React from "react";
+
 import * as DialogPrimitive from "@radix-ui/react-dialog";
+
 import { XIcon } from "lucide-react";
-import { cn } from "./utils";
+
+import { cn } from "@/components/ui/utils";
 function Dialog({
   ...props
 }) {

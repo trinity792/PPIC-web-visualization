@@ -1,45 +1,30 @@
+/**
+ * ButtonsShowcase.js — button variants and sizes used across PPIC dashboards.
+ *
+ * Props:
+ *   None.
+ *
+ * Data sources:
+ *   - Static UI Kit examples defined in this file
+ *
+ * UI Kit reference:
+ *   - Documents the "Pill Button" and "Data Action" patterns
+ */
+
 /* eslint-disable react/prop-types */
+
 import React from "react";
+
 import { ArrowRight } from "lucide-react";
-import { Section, Panel, Caption } from "./Section";
 
-function PillButton({ children, variant = "primary", size = "md" }) {
-  const base =
-    "inline-flex items-center justify-center gap-2 rounded-full border transition-colors disabled:opacity-50";
-  const sizing = size === "sm" ? "px-4 py-1 text-[13px]" : "px-7 py-2.5 text-[15px]";
+import { Caption, Panel, Section } from "@/components/ui-kit/Section";
 
-  const styles = {
-    primary: {
-      backgroundColor: "var(--ppic-orange-100)",
-      borderColor: "#000",
-      color: "#0d0d0d",
-    },
-    outline: {
-      backgroundColor: "transparent",
-      borderColor: "var(--ppic-orange-300)",
-      color: "var(--ppic-orange-300)",
-    },
-    ghost: {
-      backgroundColor: "transparent",
-      borderColor: "transparent",
-      color: "var(--ppic-orange-300)",
-    },
-    "see-more": {
-      backgroundColor: "var(--ppic-blue-50)",
-      borderColor: "#000",
-      color: "#0d0d0d",
-    },
-  };
-
-  return (
-    <button
-      className={`${base} ${sizing} hover:brightness-95`}
-      style={{ fontFamily: "var(--font-heading)", ...styles[variant] }}
-    >
-      {children}
-    </button>
-  );
-}
+const BUTTON_VARIANTS = {
+  primary: "border-black bg-ppic-orange-100 text-ppic-neutral-600",
+  outline: "border-ppic-brand bg-transparent text-ppic-brand",
+  ghost: "border-transparent bg-transparent text-ppic-brand",
+  "see-more": "border-black bg-ppic-blue-50 text-ppic-neutral-600",
+};
 
 export function ButtonsShowcase() {
   return (
@@ -69,8 +54,8 @@ export function ButtonsShowcase() {
               Apply
             </PillButton>
             <button
-              className="inline-flex items-center justify-center rounded-full px-5 py-2 text-[14px] text-white hover:brightness-95"
-              style={{ backgroundColor: "var(--ppic-blue-400)", fontFamily: "var(--font-heading)" }}
+              type="button"
+              className="inline-flex items-center justify-center rounded-full bg-ppic-blue-400 px-5 py-2 font-heading text-sm text-white hover:brightness-95"
             >
               Export Data
             </button>
@@ -79,5 +64,19 @@ export function ButtonsShowcase() {
         </Panel>
       </div>
     </Section>
+  );
+}
+
+// ── Tightly coupled sub-components ───────────────────────────────────
+
+function PillButton({ children, variant = "primary", size = "md" }) {
+  const base =
+    "inline-flex items-center justify-center gap-2 rounded-full border font-heading transition-colors hover:brightness-95 disabled:opacity-50";
+  const sizing = size === "sm" ? "px-4 py-1 text-[13px]" : "px-7 py-2.5 text-[15px]";
+
+  return (
+    <button type="button" className={`${base} ${sizing} ${BUTTON_VARIANTS[variant]}`}>
+      {children}
+    </button>
   );
 }

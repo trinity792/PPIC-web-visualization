@@ -1,6 +1,26 @@
 "use client";
+
+/**
+ * tabs.js — Radix tabs root, list, trigger, and content primitives.
+ *
+ * Props:
+ *   className {string} — optional utility classes
+ *   ...props  {Object} — corresponding Radix Tabs attributes and children
+ *
+ * Data sources:
+ *   - Active tab state and content via props from parent components
+ *
+ * UI Kit reference:
+ *   - Implements the shared "Tabs" pattern
+ */
+
+/* eslint-disable react/prop-types */
+
+import React from "react";
+
 import * as TabsPrimitive from "@radix-ui/react-tabs";
-import { cn } from "./utils";
+
+import { cn } from "@/components/ui/utils";
 function Tabs({
   className,
   ...props

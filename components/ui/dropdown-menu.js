@@ -1,7 +1,39 @@
 "use client";
+
+/**
+ * dropdown-menu.js — composable Radix dropdown-menu primitives.
+ *
+ * Props:
+ *   className  {string}    — optional utility classes on styled primitives
+ *   inset      {boolean}   — align labels with inset menu content
+ *   variant    {string}    — item visual treatment
+ *   sideOffset {number}    — distance between trigger and content
+ *   children   {ReactNode} — menu content
+ *   ...props   {Object}    — corresponding Radix DropdownMenu attributes
+ *
+ * Data sources:
+ *   - Menu options and state via props from parent components
+ *
+ * UI Kit reference:
+ *   - Implements the shared dropdown-menu pattern
+ */
+
+/* eslint-disable react/prop-types */
+
+import React from "react";
+
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
+
 import { CheckIcon, ChevronRightIcon, CircleIcon } from "lucide-react";
-import { cn } from "./utils";
+
+import { cn } from "@/components/ui/utils";
+
+/**
+ * ======================================================================
+ * Menu Root and Content
+ * ======================================================================
+ */
+
 function DropdownMenu({
   ...props
 }) {
@@ -42,6 +74,13 @@ function DropdownMenuGroup({
 }) {
   return <DropdownMenuPrimitive.Group data-slot="dropdown-menu-group" {...props} />;
 }
+
+/**
+ * ======================================================================
+ * Menu Items and Labels
+ * ======================================================================
+ */
+
 function DropdownMenuItem({
   className,
   inset,
@@ -149,6 +188,13 @@ function DropdownMenuShortcut({
     {...props}
   />;
 }
+
+/**
+ * ======================================================================
+ * Nested Menus
+ * ======================================================================
+ */
+
 function DropdownMenuSub({
   ...props
 }) {

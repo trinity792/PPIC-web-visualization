@@ -1,12 +1,24 @@
 "use client";
 
+/**
+ * PopHousingLineSection.js — interactive population and housing line chart.
+ *
+ * Props:
+ *   None.
+ *
+ * Data sources:
+ *   - /api/pophousing
+ *   - Field metadata from the Population & Housing module schema
+ *
+ * UI Kit reference:
+ *   - Implements the "Chart Container" and form-control patterns
+ */
+
 import React, { useEffect, useMemo, useState } from "react";
-import PlotlyChart from "@/components/charts/PlotlyChart";
-import { POPHOUSING_SCHEMA } from "@/lib/visualization/moduleSchemas/pophousing";
-import { toPlotly } from "@/lib/visualization/toPlotly";
+
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -14,6 +26,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import PlotlyChart from "@/components/charts/PlotlyChart";
+
+import { toPlotly } from "@/lib/visualization/toPlotly";
+
+import { POPHOUSING_SCHEMA } from "@/lib/visualization/moduleSchemas/pophousing";
 
 // Curated metric list comes from the client-safe module schema (single source of
 // truth, shared with the server data module) — no longer duplicated here.
@@ -98,12 +115,13 @@ export default function PopHousingLineSection() {
   return (
     <Card className="shadow-sm">
       <CardContent className="pt-6">
-        {/* Controls */}
         <div className="mb-5 flex flex-wrap items-end gap-6">
           <div className="flex flex-col gap-1.5">
-            <Label className="text-xs text-muted-foreground">Metric</Label>
+            <Label htmlFor="pophousing-line-metric" className="text-xs text-muted-foreground">
+              Metric
+            </Label>
             <Select value={parameter} onValueChange={setParameter}>
-              <SelectTrigger className="min-w-55">
+              <SelectTrigger id="pophousing-line-metric" className="min-w-55">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -117,7 +135,7 @@ export default function PopHousingLineSection() {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label className="text-xs text-muted-foreground">Locations</Label>
+            <p className="text-xs text-muted-foreground">Locations</p>
             <div className="flex gap-2">
               {Object.entries(PRESETS).map(([key, preset]) => (
                 <Button
@@ -134,9 +152,10 @@ export default function PopHousingLineSection() {
           </div>
         </div>
 
-        {/* Chart / states */}
         {status === "loading" && (
-          <p className="py-10 text-muted-foreground">Loading chart…</p>
+          <p role="status" className="py-10 text-muted-foreground">
+            Loading chart…
+          </p>
         )}
         {status === "empty" && (
           <p className="py-10 text-muted-foreground">
@@ -144,7 +163,10 @@ export default function PopHousingLineSection() {
           </p>
         )}
         {status === "error" && (
-          <p className="py-10 text-destructive">Could not load chart: {errorMessage}</p>
+          <p role="alert" className="py-10 text-destructive">
+            Could not load the population and housing chart: {errorMessage}. Try
+            refreshing or choose a different selection.
+          </p>
         )}
         {status === "ready" && (
           <PlotlyChart {...plotly} />

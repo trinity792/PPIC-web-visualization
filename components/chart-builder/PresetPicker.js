@@ -1,6 +1,21 @@
 "use client";
 
+/**
+ * PresetPicker.js — analytical-task preset selector for the chart editor.
+ *
+ * Props:
+ *   None.
+ *
+ * Data sources:
+ *   - Presets from lib/visualization/presetRegistry.js
+ *   - Active chart configuration from ChartConfigProvider
+ *
+ * UI Kit reference:
+ *   - Implements the graph-editor select pattern
+ */
+
 import React from "react";
+
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -9,11 +24,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
+import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import {
   PRESET_ORDER,
   PRESETS,
 } from "@/lib/visualization/presetRegistry";
-import { useChartConfig } from "./chartConfigStore";
 
 export default function PresetPicker() {
   const { config, dispatch } = useChartConfig();

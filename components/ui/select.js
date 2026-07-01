@@ -1,11 +1,36 @@
 "use client";
+
+/**
+ * select.js — composable Radix select control primitives.
+ *
+ * Props:
+ *   className {string}    — optional utility classes on styled primitives
+ *   size      {string}    — trigger size variant
+ *   position  {string}    — content positioning strategy
+ *   align     {string}    — content alignment
+ *   children  {ReactNode} — trigger, value, or menu content
+ *   ...props  {Object}    — corresponding Radix Select attributes
+ *
+ * Data sources:
+ *   - Selected value and options via props from parent components
+ *
+ * UI Kit reference:
+ *   - Implements the shared "Select" pattern
+ */
+
+/* eslint-disable react/prop-types */
+
+import React from "react";
+
 import * as SelectPrimitive from "@radix-ui/react-select";
+
 import {
   CheckIcon,
   ChevronDownIcon,
   ChevronUpIcon
 } from "lucide-react";
-import { cn } from "./utils";
+
+import { cn } from "@/components/ui/utils";
 function Select({
   ...props
 }) {

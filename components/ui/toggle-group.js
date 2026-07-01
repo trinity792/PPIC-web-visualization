@@ -1,8 +1,29 @@
 "use client";
+
+/**
+ * toggle-group.js — grouped Radix toggle controls with shared variants and sizing.
+ *
+ * Props:
+ *   className {string}    — optional utility classes
+ *   variant   {string}    — toggle visual variant
+ *   size      {string}    — toggle size
+ *   children  {ReactNode} — toggle-group items
+ *   ...props  {Object}    — corresponding Radix ToggleGroup attributes
+ *
+ * Data sources:
+ *   - Selected values via props from parent components
+ *
+ * UI Kit reference:
+ *   - Implements the shared grouped-toggle pattern
+ */
+
+/* eslint-disable react/prop-types */
+
 import * as React from "react";
 import * as ToggleGroupPrimitive from "@radix-ui/react-toggle-group";
-import { cn } from "./utils";
-import { toggleVariants } from "./toggle";
+
+import { toggleVariants } from "@/components/ui/toggle";
+import { cn } from "@/components/ui/utils";
 const ToggleGroupContext = React.createContext({
   size: "default",
   variant: "default"

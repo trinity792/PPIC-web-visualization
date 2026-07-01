@@ -1,6 +1,26 @@
 "use client";
+
+/**
+ * switch.js — accessible Radix boolean switch primitive.
+ *
+ * Props:
+ *   className {string} — optional utility classes
+ *   ...props  {Object} — Radix Switch attributes
+ *
+ * Data sources:
+ *   - Checked state via props from parent components
+ *
+ * UI Kit reference:
+ *   - Implements the shared "Switch" pattern
+ */
+
+/* eslint-disable react/prop-types */
+
+import React from "react";
+
 import * as SwitchPrimitive from "@radix-ui/react-switch";
-import { cn } from "./utils";
+
+import { cn } from "@/components/ui/utils";
 function Switch({
   className,
   ...props

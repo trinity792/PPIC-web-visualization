@@ -1,6 +1,28 @@
 "use client";
+
+/**
+ * scroll-area.js — styled Radix scroll-area and scrollbar primitives.
+ *
+ * Props:
+ *   className   {string}    — optional utility classes
+ *   children    {ReactNode} — scrollable content
+ *   orientation {string}    — scrollbar direction
+ *   ...props    {Object}    — corresponding Radix ScrollArea attributes
+ *
+ * Data sources:
+ *   - Via props from parent components
+ *
+ * UI Kit reference:
+ *   - Implements the shared custom-scrollbar pattern
+ */
+
+/* eslint-disable react/prop-types */
+
+import React from "react";
+
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
-import { cn } from "./utils";
+
+import { cn } from "@/components/ui/utils";
 function ScrollArea({
   className,
   children,

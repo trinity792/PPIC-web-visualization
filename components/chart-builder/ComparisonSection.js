@@ -1,7 +1,22 @@
 "use client";
 
+/**
+ * ComparisonSection.js — transform, indexing, and reference-line controls.
+ *
+ * Props:
+ *   None.
+ *
+ * Data sources:
+ *   - Chart configuration and module schema from ChartConfigProvider
+ *
+ * UI Kit reference:
+ *   - Implements graph-editor comparison form controls
+ */
+
 /* eslint-disable react/prop-types */
+
 import React from "react";
+
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -12,8 +27,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+
+import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import { allowedTransforms } from "@/lib/visualization/fieldTypes";
-import { useChartConfig } from "./chartConfigStore";
 
 const TRANSFORM_LABELS = {
   actual: "Actual value",
@@ -23,24 +39,6 @@ const TRANSFORM_LABELS = {
   percentagePointChange: "Percentage-point change",
   differenceFromBenchmark: "Difference from benchmark",
 };
-
-function NumberField({ id, label, value, onChange }) {
-  return (
-    <div className="grid gap-2">
-      <Label htmlFor={id}>{label}</Label>
-      <Input
-        id={id}
-        type="number"
-        inputMode="numeric"
-        value={value ?? ""}
-        onChange={(event) => {
-          const next = event.target.value;
-          onChange(next === "" ? null : Number(next));
-        }}
-      />
-    </div>
-  );
-}
 
 export default function ComparisonSection() {
   const { config, dispatch, schema } = useChartConfig();
@@ -139,6 +137,26 @@ export default function ComparisonSection() {
           }
         />
       </div>
+    </div>
+  );
+}
+
+// ── Tightly coupled sub-components ───────────────────────────────────
+
+function NumberField({ id, label, value, onChange }) {
+  return (
+    <div className="grid gap-2">
+      <Label htmlFor={id}>{label}</Label>
+      <Input
+        id={id}
+        type="number"
+        inputMode="numeric"
+        value={value ?? ""}
+        onChange={(event) => {
+          const next = event.target.value;
+          onChange(next === "" ? null : Number(next));
+        }}
+      />
     </div>
   );
 }

@@ -1,8 +1,30 @@
 "use client";
 
+/**
+ * ChartSidebar.js — resizable graph-editor sidebar and saved-view controls.
+ *
+ * Props:
+ *   scale         {number}   — current sidebar width/zoom scale
+ *   onScaleChange {Function} — callback that persists a new sidebar scale
+ *
+ * Data sources:
+ *   - Chart configuration and module schema from ChartConfigProvider
+ *   - Saved views from browser localStorage through savedViews.js
+ *
+ * UI Kit reference:
+ *   - Implements the "Editor Sidebar", form controls, and pill-action patterns
+ */
+
 /* eslint-disable react/prop-types */
+
 import React, { useCallback, useEffect, useRef, useState } from "react";
+
 import { Clipboard, Download, RotateCcw, Save, Trash2, Upload } from "lucide-react";
+
+import ComparisonSection from "@/components/chart-builder/ComparisonSection";
+import EncodingSection from "@/components/chart-builder/EncodingSection";
+import LabelEditor from "@/components/chart-builder/LabelEditor";
+import ValidationNotice from "@/components/chart-builder/ValidationNotice";
 import {
   Accordion,
   AccordionContent,
@@ -41,44 +63,33 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/components/ui/utils";
-import {
-  CHART_TYPE_IDS,
-  getChartType,
-} from "@/lib/visualization/chartRegistry";
-import { PRESET_ORDER, PRESETS } from "@/lib/visualization/presetRegistry";
-import ComparisonSection from "./ComparisonSection";
-import EncodingSection from "./EncodingSection";
-import LabelEditor from "./LabelEditor";
-import ValidationNotice from "./ValidationNotice";
-import { useChartConfig } from "./chartConfigStore";
+
+import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import {
   deleteView,
   deserialize,
   listViews,
   saveView,
   serialize,
-} from "./savedViews";
+} from "@/components/chart-builder/savedViews";
+import { cn } from "@/components/ui/utils";
+import {
+  CHART_TYPE_IDS,
+  getChartType,
+} from "@/lib/visualization/chartRegistry";
+import { PRESET_ORDER, PRESETS } from "@/lib/visualization/presetRegistry";
 
-
-// The sidebar can be dragged wider; everything inside scales with it (see the
-// `zoom` wrapper below). Scale 1 is the compact base width (16rem); the max
-// roughly doubles every dimension.
-export const SIDEBAR_MIN_SCALE = 1.3;
-export const SIDEBAR_MAX_SCALE = 2.25;
-const SIDEBAR_BASE_REM = 16;
-// Up to this scale the content only STRETCHES (boxes widen, fonts stay put);
-// beyond it `zoom` kicks in and the text/controls grow proportionally.
-const SIDEBAR_STRETCH_SCALE = 2;
+import { CHART_SIDEBAR } from "@/lib/constants";
 
 // Charts whose period is a span (vs a single year). Dumbbell/slope also use a
 // start+end pair, so a dual-handle slider fits them too.
 const RANGE_CHART_TYPES = ["line", "heatmap", "dumbbell", "slope"];
 
-// ---------------------------------------------------------------------------
-// Shared section chrome (mockup look: large heading + short brand underline,
-// content sitting inside a rounded card).
-// ---------------------------------------------------------------------------
+/**
+ * ======================================================================
+ * Shared Section Primitives
+ * ======================================================================
+ */
 
 function SectionHeading({ children, className }) {
   return (
@@ -137,9 +148,11 @@ function OptionList({ value, onChange, options, ariaLabel }) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Top-level data sections
-// ---------------------------------------------------------------------------
+/**
+ * ======================================================================
+ * Data and Graph Editor Sections
+ * ======================================================================
+ */
 
 function DataSourcesSection() {
   const { config, dispatch, schema } = useChartConfig();
@@ -215,7 +228,7 @@ function YearRangeSection() {
         onValueChange={setValue}
         onValueCommit={commit}
         aria-label={isRange ? "Year range" : "Year"}
-        // Thinner track + orange-3 (#E36A18) range and thumb — scoped to this slider.
+        // The compact track matches the editor mockup without changing shared Slider.
         className={cn(
           "[&_[data-slot=slider-track]]:h-2.5",
           "[&_[data-slot=slider-range]]:bg-ppic-orange-300",
@@ -249,10 +262,6 @@ function GraphTypeSection() {
     />
   );
 }
-
-// ---------------------------------------------------------------------------
-// Graph-editor sub-sections
-// ---------------------------------------------------------------------------
 
 function PresetSection() {
   const { config, dispatch } = useChartConfig();
@@ -361,7 +370,6 @@ function AppearanceSection() {
           }
         />
       </div>
-      {/* Footnote (shown in the mockup) — stored alongside the other labels. */}
       <div className="grid gap-2">
         <Label htmlFor="appearance-footnote">Footnote</Label>
         <Textarea
@@ -390,9 +398,11 @@ const TOP_SECTIONS = [
   { value: "appearance", label: "Appearance", Component: AppearanceSection, key: "appearance" },
 ];
 
-// ---------------------------------------------------------------------------
-// Footer: Reset / Save / Restore, plus export-import and saved-view management.
-// ---------------------------------------------------------------------------
+/**
+ * ======================================================================
+ * Saved View Actions
+ * ======================================================================
+ */
 
 function FooterActions({ scale = 1 }) {
   const { config, dispatch, schema } = useChartConfig();
@@ -452,11 +462,10 @@ function FooterActions({ scale = 1 }) {
 
   return (
     <div className={cn("grid gap-2", twoColumns ? "grid-cols-2" : "grid-cols-1")}>
-      {/* Row 1: Restore View, Save View */}
       <Dialog>
         <DialogTrigger asChild>
           <Button type="button" variant="outline" className={pill}>
-            <Upload />
+            <Upload aria-hidden="true" />
             Restore View
           </Button>
         </DialogTrigger>
@@ -496,7 +505,7 @@ function FooterActions({ scale = 1 }) {
                       refreshViews();
                     }}
                   >
-                    <Trash2 />
+                    <Trash2 aria-hidden="true" />
                   </Button>
                 </div>
               ))}
@@ -512,7 +521,7 @@ function FooterActions({ scale = 1 }) {
       <Dialog>
         <DialogTrigger asChild>
           <Button type="button" variant="outline" className={pill}>
-            <Save />
+            <Save aria-hidden="true" />
             Save View
           </Button>
         </DialogTrigger>
@@ -535,7 +544,7 @@ function FooterActions({ scale = 1 }) {
           <DialogFooter>
             <DialogClose asChild>
               <Button type="button" onClick={persist}>
-                <Save />
+                <Save aria-hidden="true" />
                 Save view
               </Button>
             </DialogClose>
@@ -543,14 +552,13 @@ function FooterActions({ scale = 1 }) {
         </DialogContent>
       </Dialog>
 
-      {/* Row 2: Reset View, Import / export */}
       <Button
         type="button"
         variant="outline"
         className={pill}
         onClick={() => dispatch({ type: "RESET" })}
       >
-        <RotateCcw />
+        <RotateCcw aria-hidden="true" />
         Reset View
       </Button>
 
@@ -562,7 +570,7 @@ function FooterActions({ scale = 1 }) {
             className={pill}
             onClick={() => openConfig("export")}
           >
-            <Download />
+            <Download aria-hidden="true" />
             Import / export
           </Button>
         </DialogTrigger>
@@ -583,7 +591,7 @@ function FooterActions({ scale = 1 }) {
               variant={mode === "export" ? "default" : "outline"}
               onClick={() => openConfig("export")}
             >
-              <Download />
+              <Download aria-hidden="true" />
               Export
             </Button>
             <Button
@@ -592,21 +600,30 @@ function FooterActions({ scale = 1 }) {
               variant={mode === "import" ? "default" : "outline"}
               onClick={() => openConfig("import")}
             >
-              <Upload />
+              <Upload aria-hidden="true" />
               Import
             </Button>
           </div>
           <Textarea
+            aria-label={
+              mode === "export"
+                ? "Exported chart configuration"
+                : "Chart configuration to import"
+            }
             className="min-h-72 font-mono text-xs"
             value={json}
             onChange={(event) => setJson(event.target.value)}
             readOnly={mode === "export"}
           />
-          {message ? <p className="text-sm text-muted-foreground">{message}</p> : null}
+          {message ? (
+            <p aria-live="polite" className="text-sm text-muted-foreground">
+              {message}
+            </p>
+          ) : null}
           <DialogFooter>
             {mode === "export" ? (
               <Button type="button" onClick={copyConfig}>
-                <Clipboard />
+                <Clipboard aria-hidden="true" />
                 Copy JSON
               </Button>
             ) : (
@@ -621,9 +638,11 @@ function FooterActions({ scale = 1 }) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Drag handle on the right edge — widens the sidebar and scales its contents.
-// ---------------------------------------------------------------------------
+/**
+ * ======================================================================
+ * Sidebar Resizing and Main Component
+ * ======================================================================
+ */
 
 function ResizeHandle({ scale, onScaleChange }) {
   const scaleRef = useRef(scale);
@@ -635,15 +654,15 @@ function ResizeHandle({ scale, onScaleChange }) {
     const startScale = scaleRef.current;
     const rootPx =
       parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-    const basePx = SIDEBAR_BASE_REM * rootPx;
+    const basePx = CHART_SIDEBAR.baseRem * rootPx;
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
 
     function onMove(moveEvent) {
       const nextWidth = basePx * startScale + (moveEvent.clientX - startX);
       const next = Math.min(
-        SIDEBAR_MAX_SCALE,
-        Math.max(SIDEBAR_MIN_SCALE, nextWidth / basePx),
+        CHART_SIDEBAR.maxScale,
+        Math.max(CHART_SIDEBAR.minScale, nextWidth / basePx),
       );
       onScaleChange(next);
     }
@@ -667,8 +686,6 @@ function ResizeHandle({ scale, onScaleChange }) {
   );
 }
 
-// ---------------------------------------------------------------------------
-
 export default function ChartSidebar({ scale = 1, onScaleChange }) {
   const { config, schema } = useChartConfig();
   const { isMobile } = useSidebar();
@@ -676,8 +693,8 @@ export default function ChartSidebar({ scale = 1, onScaleChange }) {
   // Phase 1 (stretch): font stays at base size, the panel fills its width so
   // boxes grow wider. Phase 2 (zoom): once past the stretch threshold, magnify
   // everything so the text/controls grow too.
-  const stretching = scale <= SIDEBAR_STRETCH_SCALE;
-  const zoomFactor = Math.max(1, scale / SIDEBAR_STRETCH_SCALE);
+  const stretching = scale <= CHART_SIDEBAR.stretchScale;
+  const zoomFactor = Math.max(1, scale / CHART_SIDEBAR.stretchScale);
 
   // The sidebar is position:fixed, so it ignores page scroll. Lower its top
   // offset (--sb-top) as the navbar scrolls away so it rides up to the viewport
@@ -685,7 +702,8 @@ export default function ChartSidebar({ scale = 1, onScaleChange }) {
   // Driven through a CSS var to avoid a React re-render on every scroll tick.
   useEffect(() => {
     const navbarPx =
-      7.5 * (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16);
+      CHART_SIDEBAR.navbarHeightRem *
+      (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16);
     let raf = 0;
     const apply = () => {
       raf = 0;
@@ -765,7 +783,7 @@ export default function ChartSidebar({ scale = 1, onScaleChange }) {
               zoom: zoomFactor,
               width: stretching
                 ? "100%"
-                : `${SIDEBAR_BASE_REM * SIDEBAR_STRETCH_SCALE}rem`,
+                : `${CHART_SIDEBAR.baseRem * CHART_SIDEBAR.stretchScale}rem`,
               height: `calc((100svh - var(--sb-top)) / ${zoomFactor})`,
             }}
           >

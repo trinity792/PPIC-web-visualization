@@ -1,21 +1,36 @@
+/**
+ * ChartTile.js — live built-in chart preview with a deep link to its module editor.
+ *
+ * Props:
+ *   viewId     {string} — built-in view identifier from the category registry
+ *   modulePath {string} — module route opened by the "See More" link
+ *
+ * Data sources:
+ *   - View metadata from lib/visualization/categoryRegistry.js
+ *   - Chart data loaded by ChartPreview through the module API routes
+ *
+ * UI Kit reference:
+ *   - Implements the "Chart Container" and "See More Button" patterns
+ */
+
 /* eslint-disable react/prop-types */
+
 import React from "react";
 import Link from "next/link";
+
 import { ArrowRight } from "lucide-react";
+
 import ChartPreview from "@/components/charts/ChartPreview";
 import { Card } from "@/components/ui/card";
+
 import { getBuiltInView } from "@/lib/visualization/categoryRegistry";
 
-/**
- * One dashboard chart tile: a live preview of a built-in view plus a "See more"
- * deep-link that opens the same view in the module editor. Shared by every
- * category dashboard.
- */
 export default function ChartTile({ viewId, modulePath }) {
   const view = getBuiltInView(viewId);
+
   return (
     <Card className="gap-2 overflow-hidden rounded-lg">
-      <div className="min-h-[420px]">
+      <div className="min-h-105">
         <ChartPreview viewId={viewId} />
       </div>
       <div className="flex items-center justify-between gap-3 border-t px-4 py-3">
@@ -27,15 +42,9 @@ export default function ChartTile({ viewId, modulePath }) {
         </div>
         <Link
           href={`${modulePath}?view=${viewId}`}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-4 py-1 text-[13px] hover:brightness-95"
-          style={{
-            backgroundColor: "var(--ppic-blue-50)",
-            borderColor: "#000",
-            color: "#0d0d0d",
-            fontFamily: "var(--font-heading)",
-          }}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-black bg-ppic-blue-50 px-4 py-1 font-heading text-[13px] text-ppic-neutral-600 hover:brightness-95"
         >
-          See More <ArrowRight className="size-3.5" />
+          See More <ArrowRight aria-hidden="true" className="size-3.5" />
         </Link>
       </div>
     </Card>

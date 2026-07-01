@@ -1,4 +1,22 @@
-import { cn } from "./utils";
+/**
+ * textarea.js — styled native multiline text-input primitive.
+ *
+ * Props:
+ *   className {string} — optional utility classes
+ *   ...props  {Object} — native textarea attributes and children
+ *
+ * Data sources:
+ *   - Via props from parent components
+ *
+ * UI Kit reference:
+ *   - Implements the shared "Textarea" pattern
+ */
+
+/* eslint-disable react/prop-types */
+
+import React from "react";
+
+import { cn } from "@/components/ui/utils";
 function Textarea({ className, ...props }) {
   return <textarea
     data-slot="textarea"

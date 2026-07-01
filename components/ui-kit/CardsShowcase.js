@@ -1,18 +1,34 @@
 "use client";
+
+/**
+ * CardsShowcase.js — statistic and chart-card patterns for PPIC dashboards.
+ *
+ * Props:
+ *   None.
+ *
+ * Data sources:
+ *   - Static demonstration statistics and trend series defined in this file
+ *
+ * UI Kit reference:
+ *   - Documents the "Stat Card" and "Chart Container" patterns
+ */
+
 /* eslint-disable react/prop-types */
+
 import React from "react";
+
 import { ArrowRight } from "lucide-react";
+
+import PlotlyChart from "@/components/charts/PlotlyChart";
+import { Section } from "@/components/ui-kit/Section";
+
+import { COLORS, UI_KIT_CHART_HEIGHT } from "@/lib/constants";
 import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import { Section } from "./Section";
-import { COLORS } from "@/lib/constants";
+  DEFAULT_PLOTLY_CONFIG,
+  PLOTLY_FONT_FAMILY,
+  PLOTLY_GRID_COLOR,
+  PLOTLY_SURFACE,
+} from "@/lib/visualization/plotlyDefaults";
 
 const stats = [
   { label: "Median House Cost", value: "873.5k" },
@@ -32,34 +48,56 @@ const trend = [
   { year: "2026", housing: 14.9, population: 39.5 },
 ];
 
-function StatCard({ label, value }) {
-  return (
-    <div className="rounded-xl bg-ppic-card px-7 py-8 text-center shadow-[0px_4px_4px_0px_rgba(0,0,0,0.12)]">
-      <p className="text-[18px] text-neutral-700" style={{ fontFamily: "var(--font-heading)" }}>
-        {label}
-      </p>
-      <p className="mt-2 text-neutral-900" style={{ fontFamily: "var(--font-serif)", fontSize: 56, lineHeight: 1 }}>
-        {value}
-      </p>
-    </div>
-  );
-}
+const chartConfig = { ...DEFAULT_PLOTLY_CONFIG, displayModeBar: false };
 
-function SeeMore() {
-  return (
-    <button
-      className="inline-flex items-center gap-1.5 rounded-full border px-4 py-1 text-[13px] hover:brightness-95"
-      style={{
-        backgroundColor: "var(--ppic-blue-50)",
-        borderColor: "#000",
-        color: "#0d0d0d",
-        fontFamily: "var(--font-heading)",
-      }}
-    >
-      See More <ArrowRight className="size-3.5" />
-    </button>
-  );
-}
+const trendFigure = {
+  data: [
+    {
+      type: "scatter",
+      mode: "lines",
+      name: "Total Housing Units",
+      x: trend.map(({ year }) => year),
+      y: trend.map(({ housing }) => housing),
+      line: { color: COLORS.orange3, width: 2 },
+      hovertemplate: "%{x}: %{y}M units<extra></extra>",
+    },
+    {
+      type: "scatter",
+      mode: "lines",
+      name: "Total Population",
+      x: trend.map(({ year }) => year),
+      y: trend.map(({ population }) => population),
+      yaxis: "y2",
+      line: { color: COLORS.blue5, width: 2 },
+      hovertemplate: "%{x}: %{y}M people<extra></extra>",
+    },
+  ],
+  layout: {
+    ...PLOTLY_SURFACE,
+    showlegend: false,
+    margin: { t: 8, r: 44, b: 32, l: 40 },
+    font: { family: PLOTLY_FONT_FAMILY, size: 12, color: COLORS.gray5 },
+    xaxis: {
+      showgrid: false,
+      linecolor: COLORS.gray3,
+      tickcolor: COLORS.gray3,
+    },
+    yaxis: {
+      range: [14, 15],
+      gridcolor: PLOTLY_GRID_COLOR,
+      tickfont: { color: COLORS.orange3 },
+      zeroline: false,
+    },
+    yaxis2: {
+      overlaying: "y",
+      side: "right",
+      range: [38.5, 40],
+      showgrid: false,
+      tickfont: { color: COLORS.blue5 },
+      zeroline: false,
+    },
+  },
+};
 
 export function CardsShowcase() {
   return (
@@ -75,19 +113,25 @@ export function CardsShowcase() {
         ))}
       </div>
 
-      <div className="mt-6 rounded-2xl border bg-white p-6 shadow-[0px_4px_4px_0px_rgba(0,0,0,0.08)]" style={{ borderColor: "var(--ppic-border)" }}>
+      <div className="mt-6 rounded-2xl border border-ppic-border bg-white p-6 shadow-[0_4px_4px_rgba(0,0,0,0.08)]">
         <div className="mb-4 flex items-start justify-between gap-4">
           <div>
-            <h3 className="text-neutral-900" style={{ fontFamily: "var(--font-serif)", fontSize: 24 }}>
+            <h3 className="font-serif text-2xl text-neutral-900">
               Population & Housing Trends
             </h3>
-            <div className="mt-2 flex items-center gap-5 text-[13px] text-neutral-600" style={{ fontFamily: "var(--font-sans)" }}>
+            <div className="mt-2 flex items-center gap-5 font-sans text-[13px] text-neutral-600">
               <span className="flex items-center gap-2">
-                <span className="inline-block h-2.5 w-5 rounded-full" style={{ backgroundColor: "var(--ppic-orange-300)" }} />
+                <span
+                  aria-hidden="true"
+                  className="inline-block h-2.5 w-5 rounded-full bg-ppic-brand"
+                />
                 Total Housing Units
               </span>
               <span className="flex items-center gap-2">
-                <span className="inline-block h-2.5 w-5 rounded-full" style={{ backgroundColor: "var(--ppic-blue-400)" }} />
+                <span
+                  aria-hidden="true"
+                  className="inline-block h-2.5 w-5 rounded-full bg-ppic-blue-400"
+                />
                 Total Population
               </span>
             </div>
@@ -95,37 +139,41 @@ export function CardsShowcase() {
           <SeeMore />
         </div>
 
-        <div className="h-72 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={trend} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
-              <CartesianGrid stroke="#D1D1D1" strokeDasharray="0" vertical={false} />
-              <XAxis dataKey="year" tick={{ fontSize: 12, fontFamily: "Inter" }} tickLine={false} axisLine={{ stroke: "#A1A1A1" }} />
-              <YAxis
-                yAxisId="housing"
-                domain={[14, 15]}
-                tick={{ fontSize: 12, fontFamily: "Inter", fill: COLORS.orange3 }}
-                tickLine={false}
-                axisLine={false}
-                width={40}
-              />
-              <YAxis
-                yAxisId="population"
-                orientation="right"
-                domain={[38.5, 40]}
-                tick={{ fontSize: 12, fontFamily: "Inter", fill: COLORS.blue5 }}
-                tickLine={false}
-                axisLine={false}
-                width={44}
-              />
-              <Tooltip
-                contentStyle={{ borderRadius: 12, border: `1px solid ${COLORS.gray2}`, fontFamily: "Inter", fontSize: 13 }}
-              />
-              <Area yAxisId="housing" type="monotone" dataKey="housing" stroke={COLORS.orange3} strokeWidth={2} fill={COLORS.orange2} fillOpacity={0.4} />
-              <Area yAxisId="population" type="monotone" dataKey="population" stroke={COLORS.blue5} strokeWidth={2} fill={COLORS.blue2} fillOpacity={0.4} />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
+        <PlotlyChart
+          data={trendFigure.data}
+          layout={trendFigure.layout}
+          config={chartConfig}
+          height={UI_KIT_CHART_HEIGHT}
+        />
+        <p className="sr-only">
+          From 2018 to 2026, housing units rise from 14.1 to 14.9 million while
+          population changes from 39.4 to 39.5 million.
+        </p>
       </div>
     </Section>
+  );
+}
+
+// ── Tightly coupled sub-components ───────────────────────────────────
+
+function StatCard({ label, value }) {
+  return (
+    <div className="rounded-xl bg-ppic-card px-7 py-8 text-center shadow-[0px_4px_4px_0px_rgba(0,0,0,0.12)]">
+      <p className="font-heading text-lg text-neutral-700">{label}</p>
+      <p className="mt-2 font-serif text-[56px] leading-none text-neutral-900">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function SeeMore() {
+  return (
+    <button
+      type="button"
+      className="inline-flex items-center gap-1.5 rounded-full border border-black bg-ppic-blue-50 px-4 py-1 font-heading text-[13px] text-ppic-neutral-600 hover:brightness-95"
+    >
+      See More <ArrowRight aria-hidden="true" className="size-3.5" />
+    </button>
   );
 }

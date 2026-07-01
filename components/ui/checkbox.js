@@ -1,7 +1,28 @@
 "use client";
+
+/**
+ * checkbox.js — accessible Radix checkbox with project styling.
+ *
+ * Props:
+ *   className {string} — optional utility classes
+ *   ...props  {Object} — Radix Checkbox attributes
+ *
+ * Data sources:
+ *   - Via props from parent components
+ *
+ * UI Kit reference:
+ *   - Implements the shared "Checkbox" pattern
+ */
+
+/* eslint-disable react/prop-types */
+
+import React from "react";
+
 import * as CheckboxPrimitive from "@radix-ui/react-checkbox";
+
 import { CheckIcon } from "lucide-react";
-import { cn } from "./utils";
+
+import { cn } from "@/components/ui/utils";
 function Checkbox({
   className,
   ...props

@@ -1,4 +1,22 @@
-import { cn } from "./utils";
+/**
+ * card.js — composable card container, header, content, action, and footer primitives.
+ *
+ * Props:
+ *   className {string} — optional utility classes for each primitive
+ *   ...props  {Object} — native element attributes and children
+ *
+ * Data sources:
+ *   - Via props from parent components
+ *
+ * UI Kit reference:
+ *   - Implements the shared "Card" and "Chart Container" patterns
+ */
+
+/* eslint-disable react/prop-types */
+
+import React from "react";
+
+import { cn } from "@/components/ui/utils";
 function Card({ className, ...props }) {
   return <div
     data-slot="card"

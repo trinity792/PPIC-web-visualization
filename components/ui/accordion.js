@@ -1,7 +1,29 @@
 "use client";
+
+/**
+ * accordion.js — Radix accordion root, item, trigger, and content primitives.
+ *
+ * Props:
+ *   className {string}    — optional utility classes on styled primitives
+ *   children  {ReactNode} — trigger or content children
+ *   ...props  {Object}    — corresponding Radix Accordion attributes
+ *
+ * Data sources:
+ *   - Via props from parent components
+ *
+ * UI Kit reference:
+ *   - Implements the shared "Accordion" pattern
+ */
+
+/* eslint-disable react/prop-types */
+
+import React from "react";
+
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
+
 import { ChevronDownIcon } from "lucide-react";
-import { cn } from "./utils";
+
+import { cn } from "@/components/ui/utils";
 function Accordion({
   ...props
 }) {

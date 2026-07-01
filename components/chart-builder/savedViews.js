@@ -1,3 +1,16 @@
+/**
+ * savedViews.js — serialization, validation, and local persistence for chart views.
+ *
+ * Props:
+ *   None.
+ *
+ * Data sources:
+ *   - Browser localStorage under SAVED_VIEWS_KEY
+ *
+ * UI Kit reference:
+ *   - None — persistence utility that does not render UI
+ */
+
 import { getPreset } from "@/lib/visualization/presetRegistry";
 import {
   hasBlockingErrors,

@@ -1,11 +1,26 @@
 "use client";
 
+/**
+ * LabelEditor.js — custom title, axis, legend, and tooltip label controls.
+ *
+ * Props:
+ *   None.
+ *
+ * Data sources:
+ *   - Chart configuration and module schema from ChartConfigProvider
+ *
+ * UI Kit reference:
+ *   - Implements graph-editor text input and textarea patterns
+ */
+
 import React from "react";
+
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+
+import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import { deriveLabels } from "@/lib/visualization/deriveLabels";
-import { useChartConfig } from "./chartConfigStore";
 
 const LABELS = [
   ["title", "Title"],

@@ -1,6 +1,29 @@
 "use client";
+
+/**
+ * tooltip.js — Radix tooltip provider, trigger, and content primitives.
+ *
+ * Props:
+ *   delayDuration {number}    — delay before opening
+ *   className     {string}    — optional content utility classes
+ *   sideOffset    {number}    — distance between trigger and content
+ *   children      {ReactNode} — tooltip trigger or content
+ *   ...props      {Object}    — corresponding Radix Tooltip attributes
+ *
+ * Data sources:
+ *   - Tooltip content and state via props from parent components
+ *
+ * UI Kit reference:
+ *   - Implements the shared "Tooltip" pattern
+ */
+
+/* eslint-disable react/prop-types */
+
+import React from "react";
+
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
-import { cn } from "./utils";
+
+import { cn } from "@/components/ui/utils";
 function TooltipProvider({
   delayDuration = 0,
   ...props
