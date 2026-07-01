@@ -2,6 +2,30 @@ import re
 
 from scripts.projections.config.sources import get_source_settings
 
+CCEST_RAW_COLUMNS = [
+    "SUMLEV",
+    "STATE",
+    "COUNTY",
+    "STNAME",
+    "CTYNAME",
+    "YEAR",
+    "AGEGRP",
+    "NHWA_MALE",
+    "NHWA_FEMALE",
+    "NHBA_MALE",
+    "NHBA_FEMALE",
+    "NHIA_MALE",
+    "NHIA_FEMALE",
+    "NHAA_MALE",
+    "NHAA_FEMALE",
+    "NHNA_MALE",
+    "NHNA_FEMALE",
+    "NHTOM_MALE",
+    "NHTOM_FEMALE",
+    "H_MALE",
+    "H_FEMALE",
+]
+
 
 def test_get_source_settings_has_required_keys():
     # Act
@@ -53,3 +77,11 @@ def test_get_source_settings_request_and_cache_configuration():
     assert settings["p3_cache_max_age_days"] == settings["p3_fallback_max_age_days"]
     assert settings["p3_cache_max_age_days"] > 0
     assert settings["ccest_cache_max_age_days"] > 0
+
+
+def test_get_source_settings_uses_official_ccest_wide_schema():
+    # Act
+    settings = get_source_settings()
+
+    # Assert
+    assert settings["ccest_expected_columns"] == CCEST_RAW_COLUMNS

@@ -198,6 +198,8 @@ Entry Point
 def _schema_config():
     return {
         "p3_raw_columns": ["fips", "year", "sex", "race7", "agerc", "perwt"],
+        "p3_year_range": (2020, 2070),
+        "p3_age_range": (0, 110),
         "fips_to_county_map": {6001: "Alameda"},
         "p3_race7_code_map": {
             1: "White",
@@ -263,6 +265,7 @@ def test_clean_p3_projections_produces_expected_rows(tmp_path):
 
     # Assert
     assert list(result.columns) == [
+        "Geographic Level",
         "Location",
         "Year",
         "Sex",
@@ -276,12 +279,13 @@ def test_clean_p3_projections_produces_expected_rows(tmp_path):
         "5-9": 30,
         "85+": 40,
     }
+    assert set(result["Geographic Level"]) == {"County"}
     assert set(result["Location"]) == {"Alameda"}
     assert set(result["Sex"]) == {"Female"}
     assert set(result["Race/Ethnicity"]) == {"Asian"}
 
 
-def test_clean_p3_projections_rejects_unexpected_columns(tmp_path):
+def test_clean_p3_projections_accepts_and_drops_unrelated_extra_columns(tmp_path):
     # Arrange
     csv_path = tmp_path / "P-3_fixture.csv"
     pd.DataFrame(
@@ -292,12 +296,31 @@ def test_clean_p3_projections_rejects_unexpected_columns(tmp_path):
             "race7": [1],
             "agerc": [0],
             "perwt": [10],
-            "unexpected": ["schema drift"],
+            "release": ["Vintage 2026"],
+            "notes": ["unrelated metadata"],
         }
     ).to_csv(csv_path, index=False)
 
+    # Act
+    result = clean_p3_projections(csv_path, _schema_config())
+
+    # Assert
+    assert result.loc[0, "Population"] == 10
+    assert "release" not in result.columns
+    assert "notes" not in result.columns
+
+
+def test_clean_p3_projections_rejects_duplicate_required_column(tmp_path):
+    # Arrange
+    csv_path = tmp_path / "P-3_fixture.csv"
+    csv_path.write_text(
+        "fips,year,sex,race7,agerc,perwt,perwt\n"
+        "6001,2025,MALE,1,0,10,999\n",
+        encoding="utf-8",
+    )
+
     # Act / Assert
-    with pytest.raises(ValueError, match=r"(?i)unexpected"):
+    with pytest.raises(ValueError, match=r"(?i)duplicate.*perwt|perwt.*duplicate"):
         clean_p3_projections(csv_path, _schema_config())
 
 
@@ -512,4 +535,38 @@ def test_clean_p3_projections_reports_missing_required_column(tmp_path):
 
     # Act / Assert
     with pytest.raises(ValueError, match="perwt"):
+        clean_p3_projections(csv_path, _schema_config())
+
+
+@pytest.mark.parametrize(
+    ("column", "invalid_value", "message"),
+    [
+        ("year", 2019, "year"),
+        ("agerc", 111, "agerc|age"),
+        ("perwt", -1, "perwt|population"),
+        ("perwt", 1.5, "perwt|population|integer"),
+        ("perwt", None, "perwt|population|null|missing"),
+    ],
+)
+def test_clean_p3_projections_rejects_semantically_invalid_required_values(
+    tmp_path,
+    column,
+    invalid_value,
+    message,
+):
+    # Arrange
+    csv_path = tmp_path / "P-3_fixture.csv"
+    row = {
+        "fips": 6001,
+        "year": 2025,
+        "sex": "MALE",
+        "race7": 1,
+        "agerc": 0,
+        "perwt": 10,
+    }
+    row[column] = invalid_value
+    pd.DataFrame([row]).to_csv(csv_path, index=False)
+
+    # Act / Assert
+    with pytest.raises(ValueError, match=rf"(?i){message}"):
         clean_p3_projections(csv_path, _schema_config())

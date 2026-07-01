@@ -1,4 +1,5 @@
 import pandas as pd
+import pytest
 from scripts.projections.merging.historical_merge import (
     combine_source_with_historical,
     detect_new_source_data,
@@ -37,6 +38,10 @@ def _row(
         "Population": population,
         "Source": source,
     }
+
+
+def _complete(_candidate):
+    return True, []
 
 
 """
@@ -86,6 +91,7 @@ def test_combine_source_with_historical_keeps_years_absent_from_new_data():
         historical,
         "DoF P-3",
         "Year",
+        _complete,
     )
 
     # Assert
@@ -105,6 +111,7 @@ def test_combine_source_with_historical_new_data_wins_on_overlap():
         historical,
         "DoF P-3",
         "Year",
+        _complete,
     )
 
     # Assert
@@ -112,7 +119,7 @@ def test_combine_source_with_historical_new_data_wins_on_overlap():
     assert result.loc[0, "Population"] == 125
 
 
-def test_combine_source_with_historical_replaces_entire_overlapping_year():
+def test_combine_source_with_historical_rejects_incomplete_overlapping_year():
     # Arrange
     historical = pd.DataFrame(
         [
@@ -124,18 +131,75 @@ def test_combine_source_with_historical_replaces_entire_overlapping_year():
         [_row(year=2025, race="White", population=125)]
     ).drop(columns=["Source"])
 
+    original_historical = historical.copy(deep=True)
+    validated_candidates = []
+
+    def reject_incomplete(candidate):
+        validated_candidates.append(candidate.copy(deep=True))
+        return False, ["2025 is incomplete: missing Black rows"]
+
+    # Act / Assert
+    with pytest.raises(ValueError, match=r"(?i)2025.*incomplete|incomplete.*2025"):
+        combine_source_with_historical(
+            new,
+            historical,
+            "DoF P-3",
+            "Year",
+            reject_incomplete,
+        )
+    pd.testing.assert_frame_equal(historical, original_historical)
+    assert len(validated_candidates) == 1
+    assert set(validated_candidates[0]["Source"]) == {"DoF P-3"}
+    assert set(validated_candidates[0]["Year"]) == {2025}
+
+
+def test_combine_source_with_historical_replaces_complete_year_atomically():
+    # Arrange
+    historical = pd.DataFrame(
+        [
+            _row(year=2025, race="White", population=100),
+            _row(year=2025, race="Black", population=50),
+        ]
+    )
+    new = pd.DataFrame(
+        [
+            _row(year=2025, race="White", population=125),
+            _row(year=2025, race="Asian", population=75),
+        ]
+    ).drop(columns=["Source"])
+
     # Act
     result = combine_source_with_historical(
         new,
         historical,
         "DoF P-3",
         "Year",
+        _complete,
     )
 
     # Assert
-    assert len(result) == 1
-    assert result["Race/Ethnicity"].tolist() == ["White"]
-    assert result["Population"].tolist() == [125]
+    assert set(result["Race/Ethnicity"]) == {"White", "Asian"}
+    assert result.set_index("Race/Ethnicity")["Population"].to_dict() == {
+        "White": 125,
+        "Asian": 75,
+    }
+    assert "Black" not in set(result["Race/Ethnicity"])
+
+
+def test_combine_source_with_historical_rejects_incomplete_new_year():
+    # Arrange
+    historical = pd.DataFrame([_row(year=2024)])
+    new = pd.DataFrame([_row(year=2025)]).drop(columns=["Source"])
+
+    # Act / Assert
+    with pytest.raises(ValueError, match=r"(?i)2025.*incomplete|incomplete.*2025"):
+        combine_source_with_historical(
+            new,
+            historical,
+            "DoF P-3",
+            "Year",
+            lambda _candidate: (False, ["2025 is incomplete"]),
+        )
 
 
 def test_combine_source_with_historical_filters_to_requested_source():
@@ -154,6 +218,7 @@ def test_combine_source_with_historical_filters_to_requested_source():
         historical,
         "DoF P-3",
         "Year",
+        _complete,
     )
 
     # Assert
@@ -169,7 +234,13 @@ def test_combine_source_with_historical_does_not_modify_inputs():
     original_new = new.copy(deep=True)
 
     # Act
-    combine_source_with_historical(new, historical, "DoF P-3", "Year")
+    combine_source_with_historical(
+        new,
+        historical,
+        "DoF P-3",
+        "Year",
+        _complete,
+    )
 
     # Assert
     pd.testing.assert_frame_equal(historical, original_historical)

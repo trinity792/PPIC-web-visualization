@@ -22,7 +22,7 @@ def _geography_config():
     return {
         "california_counties": ["Alameda", "Yuba"],
         "region_names": ["Bay Area", "Far North"],
-        "us_state_names": ["Texas", "Nevada"],
+        "us_state_names": ["California", "Texas", "Nevada"],
     }
 
 
@@ -45,11 +45,20 @@ def test_assign_geographic_level_classifies_all_supported_levels():
         {
             "Location": [
                 "California",
+                "California",
                 "Alameda",
                 "Bay Area",
                 "Texas",
                 "Unknown",
-            ]
+            ],
+            "Source": [
+                "DoF P-3",
+                "Census cc-est",
+                "DoF P-3",
+                "DoF P-3",
+                "Census cc-est",
+                "DoF P-3",
+            ],
         }
     )
 
@@ -59,6 +68,7 @@ def test_assign_geographic_level_classifies_all_supported_levels():
     # Assert
     assert result["Geographic Level"].tolist() == [
         "State",
+        "US State",
         "County",
         "Region",
         "US State",
@@ -68,7 +78,12 @@ def test_assign_geographic_level_classifies_all_supported_levels():
 
 def test_assign_geographic_level_does_not_modify_input():
     # Arrange
-    source = pd.DataFrame({"Location": ["California", "Alameda"]})
+    source = pd.DataFrame(
+        {
+            "Location": ["California", "Alameda"],
+            "Source": ["DoF P-3", "DoF P-3"],
+        }
+    )
     original = source.copy(deep=True)
 
     # Act

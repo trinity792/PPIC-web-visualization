@@ -1,4 +1,5 @@
 import pandas as pd
+import pytest
 from scripts.projections.validation.projections_validators import (
     validate_cleaning_output,
     validate_projections_dataset,
@@ -6,6 +7,7 @@ from scripts.projections.validation.projections_validators import (
 )
 
 CLEANING_COLUMNS = [
+    "Geographic Level",
     "Location",
     "Year",
     "Age Group",
@@ -30,6 +32,7 @@ def _schema_config():
     cleaning_validation = {
         "required_columns": CLEANING_COLUMNS,
         "key_columns": [
+            "Geographic Level",
             "Location",
             "Year",
             "Age Group",
@@ -43,9 +46,17 @@ def _schema_config():
         "population_column": "Population",
         "year_column": "Year",
         "location_column": "Location",
+        "level_column": "Geographic Level",
+        "source_column": "Source",
         "age_group_column": "Age Group",
         "sex_column": "Sex",
         "race_column": "Race/Ethnicity",
+        "completeness_group_columns": [
+            "Geographic Level",
+            "Location",
+            "Year",
+            "Source",
+        ],
         "canonical_age_groups": ["0-4", "5-9"],
         "canonical_sexes": ["Female", "Male"],
         "canonical_race_groups": ["White", "Black"],
@@ -57,6 +68,7 @@ def _cleaning_frame():
     return pd.DataFrame(
         [
             {
+                "Geographic Level": "County",
                 "Location": "Alameda",
                 "Year": 2025,
                 "Age Group": "0-4",
@@ -313,28 +325,49 @@ Stratification Completeness
 """
 
 
-def test_validate_stratification_completeness_accepts_full_matrix():
+def _stratification_rows(
+    level="County",
+    location="Alameda",
+    year=2025,
+    source="DoF P-3",
+    ages=("0-4", "5-9"),
+    sexes=("Female", "Male"),
+    races=("White", "Black"),
+):
+    return [
+        {
+            "Geographic Level": level,
+            "Location": location,
+            "Year": year,
+            "Age Group": age,
+            "Sex": sex,
+            "Race/Ethnicity": race,
+            "Population": 100,
+            "Source": source,
+        }
+        for age in ages
+        for sex in sexes
+        for race in races
+    ]
+
+
+def test_validate_stratification_completeness_accepts_full_matrices():
     # Arrange
     source = pd.DataFrame(
         [
-            {
-                "Location": "Alameda",
-                "Year": 2025,
-                "Age Group": age,
-                "Sex": sex,
-                "Race/Ethnicity": race,
-            }
-            for age in ("0-4", "5-9")
-            for sex in ("Female", "Male")
-            for race in ("White", "Black")
-        ]
+            *_stratification_rows(),
+            *_stratification_rows(
+                level="US State",
+                location="Texas",
+                source="Census cc-est",
+            ),
+        ],
+        columns=CONTRACT_COLUMNS,
     )
 
     # Act
     is_valid, messages = validate_stratification_completeness(
         source,
-        "Alameda",
-        2025,
         _schema_config(),
     )
 
@@ -343,28 +376,114 @@ def test_validate_stratification_completeness_accepts_full_matrix():
     assert messages == []
 
 
-def test_validate_stratification_completeness_reports_incomplete_matrix():
+@pytest.mark.parametrize(
+    ("group_field", "first_value", "second_value"),
+    [
+        ("Geographic Level", "County", "Region"),
+        ("Location", "Alameda", "Yuba"),
+        ("Year", 2024, 2025),
+        ("Source", "DoF P-3", "Census cc-est"),
+    ],
+)
+def test_validate_stratification_completeness_does_not_pool_groups(
+    group_field,
+    first_value,
+    second_value,
+):
     # Arrange
+    first = {
+        "level": "County",
+        "location": "Alameda",
+        "year": 2025,
+        "source": "DoF P-3",
+    }
+    second = dict(first)
+    argument_name = {
+        "Geographic Level": "level",
+        "Location": "location",
+        "Year": "year",
+        "Source": "source",
+    }[group_field]
+    first[argument_name] = first_value
+    second[argument_name] = second_value
     source = pd.DataFrame(
         [
-            {
-                "Location": "Alameda",
-                "Year": 2025,
-                "Age Group": "0-4",
-                "Sex": "Female",
-                "Race/Ethnicity": "White",
-            }
-        ]
+            *_stratification_rows(**first, races=("White",)),
+            *_stratification_rows(**second, races=("Black",)),
+        ],
+        columns=CONTRACT_COLUMNS,
     )
 
     # Act
     is_valid, messages = validate_stratification_completeness(
         source,
-        "Alameda",
-        2025,
         _schema_config(),
     )
 
     # Assert
     assert is_valid is False
-    assert any("8" in message for message in messages)
+    assert any(str(first_value) in message for message in messages)
+    assert any(str(second_value) in message for message in messages)
+    assert all("8" in message for message in messages)
+
+
+def test_validate_stratification_completeness_ignores_aggregate_rows():
+    # Arrange
+    aggregate_rows = [
+        {
+            **_stratification_rows()[0],
+            "Age Group": "All Ages",
+        },
+        {
+            **_stratification_rows()[0],
+            "Sex": "Both Sexes",
+        },
+        {
+            **_stratification_rows()[0],
+            "Race/Ethnicity": "All",
+        },
+    ]
+    source = pd.DataFrame(
+        [*_stratification_rows(), *aggregate_rows],
+        columns=CONTRACT_COLUMNS,
+    )
+
+    # Act
+    is_valid, messages = validate_stratification_completeness(
+        source,
+        _schema_config(),
+    )
+
+    # Assert
+    assert is_valid is True
+    assert messages == []
+
+
+def test_validate_stratification_completeness_totals_cannot_fill_missing_base_strata():
+    # Arrange
+    base_rows = _stratification_rows()[:-1]
+    aggregate_rows = [
+        {
+            **_stratification_rows()[0],
+            "Age Group": "All Ages",
+            "Sex": "Both Sexes",
+            "Race/Ethnicity": "All",
+        }
+    ]
+    source = pd.DataFrame(
+        [*base_rows, *aggregate_rows],
+        columns=CONTRACT_COLUMNS,
+    )
+
+    # Act
+    is_valid, messages = validate_stratification_completeness(
+        source,
+        _schema_config(),
+    )
+
+    # Assert
+    assert is_valid is False
+    assert any(
+        "Alameda" in message and "7" in message and "8" in message
+        for message in messages
+    )

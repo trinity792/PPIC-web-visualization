@@ -13,7 +13,7 @@ The current module lives at `Visualization Tool/Age-Sex-Race-Projections/project
 Two external sources feed the module:
 
 - DoF P-3 demographic projections (county and state sheets): population projected by age, sex, and race/ethnicity. Published periodically (not annually).
-- Census Bureau cc-est demographic estimates (county and state): actual population estimates by the same stratification dimensions. Published annually.
+- Census Bureau cc-est county demographic estimates: actual population estimates by the same stratification dimensions, aggregated to states by this pipeline. Published annually.
 
 ### Current method inventory
 
@@ -77,7 +77,12 @@ P-3 projections are published periodically (when DoF updates its projection base
 
 ### 3. High-dimensional output and data volume
 
-The P-3 file is far larger than anything the other modules handle. Its raw dimensions are 58 counties x 51 years (2020-2070) x 2 sexes x 7 race codes x 111 single-year ages (0-110), producing roughly 45.8 million rows. Even after binning single-year ages into 5-year groups (23 bins including 85+), the P-3 county data alone is ~9.5 million rows. Adding Census cc-est for all 50 US states multiplies the problem further.
+The P-3 file is far larger than anything the other modules handle. Its raw
+dimensions are 58 counties × 51 years (2020-2070) × 2 sexes × 7 race codes ×
+111 single-year ages (0-110), producing 4,596,732 rows. After binning to the 18
+canonical age groups (including 85+), the P-3 county data contains 745,416
+base-stratum rows: 58 × 51 × 2 × 7 × 18. Adding Census cc-est for all 50 US
+states increases the dataset further.
 
 This has cascading implications:
 
@@ -196,13 +201,19 @@ Where:
 - `Population`: integer count.
 - `Source`: "DoF P-3" or "Census cc-est".
 
+California occurs under both sources: the DoF rollup is `Geographic Level =
+"State"`, while the Census 50-state series uses `Geographic Level = "US State"`.
+Geographic-level assignment must therefore use both `Location` and `Source`.
+
 ### Aggregation rows
 
 The pipeline must write pre-aggregated rows for "All Ages", "Both Sexes", and "All" (race) to enable fast filtering without client-side summation. These follow the same grain; the population values are summed from their component rows during the aggregation phase.
 
 ### P-3 geographic scope
 
-The P-3 file contains only California county-level data (58 FIPS codes, 6001-6115). There is no state-level row in the source. The pipeline must compute the "California" state total by summing all 58 county rows for each (Year, Age Group, Sex, Race/Ethnicity) combination during the aggregation phase. The 9 CA region rows are also computed from county sums. All 50 US state data comes exclusively from Census cc-est.
+The P-3 file contains only California county-level data (58 FIPS codes, 6001-6115). There is no state-level row in the source. The pipeline must compute the "California" state total by summing all 58 county rows for each (Year, Age Group, Sex, Race/Ethnicity) combination during the aggregation phase. The 9 CA region rows are also computed from county sums.
+
+The county-level Census CC-EST file contains `SUMLEV=050` observations. During Census cleaning, the pipeline filters to those county rows and sums the selected population columns by `(STNAME, YEAR, AGEGRP)` before reshaping. The result must contain exactly the 50 states; District of Columbia and Puerto Rico are excluded. Missing states cause cleaning to fail rather than producing a partial national dataset.
 
 ### Year coverage
 
@@ -280,6 +291,9 @@ def get_source_settings():
         dict with keys: dof_base_url, census_base_url, request_headers, timeout,
         p3_cache_max_age_days, p3_fallback_max_age_days, ccest_cache_max_age_days,
         p3_filename_pattern, p3_expected_csv_columns, ccest_expected_columns.
+        ccest_expected_columns contains the mandatory official wide-format identifiers
+        (SUMLEV, STATE, COUNTY, STNAME, CTYNAME, YEAR, AGEGRP) and the 14 population
+        fields used to construct the canonical race-by-sex rows.
 
     Test file:
         scripts/unit_tests/projections/config/test_sources.py
@@ -315,11 +329,16 @@ def get_schema_config():
         year_column, location_column, level_column, source_column,
         age_group_column, sex_column, race_column,
         p3_raw_columns (fips, year, sex, race7, agerc, perwt),
+        p3_year_range (2020, 2070), p3_age_range (0, 110),
         fips_to_county_map ({6001: "Alameda", ...}),
         p3_race7_code_map ({1: "White", 2: "Black", ...}),
-        census_race_code_map,
+        ccest_raw_columns, census_race_code_map, census_state_names,
+        census_year_code_map ({2: 2020, ..., 7: 2025}),
+        census_age_group_code_map ({1: "0-4", ..., 18: "85+"}),
         age_bin_edges ([0, 5, 10, ..., 85] with 85+ as the open-ended top bin),
         canonical_age_groups, canonical_sexes, canonical_race_groups,
+        completeness_group_columns
+        (Geographic Level, Location, Year, Source),
         sex_label_map ({"MALE": "Male", "FEMALE": "Female"}),
         cleaning_validation_config, final_validation_config.
 
@@ -481,14 +500,20 @@ def get_most_recent_p3_file(download_directory, filename_pattern, max_age_days):
 
 def validate_p3_csv(csv_path, expected_columns):
     """
-    Confirm that the extracted CSV contains the expected column headers (fips, year, sex, race7, agerc, perwt).
+    Confirm that the extracted CSV contains each mandatory header exactly once.
+
+    The mandatory headers are fips, year, sex, race7, agerc, and perwt.
+    Unrelated additional columns are permitted for forward compatibility. Raw
+    header names must be inspected before pandas can mangle duplicate names
+    (for example, a second perwt column into perwt.1).
 
     Args:
         csv_path: pathlib.Path to the extracted CSV
         expected_columns: list of column name strings that must be present
 
     Raises:
-        ValueError — if any expected column is missing, with an actionable message.
+        ValueError — if any mandatory column is missing or duplicated, with an
+        actionable message.
 
     Test file:
         scripts/unit_tests/projections/acquisition/test_dof_p3_downloader.py
@@ -502,7 +527,8 @@ def validate_p3_csv(csv_path, expected_columns):
 census_ccest_downloader.py — discovers and downloads Census Bureau cc-est demographic estimate files.
 
 Data sources:
-    - U.S. Census Bureau population estimates page — cc-est CSV files by state/county
+    - U.S. Census Bureau CC-EST{VINTAGE}-ALLDATA CSV — official wide-format
+      county characteristics file
 
 Outputs:
     - {download_directory}/cc-est_{FILENAME}.csv — downloaded cc-est CSV on disk
@@ -569,7 +595,12 @@ def download_census_ccest(url, download_directory, headers, timeout, cache_max_a
 
 def validate_ccest_headers(csv_path, expected_columns):
     """
-    Confirm that the downloaded CSV contains the expected column headers.
+    Confirm that the downloaded CSV contains the mandatory official wide-format headers.
+
+    Required identifiers are SUMLEV, STATE, COUNTY, STNAME, CTYNAME, YEAR, and
+    AGEGRP. Required population fields are the male/female columns for NHWA,
+    NHBA, NHIA, NHAA, NHNA, NHTOM, and H. Unrelated additional columns are
+    permitted because Census releases contain other totals and race variants.
 
     Args:
         csv_path: pathlib.Path to the CSV file
@@ -637,7 +668,7 @@ def acquire_with_fallback(live_strategies, manual_path, saved_rows_fn, source_na
 
 Each source gets its own cleaner. Two shared helpers (race mapping and age-group standardization) are extracted because both cleaners need them and the mapping logic must stay synchronized.
 
-The P-3 cleaner does not need wide-to-long reshaping because the source CSV is already one-row-per-record. Its primary operations are: FIPS-to-county-name mapping, race7 code decoding, single-year-age binning to 5-year groups (summing population within each bin), and sex label standardization. The cc-est cleaner handles whatever format the Census source uses and normalizes to the same canonical schema.
+The P-3 cleaner does not need wide-to-long reshaping because the source CSV is already one-row-per-record. Its primary operations are: FIPS-to-county-name mapping, race7 code decoding, single-year-age binning to 5-year groups (summing population within each bin), and sex label standardization. The cc-est cleaner consumes the official wide `CC-EST{VINTAGE}-ALLDATA` layout and normalizes it to the same canonical schema.
 
 #### `scripts/projections/cleaning/dof_p3_cleaner.py`
 
@@ -651,11 +682,17 @@ The data is already one-row-per-record, so no wide-to-long reshaping is needed. 
 consists of: FIPS-to-county-name mapping, race code decoding, single-year-age binning to
 5-year groups (summing perwt within each bin), and sex label standardization.
 
+These six columns are mandatory and must each occur exactly once. Unrelated
+additional columns are allowed and dropped before transformation. The cleaner
+rejects missing or duplicated mandatory columns, null mandatory values, years
+outside the configured projection horizon, unmapped FIPS/race/sex values, ages
+outside 0-110, and population values that are negative or non-integral.
+
 Data sources:
     - {download_directory}/P-3_{FILENAME}.csv — extracted P-3 CSV (columns: fips, year, sex, race7, agerc, perwt)
 
 Outputs:
-    - pandas.DataFrame — cleaned rows matching the canonical cleaning-stage schema
+    - pandas.DataFrame — cleaned County rows matching the canonical cleaning-stage schema
 
 Usage:
     Called by the projections pipeline orchestrator; not run standalone.
@@ -756,24 +793,30 @@ Entry Point
 
 def clean_p3_projections(csv_path, schema_config):
     """
-    Full P-3 cleaner entry point: read CSV, map FIPS to county names, decode race7,
-    standardize sex labels, bin ages, validate.
+    Full P-3 cleaner entry point: validate and select the mandatory columns, map
+    FIPS to county names, decode race7, standardize sex labels, bin ages, and
+    validate the canonical result.
 
     Orchestrates map_fips_to_county, map_race_ethnicity (from race_ethnicity_mapping),
     standardize_sex_labels, and bin_single_year_ages. No wide-to-long reshape is needed
-    because the P-3 CSV is already one-row-per-record.
+    because the P-3 CSV is already one-row-per-record. Additional unrelated
+    source columns are ignored after the mandatory schema is validated.
 
     Args:
         csv_path: pathlib.Path to the extracted P-3 CSV file
-        schema_config: dict from get_schema_config()
+        schema_config: dict from get_schema_config(), including p3_raw_columns,
+            p3_year_range, and p3_age_range
 
     Returns:
-        pandas.DataFrame — cleaned DataFrame with columns: Location, Year, Sex,
-        Race/Ethnicity, Age Group, Population. One row per (Location, Year, Sex,
-        Race/Ethnicity, Age Group) with Population summed from single-year ages.
+        pandas.DataFrame — cleaned DataFrame with columns: Geographic Level,
+        Location, Year, Sex, Race/Ethnicity, Age Group, Population. Geographic
+        Level is "County". One row per (Location, Year, Sex, Race/Ethnicity,
+        Age Group) with Population summed from single-year ages.
 
     Raises:
-        ValueError — if FIPS codes, race codes, or sex values cannot be mapped.
+        ValueError — if a mandatory column is missing or duplicated, a mandatory
+        value is null or semantically invalid, or FIPS/race/sex values cannot be
+        mapped.
 
     Test file:
         scripts/unit_tests/projections/cleaning/test_dof_p3_cleaner.py
@@ -787,10 +830,28 @@ def clean_p3_projections(csv_path, schema_config):
 census_ccest_cleaner.py — cleans and reshapes Census Bureau cc-est demographic estimate files.
 
 Data sources:
-    - {download_directory}/cc-est_{FILENAME}.csv — raw cc-est CSV
+    - {download_directory}/cc-est_{FILENAME}.csv — official wide-format
+      CC-EST{VINTAGE}-ALLDATA CSV
+
+The raw file contains one row per county, coded year, and coded age group. Race
+and sex populations are stored in wide columns. The cleaner uses the mutually
+exclusive non-Hispanic race fields (NHWA, NHBA, NHIA, NHAA, NHNA, NHTOM) plus
+Hispanic-of-any-race (H), each split into MALE and FEMALE columns.
+
+Only `SUMLEV=050` county observations are used. Before reshaping, the cleaner
+sums the 14 selected population columns by `(STNAME, YEAR, AGEGRP)`, excludes
+District of Columbia and Puerto Rico, and validates that all 50 states are
+present. The canonical Census output therefore contains state rows, not county
+rows.
+
+YEAR=1 is the April 2020 estimates base and is excluded. YEAR codes 2 through 7
+map to calendar years 2020 through 2025. AGEGRP=0 is the Census total row and is
+excluded because totals are generated later by precomputed_totals.py. AGEGRP
+codes 1 through 18 map to the canonical 5-year groups.
 
 Outputs:
-    - pandas.DataFrame — cleaned long-format rows matching the canonical cleaning-stage schema
+    - pandas.DataFrame — cleaned long-format `US State` rows matching the
+      canonical cleaning-stage schema
 
 Usage:
     Called by the projections pipeline orchestrator; not run standalone.
@@ -815,7 +876,7 @@ def parse_ccest_csv(csv_path, schema_config):
 
     Args:
         csv_path: pathlib.Path to the cc-est CSV file
-        schema_config: dict from get_schema_config()
+        schema_config: dict from get_schema_config(), including ccest_raw_columns
 
     Returns:
         pandas.DataFrame — raw cc-est rows.
@@ -828,16 +889,45 @@ def parse_ccest_csv(csv_path, schema_config):
     """
 
 
-def reshape_ccest_to_long(df, schema_config):
+def aggregate_ccest_counties_to_states(df, schema_config):
     """
-    Reshape the cc-est data to match the canonical long format if the raw layout differs.
+    Aggregate official CC-EST county observations into the 50 state totals.
 
-    The cc-est format may use coded columns for age, sex, and race. This function
-    decodes and pivots as needed to produce one row per (Location, Year, Age Group,
-    Sex, Race/Ethnicity).
+    Filters to SUMLEV=050, keeps only the configured 50 state names, and sums
+    the 14 selected population columns by (STNAME, YEAR, AGEGRP). District of
+    Columbia, Puerto Rico, state-summary rows, and other territories are
+    excluded. The function validates the observed state set before returning;
+    any missing configured state raises ValueError.
 
     Args:
         df: pandas.DataFrame from parse_ccest_csv
+        schema_config: dict from get_schema_config(), including
+            ccest_raw_columns and census_state_names
+
+    Returns:
+        pandas.DataFrame — one wide row per state, year code, and age-group code.
+
+    Raises:
+        ValueError — if one or more of the configured 50 states is missing.
+
+    Test file:
+        scripts/unit_tests/projections/cleaning/test_census_ccest_cleaner.py
+    """
+
+
+def reshape_ccest_to_long(df, schema_config):
+    """
+    Reshape the official wide cc-est data to the canonical long format.
+
+    Melts the 14 selected race-by-sex population columns, decodes YEAR 2-7 to
+    calendar years, decodes AGEGRP 1-18 to canonical age labels, and produces
+    one row per (state Location, Year, Age Group, Sex, Race/Ethnicity). YEAR=1 and
+    AGEGRP=0 rows are excluded before reshaping. Unknown year or age codes raise
+    ValueError rather than being silently dropped.
+
+    Args:
+        df: pandas.DataFrame from aggregate_ccest_counties_to_states after
+            rename_ccest_columns
         schema_config: dict from get_schema_config()
 
     Returns:
@@ -850,7 +940,8 @@ def reshape_ccest_to_long(df, schema_config):
 
 def rename_ccest_columns(df, schema_config):
     """
-    Rename raw cc-est column headers to canonical pipeline names using the header-text map.
+    Rename aggregated cc-est column headers to canonical pipeline names using
+    the header-text map, including STNAME to Location.
 
     Args:
         df: pandas.DataFrame with raw cc-est column names
@@ -869,17 +960,20 @@ def rename_ccest_columns(df, schema_config):
 
 def clean_census_estimates(csv_path, schema_config):
     """
-    Full cc-est cleaner entry point: parse, rename, reshape, map race and age, validate.
+    Full cc-est cleaner entry point: parse the official wide schema, exclude the
+    estimates-base and Census-total rows, rename, reshape, map codes, and validate.
 
-    Orchestrates parse_ccest_csv, rename_ccest_columns, reshape_ccest_to_long,
-    map_race_ethnicity, and standardize_age_groups.
+    Orchestrates parse_ccest_csv, aggregate_ccest_counties_to_states,
+    rename_ccest_columns, reshape_ccest_to_long, map_race_ethnicity, and
+    standardize_age_groups.
 
     Args:
         csv_path: pathlib.Path to the raw cc-est CSV file
         schema_config: dict from get_schema_config()
 
     Returns:
-        pandas.DataFrame — cleaned long-format DataFrame matching the cleaning-stage schema.
+        pandas.DataFrame — cleaned long-format DataFrame matching the
+        cleaning-stage schema, with Geographic Level set to "US State".
 
     Test file:
         scripts/unit_tests/projections/cleaning/test_census_ccest_cleaner.py
@@ -984,9 +1078,10 @@ def validate_race_mapping_completeness(df, race_column):
 age_group_standardizer.py — defines canonical 5-year age groups and provides binning/normalization utilities.
 
 The P-3 source provides single-year ages (0-110) that must be binned into 5-year groups.
-The Census cc-est source may provide pre-grouped labels that need normalizing to the
-same canonical set. This module owns the bin edges, the canonical labels, and both
-conversion paths so the two cleaners produce identical age group values.
+The Census cc-est source provides coded 5-year groups (`AGEGRP=1` through `18`)
+that map directly to the same canonical set. This module owns the bin edges, the
+canonical labels, and both conversion paths so the two cleaners produce identical
+age group values.
 
 Data sources:
     - Schema config — bin edges and label normalization maps from get_schema_config()
@@ -1107,6 +1202,14 @@ def validate_age_group_completeness(df, age_column):
 
 Mirrors the Components of Change `merging/historical_merge.py` pattern. One parametrized function replaces the near-identical DoF and Census merge variants from the legacy code.
 
+Historical replacement is atomic at `(Source, Year)` grain. Every incoming
+source/year release must pass stratification completeness validation before any
+overlapping historical year is removed. If any incoming year is incomplete,
+the merge raises and returns no replacement dataset. Once validation succeeds,
+all historical rows for each overlapping source/year are removed and the
+complete incoming source/year is appended as one unit. Key-level upserts are
+prohibited because they can mix rows from different vintages within a year.
+
 #### `scripts/projections/merging/historical_merge.py`
 
 ```python
@@ -1162,21 +1265,39 @@ Source Merging
 """
 
 
-def combine_source_with_historical(new_df, historical_df, source, year_column):
+def combine_source_with_historical(
+    new_df,
+    historical_df,
+    source,
+    year_column,
+    completeness_validator,
+):
     """
-    Merge a freshly cleaned source with its historical rows, keeping new years and deduplicating.
+    Atomically merge complete incoming source/year releases with historical rows.
 
-    Filters historical_df to rows matching the given source, identifies year overlap,
-    and concatenates with the new data. New data wins on overlap.
+    Adds the source label to a copy of new_df and runs completeness_validator
+    against all incoming source/year groups before selecting any historical
+    rows for replacement. If validation fails, raises ValueError without
+    modifying either input. If validation succeeds, retains historical years
+    absent from new_df and replaces every overlapping year in full. It never
+    performs key-level upserts.
 
     Args:
         new_df: pandas.DataFrame — freshly cleaned rows for one source
         historical_df: pandas.DataFrame — all historical rows (will be filtered to source)
         source: str — source label to filter by (e.g. "DoF P-3" or "Census cc-est")
         year_column: str — name of the year column for overlap detection
+        completeness_validator: callable receiving the copied incoming frame
+            with Source populated (Geographic Level is supplied by the cleaner)
+            and returning (is_valid, messages). It must validate every incoming
+            source/year independently.
 
     Returns:
         pandas.DataFrame — combined rows for this source.
+
+    Raises:
+        ValueError — before replacement if any incoming source/year is incomplete;
+        the validation messages are included in the exception.
 
     Test file:
         scripts/unit_tests/projections/merging/test_historical_merge.py
@@ -1226,7 +1347,7 @@ def merge_dof_and_census(dof_df, census_df):
 
 ### Phase 5: Aggregation
 
-Two modules: geographic rollups (9 CA regions + California state total, both computed by summing county rows since the P-3 source is county-only) and precomputed totals for the "All Ages" / "Both Sexes" / "All" race aggregation rows.
+Two modules: geographic rollups (9 CA regions + California state total, both computed by summing county rows since the P-3 source is county-only) and precomputed totals for the "All Ages" / "Both Sexes" / "All" race aggregation rows. Both `add_state_total` and `add_regional_data` are required pipeline phases; the orchestrator imports and calls both unconditionally before precomputed totals are built.
 
 #### `scripts/projections/aggregation/regional_aggregation.py`
 
@@ -1235,8 +1356,9 @@ Two modules: geographic rollups (9 CA regions + California state total, both com
 regional_aggregation.py — builds the 9 CA region rows and the California state row by summing county-level population.
 
 The P-3 source contains only county-level data (58 FIPS codes). Both the 9 CA region rows
-and the California state total must be computed by summing county rows. Census cc-est data
-already includes state-level rows, so the state computation applies only to DoF P-3 rows.
+and the California state total must be computed by summing county rows. Census CC-EST
+state rows were already constructed from `SUMLEV=050` county observations in the Census
+cleaner, so this aggregation module applies only to DoF P-3 rows.
 
 Data sources:
     - Cleaned DataFrame from the merge phase
@@ -1281,8 +1403,8 @@ def add_state_total(df, county_names, groupby_dimensions, state_name="California
     """
     Compute the California state total by summing all 58 county rows.
 
-    Only adds state rows for source/year combinations where no state row already
-    exists (Census cc-est may already provide state-level data).
+    Only adds state rows for DoF P-3 source/year combinations where no state row
+    already exists. Census state rows are constructed earlier by the Census cleaner.
 
     Args:
         df: pandas.DataFrame — must contain County-level rows
@@ -1487,18 +1609,25 @@ def validate_projections_dataset(df, validation_config):
     """
 
 
-def validate_stratification_completeness(df, location, year, schema_config):
+def validate_stratification_completeness(df, schema_config):
     """
-    Assert that a given (location, year) pair has the full age x sex x race matrix.
+    Validate the base age x sex x race matrix independently for every geography,
+    location, year, and source group.
 
-    Counts the distinct (Age Group, Sex, Race/Ethnicity) tuples for this location and year
-    and compares against the expected count (len(canonical_ages) x len(canonical_sexes)
-    x len(canonical_races)).
+    Establishes groups from the configured completeness_group_columns:
+    (Geographic Level, Location, Year, Source). Before counting strata, filters
+    Age Group, Sex, and Race/Ethnicity to the configured canonical base values.
+    This explicitly excludes "All Ages", "Both Sexes", and "All" rows so
+    precomputed totals cannot hide missing base strata.
+
+    For each group, counts distinct (Age Group, Sex, Race/Ethnicity) tuples and
+    compares the count with len(canonical_age_groups) *
+    len(canonical_sexes) * len(canonical_race_groups). Each incomplete group
+    produces its own message containing all four group identifiers plus the
+    observed and expected counts. Rows from different groups are never pooled.
 
     Args:
-        df: pandas.DataFrame — the final dataset
-        location: str — the location to check
-        year: int — the year to check
+        df: pandas.DataFrame — source-labeled rows with Geographic Level populated
         schema_config: dict from get_schema_config()
 
     Returns:
@@ -1542,14 +1671,16 @@ Geographic Level Assignment
 
 def assign_geographic_level(df, geography_config):
     """
-    Tag each row with its Geographic Level based on its Location value.
+    Tag each row with its Geographic Level based on Location and Source.
 
-    Uses np.select with conditions for State ("California"), County (58 county names),
-    Region (9 region names), and US State (50 state names). Sources the name lists
-    from geography_config rather than hardcoding them.
+    Assigns Census cc-est rows whose locations are in the configured 50-state
+    list (including California) to "US State". For DoF P-3, assigns California
+    to "State", the 58 county names to "County", and the 9 region names to
+    "Region". Sources the name lists from geography_config rather than
+    hardcoding them.
 
     Args:
-        df: pandas.DataFrame — must have a Location column
+        df: pandas.DataFrame — must have Location and Source columns
         geography_config: dict with keys: california_counties, region_names, us_state_names
 
     Returns:
@@ -1654,7 +1785,10 @@ from scripts.projections.acquisition.dof_p3_downloader import (
 )
 from scripts.projections.acquisition.source_fallback import acquire_with_fallback
 from scripts.projections.aggregation.precomputed_totals import build_precomputed_totals
-from scripts.projections.aggregation.regional_aggregation import add_regional_data
+from scripts.projections.aggregation.regional_aggregation import (
+    add_regional_data,
+    add_state_total,
+)
 from scripts.projections.cleaning.census_ccest_cleaner import clean_census_estimates
 from scripts.projections.cleaning.dof_p3_cleaner import clean_p3_projections
 from scripts.projections.config.paths import get_paths
@@ -1673,6 +1807,7 @@ from scripts.projections.output.finalize_dataset import (
 )
 from scripts.projections.validation.projections_validators import (
     validate_projections_dataset,
+    validate_stratification_completeness,
 )
 
 
@@ -1739,10 +1874,13 @@ def build_projections_dataset(config=None):
 
     Phase 1 — Setup & Load: resolve config, load the existing canonical CSV.
     Phase 2 — Acquisition: acquire DoF P-3 zip (extract CSV) and Census cc-est with fallback.
-    Phase 3 — Cleaning: map FIPS to counties, decode race7 codes, bin single-year ages
-              to 5-year groups, standardize sex labels, validate cleaning output.
-    Phase 4 — Merge & Aggregate: merge sources with history, compute state total and
-              regions from county sums, build precomputed totals, detect change.
+    Phase 3 — Cleaning: map FIPS to counties, decode race7 codes, bin single-year ages,
+              standardize sex labels, assign source-specific Geographic Level values
+              ("County" or "US State"), and validate cleaning output.
+    Phase 4 — Merge & Aggregate: validate incoming source/year completeness, atomically
+              replace complete overlapping years, unconditionally call add_state_total
+              and add_regional_data for county rollups, build precomputed totals, and
+              detect change.
     Phase 5 — Finalize & Save: assign geographic level, validate final dataset,
               archive and write only when new data was detected.
 
@@ -1822,7 +1960,9 @@ Thin route that validates query params (using `lib/data/apiParams.js`), calls th
 
 ## Test Plan
 
-Tests mirror the source tree under `scripts/unit_tests/projections/`. Estimated scope:
+Tests mirror the source tree under `scripts/unit_tests/projections/`, with the
+pipeline integration suite under `scripts/unit_tests/orchestrators/`. Estimated
+scope:
 
 ### Config tests (~10 tests)
 - `test_paths.py`: project root resolves correctly, data directories use expected path segments, all values are Path objects.
@@ -1830,33 +1970,34 @@ Tests mirror the source tree under `scripts/unit_tests/projections/`. Estimated 
 - `test_schemas.py`: required keys present, canonical race groups total 7, canonical age groups total 18, FIPS map covers all 58 counties, output columns match contract.
 
 ### Acquisition tests (~25 tests)
-- `test_dof_p3_downloader.py`: URL discovery succeeds on well-formed HTML, positional fallback works, cache hit skips HTTP, network failure falls back to cached CSV, extract_csv_from_zip handles a valid zip, extract_csv_from_zip rejects a zip with no CSV, validate_p3_csv rejects missing columns (fips, year, sex, race7, agerc, perwt).
-- `test_census_ccest_downloader.py`: URL discovery succeeds, cache hit skips HTTP, validate_ccest_headers rejects missing columns.
+- `test_dof_p3_downloader.py`: URL discovery succeeds on well-formed HTML, positional fallback works, cache hit skips HTTP, network failure falls back to cached CSV, extract_csv_from_zip handles a valid zip, extract_csv_from_zip rejects a zip with no CSV, and validate_p3_csv requires each mandatory column (fips, year, sex, race7, agerc, perwt) exactly once while tolerating unrelated additions.
+- `test_census_ccest_downloader.py`: URL discovery succeeds, cache hit skips HTTP, and header validation requires the official wide-format identifiers plus the 14 selected race-by-sex population columns while tolerating unrelated additions.
 - `test_source_fallback.py`: first live strategy wins, second strategy used when first fails, manual file used when all live strategies fail, saved rows used as last resort, flags set correctly for each path.
 
 ### Cleaning tests (~55 tests)
-- `test_dof_p3_cleaner.py`: FIPS-to-county mapping covers all 58 codes, unmapped FIPS raises ValueError, sex label standardization ("MALE" to "Male"), age binning sums population correctly within 5-year groups, ages 85-110 collapse into "85+", full cleaner produces expected row count for a small fixture, rejects CSV with unexpected columns.
-- `test_census_ccest_cleaner.py`: CSV parsing, reshape, column renaming, full cleaner end-to-end.
+- `test_dof_p3_cleaner.py`: FIPS-to-county mapping covers all 58 codes, unmapped FIPS raises ValueError, sex label standardization ("MALE" to "Male"), age binning sums population correctly within 5-year groups, ages 85-110 collapse into "85+", full cleaner produces expected row count for a small fixture, tolerates and drops unrelated columns, and rejects missing, duplicated, null, or semantically invalid mandatory fields.
+- `test_census_ccest_cleaner.py`: official wide-schema parsing, `SUMLEV=050` filtering, county-to-state aggregation by `STNAME`, exact 50-state validation excluding DC and Puerto Rico, wide-to-long reshape, column renaming, YEAR code conversion, AGEGRP code conversion, exclusion of YEAR=1 and AGEGRP=0, unknown-code rejection, and full cleaner end-to-end.
 - `test_race_ethnicity_mapping.py`: P3_RACE7_CODE_MAP maps all 7 codes, maps all Census codes to 7 groups, rejects unmapped codes with actionable message, canonical list returns 7 items.
 - `test_age_group_standardizer.py`: assign_age_group_from_single_year maps age 0 to "0-4", maps age 84 to "80-84", maps age 110 to "85+", standardize_age_group_labels normalizes variant labels, canonical list returns 18 items, bin edges list has 18 entries.
 
 ### Merging tests (~15 tests)
-- `test_historical_merge.py`: load_canonical_dataset returns empty DataFrame when file missing, combine_source_with_historical keeps historical years absent from new data, new data wins on overlap, detect_new_source_data returns True when new years present, merge_dof_and_census concatenates and sorts.
+- `test_historical_merge.py`: load_canonical_dataset returns empty DataFrame when file missing; combine_source_with_historical validates every incoming source/year before mutation, rejects incomplete new or overlapping years, preserves historical years absent from new data, and atomically replaces complete overlapping years without key-level vintage mixing; detect_new_source_data returns True when new years are present; merge_dof_and_census concatenates and sorts.
 
 ### Aggregation tests (~35 tests)
-- `test_regional_aggregation.py`: produces exactly 9 region rows per (year, age, sex, race), region population equals sum of constituent county populations, does not modify existing rows. add_state_total computes California total from 58 counties, skips state row when one already exists from cc-est, state total equals sum of all county populations.
+- `test_regional_aggregation.py`: produces exactly 9 region rows per (year, age, sex, race), region population equals sum of constituent county populations, and does not modify existing rows. add_state_total computes the DoF California total from 58 counties, avoids duplicating an existing DoF state row with the same dimensions, preserves the separate Census California `US State` row, and verifies the state total equals the sum of all county populations.
 - `test_precomputed_totals.py`: "All Ages" rows sum correctly, "Both Sexes" rows sum correctly, "All" race rows sum correctly, combined "Both Sexes" + "All Ages" row equals grand total, build_precomputed_totals runs all three in correct order, no double-counting.
 
 ### Validation tests (~15 tests)
-- `test_projections_validators.py`: validate_cleaning_output catches missing columns, catches non-canonical race values, catches negative populations. validate_projections_dataset catches missing geographic levels, catches row count outside bounds, catches duplicate keys. validate_stratification_completeness catches incomplete age x sex x race matrix.
+- `test_projections_validators.py`: validate_cleaning_output catches missing columns, non-canonical race values, and negative populations. validate_projections_dataset catches missing geographic levels, row counts outside bounds, and duplicate keys. validate_stratification_completeness evaluates base age × sex × race strata independently for every Geographic Level × Location × Year × Source group, reports each incomplete group, and excludes "All Ages", "Both Sexes", and "All" rows from the count.
 
 ### Output tests (~10 tests)
-- `test_finalize_dataset.py`: assign_geographic_level tags counties, regions, and states correctly. prepare_projections_output enforces column order. archive_and_save writes when data changed, skips when identical, archive file receives timestamp.
+- `test_finalize_dataset.py`: assign_geographic_level tags counties, regions, the DoF California state rollup, and all Census US states correctly, including source-aware classification of California. prepare_projections_output enforces column order. archive_and_save writes when data changed, skips when identical, archive file receives timestamp.
 
 ### Orchestrator tests (~10 tests)
-- `test_projections_pipeline.py`: full pipeline with mocked acquisition, phase error wrapping, dof_failed flag when DoF acquisition fails, census_failed flag when Census fails, no write when no new data.
+- `test_projections_pipeline.py`: full pipeline with mocked acquisition, required invocation of add_state_total and add_regional_data, phase error wrapping, dof_failed flag when DoF acquisition fails, census_failed flag when Census fails, no write when no new data. The setup monkeypatches add_state_total without an optional hasattr guard, so the suite fails during setup if the orchestrator does not import it.
 
-Total estimate: ~175 tests across 14 test files.
+Total estimate: ~175 tests across 16 test files (15 under
+`scripts/unit_tests/projections/` plus the orchestrator test file).
 
 ---
 
@@ -1912,12 +2053,33 @@ Depends on: Step 6.
 
 These questions were answered before implementation began.
 
-1. **P-3 file format:** The current P-3 is a compressed zip archive containing a comma-delimited CSV, not an Excel workbook. Columns are: `fips` (county FIPS code), `year`, `sex` (MALE/FEMALE), `race7` (1-7), `agerc` (single-year age 0-110), `perwt` (population count). Baseline 2024, Vintage 2026. The downloader handles zip extraction.
+1. **P-3 file format and schema policy:** The current P-3 is a compressed
+   zip archive containing a comma-delimited CSV, not an Excel workbook.
+   Mandatory columns are `fips` (county FIPS code), `year`, `sex`
+   (MALE/FEMALE), `race7` (1-7), `agerc` (single-year age 0-110), and `perwt`
+   (non-negative integer population count). Each mandatory column must occur
+   exactly once and contain semantically valid values. Unrelated additional
+   columns are tolerated and dropped by the cleaner. Baseline 2024, Vintage
+   2026. The downloader handles zip extraction.
 
 2. **Projection horizon:** 2020-2070 (51 years). No special "projection horizon" selector is needed; the year range slider in the frontend covers this naturally.
 
-3. **Census cc-est scope:** All 50 US states are included, matching the legacy module's scope. This increases the contract CSV size significantly given the high dimensionality; the performance implications should be evaluated once the CSV is built.
+3. **Census cc-est scope:** The pipeline uses the official county CC-EST file,
+   filters to `SUMLEV=050`, and aggregates the selected population fields by
+   `STNAME`, year code, and age-group code. It requires exactly the 50 states,
+   excluding District of Columbia and Puerto Rico, matching the legacy module's
+   scope. An incomplete state set is rejected. This increases the contract CSV
+   size significantly given the high dimensionality; the performance
+   implications should be evaluated once the CSV is built.
 
-4. **Age-group consolidation:** The pipeline stores 5-year groups in the contract CSV (binned from single-year ages during cleaning). Coarser groupings are user-defined at the frontend, with default presets of Under 18, 18-25, 26-64, 65+. The API route sums the stored 5-year bins into the requested preset server-side. Because these preset boundaries (18, 25, 26) do not align perfectly with 5-year bin edges (15, 20, 25, 30), each preset maps to the nearest whole bins, and the API documents which bins feed which preset.
+4. **Census cc-est raw format:** The authoritative county input is the official
+   wide `CC-EST{VINTAGE}-ALLDATA` CSV. Mandatory identifiers are `SUMLEV`,
+   `STATE`, `COUNTY`, `STNAME`, `CTYNAME`, `YEAR`, and `AGEGRP`; population is
+   read from the male/female columns for `NHWA`, `NHBA`, `NHIA`, `NHAA`,
+   `NHNA`, `NHTOM`, and `H`. `YEAR=1` and `AGEGRP=0` are excluded. `YEAR=2`
+   through `7` map to 2020 through 2025, and `AGEGRP=1` through `18` map to the
+   canonical 5-year age groups. See the [official CC-EST2025 file layout](https://www2.census.gov/programs-surveys/popest/technical-documentation/file-layouts/2020-2025/CC-EST2025-ALLDATA.pdf).
 
-5. **Dataset filename:** `DemographicProjections_Current.csv` in the `data/data-cleaned/demographic-projections/` directory.
+5. **Age-group consolidation:** The pipeline stores 5-year groups in the contract CSV (binned from single-year ages during cleaning). Coarser groupings are user-defined at the frontend, with default presets of Under 18, 18-25, 26-64, 65+. The API route sums the stored 5-year bins into the requested preset server-side. Because these preset boundaries (18, 25, 26) do not align perfectly with 5-year bin edges (15, 20, 25, 30), each preset maps to the nearest whole bins, and the API documents which bins feed which preset.
+
+6. **Dataset filename:** `DemographicProjections_Current.csv` in the `data/data-cleaned/demographic-projections/` directory.

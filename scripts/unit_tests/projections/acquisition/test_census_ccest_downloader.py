@@ -6,7 +6,29 @@ from scripts.projections.acquisition import census_ccest_downloader
 
 from scripts.shared.downloads.http_downloads import HTTPDownloadError
 
-EXPECTED_COLUMNS = ["SUMLEV", "STATE", "NAME", "SEX", "AGE", "RACE", "ORIGIN"]
+EXPECTED_COLUMNS = [
+    "SUMLEV",
+    "STATE",
+    "COUNTY",
+    "STNAME",
+    "CTYNAME",
+    "YEAR",
+    "AGEGRP",
+    "NHWA_MALE",
+    "NHWA_FEMALE",
+    "NHBA_MALE",
+    "NHBA_FEMALE",
+    "NHIA_MALE",
+    "NHIA_FEMALE",
+    "NHAA_MALE",
+    "NHAA_FEMALE",
+    "NHNA_MALE",
+    "NHNA_FEMALE",
+    "NHTOM_MALE",
+    "NHTOM_FEMALE",
+    "H_MALE",
+    "H_FEMALE",
+]
 
 CCEST_LINK_HTML = b"""
 <html>
@@ -121,7 +143,7 @@ def test_validate_ccest_headers_accepts_expected_columns_and_extras(tmp_path):
     # Arrange
     csv_path = tmp_path / "cc-est2025-alldata.csv"
     csv_path.write_text(
-        ",".join([*EXPECTED_COLUMNS, "POPESTIMATE2025"]) + "\n",
+        ",".join([*EXPECTED_COLUMNS, "UNRELATED_NEW_FIELD"]) + "\n",
         encoding="utf-8",
     )
 
@@ -133,10 +155,16 @@ def test_validate_ccest_headers_reports_missing_columns(tmp_path):
     # Arrange
     csv_path = tmp_path / "cc-est2025-alldata.csv"
     csv_path.write_text(
-        ",".join(column for column in EXPECTED_COLUMNS if column != "ORIGIN") + "\n",
+        ",".join(
+            column for column in EXPECTED_COLUMNS if column != "H_FEMALE"
+        )
+        + "\n",
         encoding="utf-8",
     )
 
     # Act / Assert
-    with pytest.raises(ValueError, match=r"(?i)missing.*ORIGIN|ORIGIN.*missing"):
+    with pytest.raises(
+        ValueError,
+        match=r"(?i)missing.*H_FEMALE|H_FEMALE.*missing",
+    ):
         census_ccest_downloader.validate_ccest_headers(csv_path, EXPECTED_COLUMNS)

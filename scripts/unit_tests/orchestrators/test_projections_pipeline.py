@@ -18,11 +18,12 @@ CONTRACT_COLUMNS = [
 
 
 def _frame(source="DoF P-3", population=100):
+    is_census = source == "Census cc-est"
     return pd.DataFrame(
         [
             {
-                "Geographic Level": "County",
-                "Location": "Alameda",
+                "Geographic Level": "US State" if is_census else "County",
+                "Location": "California" if is_census else "Alameda",
                 "Year": 2025,
                 "Age Group": "0-4",
                 "Sex": "Female",
@@ -46,12 +47,8 @@ def _configure_success(monkeypatch, tmp_path, changes=(True, True)):
         [_frame("DoF P-3"), _frame("Census cc-est")],
         ignore_index=True,
     )
-    dof_clean = _frame("DoF P-3").drop(
-        columns=["Geographic Level", "Source"]
-    )
-    census_clean = _frame("Census cc-est").drop(
-        columns=["Geographic Level", "Source"]
-    )
+    dof_clean = _frame("DoF P-3").drop(columns=["Source"])
+    census_clean = _frame("Census cc-est").drop(columns=["Source"])
     finalized = historical.copy()
     call_log = []
 
@@ -117,12 +114,11 @@ def _configure_success(monkeypatch, tmp_path, changes=(True, True)):
         "add_regional_data",
         Mock(return_value=historical),
     )
-    if hasattr(pipeline, "add_state_total"):
-        monkeypatch.setattr(
-            pipeline,
-            "add_state_total",
-            Mock(return_value=historical),
-        )
+    monkeypatch.setattr(
+        pipeline,
+        "add_state_total",
+        Mock(return_value=historical),
+    )
     monkeypatch.setattr(
         pipeline,
         "build_precomputed_totals",
@@ -170,7 +166,7 @@ def test_raise_phase_error_wraps_exception_with_phase_name():
     assert exc_info.value.__cause__ is error
 
 
-def test_load_saved_source_filters_source_and_drops_geographic_level(
+def test_load_saved_source_filters_source_and_preserves_geographic_level(
     monkeypatch,
     tmp_path,
 ):
@@ -193,12 +189,12 @@ def test_load_saved_source_filters_source_and_drops_geographic_level(
 
     # Assert
     assert set(result["Source"]) == {"DoF P-3"}
-    assert "Geographic Level" not in result.columns
+    assert set(result["Geographic Level"]) == {"County"}
 
 
 def test_clean_with_fallback_returns_cleaned_live_data(tmp_path):
     # Arrange
-    cleaned = _frame().drop(columns=["Geographic Level", "Source"])
+    cleaned = _frame().drop(columns=["Source"])
     cleaner = Mock(return_value=cleaned)
 
     # Act
@@ -221,7 +217,7 @@ def test_clean_with_fallback_returns_cleaned_live_data(tmp_path):
 
 def test_clean_with_fallback_preserves_acquisition_failure(tmp_path):
     # Arrange
-    saved = _frame("DoF P-3").drop(columns=["Geographic Level"])
+    saved = _frame("DoF P-3")
     cleaner = Mock(side_effect=AssertionError("cleaner must not run"))
 
     # Act
@@ -248,7 +244,7 @@ def test_clean_with_fallback_uses_manual_file_after_live_cleaning_failure(
     # Arrange
     manual_path = tmp_path / "manual.csv"
     pd.DataFrame({"raw": ["manual"]}).to_csv(manual_path, index=False)
-    cleaned = _frame().drop(columns=["Geographic Level", "Source"])
+    cleaned = _frame().drop(columns=["Source"])
     cleaner = Mock(
         side_effect=[ValueError("bad live data"), cleaned]
     )
@@ -276,7 +272,7 @@ def test_clean_with_fallback_uses_saved_rows_when_cleaning_fails(
     tmp_path,
 ):
     # Arrange
-    saved = _frame("DoF P-3").drop(columns=["Geographic Level"])
+    saved = _frame("DoF P-3")
     monkeypatch.setattr(
         pipeline,
         "_load_saved_source",
@@ -314,6 +310,21 @@ def test_build_projections_dataset_runs_major_phases(monkeypatch, tmp_path):
     assert call_log == ["archive_and_save"]
 
 
+def test_build_projections_dataset_requires_state_total_phase(
+    monkeypatch,
+    tmp_path,
+):
+    # Arrange
+    _configure_success(monkeypatch, tmp_path)
+
+    # Act
+    pipeline.build_projections_dataset()
+
+    # Assert
+    pipeline.add_state_total.assert_called_once()
+    pipeline.add_regional_data.assert_called_once()
+
+
 def test_build_projections_dataset_does_not_write_without_new_data(
     monkeypatch,
     tmp_path,
@@ -337,10 +348,8 @@ def test_build_projections_dataset_sets_dof_failed_flag(
 ):
     # Arrange
     _configure_success(monkeypatch, tmp_path, changes=(False, True))
-    dof_saved = _frame("DoF P-3").drop(columns=["Geographic Level"])
-    census_clean = _frame("Census cc-est").drop(
-        columns=["Geographic Level", "Source"]
-    )
+    dof_saved = _frame("DoF P-3")
+    census_clean = _frame("Census cc-est").drop(columns=["Source"])
     pipeline._clean_with_fallback.side_effect = [
         (dof_saved, True, False),
         (census_clean, False, False),
@@ -360,12 +369,8 @@ def test_build_projections_dataset_sets_census_failed_flag(
 ):
     # Arrange
     _configure_success(monkeypatch, tmp_path, changes=(True, False))
-    dof_clean = _frame("DoF P-3").drop(
-        columns=["Geographic Level", "Source"]
-    )
-    census_saved = _frame("Census cc-est").drop(
-        columns=["Geographic Level"]
-    )
+    dof_clean = _frame("DoF P-3").drop(columns=["Source"])
+    census_saved = _frame("Census cc-est")
     pipeline._clean_with_fallback.side_effect = [
         (dof_clean, False, False),
         (census_saved, True, False),

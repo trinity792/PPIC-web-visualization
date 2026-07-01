@@ -207,7 +207,7 @@ def test_add_state_total_adds_dof_state_when_census_state_exists():
         population=500,
         source="Census cc-est",
     )
-    census_state["Geographic Level"] = "State"
+    census_state["Geographic Level"] = "US State"
     source = pd.DataFrame(
         [
             _county_row("Alameda", population=100, source="DoF P-3"),
@@ -223,6 +223,10 @@ def test_add_state_total_adds_dof_state_when_census_state_exists():
     assert state_rows.set_index("Source")["Population"].to_dict() == {
         "Census cc-est": 500,
         "DoF P-3": 100,
+    }
+    assert state_rows.set_index("Source")["Geographic Level"].to_dict() == {
+        "Census cc-est": "US State",
+        "DoF P-3": "State",
     }
 
 

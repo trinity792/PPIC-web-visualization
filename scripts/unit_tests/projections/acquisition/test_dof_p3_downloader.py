@@ -292,3 +292,17 @@ def test_validate_p3_csv_reports_missing_columns(tmp_path):
     # Act / Assert
     with pytest.raises(ValueError, match=r"(?i)missing.*perwt|perwt.*missing"):
         dof_p3_downloader.validate_p3_csv(csv_path, EXPECTED_COLUMNS)
+
+
+def test_validate_p3_csv_reports_duplicate_required_column(tmp_path):
+    # Arrange
+    csv_path = tmp_path / "P-3_Complete.csv"
+    csv_path.write_text(
+        "fips,year,sex,race7,agerc,perwt,perwt\n"
+        "6001,2025,MALE,1,0,100,999\n",
+        encoding="utf-8",
+    )
+
+    # Act / Assert
+    with pytest.raises(ValueError, match=r"(?i)duplicate.*perwt|perwt.*duplicate"):
+        dof_p3_downloader.validate_p3_csv(csv_path, EXPECTED_COLUMNS)
