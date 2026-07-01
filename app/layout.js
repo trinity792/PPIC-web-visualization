@@ -41,6 +41,7 @@ export default function RootLayout({ children }) {
         <Navbar />
         {children}
         <ReportProblemDialog />
+        <Analytics />
       </body>
     </html>
   );
