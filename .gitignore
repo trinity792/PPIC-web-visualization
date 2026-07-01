@@ -16,3 +16,6 @@ CLAUDE.md
 .env
 
 trinitys_notes/
+
+data/data-raw/
+data/archive/

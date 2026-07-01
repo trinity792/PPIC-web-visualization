@@ -60,6 +60,9 @@ export default function Navbar() {
             <Link href="/components-of-change" className="hover:underline">
               Components of Change
             </Link>
+            <Link href="/demographic-projections" className="hover:underline">
+              Age, Sex &amp; Race Projections
+            </Link>
             <Link href="/ui-kit" className="hover:underline">
               UI Kit
             </Link>

@@ -158,36 +158,75 @@ function DataSourcesSection() {
   const { config, dispatch, schema } = useChartConfig();
   const sources = schema.sources || [];
 
-  if (sources.length <= 1) {
-    // Single-dataset module: show the dataset/source name (e.g. "DoF"), not the
-    // module name. The lone source lives on the Source field's values.
-    const datasetName =
-      sources[0] || schema.fields?.Source?.values?.[0] || schema.label;
-    return <p className="text-sm font-medium">{datasetName}</p>;
-  }
-
   return (
-    <div className="grid gap-2">
-      <Label htmlFor="data-source">Source</Label>
+    <div className="grid gap-4">
+      {sources.length <= 1 ? (
+        // Single-dataset module: show the dataset/source name (e.g. "DoF"), not
+        // the module name. The lone source lives on the Source field's values.
+        <p className="text-sm font-medium">
+          {sources[0] || schema.fields?.Source?.values?.[0] || schema.label}
+        </p>
+      ) : (
+        <div className="grid gap-2">
+          <Label htmlFor="data-source">Source</Label>
+          <Select
+            value={config.filters.source || ""}
+            onValueChange={(value) =>
+              dispatch({ type: "SET_FILTER", key: "source", value })
+            }
+          >
+            <SelectTrigger id="data-source">
+              <SelectValue placeholder="Choose a source" />
+            </SelectTrigger>
+            <SelectContent>
+              {sources.map((source) => (
+                <SelectItem key={source} value={source}>
+                  {source}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      <StratificationFilters />
+    </div>
+  );
+}
+
+/**
+ * Module-specific stratification filters (e.g. Age Group, Sex, Race/Ethnicity),
+ * rendered from `schema.filterDimensions`. Each pins one value the API applies
+ * before shaping; defaults are the precomputed aggregate rows. Renders nothing
+ * for modules that declare no filter dimensions.
+ */
+function StratificationFilters() {
+  const { config, dispatch, schema } = useChartConfig();
+  const dimensions = schema.filterDimensions || [];
+  if (!dimensions.length) return null;
+
+  return dimensions.map((dimension) => (
+    <div className="grid gap-2" key={dimension.column}>
+      <Label htmlFor={`filter-${dimension.param}`}>{dimension.label}</Label>
       <Select
-        value={config.filters.source || ""}
+        value={config.filters[dimension.column] ?? dimension.default}
         onValueChange={(value) =>
-          dispatch({ type: "SET_FILTER", key: "source", value })
+          dispatch({ type: "SET_FILTER", key: dimension.column, value })
         }
       >
-        <SelectTrigger id="data-source">
-          <SelectValue placeholder="Choose a source" />
+        <SelectTrigger id={`filter-${dimension.param}`}>
+          <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {sources.map((source) => (
-            <SelectItem key={source} value={source}>
-              {source}
+          {dimension.values.map((value) => (
+            <SelectItem key={value} value={value}>
+              {value}
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
     </div>
-  );
+  ));
 }
 
 function YearRangeSection() {

@@ -39,6 +39,6 @@ def get_paths():
         "historical_data_path": current_data_path,
         "download_directory": raw_directory,
         "archive_directory": archive_directory,
-        "manual_p3_path": raw_directory / "P-3_Downloaded.csv",
-        "manual_ccest_path": raw_directory / "cc-est_Downloaded.csv",
+        "manual_dof_path": raw_directory / "P-3_Downloaded.csv",
+        "manual_census_path": raw_directory / "cc-est_Downloaded.csv",
     }

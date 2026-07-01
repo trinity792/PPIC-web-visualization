@@ -45,4 +45,8 @@ def get_source_settings():
         "p3_filename_pattern": r"P-3_.+\.csv",
         "p3_expected_csv_columns": list(P3_RAW_COLUMNS),
         "ccest_expected_columns": list(CCEST_RAW_COLUMNS),
+        # Change detection ignores years at or before the boundary; both sources
+        # begin in 2020, so 2019 keeps every observed year in scope.
+        "dof_boundary_year": 2019,
+        "census_boundary_year": 2019,
     }

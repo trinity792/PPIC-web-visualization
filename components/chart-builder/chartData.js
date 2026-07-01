@@ -31,7 +31,7 @@ function selectedLocations(config) {
   return [...new Set(places)];
 }
 
-function buildSearchParams(config, overrides = {}) {
+function buildSearchParams(config, schema, overrides = {}) {
   const view = QUERY_SHAPES[config.chartType];
   const params = new URLSearchParams({
     view,
@@ -39,6 +39,12 @@ function buildSearchParams(config, overrides = {}) {
   });
   const source = overrides.source || config.filters.source;
   if (source) params.set("source", source);
+
+  // Module-specific stratification filters (e.g. Age Group, Sex, Race/Ethnicity).
+  for (const dimension of schema.filterDimensions || []) {
+    const value = overrides[dimension.param] ?? config.filters[dimension.column];
+    if (value) params.set(dimension.param, value);
+  }
 
   const locations = overrides.locations || selectedLocations(config);
   if (locations?.length) params.set("locations", locations.join(","));
@@ -77,7 +83,7 @@ function buildSearchParams(config, overrides = {}) {
 }
 
 async function requestData(config, schema, signal, overrides = {}) {
-  const params = buildSearchParams(config, overrides);
+  const params = buildSearchParams(config, schema, overrides);
   const response = await fetch(`${schema.apiPath}?${params}`, { signal });
   const body = await response.json();
   if (!response.ok) {

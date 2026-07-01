@@ -13,7 +13,7 @@ Outputs:
     - dict — dataset, source change flags, fallback flags, output path, and row count
 
 Usage:
-    python scripts/orchestrators/components_of_change_pipeline.py
+    python -m scripts.orchestrators.components_of_change_pipeline
 
 Test Folders:
     - scripts/unit_tests/orchestrators/

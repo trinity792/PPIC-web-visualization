@@ -14,7 +14,7 @@ Outputs:
     - dict — output path, row count, year range, and geographic-level counts
 
 Usage:
-    python scripts/orchestrators/pophousing_pipeline.py
+    python -m scripts.orchestrators.pophousing_pipeline
 
 Test Folders:
     - scripts/unit_tests/orchestrators/

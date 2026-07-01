@@ -8,8 +8,9 @@ Data sources:
     - data/data-cleaned/demographic-projections/DemographicProjections_Current.csv — last-saved rows
 
 Outputs:
-    - pandas.DataFrame — raw data from the best available source
-    - bool — whether acquisition failed (fell back to last-saved)
+    - pathlib.Path or pandas.DataFrame — the raw file path from the best available
+      live/manual source, or already-cleaned last-saved rows when acquisition failed
+    - bool — whether acquisition failed (fell back to last-saved rows)
     - bool — whether a manual file was used
 
 Usage:
@@ -21,8 +22,6 @@ Test Folders:
 
 from pathlib import Path
 
-import pandas as pd
-
 """
 ========================================================================================================================
 Fallback Acquisition
@@ -31,22 +30,23 @@ Fallback Acquisition
 
 
 def acquire_with_fallback(live_strategies, manual_path, saved_rows_fn, source_name):
-    """Try each live acquisition strategy in order, then a manual CSV, then last-saved rows. Test file: scripts/unit_tests/projections/acquisition/test_source_fallback.py"""
+    """Try each live acquisition strategy in order, then a manual CSV, then last-saved rows. Test file: scripts/unit_tests/projections/acquisition/test_source_fallback.py
+
+    Live and manual strategies yield a raw file *path* the cleaner will read;
+    only the last-saved fallback returns an already-cleaned DataFrame (paired
+    with source_failed=True so the caller skips cleaning it).
+    """
     errors = []
 
     for strategy in live_strategies:
         try:
-            raw_path = strategy()
-            return pd.read_csv(raw_path), False, False
+            return strategy(), False, False
         except Exception as error:
             errors.append(error)
 
     manual_path = Path(manual_path)
     if manual_path.is_file():
-        try:
-            return pd.read_csv(manual_path), False, True
-        except Exception as error:
-            errors.append(error)
+        return manual_path, False, True
 
     try:
         return saved_rows_fn(), True, False

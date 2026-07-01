@@ -138,7 +138,10 @@ function GeographicLevelControl() {
 
   function setSubset(value) {
     dispatch({ type: "SET_FILTER", key: "subset", value });
-    if (value === "States" && schema.sources?.includes("Census")) {
+    const forcedSource = schema.subsetSource?.[value];
+    if (forcedSource && schema.sources?.includes(forcedSource)) {
+      dispatch({ type: "SET_FILTER", key: "source", value: forcedSource });
+    } else if (value === "States" && schema.sources?.includes("Census")) {
       dispatch({ type: "SET_FILTER", key: "source", value: "Census" });
     }
   }

@@ -125,9 +125,14 @@ function bindingsForPreset(preset, schema, previous = {}) {
 }
 
 function defaultFilters(schema) {
+  const stratification = {};
+  for (const dimension of schema.filterDimensions || []) {
+    stratification[dimension.column] = dimension.default;
+  }
   return {
     subset: Object.keys(schema.subsets || {})[0] || "",
     ...(schema.sources?.length ? { source: schema.sources[0] } : {}),
+    ...stratification,
   };
 }
 

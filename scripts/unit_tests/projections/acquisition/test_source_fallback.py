@@ -2,6 +2,7 @@ from unittest.mock import Mock
 
 import pandas as pd
 import pytest
+
 from scripts.projections.acquisition.source_fallback import acquire_with_fallback
 
 LIVE_DF = pd.DataFrame({"Source": ["live"]})
@@ -18,6 +19,9 @@ def _write_csv(path, dataframe):
 ========================================================================================================================
 Fallback Acquisition
 ========================================================================================================================
+
+Live and manual strategies yield a raw file *path* (the cleaner reads it); only
+the last-saved fallback returns an already-cleaned DataFrame.
 """
 
 
@@ -37,7 +41,7 @@ def test_acquire_with_fallback_first_live_strategy_wins(tmp_path):
     )
 
     # Assert
-    pd.testing.assert_frame_equal(data, LIVE_DF)
+    assert data == live_path
     assert (source_failed, used_manual) == (False, False)
     second.assert_not_called()
     saved_rows.assert_not_called()
@@ -59,7 +63,7 @@ def test_acquire_with_fallback_uses_second_live_strategy(tmp_path):
     )
 
     # Assert
-    pd.testing.assert_frame_equal(data, LIVE_DF)
+    assert data == live_path
     assert (source_failed, used_manual) == (False, False)
     first.assert_called_once()
     second.assert_called_once()
@@ -80,7 +84,7 @@ def test_acquire_with_fallback_uses_manual_file_after_live_failures(tmp_path):
     )
 
     # Assert
-    pd.testing.assert_frame_equal(data, MANUAL_DF)
+    assert data == manual_path
     assert (source_failed, used_manual) == (False, True)
     saved_rows.assert_not_called()
 
@@ -106,20 +110,19 @@ def test_acquire_with_fallback_uses_saved_rows_as_last_resort(tmp_path):
 def test_acquire_with_fallback_skips_manual_file_after_live_success(tmp_path):
     # Arrange
     live_path = _write_csv(tmp_path / "live.csv", LIVE_DF)
-    malformed_manual_path = tmp_path / "manual.csv"
-    malformed_manual_path.write_text('"unterminated', encoding="utf-8")
+    manual_path = _write_csv(tmp_path / "manual.csv", MANUAL_DF)
     saved_rows = Mock(return_value=SAVED_DF)
 
     # Act
     data, source_failed, used_manual = acquire_with_fallback(
         [Mock(return_value=live_path)],
-        malformed_manual_path,
+        manual_path,
         saved_rows,
         "DoF P-3",
     )
 
     # Assert
-    pd.testing.assert_frame_equal(data, LIVE_DF)
+    assert data == live_path
     assert (source_failed, used_manual) == (False, False)
     saved_rows.assert_not_called()
 

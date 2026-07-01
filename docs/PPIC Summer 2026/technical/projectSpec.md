@@ -7,7 +7,7 @@ Last Updated: June 30th, 2026
 
 A single reference for the **web-data-visualization** project: what it is, how the codebase is laid out, the architecture every data module follows, and the conventions every contributor is expected to follow.
 
-The project is organized as a set of **data modules** — one per dataset — that each flow from a public data source through an ETL (**Extract-Transform-Load** — it's the scrape → clean → save data flow) pipeline to interactive charts on a shared website. **Population & Housing (PopHousing)** is the first module refactored from the legacy notebooks/Shiny app into this structure, and **Components of Change** is the second — the first module built by *following* PopHousing's template rather than defining it, which is the project's first evidence that the module shape generalizes. This document covers the project-wide scaffolding first, uses PopHousing as the **reference implementation** that future modules should mirror, then documents Components of Change as a second worked example.
+The project is organized as a set of **data modules** — one per dataset — that each flow from a public data source through an ETL (**Extract-Transform-Load** — it's the scrape → clean → save data flow) pipeline to interactive charts on a shared website. **Population & Housing (PopHousing)** is the first module refactored from the legacy notebooks/Shiny app into this structure, and **Components of Change** is the second — the first module built by *following* PopHousing's template rather than defining it, which is the project's first evidence that the module shape generalizes. This document covers the project-wide scaffolding first, uses PopHousing as the **reference implementation** that future modules should mirror, documents Components of Change as a second worked example, and **Age, Sex & Race Projections (Demographic Projections)** as a third — the first module built entirely **test-first** (its unit-test suite was written before the implementation and used as the contract).
 
 ### How to read this document:
 
@@ -45,7 +45,7 @@ A **module** is one dataset's full vertical slice: its ETL pipeline under `scrip
 |---|---|---|
 | **Population & Housing** (PopHousing) | CA Dept. of Finance E-5 (modern) + E-8 (historical) estimates | **Active** — first module migrated. End-to-end complete, including the E-8 historical build; only cross-module logging remains stubbed. |
 | **Components of Change** | CA Dept. of Finance E-6 + U.S. Census county population component estimates | **Active** — second module migrated, built by mirroring PopHousing. Full pipeline, data contract, API route, and charts complete. |
-| **Demographic Projections** | (legacy notebook dataset) | **Planned** — directories reserved under `data/data-raw/demographic-projections/` and `data/data-cleaned/demographic-projections/`; no pipeline yet. |
+| **Age, Sex & Race Projections** (Demographic Projections) | CA Dept. of Finance **P-3** projections + U.S. Census **cc-est** estimates | **Active** — third module migrated, built **test-first** against the shared architecture. Full Python pipeline, data contract, API route, and chart wiring are complete and the pipeline runs end-to-end. It runs **DoF P-3 only** today — no Census cc-est file is present yet, so the `US State` level is absent until one is added. See *The Demographic Projections Module* for the remaining caveats. |
 | *Remaining legacy datasets* | V1 notebooks | **Not started** — to be migrated into the same module shape. |
 
 The rest of this document documents the **project-wide architecture and conventions** (which apply to every module), then **The PopHousing Module** as the concrete reference implementation and **The Components of Change Module** as a second worked example.
@@ -84,6 +84,7 @@ web-data-visualization/
 │   └── api/
 │       ├── pophousing/route.js           ← GET /api/pophousing             (PopHousing)
 │       ├── components-of-change/route.js ← GET /api/components-of-change    (Components)
+│       ├── projections/route.js          ← GET /api/projections            (Demographic Projections)
 │       └── geography/route.js            ← GET /api/geography (county GeoJSON, choropleth)
 ├── components/
 │   ├── Navbar.js                 ← shared site shell
@@ -97,11 +98,12 @@ web-data-visualization/
 │   ├── constants.js              ← shared brand palette + Plotly color cycle
 │   ├── data/pop_housing.js              ← server-only data-access layer over the CSV  (PopHousing)
 │   ├── data/components_of_change.js     ← server-only data-access layer over the CSV  (Components)
+│   ├── data/demographic_projections.js  ← server-only data-access layer over the CSV  (Projections)
 │   ├── data/geography.js                ← server-only county GeoJSON access  (choropleth)
 │   ├── data/query_shapes.js             ← shared row → line/category/two-period/pairs/matrix shaping
 │   ├── data/apiParams.js                ← shared API-route query-param helpers
 │   └── visualization/                   ← CLIENT-SAFE chart catalog + registries (no node:fs)
-│       ├── moduleSchemas/{pophousing,componentsOfChange}.js  ← per-module field catalog
+│       ├── moduleSchemas/{pophousing,componentsOfChange,demographicProjections}.js  ← per-module field catalog
 │       ├── fieldTypes.js  formatters.js  transformRegistry.js  toPlotly.js
 │       ├── chartRegistry.js  presetRegistry.js  validation.js
 │       └── categoryRegistry.js          ← landing categories + built-in dashboard views
@@ -109,6 +111,7 @@ web-data-visualization/
 │   ├── shared/                   ← cross-module mechanisms + reference data (downloads, data_cleaning, validation, visualizations, logging, geography)
 │   ├── pophousing/               ← California / E-5 / E-8 domain logic  (PopHousing module)
 │   ├── components_of_change/     ← E-6 / Census components domain logic  (Components module)
+│   ├── projections/             ← P-3 / cc-est age-sex-race domain logic  (Projections module)
 │   ├── orchestrators/            ← per-module pipeline sequencing
 │   └── unit_tests/               ← pytest suite (mirrors source tree)
 ├── data/                         ← raw, cleaned, and archived data (git-ignored)
@@ -117,9 +120,10 @@ web-data-visualization/
 │   ├── data-raw/components-of-change/           ← Components raw E-6 / Census downloads + GeoJSON
 │   ├── data-cleaned/components-of-change/ComponentsOfChange_Current.csv  ← Components contract
 │   ├── data-cleaned/geography/california-counties.geojson   ← county polygons (shared, choropleth)
-│   ├── data-raw/demographic-projections/        ← reserved for the next module
-│   ├── data-cleaned/demographic-projections/    ← reserved for the next module
-│   └── archive/housing-population/
+│   ├── data-raw/demographic-projections/        ← Projections raw P-3 zip/CSV (+ optional cc-est)
+│   ├── data-cleaned/demographic-projections/DemographicProjections_Current.csv  ← Projections contract
+│   ├── archive/housing-population/
+│   └── archive/demographic-projections/         ← Projections archived prior CSVs
 ├── logs/deletions/               ← retention warning files
 ├── docs/                         ← this documentation set
 ├── pyproject.toml                ← pytest + ruff config
@@ -728,6 +732,162 @@ The module reuses the entire UI layer below unchanged; its schema simply adverti
 
 ---
 
+# The Demographic Projections Module
+
+The **Age, Sex & Race Projections** module (directory name `demographic-projections`) is the **third dataset migrated**, and the first built **test-first**: its full unit-test suite existed before any implementation and was treated as the authoritative contract for every function. It projects California population by **age, sex, and race/ethnicity** forward to 2070, alongside recent national estimates.
+
+It departs from the earlier modules in ways worth understanding before reading the code:
+
+- **The legacy source was a class, not functions.** The V1 `projections_code.py` wrapped its whole ETL in a `Projections` class whose `__init__` ran the pipeline. This migration dissolves it into the standard three-layer worker/orchestrator shape; the stateful `self.Projections` cache becomes the contract CSV.
+- **One measure, three extra stratification dimensions.** Every other module has many measures and few dimensions; this one has a single measure (`Population`) but adds **Age Group**, **Sex**, and **Race/Ethnicity** dimensions. The pipeline stores the base strata **plus** precomputed `All Ages` / `Both Sexes` / `All` aggregate rows so the API can pin one value per dimension without summing on every request.
+- **Projections blended with estimates.** Like Components it keeps two sources side-by-side (`Source`), but here they differ in *kind*: DoF **P-3** is forward-looking projections (2020–2070); Census **cc-est** is backward-looking estimates (2020–2025). The frontend distinguishes them via `Source` so a projection is never mistaken for observed data.
+- **High volume.** The P-3 source is far larger than anything the other modules handle (4.6M raw single-year-age rows). Ages are **binned to 5-year groups during cleaning** (a lossy sum), and the enriched contract is on the order of ~1.6M rows even DoF-only.
+- **It saves incrementally**, like Components — writing only when new source data is detected.
+
+## Sources & Pipeline
+
+| Source | Provides | Cadence / coverage |
+|---|---|---|
+| **CA Dept. of Finance P-3** | California county population by age × sex × race7 (7 groups) | Periodic re-baseline; 2020–2070. Distributed as a **zip containing one CSV** (`fips, year, sex, race7, agerc, perwt`). |
+| **U.S. Census cc-est** | 50-state population by age group × sex × race/ethnicity | Annual; 2020–2025. Official wide `CC-EST{VINTAGE}-ALLDATA` CSV, filtered to `SUMLEV=050` and summed to states. |
+
+The entry point is [`scripts/orchestrators/projections_pipeline.py`](../../../scripts/orchestrators/projections_pipeline.py). `build_projections_dataset(config=None)` runs five phases, each wrapped so any exception re-raises as a **`ProjectionsPipelinePhaseError`** tagged with the phase name. It returns a summary dict: dataframe, per-source *new-data* and *fallback* flags, output path (`None` when nothing changed), and row count.
+
+| Phase | Name | What happens | Primary modules |
+|---|---|---|---|
+| **1** | Setup & Load | Resolve config; load the existing canonical CSV as historical + fallback source. | `config/*`, `merging/historical_merge` |
+| **2** | Acquisition (resilient) | Acquire each source through `acquire_with_fallback`: live discovery/download → manual raw CSV → last-saved rows. The P-3 downloader **extracts the CSV from the zip**; the DoF step has primary + positional URL-discovery strategies. Offline mode swaps live strategies for local-file ones (see caveats). | `acquisition/*`, `shared/downloads/http_downloads` |
+| **3** | Cleaning | `clean_p3_projections` maps FIPS→county, decodes `race7`, **bins single-year ages to 5-year groups (summing `perwt`)**, standardizes sex, tags `Geographic Level = County`. `clean_census_estimates` filters `SUMLEV=050`, sums counties to the 50 states, reshapes wide→long, decodes year/age codes, tags `US State`. | `cleaning/*` (+ shared `race_ethnicity_mapping`, `age_group_standardizer`) |
+| **4** | Merge & Aggregate | Validate each incoming source/year's **stratification completeness** before any atomic replacement; merge DoF + Census; build the 9 CA regions and the California state total by summing counties; add precomputed `All Ages` / `Both Sexes` / `All` rows; detect new data. | `merging/historical_merge`, `aggregation/regional_aggregation`, `aggregation/precomputed_totals` |
+| **5** | Finalize, Validate & Save | Source-aware geographic-level assignment, enforce output column order, validate, and **archive + save only when new source data was detected**. | `output/finalize_dataset`, `validation/projections_validators` |
+
+### Acquisition, offline mode & the source→clean seam (Phases 2–3)
+
+`acquire_with_fallback` tries each live strategy, then a manually-placed raw CSV (`P-3_Downloaded.csv` / `cc-est_Downloaded.csv` under `data/data-raw/demographic-projections/`), then the rows already saved for that source. **Live and manual strategies yield a raw file *path* the cleaner reads; only the last-saved fallback returns an already-cleaned DataFrame** (paired with `source_failed=True` so the orchestrator skips re-cleaning it). `_clean_with_fallback` mirrors the ladder.
+
+**Offline mode** — set `config={"offline": True}` or the env var `PROJECTIONS_OFFLINE=1` and the orchestrator swaps live network strategies for local-file strategies: DoF reuses an already-extracted `P*3*.csv` else extracts a local `*.zip`; Census reuses a local `cc-est*.csv`. This is how the pipeline runs with no network:
+
+```bash
+PROJECTIONS_OFFLINE=1 python -m scripts.orchestrators.projections_pipeline
+```
+
+Final validation's `expected_levels` is **derived from which sources actually succeeded**, so a single-source (e.g. offline DoF-only) run still validates instead of failing on the absent `US State` level.
+
+---
+
+## Module Reference (Demographic Projections)
+
+Same layering as the other modules: `scripts/shared/` mechanisms → `scripts/projections/` domain packages → the orchestrator. Domain packages only:
+
+#### `config/` — single source of truth
+| Script | Public function |
+|---|---|
+| `paths.py` | `get_paths()` — current/historical/download/archive paths + `manual_dof_path` / `manual_census_path`. |
+| `sources.py` | `get_source_settings()` — DoF/Census URLs, headers, timeout, cache/fallback ages, P-3 filename pattern, expected raw columns, and `dof_boundary_year` / `census_boundary_year`. |
+| `schemas.py` | `get_schema_config()` — output/required columns, canonical age (18) / sex (2) / race (7) sets, the 58-county FIPS map, `race7` and Census race/year/age code maps, the 50 state names, age-bin edges, completeness grain, and cleaning/final validation configs. |
+
+#### `acquisition/` — getting the two sources
+| Script | Public functions |
+|---|---|
+| `dof_p3_downloader.py` | `get_p3_file_url`, `get_p3_file_url_positional`, `download_p3_data`, `extract_csv_from_zip`, `get_most_recent_p3_file`, `validate_p3_csv` (raw-header check catching duplicate columns before pandas mangles them). |
+| `census_ccest_downloader.py` | `get_census_ccest_url`, `download_census_ccest`, `validate_ccest_headers`. |
+| `source_fallback.py` | `acquire_with_fallback` — the *live → manual → saved* ladder (path for live/manual, DataFrame for saved). |
+
+#### `cleaning/` — normalizing each source to the canonical schema
+| Script | Public functions |
+|---|---|
+| `dof_p3_cleaner.py` | `map_fips_to_county`, `standardize_sex_labels`, `bin_single_year_ages`, `clean_p3_projections` (orchestrator). |
+| `census_ccest_cleaner.py` | `parse_ccest_csv`, `aggregate_ccest_counties_to_states`, `rename_ccest_columns`, `reshape_ccest_to_long`, `clean_census_estimates` (orchestrator). |
+| `race_ethnicity_mapping.py` | `get_canonical_race_groups`, `map_race_ethnicity`, `validate_race_mapping_completeness` (+ `P3_RACE7_CODE_MAP`) — shared by both cleaners. |
+| `age_group_standardizer.py` | `get_canonical_age_groups`, `get_age_bin_edges`, `assign_age_group_from_single_year`, `standardize_age_group_labels`, `validate_age_group_completeness`. |
+
+#### `merging/` · `aggregation/` — combining sources, rollups, and totals
+| Script | Public functions |
+|---|---|
+| `merging/historical_merge.py` | `load_canonical_dataset`, `combine_source_with_historical` (atomic per-`(Source, Year)` replacement, gated on completeness), `detect_new_source_data`, `merge_dof_and_census`. |
+| `aggregation/regional_aggregation.py` | `add_regional_data` (9 CA regions), `add_state_total` (California from 58 counties; skips a DoF state row that already exists, keeps a separate Census `US State` row). |
+| `aggregation/precomputed_totals.py` | `add_all_ages_totals`, `add_both_sexes_totals`, `add_all_races_totals`, `build_precomputed_totals` (runs them in order so the grand total is correct). |
+
+#### `validation/` · `output/` — gates and contract
+| Script | Public functions |
+|---|---|
+| `validation/projections_validators.py` | `validate_cleaning_output`, `validate_projections_dataset`, `validate_stratification_completeness` (base age × sex × race matrix per `Geographic Level × Location × Year × Source`, excluding the `All …` aggregate rows so totals can't hide gaps). |
+| `output/finalize_dataset.py` | `assign_geographic_level` (source-aware: California → `State` under DoF, `US State` under Census), `prepare_projections_output`, `archive_and_save` (byte-identical skip; `mm-dd-yy` archive timestamp). |
+
+---
+
+## Configuration Reference (Demographic Projections)
+
+| Setting | Value | Source |
+|---|---|---|
+| DoF projections URL | `https://dof.ca.gov/forecasting/demographics/projections/` | `sources.py` |
+| Census cc-est base URL | `https://www2.census.gov/programs-surveys/popest/datasets/` | `sources.py` |
+| P-3 cache / fallback age | 90 days each | `sources.py` |
+| cc-est cache age | 30 days | `sources.py` |
+| P-3 filename pattern | `P-3_.+\.csv` | `sources.py` |
+| DoF / Census boundary years | 2019 / 2019 (both series start 2020) | `sources.py` |
+| Manual fallback filenames | `P-3_Downloaded.csv`, `cc-est_Downloaded.csv` | `paths.py` |
+| Canonical age groups | 18 five-year groups (`0-4` … `85+`) | `schemas.py` |
+| Race/ethnicity groups | White, Black, Asian, NHPI, AIAN, Multiracial, Hispanic | `schemas.py` |
+| Valid geographic levels | County, Region, State, US State | `schemas.py` |
+| Offline switch | `config={"offline": True}` or `PROJECTIONS_OFFLINE=1` | orchestrator |
+
+The module sources its California county/region names from the shared [`california_geography`](../../../scripts/shared/geography/california_geography.py) provider; the 58-county **FIPS map** and the 50 U.S. state names are projections-specific and live in `schemas.py`.
+
+---
+
+## Data Contract (Demographic Projections)
+
+The pipeline's output — `data/data-cleaned/demographic-projections/DemographicProjections_Current.csv` — is the module's contract; changing it is an "ask first" action.
+
+**Grain:** one row per `(Geographic Level, Location, Year, Age Group, Sex, Race/Ethnicity, Source)`.
+
+**Geographic levels:** `County` (58 CA), `Region` (9 custom CA regions), `State` (California, DoF), `US State` (50 states, Census). California occurs under both sources — as `State` (DoF) and `US State` (Census) — so level assignment uses **both** `Location` and `Source`.
+
+**Year coverage:** DoF P-3 2020–2070; Census cc-est 2020–2025.
+
+**Age-group storage:** the CSV stores the **18 five-year groups** (binned from single-year ages during cleaning), never single-year ages. Coarser presets (Under 18 / 18-25 / 26-64 / 65+) are summed **server-side in the API**, not stored.
+
+**Aggregation rows:** the pipeline writes precomputed `All Ages`, `Both Sexes`, and `All` (race) rows so filtering never requires client-side summation.
+
+**Columns** (output order, from `schemas.get_schema_config()`):
+
+```
+Geographic Level, Location, Year, Age Group, Sex, Race/Ethnicity, Population, Source
+```
+
+---
+
+## Frontend (Demographic Projections)
+
+Same module-specific server pieces as the others, plus **module-specific stratification filters** feeding the shared UI layer.
+
+### `lib/data/demographic_projections.js` — data-access layer (server-only)
+Owns reading/parsing/filtering of the CSV (`node:fs`). Every query pins one value per stratification dimension (defaulting to the precomputed `All Ages` / `Both Sexes` / `All` rows), then **sums to one `Population` per `(Location, Year)`** before shaping — so a single 5-year group, a precomputed aggregate, or an `ageGrouping` preset (summed from its 5-year bins) all reduce to a clean per-location series. Exposes `queryLineSeries`, `queryCategoryValues`, `queryTwoPeriod`, `queryMatrix`, `queryGeoValues` over the shared `query_shapes.js`. Numeric columns, subsets, sources, and the age presets derive from [`lib/visualization/moduleSchemas/demographicProjections.js`](../../../lib/visualization/moduleSchemas/demographicProjections.js).
+
+### `app/api/projections/route.js` — API endpoint (orchestrator)
+`GET /api/projections` — the same `view`-based dispatcher, plus the extra params `ageGroup`, `ageGrouping` (preset name or explicit 5-year list), `sex`, `raceEthnicity`, and `source`. It enforces the source↔subset rule (**US States is Census-only; CA county/region/state subsets are DoF-only**). Errors carry a `source` string (`"projections API: …"`).
+
+### Module-specific sidebar filters
+The schema advertises `filterDimensions` (Age Group / Sex / Race/Ethnicity, each with its API `param` and default) and a `subsetSource` map. These drive **schema-generic** additions to the shared editor: `chart-builder/ChartSidebar.js` renders a `StratificationFilters` control per dimension in the Data Sources section; `chart-builder/chartConfigStore.js` seeds their defaults; `chart-builder/chartData.js` appends them to the API request; and `chart-builder/EncodingSection.js` pins the source from `subsetSource` when the subset changes. All of this is a **no-op for modules that declare no `filterDimensions`** (PopHousing, Components), so nothing else changed behavior. The module is linked from `components/Navbar.js` and served by the existing dynamic `app/[module]/page.js` route (no per-module page code).
+
+---
+
+## Current-State Notes & Caveats (Demographic Projections)
+
+The module is complete and runs end-to-end, but a few things about *today's* state are worth recording:
+
+- **DoF-only until a Census file lands.** No `cc-est*.csv` is present in `data/data-raw/demographic-projections/`, so real runs produce **DoF P-3 only**: the `US State` level and Census years (2020–2025) are absent until a cc-est file (or `cc-est_Downloaded.csv` manual fallback) is added, after which the pipeline picks it up automatically. The verified end-to-end run wrote **1,581,408 rows (~82 MB)** and is idempotent on re-run ("No new data detected").
+- **Integration gaps fixed after the first real run** (the mocked orchestrator tests had hidden them): the acquisition→cleaning **seam** now passes a *path* to cleaners (not a DataFrame); `sources.py` gained the `dof_boundary_year` / `census_boundary_year` keys the orchestrator reads; and `paths.py` manual-path keys were renamed to `manual_dof_path` / `manual_census_path` to match the orchestrator. The `test_source_fallback.py` contract was updated accordingly.
+- **Run it as a module.** `python -m scripts.orchestrators.projections_pipeline` (the `Usage:` docstrings in all three orchestrators were corrected from the direct `python scripts/…py` form, which never worked with the repo's absolute imports).
+- **Deferred bespoke presets.** The shared `presetRegistry` is intentionally module-agnostic (presets reference roles/kinds, never specific fields), so the doc's **age pyramid** (Age Group on an axis), **projection-vs-estimate** (Source series with a boundary annotation), and **overlay comparison** presets are **not implemented** — they would need per-module preset support. "Population by race over time" and "race composition map" are already achievable via the generic line/map presets plus the new race filter.
+- **Contract size / performance.** The DoF-only contract is already ~1.6M rows and will grow substantially once Census is added. `loadProjectionsData()` parses the whole CSV into memory once per server process (the pattern that suits the other modules' ~20K rows); this is the first place to revisit if request latency or memory becomes a concern (streaming parse, typed arrays, or a binary build step).
+- **Age-preset approximation.** The default coarse presets don't align with 5-year bin edges (18/25/26 vs 15/20/25/30); each maps to the nearest whole bins (the 15-19 bin counts as "Under 18", 20-24 as "18-25") — an inherent approximation the API documents.
+- **cc-est reshape rule.** `reshape_ccest_to_long` treats a `TOT`-prefixed `_MALE/_FEMALE` column as an ignorable total but **raises** on any other unmapped race prefix; in the real flow this is moot because aggregation already narrows to the 14 canonical race×sex columns.
+- **Archive location.** Prior contracts archive to `data/archive/demographic-projections/` (chosen for consistency with the other modules' `archive/`).
+
+---
+
 ## Frontend Architecture (UI Layer)
 
 *Cross-module — every module renders through this shared layer; only the per-module data-access layer + API route (above) and the module schema differ.*
@@ -875,7 +1035,7 @@ Validators **return structured results rather than printing**; only the orchestr
 
 ## Testing
 
-*Project-wide standard; the current suite covers the PopHousing and Components of Change modules.*
+*Project-wide standard; the current suite covers the PopHousing, Components of Change, and Demographic Projections modules.*
 
 The pytest suite lives in `scripts/unit_tests/`, **mirroring the source tree** (each source file → a `test_{module}.py` in the same relative position). Full requirements are in [`PopHouse-Unit-Tests-Guide.md`](./PopHouse-Unit-Tests-Guide.md). Highlights:
 
@@ -883,18 +1043,21 @@ The pytest suite lives in `scripts/unit_tests/`, **mirroring the source tree** (
 - `tmp_path` for all file I/O; small inline DataFrame fixtures; **no real network calls** (HTTP is mocked, with an autouse safety net that fails any accidental real request).
 - Shared tests use generic data; pophousing tests use real geography — mirroring the source boundary.
 - Error messages are part of the contract and are asserted directly.
-- Config: `pyproject.toml` sets `pythonpath = ["."]` so tests import as `from scripts.shared.… import …`; `testpaths = ["scripts/unit_tests"]`.
-- Target: ~100 tests across Phases 1–5; run with `python -m pytest` (or `./.venv/bin/pytest -x` while developing).
+- Config: `pyproject.toml` sets `pythonpath = ["."]` so tests import as `from scripts.shared.… import …`; `testpaths = ["scripts/unit_tests"]`. (This is also why orchestrators run as `python -m scripts.orchestrators.<name>` rather than by file path.)
+- **Demographic Projections was written test-first** — its ~200-test suite (`scripts/unit_tests/projections/` + the orchestrator test) predated the implementation and defined the contract for every function.
+- Run with `python -m pytest` (or `./.venv/bin/pytest -x` while developing).
 
 ---
 
 ## Implementation Status
 
-**Project:** two modules (PopHousing, Components of Change) are active and complete end-to-end; the rest of the legacy datasets are not yet migrated (see *Modules*). The cross-module `scripts/shared/` layer is now exercised by both — including the `shared/visualizations/` builders added with Components.
+**Project:** three modules (PopHousing, Components of Change, Demographic Projections) are active and complete end-to-end; the rest of the legacy datasets are not yet migrated (see *Modules*). The cross-module `scripts/shared/` layer is now exercised by all three.
 
 **Within PopHousing:** the **E-5 modern path and E-8 historical build are both implemented** end-to-end (acquisition → cleaning → merge → enrichment → validation → output), and the **frontend read path is complete**. The E-8 build (`pophousing/historical/*`, `acquisition/dof_historical_downloader.py`) reuses the canonical E-5 cleaning/classification/metric helpers rather than duplicating them, with mirrored unit tests.
 
 **Within Components of Change:** the full pipeline, dual-source acquisition with fallback, data contract, API route, and charts are complete.
+
+**Within Demographic Projections:** the full Python pipeline (config → acquisition → cleaning → merge → aggregation → validation → output), orchestrator, data contract, API route, module schema, data-access layer, and the module-specific stratification filter controls are complete, with a verified end-to-end run. It runs **DoF P-3 only** today (no Census cc-est file present), and the doc's bespoke chart-shape presets (age pyramid, projection-vs-estimate, overlay comparison) are deferred pending per-module preset support — see *Current-State Notes & Caveats (Demographic Projections)*.
 
 The remaining scaffolded-but-`TODO` surface is project-wide:
 
