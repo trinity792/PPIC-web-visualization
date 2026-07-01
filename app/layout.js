@@ -2,6 +2,7 @@
 import React from "react";
 import { Orbitron, Source_Sans_3, Inter } from "next/font/google";
 import Navbar from "@/components/Navbar";
+import ReportProblemDialog from "@/components/feedback/ReportProblemDialog";
 import "./globals.css";
 import { Analytics } from "@vercel/analytics/next"
 
@@ -39,6 +40,7 @@ export default function RootLayout({ children }) {
       >
         <Navbar />
         {children}
+        <ReportProblemDialog />
       </body>
     </html>
   );
