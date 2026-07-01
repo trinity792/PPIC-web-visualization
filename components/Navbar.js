@@ -63,6 +63,9 @@ export default function Navbar() {
             <Link href="/demographic-projections" className="hover:underline">
               Age, Sex &amp; Race Projections
             </Link>
+            <Link href="/housing-stress" className="hover:underline">
+              Housing Stress
+            </Link>
             <Link href="/ui-kit" className="hover:underline">
               UI Kit
             </Link>

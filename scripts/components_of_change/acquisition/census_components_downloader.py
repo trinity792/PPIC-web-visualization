@@ -16,9 +16,11 @@ Test Folders:
 """
 
 from datetime import date
+from io import BytesIO
 
 import pandas as pd
 
+from scripts.components_of_change.config.sources import get_source_settings
 from scripts.shared.downloads.http_downloads import HTTPDownloadError, fetch_response
 
 """
@@ -55,6 +57,11 @@ def get_census_components_url(source_settings, max_lookback_years=None):
     raise CensusComponentsDiscoveryError(f"Could not discover Census components CSV within {lookback_years} years") from last_error
 
 
-def download_census_components(url):
+def download_census_components(url, source_settings=None):
     """Load a Census components CSV from a URL or local path. Test file: scripts/unit_tests/components_of_change/acquisition/test_census_components_downloader.py"""
-    return pd.read_csv(url, engine="python", encoding="latin1")
+    read_kwargs = {"engine": "python", "encoding": "latin1"}
+    if isinstance(url, str) and url.lower().startswith(("http://", "https://")):
+        settings = source_settings or get_source_settings()
+        response = fetch_response(url, settings["requests_headers"], settings["request_timeout_seconds"])
+        return pd.read_csv(BytesIO(response.content), **read_kwargs)
+    return pd.read_csv(url, **read_kwargs)

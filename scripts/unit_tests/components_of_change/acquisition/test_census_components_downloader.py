@@ -1,3 +1,4 @@
+from io import BytesIO
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -116,14 +117,35 @@ def test_download_census_components_reads_local_csv(tmp_path):
     assert result.loc[0, "CTYNAME"] == "Alameda"
 
 
-def test_download_census_components_uses_latin1_python_engine(monkeypatch):
-    # Arrange
+def test_download_census_components_local_path_skips_fetch(monkeypatch, tmp_path):
+    # Arrange: a local path must not trigger an HTTP request.
+    csv_path = tmp_path / "co-est2024-alldata.csv"
+    pd.DataFrame({"STNAME": ["California"]}).to_csv(csv_path, index=False)
+    mock_fetch = Mock()
+    monkeypatch.setattr(census_components_downloader, "fetch_response", mock_fetch)
+
+    # Act
+    census_components_downloader.download_census_components(csv_path)
+
+    # Assert
+    mock_fetch.assert_not_called()
+
+
+def test_download_census_components_url_fetches_via_requests(monkeypatch):
+    # Arrange: URLs must be pulled through the shared requests/certifi stack, not
+    # pd.read_csv's urllib (which fails TLS verification on some hosts), then read
+    # from the in-memory response with the latin1/python-engine settings.
+    mock_fetch = Mock(return_value=SimpleNamespace(content=b"STNAME\nCalifornia\n"))
+    monkeypatch.setattr(census_components_downloader, "fetch_response", mock_fetch)
     mock_read = Mock(return_value=pd.DataFrame())
     monkeypatch.setattr(census_components_downloader.pd, "read_csv", mock_read)
 
     # Act
-    census_components_downloader.download_census_components("https://example.com/data.csv")
+    census_components_downloader.download_census_components("https://example.com/data.csv", _settings())
 
     # Assert
+    mock_fetch.assert_called_once()
+    read_source = mock_read.call_args.args[0]
+    assert isinstance(read_source, BytesIO)
     assert mock_read.call_args.kwargs["engine"] == "python"
     assert mock_read.call_args.kwargs["encoding"] == "latin1"

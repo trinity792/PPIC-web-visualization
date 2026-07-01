@@ -3,31 +3,30 @@ from unittest.mock import Mock
 
 import pandas as pd
 import pytest
-from bs4 import BeautifulSoup
 
 from scripts.components_of_change.acquisition import dof_e6_downloader
 from scripts.components_of_change.acquisition.dof_e6_downloader import E6DiscoveryError
 from scripts.components_of_change.config.sources import get_source_settings
 from scripts.shared.downloads.http_downloads import HTTPDownloadError
 
+# Current DOF estimates page: E-6 links live in flex-bullet-group lists, not the
+# retired et_pb_text_inner body. The current workbook sits behind the `/E-6`
+# landing slug; older releases carry a year range in their slug/text.
 ESTIMATES_HTML = b"""
-<div class="et_pb_text_inner">
-  <a href="/forecasting/demographics/estimates/e-6/">E-6 Population Estimates</a>
+<div class="flex-bullet-group">
+  <a href="/forecasting/demographics/estimates/E-6">2020-2025</a>
+  <a href="/forecasting/demographics/estimates/e-6-...-july-1-1990-2000">1990-2000</a>
+</div>
+<div class="flex-bullet-group">
+  <a href="/forecasting/demographics/estimates/estimates-e6-2010-2019/">2010-2019</a>
 </div>
 """
+# The `/E-6` landing page exposes a single workbook link.
 LANDING_HTML = b"""
-<div class="et_pb_text_inner">
-  <ul><li><a href="files/E-6_Report.xlsx">Workbook</a></li></ul>
+<div class="paragraph">
+  <a href="files/E-6_Report.xlsx">E-6. Population Estimates and Components of Change</a>
 </div>
 """
-
-# Seven direct-child <ul> elements; the seventh holds the E-6 landing link.
-POSITIONAL_HTML = (
-    b'<div class="et_pb_text_inner">'
-    + b"<ul><li>one</li></ul>" * 6
-    + b'<ul><li><a href="/forecasting/demographics/estimates/e-6/">E-6</a></li></ul>'
-    + b"</div>"
-)
 
 
 def _response(content):
@@ -42,29 +41,56 @@ def _mock_fetch(monkeypatch, *responses):
 
 """
 ========================================================================================================================
-Helpers: _first_text_inner / _get_workbook_url_from_landing_page
+Helpers: _looks_like_workbook / _landing_slug / _latest_year_in_text
 ========================================================================================================================
 """
 
 
-def test_first_text_inner_returns_body():
-    # Arrange
-    soup = BeautifulSoup(ESTIMATES_HTML, "html.parser")
+@pytest.mark.parametrize(
+    "href,expected",
+    [
+        ("/media/docs/E-6_Report.xlsx", True),
+        ("https://dof.ca.gov/a/b/E-6.xls", True),
+        ("/media/docs/E-6_Report.xlsx?v=2", True),
+        ("/forecasting/demographics/estimates/E-6", False),
+        ("/forecasting/demographics/estimates/", False),
+    ],
+)
+def test_looks_like_workbook(href, expected):
+    assert dof_e6_downloader._looks_like_workbook(href) is expected
 
-    # Act
-    body = dof_e6_downloader._first_text_inner(soup)
 
-    # Assert
-    assert body.get("class") == ["et_pb_text_inner"]
+@pytest.mark.parametrize(
+    "href,expected",
+    [
+        ("/forecasting/demographics/estimates/E-6", "e-6"),
+        ("/forecasting/demographics/estimates/E-6/", "e-6"),
+        ("https://dof.ca.gov/a/Estimates-E6-2010-2019/", "estimates-e6-2010-2019"),
+    ],
+)
+def test_landing_slug(href, expected):
+    assert dof_e6_downloader._landing_slug(href) == expected
 
 
-def test_first_text_inner_missing_body_raises():
-    # Arrange
-    soup = BeautifulSoup(b"<div>no body</div>", "html.parser")
+def test_latest_year_in_text_returns_max():
+    from bs4 import BeautifulSoup
 
-    # Act / Assert
-    with pytest.raises(E6DiscoveryError, match="et_pb_text_inner body"):
-        dof_e6_downloader._first_text_inner(soup)
+    link = BeautifulSoup(b'<a href="#">2020-2025</a>', "html.parser").find("a")
+    assert dof_e6_downloader._latest_year_in_text(link) == 2025
+
+
+def test_latest_year_in_text_defaults_when_no_year():
+    from bs4 import BeautifulSoup
+
+    link = BeautifulSoup(b'<a href="#">E-6</a>', "html.parser").find("a")
+    assert dof_e6_downloader._latest_year_in_text(link) == -1
+
+
+"""
+========================================================================================================================
+_get_workbook_url_from_landing_page
+========================================================================================================================
+"""
 
 
 def test_get_workbook_url_resolves_relative_link(monkeypatch):
@@ -80,34 +106,26 @@ def test_get_workbook_url_resolves_relative_link(monkeypatch):
     assert result == "https://dof.ca.gov/landing/files/E-6_Report.xlsx"
 
 
-def test_get_workbook_url_no_text_body_raises(monkeypatch):
+def test_get_workbook_url_returns_direct_workbook_without_fetch(monkeypatch):
+    # Arrange: a landing url that is itself a workbook should not trigger a fetch.
+    mock = _mock_fetch(monkeypatch)
+
+    # Act
+    result = dof_e6_downloader._get_workbook_url_from_landing_page(
+        "https://dof.ca.gov/media/docs/E-6_70-90final.xlsx", get_source_settings()
+    )
+
+    # Assert
+    assert result == "https://dof.ca.gov/media/docs/E-6_70-90final.xlsx"
+    mock.assert_not_called()
+
+
+def test_get_workbook_url_no_workbook_link_raises(monkeypatch):
     # Arrange
-    _mock_fetch(monkeypatch, _response(b"<div>nothing</div>"))
+    _mock_fetch(monkeypatch, _response(b'<div class="paragraph">no workbook here</div>'))
 
     # Act / Assert
-    with pytest.raises(E6DiscoveryError, match="did not contain workbook links"):
-        dof_e6_downloader._get_workbook_url_from_landing_page(
-            "https://dof.ca.gov/landing/", get_source_settings()
-        )
-
-
-def test_get_workbook_url_no_list_raises(monkeypatch):
-    # Arrange
-    _mock_fetch(monkeypatch, _response(b'<div class="et_pb_text_inner">no list</div>'))
-
-    # Act / Assert
-    with pytest.raises(E6DiscoveryError, match="did not contain a workbook list"):
-        dof_e6_downloader._get_workbook_url_from_landing_page(
-            "https://dof.ca.gov/landing/", get_source_settings()
-        )
-
-
-def test_get_workbook_url_list_without_link_raises(monkeypatch):
-    # Arrange
-    _mock_fetch(monkeypatch, _response(b'<div class="et_pb_text_inner"><ul><li>no link</li></ul></div>'))
-
-    # Act / Assert
-    with pytest.raises(E6DiscoveryError, match="did not contain a link"):
+    with pytest.raises(E6DiscoveryError, match="did not contain a workbook link"):
         dof_e6_downloader._get_workbook_url_from_landing_page(
             "https://dof.ca.gov/landing/", get_source_settings()
         )
@@ -120,32 +138,20 @@ get_e6_file_url
 """
 
 
-def test_get_e6_file_url_normal_page(monkeypatch):
+def test_get_e6_file_url_follows_current_landing_slug(monkeypatch):
     # Arrange
     _mock_fetch(monkeypatch, _response(ESTIMATES_HTML), _response(LANDING_HTML))
 
     # Act
     result = dof_e6_downloader.get_e6_file_url(get_source_settings())
 
-    # Assert
-    assert result == "https://dof.ca.gov/forecasting/demographics/estimates/e-6/files/E-6_Report.xlsx"
+    # Assert: the `/E-6` slug is followed to its landing page, then to the workbook.
+    assert result == "https://dof.ca.gov/forecasting/demographics/estimates/files/E-6_Report.xlsx"
 
 
-def test_get_e6_file_url_matches_uppercase_href(monkeypatch):
-    # Arrange: link selection is case-insensitive on the href.
-    estimates_html = ESTIMATES_HTML.replace(b"/e-6/", b"/E6-report/")
-    _mock_fetch(monkeypatch, _response(estimates_html), _response(LANDING_HTML))
-
-    # Act
-    result = dof_e6_downloader.get_e6_file_url(get_source_settings())
-
-    # Assert
-    assert result.endswith("E-6_Report.xlsx")
-
-
-def test_get_e6_file_url_no_matching_link_raises(monkeypatch):
-    # Arrange
-    estimates_html = b'<div class="et_pb_text_inner"><a href="/other/">Other</a></div>'
+def test_get_e6_file_url_no_matching_slug_raises(monkeypatch):
+    # Arrange: E-6 links exist, but none uses the canonical `/E-6` landing slug.
+    estimates_html = b'<div class="flex-bullet-group"><a href="/estimates/estimates-e6-2010-2019/">2010-2019</a></div>'
     _mock_fetch(monkeypatch, _response(estimates_html))
 
     # Act / Assert
@@ -169,9 +175,9 @@ get_e6_file_url_positional
 """
 
 
-def test_get_e6_file_url_positional_uses_seventh_list(monkeypatch):
-    # Arrange
-    _mock_fetch(monkeypatch, _response(POSITIONAL_HTML), _response(LANDING_HTML))
+def test_get_e6_file_url_positional_picks_most_recent(monkeypatch):
+    # Arrange: the 2020-2025 link carries the greatest year and should win.
+    _mock_fetch(monkeypatch, _response(ESTIMATES_HTML), _response(LANDING_HTML))
 
     # Act
     result = dof_e6_downloader.get_e6_file_url_positional(get_source_settings())
@@ -180,23 +186,12 @@ def test_get_e6_file_url_positional_uses_seventh_list(monkeypatch):
     assert result.endswith("E-6_Report.xlsx")
 
 
-def test_get_e6_file_url_positional_too_few_lists_raises(monkeypatch):
-    # Arrange: only three direct-child lists, not the required seven.
-    html = b'<div class="et_pb_text_inner">' + b"<ul><li>x</li></ul>" * 3 + b"</div>"
-    _mock_fetch(monkeypatch, _response(html))
+def test_get_e6_file_url_positional_no_e6_link_raises(monkeypatch):
+    # Arrange
+    _mock_fetch(monkeypatch, _response(b'<div class="flex-bullet-group"><a href="/other/">Other</a></div>'))
 
     # Act / Assert
-    with pytest.raises(E6DiscoveryError, match="seventh list"):
-        dof_e6_downloader.get_e6_file_url_positional(get_source_settings())
-
-
-def test_get_e6_file_url_positional_seventh_list_without_link_raises(monkeypatch):
-    # Arrange: seven lists, but the seventh has no anchor.
-    html = b'<div class="et_pb_text_inner">' + b"<ul><li>x</li></ul>" * 7 + b"</div>"
-    _mock_fetch(monkeypatch, _response(html))
-
-    # Act / Assert
-    with pytest.raises(E6DiscoveryError, match="did not contain a link"):
+    with pytest.raises(E6DiscoveryError, match="did not contain an E-6 link"):
         dof_e6_downloader.get_e6_file_url_positional(get_source_settings())
 
 

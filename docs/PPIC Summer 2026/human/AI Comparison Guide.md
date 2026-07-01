@@ -1,45 +1,65 @@
-Document Structure:
-- General Billing Types (and what they include)
-	- Monthly subscriptions
-	- Per Token API calls
-- Use Cases
-	- Search Engines
-	- Coding/Technical
-	- Source Gathering
-	- Source Synthesis/Deep Research
-	- Everything Else
-- Companies and Their Models
-	- Company
-		- Model
-			- Marketed Users
-			- Privacy
-			- Pros
-			- Cons
-			- Costs
-			- Recommended Uses
-- What are Local Hosted LLM's?
-- Hardware Requirements and Limitations
-- Prompt Engineering
-- Maintaining Reliability and Institutional Integrity
----
 # Introduction
 ## Executive Summary
+AI tools can improve research and policy workflows by accelerating source discovery, document synthesis, coding, drafting, and routine analysis, but no single platform is best for every task. Perplexity is strongest for citation-based search, NotebookLM for analysis grounded in a defined set of sources, Claude for long documents and nuanced writing, and ChatGPT for flexible general-purpose work. Gemini and Microsoft Copilot are most useful when their integrations align with an organization's existing Google Workspace or Microsoft 365 environment.
+These tools should support rather than replace professional judgment. Sources, quotations, statistics, analytical conclusions, and generated code must be independently reviewed, and confidential information should not be entered into a consumer account without confirming its privacy settings and terms. Business, enterprise, and API plans generally provide stronger data protections, while locally hosted models offer greater control at the cost of additional hardware and technical support.
+For an initial research workflow, this guide recommends either Perplexity Pro with the free version of NotebookLM for source gathering and source-based synthesis, or a paid Claude subscription with free ChatGPT access for research, drafting, and revision. Monthly subscriptions are the simplest option for individual users, while usage-based APIs are better suited to controlled, auditable automation when an organization has the technical capacity to manage them.
+## Key Terms
+### Large Language Model (LLM)
+A large language model is an AI model designed to understand and generate human language. It predicts the most likely next pieces of text based on the question, instructions, and information it has been given.
+### Chatbot
+A chatbot is the user-facing application where someone interacts with an AI model through a conversation. ChatGPT, Claude, Gemini, and Microsoft Copilot are examples of AI chatbots.
+### Model Family and Model Tier
+A model family is a group of related AI models made by the same company, such as GPT, Claude, or Gemini. Different tiers within a family usually trade off speed, cost, and capability: a faster model may handle routine tasks well, while a more advanced model may be better at complex analysis or coding.
+### Reasoning Model
+A reasoning model is designed to spend more effort working through complex, multi-step problems before answering. It can be more accurate for tasks such as data analysis, coding, or policy research, but it is usually slower and may use more of a plan’s available capacity.
+### Multimodal
+Multimodal means an AI system can work with more than one type of information, such as text, images, audio, video, spreadsheets, or documents. For example, a multimodal model might analyze a chart in a PDF and explain it in writing.
+### Token
+A token is a small unit of text that an AI model uses to read and generate language. Tokens may be whole words, parts of words, punctuation, or symbols, and they often affect both cost and usage limits.
+### Context Window
+A context window is the maximum amount of information an AI model can consider at one time. It includes the current prompt, earlier messages, uploaded files, and the model’s own responses.
+### Context Rot
+Context rot is the gradual loss of accuracy or focus that can occur when a conversation or document set becomes too large for a model to handle well. The model may lose track of earlier details, overlook instructions, or make more mistakes.
+### Web Search
+Web search allows an AI tool to look for current information online instead of relying only on its built-in knowledge. Search results can still be incomplete or inaccurate, so important information should be verified using the original sources.
+### Usage-Based Billing
+Usage-based billing charges according to how much an AI system is used rather than through a fixed monthly fee. This is common when organizations connect AI models directly to software tools or automated workflows.
+### API
+An application programming interface, or API, is a way for software programs to send requests directly to another service. In AI, an API allows an organization’s tools or automated workflows to use an AI model without someone manually using a web chat.
+### Rate Limit
+A rate limit is a restriction on how many messages, searches, or tasks a person can run during a set period of time. More difficult tasks generally use more capacity than short, simple questions.
+### AI Agent or Agentic Workflow
+An AI agent is an AI system that can carry out a series of steps toward a goal, sometimes using tools such as web search, files, databases, or software. An agentic workflow is a process in which AI completes or assists with multiple connected tasks rather than answering one question at a time.
+### Integration
+An integration connects an AI tool with another system, such as email, calendars, cloud storage, databases, or workplace software. Integrations can reduce manual work, but they should be reviewed carefully because they may give the AI access to organizational information.
+### Consumer Plan
+A consumer plan is an individual-facing version of an AI product, such as a free or personal paid account. These plans may have different privacy terms than business plans and may allow the provider to use conversations to improve its models.
+### Business or Enterprise Plan
+A business or enterprise plan is designed for organizations that need shared workspaces, administrative controls, and stronger privacy protections. These plans generally do not use organizational data to train AI models by default, but the specific contract and settings should still be reviewed.
+### Model Training
+Model training is the process of improving an AI model by exposing it to large amounts of data. Depending on the provider and plan, conversations, uploaded documents, or feedback may be used to help improve future versions of the model.
+### Data Retention
+Data retention is how long a company keeps prompts, conversations, uploaded files, or other information. Retention rules differ across providers, account types, and features such as temporary or private chats.
+### Local Hosted LLM
+A locally hosted LLM is an AI model that runs on an organization’s own computer or server rather than on a provider’s remote system. This can provide more control over sensitive data, but it requires suitable hardware, technical support, and maintenance.
+### Llama architecture
+Llama architecture is the technical design behind Meta's Llama family of AI models, which other organizations can use as a foundation for their own AI tools.
+### CPU, RAM, and GPU
+A CPU is the computer’s general-purpose processor, RAM is its short-term working memory, and a GPU is a processor built to handle many calculations at once. Local AI models often need substantial RAM and GPU capacity to run quickly and reliably.
+### Model Context Protocol (MCP)
+The Model Context Protocol, or MCP, is a shared technical standard that helps AI applications connect to approved tools, files, databases, and services. It can reduce the need to build a custom connection for every AI tool, but access permissions still need to be managed carefully.
+
 ## Billing Types
 ### Monthly Subscription
 Most AI companies offer a monthly or annual subscription plan. What's included varies by company and tier. For example, ChatGPT Plus and Claude Pro subscriptions include access to the web-based chat interface, the ability to connect to external tools, and the ability to build and implement agentic workflows. Specific features and limits for each plan are described later in this document under each company's section.
-The main drawback of subscriptions is rate limiting. Each company sets a cap on how many messages you can send within a given time window before you're required to wait. These limits are often unspecified because capacity scales dynamically based on prompt complexity, conversation length, and tool use. To illustrate: you could ask a model 100 simple single-sentence questions without coming close to the limit. However, asking a model to review the past 75 years of economic trends, evaluate their effects on societies around the world, and then write a comprehensive 10,000-word report on those findings would likely hit or approach the limit in a single prompt. This is because more complex prompts require higher reasoning; that example requires the model to search for and review a large dataset, synthesize it, search for quantitative reports, evaluate cause and effect, and structure a long-form output.
+The main drawback of subscriptions is rate limiting. Each company sets a cap on how many messages you can send within a given time window before you're required to wait. These limits are often unspecified because capacity scales dynamically, based on prompt complexity, conversation length, and tool use. To illustrate: you could ask a model 100 simple single-sentence questions without coming close to the limit. However, asking a model to review the past 75 years of economic trends, evaluate their effects on societies around the world, and then write a comprehensive 10,000-word report on those findings would likely hit or approach the limit in a single prompt. This is because more complex prompts require higher reasoning or ability to maintain a chain of thought and context.
 ### By Usage
-Per-usage billing charges you for the "tokens" you consume rather than a flat monthly fee. Users typically interact with models through a terminal or within an IDE rather than a web chat interface. This billing model is most common in "agentic" workflows, where different models interact with each other and perform tasks autonomously.
-AI tokens are essentially units of data that AI models use to process and generate language. Instead of reading whole words, AI models break down text into smaller chunks called tokens. A token can be an entire word, a portion of a word, punctuation, or an emoji.
+Per-usage billing charges you for the "tokens" you consume rather than a flat monthly fee. Users typically interact with models through a terminal or within an interactive development environment (known as an IDE, where programmers write and test their code) rather than a web chat interface. This billing model is most common in "agentic" workflows, where different models interact with each other and perform tasks autonomously.
+Per-usage billing can be cheaper than a subscription if you use a lower-tiered model and keep prompts simple. However, for more complex tasks a higher tiered model is necessary. Per-usage billing is most commonly used by programmers building agentic workflows and then letting the models execute specified tasks. In return, it offers more control over model behavior and slightly more explainability in how outputs are generated. 
 
->[!info] Context Window (Memory): 
->AI models have a maximum "context window," which is the total number of tokens the model can read and remember in a single interaction. This includes your prompt, the entire chat history, documents you have uploaded, and the AI's response. If your conversation exceeds this limit, the model will forget the earliest parts of the chat.
-
-Per-usage billing can be cheaper than a subscription if you use a lower-tiered model and keep prompts simple. However, costs for complex prompts that require higher-tiered models can escalate quickly:
-
-> [!info] One Million USD
-> cybersecurity company Palo Alto Networks Inc. used Anthropic's Mythos AI model to check its code for vulnerabilities and ended up burning through $1 million in tokens "very quickly," a company executive told the Information news site.
-The tradeoff is a steeper learning curve. Per-usage billing is most commonly used by programmers building agentic workflows and then letting the models execute specified tasks. In return, it offers more control over model behavior and slightly more explainability in how outputs are generated.
+> [!info] Benefits of using an API
+> Writing a program to interact with a model allows more control. For example, if you have an AI research and write a report, you would write a program that includes prompts for each part of the process, limitations, and a function that logs every site the AI visited and what information it pulled from that site. Making it easier to audit.
+ However, the tradeoff is a steeper learning curve and costs from not placing limits on token use. 
 
 ---
 ## Use Cases
@@ -84,7 +104,7 @@ Rather than searching for sources, this use case assumes you already have them (
 - Summarizing long documents while preserving key quantitative claims and methodology details
 - Identifying themes or patterns across a set of qualitative sources
 #### Limitations to be aware of:
-- **Context window limits are real.** Every model has a maximum amount of text it can "hold in memory" at once (see the Context Window explanation in the Billing Types section). If you upload more text than the model can process, it will either refuse, silently truncate, or lose track of earlier material. When the model loses track of the earlier information you get "context rot" where the quality of the output decreases sharply and hallucinations increase. This is especially relevant when working with multiple long reports simultaneously. 
+- **Context window limits are real.** Every model has a maximum amount of text it can "hold in memory" at once (see the Context Window explanation in the Billing Types section). If you upload more text than the model can process, it will either refuse, silently truncate, or lose track of earlier material. This is especially relevant when working with multiple long reports simultaneously. 
 - **Nuance gets flattened.** Models tend to produce clean, confident summaries even when the underlying sources are ambiguous, contested, or heavily caveated. The synthesis may read as more definitive than the evidence warrants.
 - **Verification is non-negotiable.** Any specific claim, statistic, or quote in a model-generated synthesis should be verified against the original source. Models can misattribute findings, combine numbers from different contexts, or subtly reframe an author's argument.
 #### Models/tools with strong synthesis capabilities:
@@ -98,11 +118,9 @@ This section covers the major AI providers, their model lineups, and how they ha
 A note on privacy that applies across all providers: the consumer/enterprise divide is important, but consumer defaults are not uniform. Google may use future Gemini chats to improve its services when Keep Activity is on, and OpenAI uses consumer ChatGPT conversations for training by default unless the user opts out. Anthropic generally uses consumer Claude conversations for model improvement only if the user chooses to allow it, with separate exceptions for submitted feedback and conversations flagged for safety review. Business, enterprise, and API offerings generally exclude customer data from model training by default, but organizations should confirm the terms for the specific product and plan they use.
 ## Google
 ### Gemini
-Gemini is Google's flagship AI model family and the primary competitor to ChatGPT and Claude. It powers the Gemini chatbot (formerly Bard) as well as AI features embedded across Google Workspace (Gmail, Docs, Sheets, Slides). Gemini models are multimodal, meaning they can process text, images, audio, and video within a single conversation.
-#### Marketed Users
-Google markets Gemini broadly: to individual consumers through the free Gemini app, to students and educators, and to businesses through Google Workspace and Google Cloud. The tightest integration is with existing Google users. If an organization already uses Google Workspace, Gemini is the most natural AI addition because it can read and act on your Gmail, Drive, Docs, and Calendar data without requiring you to upload anything manually. Google also markets Gemini heavily toward enterprise and developer audiences through its Cloud and Vertex AI platforms.
+Gemini is Google's flagship multimodal AI model family and the primary competitor to ChatGPT and Claude. It powers the Gemini chatbot and AI features across Google Workspace and is marketed to consumers, students, educators, businesses, enterprises, and developers. Gemini is especially well suited to existing Google users because it can process text, images, audio, and video while integrating directly with tools such as Gmail, Drive, Docs, and Calendar.
 #### Model Tiers
-- **Gemini 3.5 Flash** is the fast model available across the free and paid Gemini app plans. It is designed for everyday work, coding, and agentic tasks.
+- **Gemini 3.5 Flash** is the fast model available across the free and paid Gemini app plans. It's strongest at simple prompts or repetitive tasks with low token usage
 - **Gemini 3.1 Pro** is Google's more capable reasoning model for complex analytical tasks. Access limits vary by plan.
 - **Deep Think** is a reasoning-focused mode available on Google AI Ultra. It works through complex, multi-step problems before generating a response.
 #### Pros
@@ -116,8 +134,7 @@ Google markets Gemini broadly: to individual consumers through the free Gemini a
 - Human reviewers may read consumer-tier conversations. Google explicitly advises users not to enter confidential information.
 - Google's AI product lineup is fragmented across Gemini, NotebookLM, AI Studio, Vertex AI, and Workspace integrations, which can be confusing when trying to determine which tool fits a specific need.
 #### Privacy
-For consumer Gemini accounts, future chats may be used to provide, develop, and improve Google services, including training generative AI models, when Keep Activity is on. Human reviewers may read a subset of chats, and Google advises users not to enter confidential information they would not want reviewed or used to improve its services. When Keep Activity is off, future chats do not appear in Gemini Apps Activity and are not used to train Google's AI models unless the user submits feedback. Google still retains those chats for 72 hours to provide and protect the service. Temporary Chats are also retained for 72 hours and are not used to train Google's AI models. Turning off Keep Activity makes some Connected Apps unavailable, including Google Workspace on the web and iOS.
-Google Workspace and Google Cloud (Vertex AI) operate under entirely different terms. Google contractually commits that enterprise customer data, including prompts, responses, and organizational files, is not used to train its foundation models. Enterprise deployments include compliance certifications such as SOC 2 Type II, ISO 27001/27017/27018, FedRAMP, and HIPAA eligibility (with a Business Associate Agreement for qualifying customers).
+When Keep Activity is on, Google may use consumer Gemini chats to improve its services and models, and human reviewers may read some conversations. Turning it off prevents future chats from being used for training unless feedback is submitted, but Google retains them for 72 hours and disables some Connected Apps; Temporary Chats are also retained for 72 hours without being used for training. Google does not use Workspace or Cloud customer data to train its foundation models and provides enterprise compliance protections.
 #### Costs
 A free tier is available with limited features. In the United States, Google AI Plus is $4.99/month, Google AI Pro is $19.99/month, and Google AI Ultra starts at $99.99/month for 5x the Pro usage limits or $199.99/month for 20x the Pro limits. Prices and included benefits vary by country.
 #### Recommended Uses
@@ -135,9 +152,7 @@ Google also offers several specialized AI models that are not general-purpose ch
 These are creative tools rather than research or productivity assistants, and are unlikely to be central to most policy work.
 ## OpenAI
 ### ChatGPT (GPT Models)
-ChatGPT is the product that popularized consumer-facing AI. It is developed by OpenAI and powered by the GPT model family. As of mid-2026, ChatGPT has over 400 million weekly active users and remains the most widely used AI chatbot.
-#### Marketed Users
-OpenAI markets ChatGPT to essentially everyone. The free tier targets casual individual users. ChatGPT Plus ($20/month) and Pro ($200/month) target power users, professionals, and researchers who need access to the strongest models and features. Business and Enterprise plans target organizations that need shared workspaces, admin controls, and data privacy guarantees. OpenAI has also expanded into education (ChatGPT Edu) and is increasingly targeting developers through its API and the Codex coding agent. ChatGPT's user base is the broadest of any AI platform, spanning students, writers, researchers, engineers, and business professionals across nearly every industry.
+ChatGPT is OpenAI's consumer-facing AI product, powered by the GPT model family, and as of mid-2026 has over 400 million weekly active users. OpenAI markets it broadly to casual users, students, writers, researchers, engineers, and business professionals. Paid individual plans serve power users, while Business, Enterprise, Edu, API, and Codex offerings target organizations, educators, and developers with more specialized needs.
 #### Model Tiers
 - **GPT-5.5 Instant** is the default model for most ChatGPT conversations and is optimized for fast, general-purpose work.
 - **GPT-5.5 Thinking** spends more time reasoning through complex analysis, math, and coding tasks. It is available to Plus, Pro, Business, and Enterprise users.
@@ -155,18 +170,14 @@ ChatGPT also includes built-in features beyond the base model: web search, image
 - ChatGPT has historically been more prone to confident-sounding hallucinations than Claude, particularly when generating citations or specific statistics. This has improved with recent models but remains a concern for research use.
 - The sheer number of features and model options can be overwhelming for new users. Choosing among GPT-5.5 Instant, Thinking, and Pro requires some understanding of the speed, usage, and accuracy tradeoffs.
 #### Privacy
-On free and individual paid plans (Plus at $20/month, Pro at $200/month), OpenAI uses your conversations to train its models by default. You can opt out by navigating to Settings, then Data Controls, then turning off "Improve the model for everyone." Once opted out, new conversations are excluded from training. You can also use Temporary Chat, which is not saved, not used for training, and does not create or use memories.
-Business and Enterprise plans do not use customer inputs or outputs for model training by default unless the organization explicitly opts in. Business data is encrypted at rest (AES-256) and in transit (TLS 1.2+), and qualifying organizations can configure custom retention periods. Enterprise plans also include controls such as SAML SSO and support for data processing agreements.
-API usage is also excluded from training by default, with standard log retention of approximately 30 days for abuse monitoring.
+OpenAI uses conversations from free and individual paid plans for training by default, but users can opt out under Data Controls or use Temporary Chat. Business, Enterprise, and API data is excluded from training by default, with additional security and administrative controls available to organizations. API logs are generally retained for about 30 days for abuse monitoring.
 #### Costs
 A free tier is available with limited access to ChatGPT's current models. Paid individual plans start at $20/month (Plus) and go up to $200/month (Pro). ChatGPT Business is $20/user/month when billed annually or $25/user/month when billed monthly. Enterprise pricing is custom.
 #### Recommended Uses
 General-purpose assistant for writing, research, brainstorming, and coding. GPT-5.5 Thinking and Pro are particularly strong for tasks requiring extended reasoning. ChatGPT's broad feature set (memory, custom GPTs, plugins) makes it the most flexible standalone AI workspace.
 ## Anthropic
 ### Claude
-Claude is Anthropic's AI model family. Anthropic positions itself as a safety-focused AI company, and Claude is designed with an emphasis on being helpful, harmless, and honest. Claude is known for strong performance on long-document analysis, coding, and nuanced reasoning tasks.
-#### Marketed Users
-Anthropic markets Claude toward professionals who value careful, nuanced output over raw speed or feature breadth. The primary audiences are researchers and knowledge workers (long-document analysis, policy writing, synthesis), software developers (coding assistance, code review, codebase explanation), and enterprise customers in regulated industries that need strong data governance. Claude has gained particular traction among users who work with lengthy, complex documents and among developers through Claude Code (a terminal-based coding agent). Anthropic also offers Claude for Education and Claude Gov for government use cases.
+Claude is Anthropic's safety-focused AI model family, designed with an emphasis on being helpful, harmless, and honest. Anthropic markets Claude to professionals who prioritize careful, nuanced output, particularly researchers, knowledge workers, software developers, and enterprises in regulated industries. Its strengths in long-document analysis, coding, and nuanced reasoning shape that focus, while Claude for Education and Claude Gov extend the platform to academic and government users.
 #### Model Tiers
 - **Fable / Mythos** is the most capable tier, launched in June 2026. Fable is the publicly available version with safety classifiers that automatically fall back to Opus on certain sensitive topics (cybersecurity, biology/chemistry). Mythos is the same underlying model with those safety classifiers removed, available only to vetted cybersecurity and research organizations through Anthropic's trusted access program (Project Glasswing). Fable sets the current state of the art on most major AI benchmarks. As of mid-June 2026, access to both Fable and Mythos has been suspended under a US government export control directive.
 - **Opus** is the previous top-tier model (currently Opus 4.8), strong at complex reasoning, coding, and extended analysis.
@@ -185,18 +196,14 @@ Anthropic markets Claude toward professionals who value careful, nuanced output 
 - The free tier is more limited than ChatGPT's, with lower message caps and fewer features.
 - Opus model uses ~2x tokens than Sonnet.
 #### Privacy
-Consumer accounts (Free, Pro at $20/month, and Max at $100/month) may have chats and coding sessions used to improve Claude only if the user chooses to allow it. Data used for model improvement, including submitted feedback, may be retained for five years. Users can check and change the model-improvement setting in Claude's privacy controls. Claude also offers an Incognito mode (ghost icon) where conversations are never used for training regardless of the main setting.
-One caveat: Anthropic's privacy policy notes that conversations flagged by automated safety classifiers may still be used to improve safety detection systems, even if you have opted out of general model training.
-Anthropic's June 2026 privacy notice, effective July 8, 2026, says the consumer privacy-policy changes do not apply to Team, Enterprise, the Claude Developer Platform, or other services governed by Anthropic's Commercial Terms. Data from these offerings is not used for model training by default. Enterprise customers can negotiate a Data Processing Addendum for GDPR compliance. HIPAA-eligible services are available for qualifying healthcare customers with a Business Associate Agreement. Zero Data Retention (ZDR) is available for Enterprise customers. API usage operates under commercial terms with 7-day standard log retention (as of September 2025), no training use.
+Anthropic uses consumer chats and coding sessions for model improvement only when users opt in, although submitted feedback and safety-flagged conversations may be handled separately; improvement data may be retained for five years. Incognito conversations are not used for training. Team, Enterprise, and API data is excluded from training by default, with enterprise privacy options and seven-day standard API log retention.
 #### Costs
 A free tier is available. Paid plans start at $20/month (Pro) and go up to $100/month (Max). Team plans are approximately $25-30/user/month. Enterprise pricing is custom.
 #### Recommended Uses
 Long-document analysis and synthesis, coding (particularly strong with Opus), nuanced policy writing, and tasks requiring careful attention to context over extended conversations. Claude's large context window (up to 200K tokens on paid plans) makes it especially well-suited for uploading and analyzing multiple lengthy documents at once.
 ## Microsoft
 ### Copilot
-Microsoft Copilot is not a standalone AI model. It is a suite of AI-powered tools embedded directly into Microsoft 365 applications (Word, Excel, PowerPoint, Outlook, Teams). With Copilot Wave 3, Microsoft expanded model choice through its Frontier program, making Claude available in mainline Copilot chat alongside current OpenAI models. Microsoft does not describe Claude as an automatic verification layer for GPT output.
-#### Marketed Users
-Microsoft markets Copilot primarily to organizations that already use Microsoft 365. The pitch is straightforward: AI that can access your existing emails, documents, calendars, and Teams chats without requiring you to upload or paste anything. It is aimed at knowledge workers, managers, and anyone whose daily work runs through Microsoft applications. Microsoft also offers GitHub Copilot separately for software developers, which is a distinct product with its own pricing and licensing.
+Microsoft Copilot is a suite of AI-powered tools embedded directly into Microsoft 365 applications rather than a standalone AI model. It is marketed primarily to organizations, knowledge workers, and managers whose daily work runs through Microsoft 365, with access to organizational emails, documents, calendars, and Teams chats as its central appeal. Copilot Wave 3 adds Claude alongside current OpenAI models through Microsoft's Frontier program, while the separate GitHub Copilot product targets software developers.
 #### Pros
 - Seamless access to organizational data through Microsoft Graph. Copilot can draft an email reply referencing a document you discussed in a Teams meeting last week without you needing to find or upload anything.
 - If your organization already runs on Microsoft 365, the additional cost is incremental rather than net-new, and adoption requires minimal behavior change.
@@ -208,19 +215,16 @@ Microsoft markets Copilot primarily to organizations that already use Microsoft 
 - Less transparency about which model is serving any given request. Unlike ChatGPT, where you choose a specific model, Copilot routes between models automatically.
 - The licensing model is more complex than any other provider on this list.
 #### Privacy
-The key difference between Copilot and ChatGPT is integration. Copilot can access your organization's emails, documents, calendar events, and Teams chats through Microsoft Graph, meaning it can draft responses grounded in your actual work context. ChatGPT operates as a standalone workspace and requires you to manually provide context by uploading files or pasting text.
-Data entered into Microsoft 365 Copilot for business users is not used to train foundation models. It is processed within your organization's tenant and governed by Microsoft's enterprise data protection terms, inheriting the same compliance certifications as Microsoft 365 (SOC 2, ISO 27001, HIPAA with BAA, FedRAMP).
+Microsoft 365 Copilot can access organizational emails, documents, calendars, and Teams chats through Microsoft Graph. Business customer data is processed within the organization's tenant, is not used to train foundation models, and is covered by Microsoft 365's enterprise data protections and compliance certifications.
 #### Costs
 Microsoft 365 Copilot Chat is available at no additional cost to Microsoft Entra users with an eligible Microsoft 365 subscription. Microsoft 365 Copilot Business is $21/user/month when paid annually and requires a qualifying Microsoft 365 plan. The enterprise Microsoft 365 Copilot plan is $30/user/month when paid annually.
 #### Recommended Uses
 If your organization already runs on Microsoft 365, Copilot can be a natural addition for drafting and summarizing within Office apps, preparing meeting recaps from Teams transcripts, and pulling context from emails and shared documents. If you do not work primarily in the Microsoft ecosystem, ChatGPT offers a more capable standalone experience with stronger free-form reasoning, a larger feature set, and a simpler licensing model.
 ## Perplexity
 ### Sonar
-Perplexity is a search-first AI platform. While other models can search the web as an add-on feature, Perplexity is built around search from the ground up. Every response includes inline citations with links to sources, making it the most transparent option for verifiable factual queries.
-#### Marketed Users
-Perplexity targets researchers, journalists, analysts, and anyone whose work requires finding and verifying factual information quickly. It positions itself as a replacement for (or complement to) traditional search engines rather than a general-purpose chatbot. The Pro and Max tiers are aimed at power users who need access to multiple frontier models and deep research capabilities. Enterprise tiers target organizations that need team-wide search with data governance controls.
+Perplexity is a search-first AI platform built around finding and verifying factual information, with inline citations and source links included in every response. It is marketed to researchers, journalists, analysts, and others who need verifiable information quickly. Pro and Max plans target power users seeking advanced models and deep research, while Enterprise plans serve organizations that need shared search tools and data governance.
 #### Model Tiers
-Perplexity's native models are called Sonar, built on Meta's open-source Llama architecture with a proprietary retrieval pipeline layered on top. On paid tiers, Perplexity also gives you access to models from other providers (such as GPT-5.x and Claude Opus) through its interface. The Max tier includes "Model Council," which sends your query to three different frontier models simultaneously and synthesizes their responses into a single answer that highlights points of agreement and disagreement.
+Perplexity's native models are called Sonar, it's built on the foundation of Meta's open-source Llama architecture with a proprietary process for searching the web on top. On paid tiers, Perplexity also gives you access to models from other providers (such as GPT-5.x and Claude Opus) through its interface. The Max tier includes "Model Council," which sends your query to three different frontier models simultaneously and synthesizes their responses into a single answer that highlights points of agreement and disagreement.
 Perplexity also offers a Deep Research mode that automates multi-step research workflows: the model formulates sub-questions, conducts multiple searches, reads the results, and produces a structured report. This process takes several minutes rather than seconds but can produce thorough, well-sourced output.
 #### Pros
 - Every response includes inline citations with source links by default. No other platform makes verification this easy.
@@ -234,21 +238,46 @@ Perplexity also offers a Deep Research mode that automates multi-step research w
 - The free tier is capped at 5 Pro Searches per day, which is limiting for sustained research sessions.
 - The Max tier at $200/month is expensive relative to what other providers offer at the $20/month level, though it includes access to multiple frontier models.
 #### Privacy
-Perplexity's privacy practices are less thoroughly documented than the larger providers. Free-tier queries may be used to improve models. Pro and Enterprise tiers offer enhanced privacy controls. Enterprise plans include SOC 2 Type II compliance, data isolation, SSO, and custom data retention policies. Perplexity does not currently publish a detailed public breakdown of its training data practices comparable to OpenAI or Anthropic.
+Perplexity may use free-tier queries to improve its models, while paid plans provide stronger privacy controls. Enterprise plans add SOC 2 Type II compliance, data isolation, SSO, and custom retention policies, although Perplexity publishes less detail about its training practices than some larger providers.
 #### Costs
 A free tier is available with limited Pro Searches (5 per day). Pro is $20/month. Max is $200/month. Enterprise tiers start at $40/seat/month.
 #### Recommended Uses
 Fact-checking, quick factual lookups with source verification, compiling sourced research on a topic, and any task where citation transparency is the priority. Perplexity is the strongest option when you need to show where information came from.
 
 ---
-# Key Information
-## Local Hosted LLM's
-## Hardware Requirements and Limitations
+# Additional Information
 ## Prompt Engineering
-## Maintaining Reliability and Institutional Integrity
+A highly generalized template for prompting most models:
+```
+CHARACTER
+Act as an expert [Role/Profession, e.g., Senior Financial Analyst]. 
+
+CONTEXT
+I am trying to [Goal/Objective, e.g., analyze Q2 SaaS metrics] for [Audience/Purpose, e.g., the executive board]. The background data is as follows: [Paste data, documents, or background info here].
+
+CONSTRAINTS
+- Tone: [e.g., Professional, data-driven, and concise]
+- Length: [e.g., Under 500 words]
+- Output Format: [e.g., A Markdown table followed by 3 executive bullet points]
+- Exclusions: [e.g., Do not use jargon or passive voice]
+- Examples: 
+[Input 1] -> [Output 1 format]
+[Input 2] -> [Output 2 format]
+
+COMMAND
+[Specific Action Verb] the provided data to [Final Deliverable, e.g., create an executive summary highlighting the top 3 growth opportunities and 1 potential risk].
+
+```
+## Large Language Models
+A large language model is an AI system trained on large amounts of text to recognize patterns learned from words and phrases. When you type a prompt, the model breaks your text into tokens to identify patterns and determine the most probabilistic string of words and phrases to produce an output. The large increases in model performance have been influenced by advances in hardware and improved training techniques.
+## Local Hosted LLM's
+Locally Hosted LLMs are AI text models that run on your own laptop, desktop, or internal server instead of on an AI Company's remote system. That means the questions you type and the answers you get stay on your device, and many local setups will still work offline after the model has been downloaded. 
+When you use a locally hosted LLM, it works functionally identical to any other LLM: the software loads the model into memory, turns your prompt into tokens, performs its tasks, and generates a response. The core difference is everything is done on your device, which means the only way for someone or another company to access your prompt history, file uploads, or model memory is to physically access your laptop. This type of setup may be beneficial for PPIC since it maintains privacy and security. The model would be hosted on PPIC servers and would be accessed the same way you already access something like the R: drive. Local models offer better privacy, control, and no cost per message, but their speed and quality depend a lot on the hardware or the components of the server.
+### Hardware Requirements and Limitations
+As a refresher, the core components of a computer include the CPU, which is essentially the conductor, it ensures every other component is doing its job and manages what happens when they don't. RAM is the short term memory, their size is relatively small compared to the main storage but things stored in short term memory are easy to access and load. As an example if you frequently switch between multiple apps, the information about how you left the last app is stored in RAM, if it was stored in the main storage instead app switching would become very slow. When you buy a laptop, you typically see two options: measurement in gigabytes (GB) or terabytes (TB). RAM size is typically 8-128GB while main storage is typically 256GB-2TB+. The last important part of the computer is the GPU which is the muscle. The GPU handles processing images and other demanding visual tasks such as video or photo editing, graphics design, etc. The performance or quality of outputs of local LLMs depends heavily on the RAM and GPU. The RAM capacity dictates the "size" of the model. Smaller models literally use less RAM but it is the same as having a smaller short term memory. Smaller models are good at simple or repetitive single step tasks but struggle with following multi step instructions. Recall how an LLM turns your prompt into tokens to determine the most plausible string of words and phrases. This is a mathematically intense task that requires a strong GPU. The way a GPU handles demanding visual tasks is through performing many computations. The better the GPU, the more accurate the computations are, the more computations it can perform. In terms of LLM performance, the GPU and RAM are intrinsically linked. A large model on a computer with a great GPU but only 16GB of RAM, it will literally fail to load, and if you force it your entire system will crash. A large model on a computer with a decent GPU but 64GB of RAM is a better option, however, the task will take exponentially larger compared to a cloud-based model.
 ## Model Context Protocol (MCP)
 > [!quote] 
-> The Model Context Protocol (MCP) is ==an open-source standard created by Anthropic that acts as a "USB-C port for AI."== It provides a universal, standardized way for AI models and assistants to securely connect to external data sources, internal tools, and development environments without requiring custom integrations for every platform.
+> The Model Context Protocol (MCP) is an open-source standard created by Anthropic that acts as a "USB-C port for AI." It provides a universal, standardized way for AI models and assistants to securely connect to external data sources, internal tools, and development environments without requiring custom integrations for every platform.
 > MCP uses a client-server architecture to establish secure, two-way connections between AI applications and your local files, databases, or cloud services. [[1](https://modelcontextprotocol.io/docs/learn/architecture), [2](https://www.anthropic.com/news/model-context-protocol)]
 > - **The MCP Host:** The AI application you are using (like Claude Desktop, an AI-powered IDE, or an agentic framework).
 > - **The MCP Client:** A component within the host that manages the connection and translates the AI’s requests.
@@ -256,3 +285,7 @@ Fact-checking, quick factual lookups with source verification, compiling sourced
 ---
 
 # Recommendations
+### Option 1:
+Begin with Perplexity Pro Subscription + NotebookLM free version. Perplexity Pro works very well research gathering and its deep research mode is truly effective. Use NotebookLM for even more in depth explanations and different ways of information presentation. NotebookLM can generate audio overviews, videos, reports, slidedecks, and infographics based on the information you give it. Only upgrade to paid plan (Google's AI plan) if you begin hitting source size or count limitations.
+### Option 2:
+Begin with Claude subscription + ChatGPT free. You can't go wrong with either but combining them is effective. Paying for Claude is more effective since its free tier is quite limiting. An example workflow would be using ChatGPT to gather sources and provide high level summaries then use Claude to outline, draft, and revise a report. Comparing ChatGPT free vs Perplexity free plan, ChatGPT is better. Claude Opus long context window means it can maintain high quality outputs through each step of your workflow. Only upgrade to paid a ChatGPT plan if you need a mix of a general purpose AI, better web search, and external tool uses.

@@ -16,8 +16,9 @@ Test Folders:
     - scripts/unit_tests/components_of_change/acquisition/
 """
 
+import re
 from io import BytesIO
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 
 import pandas as pd
 from bs4 import BeautifulSoup
@@ -38,27 +39,35 @@ class E6DiscoveryError(RuntimeError):
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
-def _first_text_inner(soup):
-    body = soup.find(attrs={"class": "et_pb_text_inner"})
-    if body is None:
-        raise E6DiscoveryError("DOF page did not contain an et_pb_text_inner body")
-    return body
+def _looks_like_workbook(href):
+    """Return True when an href points directly at an Excel workbook. Test file: scripts/unit_tests/components_of_change/acquisition/test_dof_e6_downloader.py"""
+    return urlsplit(href).path.lower().rstrip("/").endswith((".xlsx", ".xls"))
+
+
+def _landing_slug(href):
+    """Return the final path segment of an href, lowercased. Test file: scripts/unit_tests/components_of_change/acquisition/test_dof_e6_downloader.py"""
+    return urlsplit(href).path.rstrip("/").rsplit("/", 1)[-1].lower()
+
+
+def _is_e6_link(href):
+    return bool(href) and ("e-6" in href.lower() or "e6" in href.lower())
+
+
+def _latest_year_in_text(link):
+    years = [int(match) for match in re.findall(r"(?:19|20)\d{2}", link.get_text())]
+    return max(years) if years else -1
 
 
 def _get_workbook_url_from_landing_page(landing_url, source_settings):
+    if _looks_like_workbook(landing_url):
+        return landing_url
     headers = source_settings["requests_headers"]
     timeout = source_settings["request_timeout_seconds"]
     response = fetch_response(landing_url, headers, timeout)
     soup = BeautifulSoup(response.content, "html.parser")
-    body = soup.find_all(attrs={"class": "et_pb_text_inner"})
-    if not body:
-        raise E6DiscoveryError("E-6 landing page did not contain workbook links")
-    first_ul = body[0].find("ul")
-    if first_ul is None:
-        raise E6DiscoveryError("E-6 landing page did not contain a workbook list")
-    workbook_link = first_ul.find("a", href=True)
+    workbook_link = soup.find("a", href=lambda href: href and _looks_like_workbook(href))
     if workbook_link is None:
-        raise E6DiscoveryError("E-6 landing page workbook list did not contain a link")
+        raise E6DiscoveryError("E-6 landing page did not contain a workbook link")
     return urljoin(landing_url, workbook_link["href"])
 
 
@@ -70,12 +79,11 @@ Discovery and Download
 
 
 def get_e6_file_url(source_settings):
-    """Discover the E-6 workbook URL using href text matching. Test file: scripts/unit_tests/components_of_change/acquisition/test_dof_e6_downloader.py"""
+    """Discover the E-6 workbook URL via the current E-6 landing-page slug. Test file: scripts/unit_tests/components_of_change/acquisition/test_dof_e6_downloader.py"""
     base_url = source_settings["dof_estimates_url"]
     response = fetch_response(base_url, source_settings["requests_headers"], source_settings["request_timeout_seconds"])
     soup = BeautifulSoup(response.content, "html.parser")
-    body = _first_text_inner(soup)
-    link = body.find("a", href=lambda href: href and ("e-6" in href.lower() or "e6" in href.lower()))
+    link = soup.find("a", href=lambda href: href and _landing_slug(href) == "e-6")
     if link is None:
         raise E6DiscoveryError("Could not find E-6 landing page link")
     landing_url = urljoin(base_url, link["href"])
@@ -83,17 +91,14 @@ def get_e6_file_url(source_settings):
 
 
 def get_e6_file_url_positional(source_settings):
-    """Discover the E-6 workbook URL using the legacy positional fallback. Test file: scripts/unit_tests/components_of_change/acquisition/test_dof_e6_downloader.py"""
+    """Discover the E-6 workbook URL by picking the most recent E-6 link as a fallback. Test file: scripts/unit_tests/components_of_change/acquisition/test_dof_e6_downloader.py"""
     base_url = source_settings["dof_estimates_url"]
     response = fetch_response(base_url, source_settings["requests_headers"], source_settings["request_timeout_seconds"])
     soup = BeautifulSoup(response.content, "html.parser")
-    body = _first_text_inner(soup)
-    lists = body.find_all("ul", recursive=False)
-    if len(lists) < 7:
-        raise E6DiscoveryError("DOF estimates page did not contain a seventh list")
-    link = lists[6].find("a", href=True)
-    if link is None:
-        raise E6DiscoveryError("Seventh DOF estimates list did not contain a link")
+    candidates = [link for link in soup.find_all("a", href=True) if _is_e6_link(link["href"])]
+    if not candidates:
+        raise E6DiscoveryError("DOF estimates page did not contain an E-6 link")
+    link = max(candidates, key=_latest_year_in_text)
     landing_url = urljoin(base_url, link["href"])
     return _get_workbook_url_from_landing_page(landing_url, source_settings)
 

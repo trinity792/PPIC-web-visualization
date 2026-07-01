@@ -1,13 +1,13 @@
 
 # Project Specification, Architecture & API Reference
 Web **Visualizations** Project
-Last Updated: June 30th, 2026
+Last Updated: July 1st, 2026
 
 ---
 
 A single reference for the **web-data-visualization** project: what it is, how the codebase is laid out, the architecture every data module follows, and the conventions every contributor is expected to follow.
 
-The project is organized as a set of **data modules** — one per dataset — that each flow from a public data source through an ETL (**Extract-Transform-Load** — it's the scrape → clean → save data flow) pipeline to interactive charts on a shared website. **Population & Housing (PopHousing)** is the first module refactored from the legacy notebooks/Shiny app into this structure, and **Components of Change** is the second — the first module built by *following* PopHousing's template rather than defining it, which is the project's first evidence that the module shape generalizes. This document covers the project-wide scaffolding first, uses PopHousing as the **reference implementation** that future modules should mirror, documents Components of Change as a second worked example, and **Age, Sex & Race Projections (Demographic Projections)** as a third — the first module built entirely **test-first** (its unit-test suite was written before the implementation and used as the contract).
+The project is organized as a set of **data modules** — one per dataset — that each flow from a public data source through an ETL (**Extract-Transform-Load** — it's the scrape → clean → save data flow) pipeline to interactive charts on a shared website. **Population & Housing (PopHousing)** is the first module refactored from the legacy notebooks/Shiny app into this structure, and **Components of Change** is the second — the first module built by *following* PopHousing's template rather than defining it, which is the project's first evidence that the module shape generalizes. This document covers the project-wide scaffolding first, uses PopHousing as the **reference implementation** that future modules should mirror, documents Components of Change as a second worked example, **Age, Sex & Race Projections (Demographic Projections)** as a third — the first module built entirely **test-first** (its unit-test suite was written before the implementation and used as the contract) — and **ACS Housing Stress** as a fourth, also built test-first.
 
 ### How to read this document:
 
@@ -44,8 +44,9 @@ A **module** is one dataset's full vertical slice: its ETL pipeline under `scrip
 | Module | Source | Status |
 |---|---|---|
 | **Population & Housing** (PopHousing) | CA Dept. of Finance E-5 (modern) + E-8 (historical) estimates | **Active** — first module migrated. End-to-end complete, including the E-8 historical build; only cross-module logging remains stubbed. |
-| **Components of Change** | CA Dept. of Finance E-6 + U.S. Census county population component estimates | **Active** — second module migrated, built by mirroring PopHousing. Full pipeline, data contract, API route, and charts complete. |
+| **Components of Change** | CA Dept. of Finance E-6 + U.S. Census county population component estimates | **Active** — second module migrated, built by mirroring PopHousing. Full pipeline, data contract, API route, and charts complete, with a **verified end-to-end run** against the live DoF E-6 + Census sources (4,018 rows, 1991–2025). |
 | **Age, Sex & Race Projections** (Demographic Projections) | CA Dept. of Finance **P-3** projections + U.S. Census **cc-est** estimates | **Active** — third module migrated, built **test-first** against the shared architecture. Full Python pipeline, data contract, API route, and chart wiring are complete and the pipeline runs end-to-end. It runs **DoF P-3 only** today — no Census cc-est file is present yet, so the `US State` level is absent until one is added. See *The Demographic Projections Module* for the remaining caveats. |
+| **ACS Housing Stress** | U.S. Census Bureau **ACS 1-year** table-based Summary File, table **B25140** (housing cost burden) | **Active** — fourth module migrated, built **test-first** (136 mirrored tests pass). Full Python pipeline, data contract, API route, module schema, and built-in chart views are complete, with a **verified end-to-end run** against live ACS. It contains the **latest vintage only** (2024, 4,525 rows) — the pipeline fetches one vintage per run and accumulates history over time; the legacy 2012–2023 series was set aside pending a schema migration. See *The ACS Housing Stress Module* for caveats. |
 | *Remaining legacy datasets* | V1 notebooks | **Not started** — to be migrated into the same module shape. |
 
 The rest of this document documents the **project-wide architecture and conventions** (which apply to every module), then **The PopHousing Module** as the concrete reference implementation and **The Components of Change Module** as a second worked example.
@@ -85,6 +86,7 @@ web-data-visualization/
 │       ├── pophousing/route.js           ← GET /api/pophousing             (PopHousing)
 │       ├── components-of-change/route.js ← GET /api/components-of-change    (Components)
 │       ├── projections/route.js          ← GET /api/projections            (Demographic Projections)
+│       ├── housing-stress/route.js        ← GET /api/housing-stress         (ACS Housing Stress)
 │       └── geography/route.js            ← GET /api/geography (county GeoJSON, choropleth)
 ├── components/
 │   ├── Navbar.js                 ← shared site shell
@@ -99,11 +101,12 @@ web-data-visualization/
 │   ├── data/pop_housing.js              ← server-only data-access layer over the CSV  (PopHousing)
 │   ├── data/components_of_change.js     ← server-only data-access layer over the CSV  (Components)
 │   ├── data/demographic_projections.js  ← server-only data-access layer over the CSV  (Projections)
+│   ├── data/housing_stress.js           ← server-only data-access layer over the CSV  (Housing Stress)
 │   ├── data/geography.js                ← server-only county GeoJSON access  (choropleth)
 │   ├── data/query_shapes.js             ← shared row → line/category/two-period/pairs/matrix shaping
 │   ├── data/apiParams.js                ← shared API-route query-param helpers
 │   └── visualization/                   ← CLIENT-SAFE chart catalog + registries (no node:fs)
-│       ├── moduleSchemas/{pophousing,componentsOfChange,demographicProjections}.js  ← per-module field catalog
+│       ├── moduleSchemas/{pophousing,componentsOfChange,demographicProjections,housingStress}.js  ← per-module field catalog
 │       ├── fieldTypes.js  formatters.js  transformRegistry.js  toPlotly.js
 │       ├── chartRegistry.js  presetRegistry.js  validation.js
 │       └── categoryRegistry.js          ← landing categories + built-in dashboard views
@@ -112,6 +115,7 @@ web-data-visualization/
 │   ├── pophousing/               ← California / E-5 / E-8 domain logic  (PopHousing module)
 │   ├── components_of_change/     ← E-6 / Census components domain logic  (Components module)
 │   ├── projections/             ← P-3 / cc-est age-sex-race domain logic  (Projections module)
+│   ├── housing_stress/          ← ACS B25140 cost-burden domain logic  (Housing Stress module)
 │   ├── orchestrators/            ← per-module pipeline sequencing
 │   └── unit_tests/               ← pytest suite (mirrors source tree)
 ├── data/                         ← raw, cleaned, and archived data (git-ignored)
@@ -122,8 +126,11 @@ web-data-visualization/
 │   ├── data-cleaned/geography/california-counties.geojson   ← county polygons (shared, choropleth)
 │   ├── data-raw/demographic-projections/        ← Projections raw P-3 zip/CSV (+ optional cc-est)
 │   ├── data-cleaned/demographic-projections/DemographicProjections_Current.csv  ← Projections contract
+│   ├── data-raw/housing-stress/                 ← Housing Stress PUMA crosswalks (+ optional manual raw)
+│   ├── data-cleaned/housing-stress/HousingStress_Current.csv  ← Housing Stress contract
 │   ├── archive/housing-population/
-│   └── archive/demographic-projections/         ← Projections archived prior CSVs
+│   ├── archive/demographic-projections/         ← Projections archived prior CSVs
+│   └── archive/housing-stress/                  ← Housing Stress archived prior CSVs
 ├── logs/deletions/               ← retention warning files
 ├── docs/                         ← this documentation set
 ├── pyproject.toml                ← pytest + ruff config
@@ -622,7 +629,7 @@ The entry point is [`scripts/orchestrators/components_of_change_pipeline.py`](..
 | Phase | Name | What happens | Primary modules |
 |---|---|---|---|
 | **1** | Setup & Load | Resolve config; load the existing canonical CSV as the historical + fallback source. | `config/*`, `merging/historical_merge` |
-| **2** | Acquisition (resilient) | Acquire each source through `acquire_with_fallback`: live discovery/download → manual raw CSV → last-saved rows for that source. The DoF step has both a primary and a positional URL-discovery strategy. | `acquisition/*`, `shared/downloads/http_downloads` |
+| **2** | Acquisition (resilient) | Acquire each source through `acquire_with_fallback`: live discovery/download → manual raw CSV → last-saved rows for that source. The DoF step has two URL-discovery strategies — primary follows the current `/E-6` landing-page slug, fallback picks the most recent E-6 link by year — since the DOF site structure is the module's #1 fragility point. | `acquisition/*`, `shared/downloads/http_downloads` |
 | **3** | Cleaning | `clean_e6` and `clean_census_components` normalize each source to the canonical schema; on failure they fall back to manual/saved rows so one broken source never fails the run. | `cleaning/*`, `calculations/demographic_rates` |
 | **4** | Merge & Change Detection | Combine each cleaned source with its historical rows, merge DoF + Census, and flag whether genuinely new source years arrived. | `merging/historical_merge`, `aggregation/regional_aggregation` |
 | **5** | Finalize, Validate & Save | Assign geographic level, enforce output column order, validate, and **archive + save only when new source data was detected** (otherwise the run is read-only). | `output/finalize_dataset`, `validation/dataset_validator` |
@@ -630,6 +637,8 @@ The entry point is [`scripts/orchestrators/components_of_change_pipeline.py`](..
 ### Acquisition & cleaning resilience (Phases 2–3)
 
 `acquire_with_fallback` is the module's analogue of PopHousing's defensive E-5 acquisition, generalized into a shared-style helper: it tries each live strategy in turn, then a manually-placed raw CSV (`E6_Downloaded.csv` / `Census_Components_Downloaded.csv` under `data/data-raw/components-of-change/`), then the rows already saved for that source in the canonical CSV. Cleaning repeats the same ladder, so a DoF outage still yields a complete dataset from Census plus saved DoF rows — with the run's `*_failed` / `*_used_manual` flags recording exactly which path was taken.
+
+Both sources — including the Census CSV read — download through the shared `fetch_response` (`requests`) HTTP layer rather than letting pandas fetch a URL directly, so TLS/certificate handling is uniform and a discovery request that succeeds is never followed by a download that fails on the same host.
 
 ---
 
@@ -640,8 +649,8 @@ Same layering as PopHousing: `scripts/shared/` mechanisms (documented above) →
 #### `acquisition/` — getting the two sources
 | Script | Public functions |
 |---|---|
-| `dof_e6_downloader.py` | `get_e6_file_url`, `get_e6_file_url_positional` (fallback discovery strategy), `download_e6_workbook` |
-| `census_components_downloader.py` | `get_census_components_url` (walks back through recent years), `download_census_components` |
+| `dof_e6_downloader.py` | `get_e6_file_url` (follows the current `/E-6` landing-page slug to the workbook), `get_e6_file_url_positional` (fallback: the most recent E-6 link by year), `download_e6_workbook` |
+| `census_components_downloader.py` | `get_census_components_url` (walks back through recent years), `download_census_components(url, source_settings=None)` (fetches URLs through the shared HTTP layer; reads local paths directly) |
 | `source_fallback.py` | `acquire_with_fallback` — generic *live → manual → saved* ladder used by both sources |
 
 #### `cleaning/` — normalizing each source to the canonical schema
@@ -659,7 +668,7 @@ Same layering as PopHousing: `scripts/shared/` mechanisms (documented above) →
 #### `merging/` — combining sources and detecting change
 | Script | Public functions |
 |---|---|
-| `historical_merge.py` | `load_canonical_dataset`, `combine_source_with_historical`, `detect_new_source_data` (drives the incremental save), `merge_dof_and_census` |
+| `historical_merge.py` | `load_canonical_dataset`, `combine_source_with_historical`, `detect_new_source_data` (drives the incremental save; normalizes numeric columns to numpy floats first so a freshly-cleaned `Float64`/`pd.NA` frame and the reloaded CSV's `float64`/`np.nan` don't read as a change), `merge_dof_and_census` |
 
 #### `output/` · `validation/` — contract and gates
 | Script | Public functions |
@@ -701,7 +710,7 @@ The pipeline's output — `data/data-cleaned/components-of-change/ComponentsOfCh
 
 **Geographic levels:** `County` (CA), `Region` (9 custom CA regions), `State` (California **and** every U.S. state, by two-letter abbreviation, from Census). National `States` data is Census-only.
 
-**Year coverage:** 1991–present (currently through 2024).
+**Year coverage:** 1991–present (currently through 2025).
 
 **Columns** (output order, from `columns.get_columns_config()`):
 
@@ -888,6 +897,146 @@ The module is complete and runs end-to-end, but a few things about *today's* sta
 
 ---
 
+# The ACS Housing Stress Module
+
+The **ACS Housing Stress** module (directory name `housing_stress`) is the **fourth dataset migrated** and the second built **test-first** — its full unit-test suite (132 tests) existed before any implementation. It measures **housing cost burden**: the number and share of households paying more than **30%** or **50%** of income on housing, split by **tenure** and by **race/ethnicity of householder**.
+
+Things worth understanding before reading the code:
+
+- **The legacy source was triplicated.** V1 `housingstress_code.py` built State, Region, and County datasets in three deeply-nested closures, each re-declaring its own `get_data`/`clean_data`/tenure math. The migration collapses this into **one shared code path**: aggregate estimate columns to the target geography first, then apply a single cost-burden transform.
+- **One source, four measures, two extra dimensions.** The measures are a 2×2 of **basis** (Number vs Share) × **threshold** (30% vs 50%), derived from Census table **B25140** estimate columns; the extra dimensions are **Tenure** (5) and **Race/Ethnicity** of householder (9).
+- **County & region are PUMA approximations.** The ACS 1-year file publishes California sub-state data at **PUMA** level; counties and regions are built by aggregating PUMAs through a 2020 crosswalk. PUMAs do not nest within county lines, so those figures are documented approximations — only the **State** series is an exact tabulation.
+- **Race set reconciled toward the canonical 7.** The 9 ACS iterations map to the 7 canonical projection groups **plus** `Other` (some-other-race-alone) and `All` (the base table). `White` is sourced from iteration **H** (White, *not Hispanic*) so it never double-counts with `Hispanic`; iteration A is intentionally unused.
+- **It saves incrementally**, writing only when new source data is detected.
+
+## Sources & Pipeline
+
+| Source | Provides | Cadence / coverage |
+|---|---|---|
+| **U.S. Census ACS 1-year, table B25140** (+ race iterations `B25140B`–`I`) | Households by tenure × cost-burden bracket, per race-of-householder iteration | Annual; **2012 onward, excluding 2020** (no 1-year release). Pipe-delimited `.dat` estimates joined to a `Geos*.txt` geography file on `GEO_ID`. |
+
+The entry point is [`scripts/orchestrators/housing_stress_pipeline.py`](../../../scripts/orchestrators/housing_stress_pipeline.py). `build_housing_stress_dataset(config=None)` runs five phases, each wrapped so any exception re-raises as a **`HousingStressPipelinePhaseError`** tagged with the phase name. It returns a summary dict: dataframe, `new_data` / `source_failed` / `used_manual` flags, the resolved ACS vintage year, output path (`None` when nothing changed), and row count.
+
+| Phase | Name | What happens | Primary modules |
+|---|---|---|---|
+| **1** | Setup & Load | Resolve config + shared geography; load the existing canonical CSV as historical + fallback. | `config/*`, `merging/historical_merge` |
+| **2** | Acquisition (resilient) | **Resolve the latest published vintage** by probing backward from the current year (skipping 2020; advancing only on a "not published" 404, *raising* on a parse error so a malformed release isn't mistaken for an absent one). Then acquire two scopes — the 50 states and the CA PUMAs — each through `acquire_with_fallback` (live → manual raw CSV → last-saved rows). | `acquisition/*`, `shared/downloads/http_downloads` |
+| **3** | Build levels | For each of the 9 race iterations: normalize columns, aggregate PUMAs→county/region (or filter to the 50 states), compute the 5 tenures' cost-burden measures, reconcile the race label, and tag `Geographic Level`. Validate each level. | `cleaning/*`, `geography/puma_aggregation`, `aggregation/geographic_levels` |
+| **4** | Merge | Validate the incoming vintage's **stratification completeness**, atomically replace any overlapping year in full (no key-level vintage mixing), and detect new data. | `merging/historical_merge` |
+| **5** | Finalize, Validate & Save | Enforce output column order + types, validate the final dataset, and **archive + save only when new data was detected**. | `output/finalize_dataset`, `validation/housing_stress_validators` |
+
+### Vintage resolution & the shared cost-burden transform (Phases 2–3)
+
+`resolve_latest_vintage` replaces the legacy bare-`except` year loop: it distinguishes "not yet published" (a 404, which steps to the previous year) from "published but malformed" (a parse error, which raises) — so the pipeline never silently serves a stale year. The single biggest de-duplication is `cost_burden_measures.compute_tenure_measures`: it expands each geography row into the 5 tenure rows and computes all four measures from the configured B25140 column formulas, replacing the three copy-pasted legacy blocks. A zero denominator yields **NA (never `inf`)**, passed through to the frontend as a chart gap.
+
+---
+
+## Module Reference (ACS Housing Stress)
+
+Same layering as the other modules: `scripts/shared/` mechanisms → `scripts/housing_stress/` domain packages → the orchestrator. Domain packages only:
+
+#### `config/` — single source of truth
+| Script | Public function |
+|---|---|
+| `paths.py` | `get_paths()` — current/download/archive paths, the manual-fallback path, and both PUMA crosswalk paths. |
+| `sources.py` | `get_source_settings()` — ACS data/geo URL patterns, `dataset="1"`, `earliest_year=2012`, `excluded_years={2020}`, `max_year_lookback`, the ordered 9 table iterations, and expected geo/estimate columns. |
+| `schemas.py` | `get_schema_config()` — output/required columns, the 5 **tenure formulas** (B25140 numerator/denominator column lists), race iteration + reconciliation maps, the 50 state abbreviations (DC/PR excluded), completeness grain, and cleaning/final validation configs. |
+
+#### `acquisition/` — getting the ACS Summary File
+| Script | Public functions |
+|---|---|
+| `acs_sf_downloader.py` | `get_acs_table` (download `.dat` + geos, join on `GEO_ID`, filter to a state; `ACSTableUnavailableError` on 404 vs `ValueError` on a malformed file), `download_all_iterations` (9 iterations; suppressed non-base iterations are recorded, a missing base table raises). |
+| `source_fallback.py` | `resolve_latest_vintage`, `acquire_with_fallback` (live → manual → last-saved ladder). |
+
+#### `cleaning/` · `geography/` — normalizing and geographic rollup
+| Script | Public functions |
+|---|---|
+| `cleaning/column_normalization.py` | `strip_table_prefix` (validated — catches missing/duplicate `E`-columns), `drop_margin_of_error_columns`, `rename_geography_columns`. |
+| `cleaning/cost_burden_measures.py` | `compute_tenure_measures` — the shared tenure/burden transform (NA on zero denominator). |
+| `cleaning/race_ethnicity_mapping.py` | `get_canonical_race_groups`, `reconcile_race_label` (+ `RACE_ITERATION_MAP`, `CANONICAL_RACE_GROUPS`). |
+| `geography/puma_aggregation.py` | `extract_puma_id`, `aggregate_pumas_to_geography` (inner-join crosswalk, sum estimates), `map_region_ids_to_names`. |
+
+#### `aggregation/` · `merging/` — levels, and combining with history
+| Script | Public functions |
+|---|---|
+| `aggregation/geographic_levels.py` | `build_state_rows` (50 states, USPS abbreviation as Location), `build_region_rows` (9 CA regions), `build_county_rows` (58 CA counties), `build_all_levels` (concatenate + sort). Replaces the three legacy closures. |
+| `merging/historical_merge.py` | `load_canonical_dataset`, `combine_with_historical` (validate-before-mutate; atomic whole-year replacement), `detect_new_data` (order/index-insensitive). |
+
+#### `validation/` · `output/` — gates and contract
+| Script | Public functions |
+|---|---|
+| `validation/housing_stress_validators.py` | `validate_cleaning_output`, `validate_stratification_completeness` (per `Geographic Level × Location × Year`; a missing **race** is a warning — ACS suppression is expected — but a missing **tenure** for a present race is an error), `validate_housing_stress_dataset`. |
+| `output/finalize_dataset.py` | `prepare_output` (contract column order + types), `archive_and_save` (byte-identical skip; `mm-dd-yy` archive timestamp). |
+
+---
+
+## Configuration Reference (ACS Housing Stress)
+
+| Setting | Value | Source |
+|---|---|---|
+| ACS data URL pattern | `…/summary_file/{year}/table-based-SF/data/1YRData/acsdt1y{year}-{tblid}.dat` | `sources.py` |
+| ACS geo URL pattern | `…/summary_file/{year}/table-based-SF/documentation/Geos{year}1YR.txt` | `sources.py` |
+| Earliest year / excluded years | 2012 / `{2020}` | `sources.py` |
+| Cache age | 30 days | `sources.py` |
+| Race iterations | 9 (`b25140` base + `b25140b…i`) | `sources.py` |
+| Tenure labels | Total, Rented, Owned, Owned With Mortgage, Owned Without Mortgage | `schemas.py` |
+| Race/ethnicity groups | All, White, Black, Asian, NHPI, AIAN, Multiracial, Hispanic, Other (9) | `schemas.py` |
+| Valid geographic levels | State (50 US), Region (9 CA), County (58 CA) | `schemas.py` |
+| State scope | 50 states; DC & PR excluded | `schemas.py` |
+
+The module sources its California county/region names from the shared [`california_geography`](../../../scripts/shared/geography/california_geography.py) provider (the numeric 1–9 region ids map onto that region order); the two 2020 **PUMA crosswalks** live under `data/data-raw/housing-stress/`.
+
+---
+
+## Data Contract (ACS Housing Stress)
+
+The pipeline's output — `data/data-cleaned/housing-stress/HousingStress_Current.csv` — is the module's contract; changing it is an "ask first" action.
+
+**Grain:** one row per `(Year, Geographic Level, Location, Race/Ethnicity, Tenure)`.
+
+**Geographic levels:** `State` (50 US states, USPS abbreviation as `Location`), `Region` (9 CA regions), `County` (58 CA counties). Region and County are PUMA-aggregation **approximations**.
+
+**Year coverage:** 2012 through the latest published ACS 1-year vintage, **excluding 2020**.
+
+**Measures:** `Number Over 30%`, `Number Over 50%` (household counts) and `Share Over 30%`, `Share Over 50%` (proportions, `NA` where the tenure denominator is zero). Missing race×location strata are **absent, not imputed** (ACS small-population suppression).
+
+**Columns** (output order, from `schemas.get_schema_config()`):
+
+```
+Year, Geographic Level, Location, Race/Ethnicity, Tenure, Number Over 30%, Number Over 50%, Share Over 30%, Share Over 50%
+```
+
+---
+
+## Frontend (ACS Housing Stress)
+
+Same module-specific server pieces as the others, feeding the shared UI layer through two extra stratification filters and a measure selector.
+
+### `lib/data/housing_stress.js` — data-access layer (server-only)
+Owns reading/parsing/filtering of the CSV (`node:fs`). Pinning one race and one tenure already yields exactly one row per `(Location, Year)`, so — unlike Projections — **no cross-stratum summation** is needed; null shares pass through as gaps. `resolveMeasureColumn` maps an explicit `parameter` or a `basis`+`threshold` pair to one of the four measure columns. Exposes `queryLineSeries`, `queryCategoryValues`, `queryTwoPeriod`, `queryMatrix`, `queryGeoValues` over the shared `query_shapes.js`. Numeric columns, subsets, and the measure matrix derive from [`lib/visualization/moduleSchemas/housingStress.js`](../../../lib/visualization/moduleSchemas/housingStress.js).
+
+### `app/api/housing-stress/route.js` — API endpoint (orchestrator)
+`GET /api/housing-stress` — the same `view`-based dispatcher, plus the extra params `raceEthnicity`, `tenure`, `basis` (`number`/`share`), `threshold` (30/50), and `parameter`. Errors carry a `source` string (`"housing-stress API: …"`).
+
+### Module schema, filters & built-in views
+The schema declares four curated measures (counts and shares use distinct `comparisonGroup`s so they never share an axis) and `filterDimensions` for **Race/Ethnicity** and **Tenure** — the shared `ChartSidebar` renders these automatically (no per-module code). Registering it in `moduleRegistry.js` makes the `/housing-stress` editor and the `components/Navbar.js` tab work through the existing dynamic `app/[module]/page.js` route. Four **built-in views** in `categoryRegistry.js` (`housing-stress-share-trend`, `renter-cost-burden-trend`, `housing-stress-county-ranking`, `housing-stress-county-map`) provide curated starting points; the county ranking/map subtitles carry the PUMA-approximation caveat.
+
+---
+
+## Current-State Notes & Caveats (ACS Housing Stress)
+
+The module is complete, its tests pass, and it has run end-to-end against live ACS. A few things about *today's* state are worth recording:
+
+- **Verified run — latest vintage only.** `python -m scripts.orchestrators.housing_stress_pipeline` resolved vintage **2024** and wrote `HousingStress_Current.csv` (**4,525 rows**: State 50, County 58, Region 9 × 9 races × 5 tenures, minus ACS-suppressed strata), and is idempotent on re-run ("No new data detected"). The pipeline fetches **one vintage per run** and accumulates earlier years over successive runs, so the contract holds **2024 only** today.
+- **Legacy 2012–2023 set aside.** A legacy-format `HousingStress_Current.csv` (old `Race/ethnicity`/`Label` columns, including forbidden 2020 rows) was sitting at the contract path and corrupted the merge; it was moved to `HousingStress_Current.legacy-2012-2023.csv.bak`. Bootstrapping that history into the V3 contract (rename + reconcile race labels, drop 2020, append) is a separate one-time migration, not yet done.
+- **Two acquisition fixes made during the first real run** (the mocked orchestrator tests had hidden them, same pattern as Projections): (1) `resolve_latest_vintage` now advances past a **timeout/connection error**, not just a 404 — the Census server *hangs* rather than 404s for some not-yet-published vintages (e.g. 2026/2025), so a probe timeout must step to the previous year while a *parse* error still raises; (2) state acquisition now downloads each national `.dat` **once** via `download_national_table` and filters all 50 states in memory, instead of re-downloading it per state (was ~900 requests). `paths.py` also gained `manual_state_path` / `manual_ca_path` to match the orchestrator. Tests were added for all three.
+- **County/region are approximate.** They come from PUMA aggregation (PUMAs cross county lines); only the State series is exact. A future move to ACS **5-year** county tables (direct `SUMLEV=050`) is recorded as an open option, not adopted.
+- **Cross-module editor fix shipped alongside this module.** The shared chart editor kept the previous module's config when navigating between modules (all under `/[module]`), so arriving at a new module validated the old module's field bindings against the new schema and blocked every preset with a configuration error. Fixed by keying `<ChartConfigProvider>` on `moduleId` in `components/chart-builder/ModuleEditor.js` so the editor rebuilds a fresh config per module — a project-wide fix that benefits every module.
+- **Full-suite test collection fixed.** Adding this module's tests surfaced a pre-existing pytest duplicate-basename collision; `__init__.py` package files were added across the `projections`, `components_of_change`, and `housing_stress` test trees (matching the pophousing convention). `python -m pytest scripts/unit_tests` is green (840 passed).
+- **Landing surface deferred.** The module is reachable from the navbar and its built-in views, but it is **not** yet placed on a landing-page `CATEGORIES` card in `categoryRegistry.js` (a product/design decision).
+
+---
+
 ## Frontend Architecture (UI Layer)
 
 *Cross-module — every module renders through this shared layer; only the per-module data-access layer + API route (above) and the module schema differ.*
@@ -1051,13 +1200,15 @@ The pytest suite lives in `scripts/unit_tests/`, **mirroring the source tree** (
 
 ## Implementation Status
 
-**Project:** three modules (PopHousing, Components of Change, Demographic Projections) are active and complete end-to-end; the rest of the legacy datasets are not yet migrated (see *Modules*). The cross-module `scripts/shared/` layer is now exercised by all three.
+**Project:** four modules (PopHousing, Components of Change, Demographic Projections, ACS Housing Stress) are active and run end-to-end. The rest of the legacy datasets are not yet migrated (see *Modules*). The cross-module `scripts/shared/` layer is now exercised by all four.
 
 **Within PopHousing:** the **E-5 modern path and E-8 historical build are both implemented** end-to-end (acquisition → cleaning → merge → enrichment → validation → output), and the **frontend read path is complete**. The E-8 build (`pophousing/historical/*`, `acquisition/dof_historical_downloader.py`) reuses the canonical E-5 cleaning/classification/metric helpers rather than duplicating them, with mirrored unit tests.
 
 **Within Components of Change:** the full pipeline, dual-source acquisition with fallback, data contract, API route, and charts are complete.
 
 **Within Demographic Projections:** the full Python pipeline (config → acquisition → cleaning → merge → aggregation → validation → output), orchestrator, data contract, API route, module schema, data-access layer, and the module-specific stratification filter controls are complete, with a verified end-to-end run. It runs **DoF P-3 only** today (no Census cc-est file present), and the doc's bespoke chart-shape presets (age pyramid, projection-vs-estimate, overlay comparison) are deferred pending per-module preset support — see *Current-State Notes & Caveats (Demographic Projections)*.
+
+**Within ACS Housing Stress:** the full Python pipeline (config → acquisition → cleaning + geography → build-levels → merge → validation → output), orchestrator, data contract, API route, module schema, data-access layer, the Race/Ethnicity + Tenure sidebar filters, four built-in views, and the navbar tab are complete, with 136 mirrored tests passing and a **verified end-to-end run** (vintage 2024, 4,525 rows). The contract holds the **latest vintage only** today (the pipeline fetches one vintage per run); the legacy 2012–2023 series was set aside pending a schema migration. Shipped alongside it: two acquisition robustness fixes (probe advances past Census-server hangs; download-once-per-table), a cross-module editor fix (`key={moduleId}` on `ChartConfigProvider`), and `__init__.py` package files that fix full-suite pytest collection — see *Current-State Notes & Caveats (ACS Housing Stress)*.
 
 The remaining scaffolded-but-`TODO` surface is project-wide:
 

@@ -88,7 +88,12 @@ export default function ModuleEditor({
   }, [scale]);
 
   return (
-    <ChartConfigProvider schema={schema} initialConfig={initialConfig}>
+    // Key on the module so navigating between modules (all under the same
+    // /[module] route) remounts the provider and rebuilds a fresh config for the
+    // new schema. Without this, the previous module's field bindings linger in
+    // the reducer and fail validation against the new schema ("UNKNOWN_FIELD"),
+    // blocking every preset with a configuration error.
+    <ChartConfigProvider key={moduleId} schema={schema} initialConfig={initialConfig}>
       <SidebarProvider
         style={{
           "--sidebar-width": `${(CHART_SIDEBAR.baseRem * scale).toFixed(3)}rem`,

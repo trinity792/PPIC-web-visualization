@@ -108,7 +108,7 @@ def build_components_dataset(config=None):
             lambda: _load_saved_source(paths, "DoF"),
         )
         census_raw, census_failed, census_used_manual = acquire_with_fallback(
-            [lambda: download_census_components(get_census_components_url(source_settings))],
+            [lambda: download_census_components(get_census_components_url(source_settings), source_settings)],
             paths.get("manual_census_path"),
             lambda: _load_saved_source(paths, "Census"),
             manual_read_kwargs={"engine": "python", "encoding": "latin1"},

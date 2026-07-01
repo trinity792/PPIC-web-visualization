@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 
 from scripts.components_of_change.merging.historical_merge import combine_source_with_historical, detect_new_source_data, merge_dof_and_census
@@ -48,6 +49,19 @@ def test_detect_new_source_data_ignores_row_order():
     historical = pd.DataFrame([_row("Contra Costa", 2021, "DoF", 200), _row("Alameda", 2021, "DoF", 100)])
     new = historical.drop(columns=["Geographic Level"]).sort_values("Location").reset_index(drop=True)
 
+    assert detect_new_source_data(new, historical, "DoF", 1990) is False
+
+
+def test_detect_new_source_data_treats_na_and_nan_as_equal():
+    # Freshly cleaned data uses nullable Float64 (missing = pd.NA); the reloaded
+    # canonical CSV uses numpy float64 (missing = np.nan). Identical data must not
+    # be reported as a change just because of that representation difference.
+    historical = pd.DataFrame([_row("Alameda", 2020, "DoF", 100), _row("Alameda", 2021, "DoF", 110)])
+    historical["Percent Change in Population"] = np.nan  # numpy float64 nan, as after a CSV round-trip
+    new = historical.drop(columns=["Geographic Level"]).copy()
+    new["Percent Change in Population"] = new["Percent Change in Population"].astype("Float64")  # pd.NA
+
+    assert new["Percent Change in Population"].isna().all()
     assert detect_new_source_data(new, historical, "DoF", 1990) is False
 
 

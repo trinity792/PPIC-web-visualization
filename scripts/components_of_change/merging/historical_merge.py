@@ -39,6 +39,16 @@ def _without_geographic_level(dataframe):
     return dataframe.copy()
 
 
+def _normalize_numeric_dtypes(dataframe):
+    """Cast fully numeric columns to numpy float64 so pd.NA and np.nan compare equal. Test file: scripts/unit_tests/components_of_change/merging/test_historical_merge.py"""
+    normalized = dataframe.copy()
+    for column in normalized.columns:
+        coerced = pd.to_numeric(normalized[column], errors="coerce")
+        if coerced.notna().sum() == normalized[column].notna().sum():
+            normalized[column] = coerced.astype("float64")
+    return normalized
+
+
 def combine_source_with_historical(new_df, historical_df, source, year_col):
     """Combine one source's new rows with saved years absent from the new pull. Test file: scripts/unit_tests/components_of_change/merging/test_historical_merge.py"""
     source_history = _without_geographic_level(historical_df)
@@ -67,8 +77,12 @@ def detect_new_source_data(new_df, historical_df, source, boundary_year):
     if sort_columns:
         new_source = new_source.sort_values(sort_columns, kind="stable")
         historical_source = historical_source.sort_values(sort_columns, kind="stable")
-    new_source = new_source.reset_index(drop=True)
-    historical_source = historical_source.reset_index(drop=True)
+    # Freshly cleaned data uses nullable Float64 (missing = pd.NA); the reloaded
+    # canonical CSV uses numpy float64 (missing = np.nan). assert_frame_equal treats
+    # pd.NA and np.nan as different, so normalize both to numpy floats before comparing
+    # to avoid reporting a change on every run.
+    new_source = _normalize_numeric_dtypes(new_source.reset_index(drop=True))
+    historical_source = _normalize_numeric_dtypes(historical_source.reset_index(drop=True))
     try:
         pd.testing.assert_frame_equal(new_source, historical_source, check_dtype=False)
         return False
