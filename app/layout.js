@@ -3,6 +3,7 @@ import React from "react";
 import { Orbitron, Source_Sans_3, Inter } from "next/font/google";
 import Navbar from "@/components/Navbar";
 import "./globals.css";
+import { Analytics } from "@vercel/analytics/next"
 
 const orbitron = Orbitron({
   subsets: ["latin"],
