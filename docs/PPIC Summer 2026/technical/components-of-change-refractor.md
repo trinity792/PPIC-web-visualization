@@ -1,3 +1,12 @@
+---
+Topic: tbd
+Content Type: refractor plan
+pinned: false
+description: "Refactoring plan for migrating the legacy Components of Change module into the V3 architecture. Inventories every legacy function and maps it to the shared helpers built during the Pop & Housing refactor rather than recreating them."
+Date Published: June 25, 2026
+Last Updated: 06/25/2026 - 12:41 PM
+---
+
 # Components of Change Script
 
 Legacy source: `Previous Tool/Visualization Tool/Components-Of-Change/components_code.py` (1,867 lines). It powers the three legacy notebooks (`VISUALIZE_COMPONENTS_LINEPLOT`, `_BARPLOT`, `_MAP`): it scrapes the California DOF **E-6** workbook and the Census **FTP2 component estimates**, cleans both, merges them with a hardcoded `R:\UCF\...` historical CSV, and renders Plotly line / bar / choropleth charts.

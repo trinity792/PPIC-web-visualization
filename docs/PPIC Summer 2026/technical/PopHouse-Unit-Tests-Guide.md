@@ -1,3 +1,12 @@
+---
+Topic: tbd
+Content Type: unit tests plan
+pinned: false
+description: "Guidelines and requirements for writing pytest tests covering the Phase 1 (Setup & Validation) and Phase 2 (Data Acquisition) modules of the refactored Pop-Housing pipeline."
+Date Published: June 22, 2026
+Last Updated: 06/23/2026 - 09:50 AM
+---
+
 # Pop-Housing Pipeline — Unit Testing Guide (Phases 1 & 2)
 
 Guidelines and requirements for writing pytest tests covering the Phase 1 (Setup & Validation) and Phase 2 (Data Acquisition) refactored modules.

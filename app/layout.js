@@ -1,8 +1,9 @@
 /* eslint-disable react/prop-types */
 import React from "react";
-import { Orbitron, Source_Sans_3, Inter } from "next/font/google";
+import { Orbitron, Source_Sans_3, Inter, Roboto_Serif } from "next/font/google";
 import Navbar from "@/components/Navbar";
 import ReportProblemDialog from "@/components/feedback/ReportProblemDialog";
+import { PAGE_LAYOUT } from "@/lib/constants";
 import "./globals.css";
 import { Analytics } from "@vercel/analytics/next"
 
@@ -24,6 +25,13 @@ const inter = Inter({
   variable: "--font-inter",
 });
 
+// Variable serif used globally. No pinned weight so the full variable range is
+// available for the heading hierarchy.
+const robotoSerif = Roboto_Serif({
+  subsets: ["latin"],
+  variable: "--font-source-serif",
+});
+
 export const metadata = {
   title: "PPIC Data Explorer",
   description: "Interactive California population and housing data visualizations.",
@@ -36,7 +44,8 @@ export default function RootLayout({ children }) {
     // which is otherwise reported as a hydration mismatch.
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${orbitron.variable} ${sourceSans.variable} ${inter.variable} font-body`}
+        className={`${orbitron.variable} ${sourceSans.variable} ${inter.variable} ${robotoSerif.variable} font-body`}
+        style={{ "--page-max-width": PAGE_LAYOUT.maxWidth }}
       >
         <Navbar />
         {children}

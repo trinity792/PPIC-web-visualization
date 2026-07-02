@@ -1,3 +1,12 @@
+---
+Topic: tbd
+Content Type: refractor plan
+pinned: false
+description: "Phase-by-phase refactoring plan for the Pop-Housing pipeline, from setup and validation through data acquisition and beyond. Serves as the reference blueprint that later module refactors reuse."
+Date Published: June 22, 2026
+Last Updated: 06/25/2026 - 12:41 PM
+---
+
 # Pop Housing Pipeline Script
 From Claude edited by Myself & ChatGPT:
 

@@ -85,9 +85,31 @@
   --ppic-surface: #f2f2f2;
   --ppic-card: #fafafa;
   --ppic-border: #c2c9cc;
+
+  /* Document (Markdown) rendering */
+  --ppic-body-font-weight: 400;
+  --ppic-body-line-height: 1.8;
+  --ppic-paragraph-spacing: 0.8em;
+  --ppic-bold-color: #bf471b;
+  --ppic-italic-color: #084d7c;
+  --ppic-h1-color: #000000;
+  --ppic-h2-color: #bf471b;
+  --ppic-h3-color: #084d7c;
+  --ppic-h4-color: #084d7c;
+  --ppic-h5-color: #bf471b;
+  --ppic-h6-color: #bf471b;
 }
 
 .dark {
+  --ppic-bold-color: #fc9c69;
+  --ppic-italic-color: #66b7fc;
+  --ppic-h1-color: #ffffff;
+  --ppic-h2-color: #e36a18;
+  --ppic-h3-color: #66b7fc;
+  --ppic-h4-color: #fed4bf;
+  --ppic-h5-color: #fed4bf;
+  --ppic-h6-color: #fed4bf;
+
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.145 0 0);
@@ -200,10 +222,10 @@
 
   /* Fonts wired to the next/font variables defined in app/layout.js */
   --font-display: var(--font-orbitron), sans-serif;
-  --font-heading: var(--font-source-sans), sans-serif;
+  --font-heading: var(--font-source-sans), "Roboto Serif", Georgia, "Times New Roman" sans-serif;
   --font-body: var(--font-source-sans), sans-serif;
   --font-sans: var(--font-inter), sans-serif;
-  --font-serif: "Georgia", "Times New Roman", serif;
+  --font-serif: var(--font-source-serif), "Roboto Serif", Georgia, "Times New Roman", serif;
 }
 
 @layer base {
@@ -232,3 +254,198 @@ body {
 .font-inter {
   font-family: var(--font-inter), sans-serif;
 }
+
+/* Global page content width — matches the graph editor's main area when the
+   sidebar is hidden. Driven by --page-max-width (set from PAGE_LAYOUT in
+   app/layout.js); "none" = full-bleed. Pages keep their own padding. */
+.page-container {
+  width: 100%;
+  max-width: var(--page-max-width, none);
+  margin-inline: auto;
+}
+
+/* ============================================================================
+   Document (Markdown) rendering — scoped to .ppic-markdown
+   ============================================================================ */
+
+.ppic-markdown {
+  font-family: var(--font-body), sans-serif;
+  font-weight: var(--ppic-body-font-weight);
+  line-height: var(--ppic-body-line-height);
+  color: var(--ppic-neutral-500);
+  font-size: 16px;
+}
+
+.ppic-markdown p {
+  margin: 0 0 var(--ppic-paragraph-spacing);
+}
+
+/* Headings — Georgia, exact sizes/weights/margins */
+.ppic-markdown h1,
+.ppic-markdown h2,
+.ppic-markdown h3,
+.ppic-markdown h4,
+.ppic-markdown h5,
+.ppic-markdown h6 {
+  font-family: var(--font-serif);
+  scroll-margin-top: 6rem;
+  line-height: 1.2;
+}
+.ppic-markdown h1 { font-size: 2em;   font-weight: 900; margin-top: 24px; margin-bottom: 6px; color: var(--ppic-h1-color); }
+.ppic-markdown h2 { font-size: 1.9em; font-weight: 700; margin-top: 20px; margin-bottom: 6px; color: var(--ppic-h2-color); }
+.ppic-markdown h3 { font-size: 1.6em; font-weight: 510; margin-top: 20px; margin-bottom: 6px; color: var(--ppic-h3-color); }
+.ppic-markdown h4 { font-size: 1.1em; font-weight: 485; margin-top: 20px; margin-bottom: 6px; color: var(--ppic-h4-color); }
+.ppic-markdown h5 { font-size: 1em;   font-weight: 600; margin-top: 16px; margin-bottom: 6px; color: var(--ppic-h5-color); }
+.ppic-markdown h6 { font-size: 0.9em; font-weight: 600; margin-top: 16px; margin-bottom: 6px; color: var(--ppic-h6-color); }
+
+/* Bold / italic accent colors */
+.ppic-markdown strong { font-weight: 700; color: var(--ppic-bold-color); }
+.ppic-markdown em { font-style: italic; color: var(--ppic-italic-color); }
+
+/* Links */
+.ppic-markdown a {
+  color: var(--ppic-blue-300);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.ppic-markdown a:hover { color: var(--ppic-brand); }
+
+/* Lists */
+.ppic-markdown ul,
+.ppic-markdown ol { margin: 0 0 var(--ppic-paragraph-spacing); padding-left: 1.5em; }
+.ppic-markdown li { margin: 0.2em 0; }
+.ppic-markdown li > ul,
+.ppic-markdown li > ol { margin-bottom: 0; }
+
+/* Ordered list numbers */
+.ppic-markdown ol > li::marker { color: var(--ppic-neutral-100); }
+
+/* Unordered bullets: a "-" marker (all nesting levels) */
+.ppic-markdown ul { list-style: none; }
+.ppic-markdown ul > li { position: relative; }
+.ppic-markdown ul > li::before {
+  content: "-";
+  position: absolute;
+  left: -1em;
+  color: var(--ppic-neutral-100);
+  font-weight: 700;
+}
+
+/* Task lists (checkbox instead of a dash) */
+.ppic-markdown ul > li:has(> input[type="checkbox"]) { margin-left: -1.25em; }
+.ppic-markdown ul > li:has(> input[type="checkbox"])::before { content: none; }
+.ppic-markdown input[type="checkbox"] { margin-right: 0.5em; accent-color: var(--ppic-brand); }
+
+/* Blockquote (non-callout) */
+.ppic-markdown > blockquote,
+.ppic-markdown blockquote:not(.ppic-callout) {
+  margin: 0 0 var(--ppic-paragraph-spacing);
+  padding: 0.2em 1em;
+  border-left: 4px solid var(--ppic-border);
+  color: var(--ppic-neutral-400);
+}
+
+/* Inline code */
+.ppic-inline-code {
+  font-family: var(--font-mono, ui-monospace, "SF Mono", Menlo, monospace);
+  font-size: 0.88em;
+  background: var(--ppic-neutral-50);
+  border: 1px solid var(--ppic-border);
+  border-radius: 5px;
+  padding: 0.1em 0.35em;
+  color: var(--ppic-orange-400);
+}
+
+/* Horizontal rule */
+.ppic-markdown hr {
+  border: none;
+  border-top: 1px solid var(--ppic-border);
+  margin: 1.5em 0;
+}
+
+/* Tables */
+.ppic-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 var(--ppic-paragraph-spacing);
+  font-size: 0.95em;
+}
+.ppic-markdown th,
+.ppic-markdown td {
+  border: 1px solid var(--ppic-border);
+  padding: 0.5em 0.75em;
+  text-align: left;
+  vertical-align: top;
+}
+.ppic-markdown thead th {
+  background: var(--ppic-neutral-50);
+  font-family: var(--font-heading);
+  color: var(--ppic-neutral-600);
+}
+.ppic-markdown tbody tr:nth-child(even) { background: color-mix(in srgb, var(--ppic-neutral-50) 45%, transparent); }
+
+/* Images */
+.ppic-doc-image {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  border: 1px solid var(--ppic-border);
+  margin: 0.5em 0 var(--ppic-paragraph-spacing);
+}
+
+/* ── Callouts ────────────────────────────────────────────────────────────── */
+.ppic-markdown .ppic-callout {
+  margin: 0 0 var(--ppic-paragraph-spacing);
+  padding: 0.75em 1em;
+  border-radius: 8px;
+}
+.ppic-markdown .ppic-callout-title,
+.ppic-markdown .ppic-callout-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 0.98em;
+}
+.ppic-markdown .ppic-callout-summary { cursor: pointer; list-style: none; }
+.ppic-markdown .ppic-callout-summary::-webkit-details-marker { display: none; }
+.ppic-markdown details.ppic-callout .ppic-callout-chevron { margin-left: auto; transition: transform 0.15s ease; }
+.ppic-markdown details.ppic-callout[open] .ppic-callout-chevron { transform: rotate(180deg); }
+.ppic-markdown .ppic-callout-body { margin-top: 0.5em; }
+.ppic-markdown .ppic-callout-body > :last-child { margin-bottom: 0; }
+
+/* ── Code blocks ─────────────────────────────────────────────────────────── */
+.ppic-markdown .ppic-codeblock {
+  margin: 0 0 var(--ppic-paragraph-spacing);
+  border: 1px solid var(--ppic-border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--ppic-card);
+}
+.ppic-markdown .ppic-codeblock-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: var(--ppic-neutral-50);
+  border-bottom: 1px solid var(--ppic-border);
+}
+.ppic-markdown .ppic-codeblock-lang {
+  font-family: var(--font-heading);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ppic-neutral-400);
+}
+.ppic-markdown .ppic-codeblock-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--ppic-neutral-400);
+  transition: color 0.15s ease;
+}
+.ppic-markdown .ppic-codeblock-copy:hover { color: var(--ppic-brand); }
+.ppic-markdown .ppic-codeblock pre { margin: 0 !important; border-radius: 0 !important; }

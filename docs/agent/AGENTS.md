@@ -1,3 +1,12 @@
+---
+Topic: tbd
+Content Type: agent instructions
+pinned: false
+description: "Top-level orientation for AI agents working on the PPIC V3 migration, which consolidates the legacy Jupyter (V1) and partial Shiny (V2) systems into a documented, tested React/Next.js site. Sets the project's goals and ground rules for contributors."
+Date Published: June 22, 2026
+Last Updated: 06/30/2026 - 10:17 AM
+---
+
 # AGENTS.md
 
 ## Goal
@@ -61,8 +70,7 @@ This VS Code workspace has three folders:
 
 ## Permissions
 
-- Reading, searching, listing, or viewing files **within the workspace** does not
-  require user approval — just do it
+- Reading, searching, listing, or viewing files within `web-data-visualization/` or `previous tool/` does not require user approval — just do it
 - Running unit tests/unit checks or running npm does not require user approval - just do it
 - Only prompt for confirmation before destructive, irreversible, or out-of-scope actions
   (e.g., deleting files, modifying configs listed under "Ask first")

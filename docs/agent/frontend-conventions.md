@@ -11,6 +11,11 @@ description: >
   this skill even for single-component tasks — consistent documentation matters at every scale.
   Works alongside web-architecture (which defines WHERE files go) and frontend-design (which
   defines visual aesthetics).
+Topic: tbd
+Content Type: agent instructions
+pinned: false
+Date Published: June 30, 2026
+Last Updated: 06/30/2026 - 10:17 AM
 ---
 
 # Frontend Conventions Skill

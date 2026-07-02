@@ -1,3 +1,12 @@
+---
+Topic: tbd
+Content Type: refractor plan
+pinned: false
+description: "Refactoring plan for migrating the legacy permits_code.py module into the V3 architecture established by the prior module refactors."
+Date Published: June 30, 2026
+Last Updated: 06/30/2026 - 08:17 PM
+---
+
 # Building Permits: Refactoring Plan
 
 A plan for migrating the legacy `permits_code.py` module into the V3 architecture established by PopHousing, Components of Change, Age-Sex-Race Projections, and ACS Housing Stress.

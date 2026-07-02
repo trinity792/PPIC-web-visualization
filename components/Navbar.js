@@ -66,6 +66,9 @@ export default function Navbar() {
             <Link href="/housing-stress" className="hover:underline">
               Housing Stress
             </Link>
+            <Link href="/documents" className="hover:underline">
+              Documents
+            </Link>
             <Link href="/ui-kit" className="hover:underline">
               UI Kit
             </Link>

@@ -1,3 +1,12 @@
+---
+Topic: tbd
+Content Type: implementation plan
+pinned: false
+description: "A running checklist of UI/UX improvements and codebase cleanup tasks spanning the back end and front end. Tracks work such as integrating the UI Kit, building shared preset charts and validators, and creating navbar and sidebar components."
+Date Published: June 27, 2026
+Last Updated: 06/27/2026 - 08:09 PM
+---
+
 # UI/UX Updates
 ## Back End
 - [x] Update constants.js

@@ -1,3 +1,12 @@
+---
+Topic: tbd
+Content Type: project specification
+pinned: true
+description: "The single source of truth for the web-data-visualization project's specification, architecture, and API reference. A living document for programmers and researchers that uses PopHousing as the reference implementation future data modules should mirror."
+Date Published: June 23, 2026
+Last Updated: 07/02/2026 - 12:48 PM
+---
+
 
 # Project Specification, Architecture & API Reference
 Web **Visualizations** Project
@@ -1238,3 +1247,54 @@ Migrate another legacy dataset by reproducing PopHousing's shape — it is the w
 - **Add a geographic grouping** — extend `subsets` in the module schema; ensure the level exists in the data contract.
 - **Add a pipeline transformation** — write a worker in the right `pophousing/` package (or a generic helper in `shared/` if it carries no domain knowledge), then call it from the relevant phase in the orchestrator. Add the mirrored test first.
 - **Change a Population & Housing column or schema** — update `lib/pophousing_config.py` / `schemas.py`, the data contract, and the frontend field catalog `lib/visualization/moduleSchemas/pophousing.js` (which derives `NUMERIC_COLUMNS`/curated metrics/canonical columns) together. This is an "ask first" change.
+
+---
+
+## The Documents Library & Markdown Renderer
+
+The `/documents` section publishes this `docs/` library as a browsable, filterable
+catalog (`app/documents/page.js`) whose cards are derived from each file's YAML
+frontmatter (`lib/docs/documents.js`). Each document renders at `/documents/<slug>`
+through a Markdown reader (`app/documents/[slug]/page.js` → `components/documents/`)
+that reproduces the team's Obsidian formatting on the web:
+
+- **Engine** — `react-markdown` with `remark-gfm` (tables, task lists, strikethrough,
+  footnotes), `remark-math` + `rehype-katex` (LaTeX), `rehype-slug` (heading ids), and
+  `rehype-raw`.
+- **Callouts** — a custom `remarkCallouts` plugin renders Obsidian `> [!TYPE]`
+  admonitions (including collapsible `+`/`-` and custom titles) via `Callout`.
+- **Wikilinks & embeds** — a custom `remarkWikilinks` plugin resolves `[[doc]]` to
+  internal links and `![[image.png]]` to images served by `app/api/doc-asset/route.js`.
+- **Symbols** — a custom `remarkSymbols` plugin prettifies ASCII sequences
+  (`->`→→, `>=`→≥, …).
+- **Code blocks** — `CodeBlock` adds a language header, line numbers, and a copy button.
+- **Table of contents** — `extractToc` + `DocTableOfContents` build an H1–H3 outline
+  with scrollspy, matching the UI Kit's contents sidebar.
+
+### Acknowledgements
+
+Portions of the document renderer were inspired by the following Obsidian community
+plugins; our implementations are independent reimplementations for the web:
+
+- **Code block styling** — inspired by *Code Styler* by [Mayuran Visakan](https://github.com/mayurankv).
+- **Symbol prettification** — inspired by *Symbols Prettifier* by [Florian Woelki](https://florianwoelki.com).
+- **Math rendering** — inspired by *MathType* by [slateblua](https://slateblua.github.io).
+
+---
+
+## Typography — Serif Font
+
+The global serif (`--font-serif`, used for headings, document titles, and the article
+reader) is **[Roboto Serif](https://fonts.google.com/specimen/Roboto+Serif)** — a
+modern, variable serif loaded via `next/font/google` in
+`app/layout.js`. A variable weight axis matters here: static two-weight faces (e.g. Georgia)
+snap every requested weight to 400 or 700, collapsing the heading hierarchy; a variable
+serif renders intermediate weights (500/600/…) distinctly.
+
+To change the serif, swap the `next/font/google` import in `app/layout.js` and update the
+`--font-serif` fallback stack in `app/globals.css`. Candidate serifs (all business/expressive):
+
+- **[Source Serif 4](https://fonts.google.com/specimen/Source+Serif+4)** — transitional, **variable**.
+- **[Domine](https://fonts.google.com/specimen/Domine)** — modern serif, weights 400–700; designed for body/headline legibility on screen.
+- **[Roboto Serif](https://fonts.google.com/specimen/Roboto+Serif)** — modern, **variable** (multi-axis: weight, optical size, grade, width; current).
+- **[Gelasio](https://fonts.google.com/specimen/Gelasio)** — transitional, **variable**; metrically compatible with Georgia (drop-in replacement).

@@ -10,6 +10,11 @@ description: >
   This skill defines HOW Python files are structured internally, HOW they're documented, and
   WHERE they live within a project. Always consult this skill even for single-file scripts —
   consistent documentation matters at every scale.
+Topic: tbd
+Content Type: agent instructions
+pinned: false
+Date Published: June 22, 2026
+Last Updated: 06/23/2026 - 01:54 PM
 ---
  
 # Python Scripts Skill

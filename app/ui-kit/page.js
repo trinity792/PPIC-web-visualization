@@ -28,7 +28,7 @@ export default function UiKitPage() {
     <div className="min-h-screen" style={{ backgroundColor: "var(--ppic-surface)" }}>
       {/* Hero */}
       <div className="border-b" style={{ borderColor: "var(--ppic-border)" }}>
-        <div className="mx-auto max-w-[1600px] px-6 py-12">
+        <div className="page-container px-6 py-12">
           <p
             className="mb-2 text-[13px] uppercase tracking-[0.24em]"
             style={{ fontFamily: "var(--font-sans)", color: "var(--ppic-orange-300)" }}
@@ -53,7 +53,7 @@ export default function UiKitPage() {
       </div>
 
       {/* Body */}
-      <div className="mx-auto max-w-[1600px] gap-10 px-6 py-12 lg:grid lg:grid-cols-[200px_1fr]">
+      <div className="page-container gap-10 px-6 py-12 lg:grid lg:grid-cols-[200px_1fr]">
         {/* TOC */}
         <aside className="hidden lg:block">
           <nav className="sticky top-28 space-y-1">

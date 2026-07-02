@@ -17,7 +17,7 @@ export default function Home() {
 
   return (
     <main className="min-h-[calc(100svh-7.5rem)] bg-muted/45 px-4 py-10 sm:px-8 lg:px-12">
-      <div className="mx-auto max-w-375 space-y-8">
+      <div className="page-container space-y-8">
         {/* One self-contained dashboard per live category. */}
         {liveCategories.map((category) => {
           const Dashboard = getDashboard(category.id);
