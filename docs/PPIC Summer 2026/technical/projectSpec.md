@@ -1284,17 +1284,9 @@ plugins; our implementations are independent reimplementations for the web:
 
 ## Typography — Serif Font
 
-The global serif (`--font-serif`, used for headings, document titles, and the article
-reader) is **[Roboto Serif](https://fonts.google.com/specimen/Roboto+Serif)** — a
-modern, variable serif loaded via `next/font/google` in
-`app/layout.js`. A variable weight axis matters here: static two-weight faces (e.g. Georgia)
-snap every requested weight to 400 or 700, collapsing the heading hierarchy; a variable
-serif renders intermediate weights (500/600/…) distinctly.
-
-To change the serif, swap the `next/font/google` import in `app/layout.js` and update the
-`--font-serif` fallback stack in `app/globals.css`. Candidate serifs (all business/expressive):
-
-- **[Source Serif 4](https://fonts.google.com/specimen/Source+Serif+4)** — transitional, **variable**.
-- **[Domine](https://fonts.google.com/specimen/Domine)** — modern serif, weights 400–700; designed for body/headline legibility on screen.
-- **[Roboto Serif](https://fonts.google.com/specimen/Roboto+Serif)** — modern, **variable** (multi-axis: weight, optical size, grade, width; current).
-- **[Gelasio](https://fonts.google.com/specimen/Gelasio)** — transitional, **variable**; metrically compatible with Georgia (drop-in replacement).
+The global serif (`--font-serif`, used for headings, document titles, and the article reader) is **[Source Serif 4](https://fonts.google.com/specimen/Source+Serif+4)** — a transitional, variable serif (weight axis 200–900) loaded via `next/font/google` in `app/layout.js`. A variable weight axis matters here: static two-weight faces (e.g. Georgia) snap every requested weight to 400 or 700, collapsing the heading hierarchy; a variable serif renders intermediate weights (500/600/…) distinctly.
+To change the serif, swap the `next/font/google` import in `app/layout.js` and update the `--font-serif` fallback stack in `app/globals.css`. Candidate serifs (all business/expressive):
+- **[Source Serif 4](https://fonts.google.com/specimen/Source+Serif+4)** — transitional, **variable** (current).
+- **[Domine](https://fonts.google.com/specimen/Domine)** — modern serif, weights 400–700 designed for body/headline legibility on screen.
+- **[Roboto Serif](https://fonts.google.com/specimen/Roboto+Serif)** — modern, **variable**(multi-axis: weight, optical size, grade, width).
+- **[Gelasio](https://fonts.google.com/specimen/Gelasio)** — transitional, **variable** metrically compatible with Georgia (drop-in replacement).

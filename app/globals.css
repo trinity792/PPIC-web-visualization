@@ -222,10 +222,10 @@
 
   /* Fonts wired to the next/font variables defined in app/layout.js */
   --font-display: var(--font-orbitron), sans-serif;
-  --font-heading: var(--font-source-sans), "Roboto Serif", Georgia, "Times New Roman" sans-serif;
+  --font-heading: var(--font-source-sans), sans-serif;
   --font-body: var(--font-source-sans), sans-serif;
   --font-sans: var(--font-inter), sans-serif;
-  --font-serif: var(--font-source-serif), "Roboto Serif", Georgia, "Times New Roman", serif;
+  --font-serif: var(--font-source-serif), "Source Serif 4", Georgia, "Times New Roman", serif;
 }
 
 @layer base {
@@ -291,12 +291,12 @@ body {
   scroll-margin-top: 6rem;
   line-height: 1.2;
 }
-.ppic-markdown h1 { font-size: 2em;   font-weight: 900; margin-top: 24px; margin-bottom: 6px; color: var(--ppic-h1-color); }
-.ppic-markdown h2 { font-size: 1.9em; font-weight: 700; margin-top: 20px; margin-bottom: 6px; color: var(--ppic-h2-color); }
-.ppic-markdown h3 { font-size: 1.6em; font-weight: 510; margin-top: 20px; margin-bottom: 6px; color: var(--ppic-h3-color); }
-.ppic-markdown h4 { font-size: 1.1em; font-weight: 485; margin-top: 20px; margin-bottom: 6px; color: var(--ppic-h4-color); }
-.ppic-markdown h5 { font-size: 1em;   font-weight: 600; margin-top: 16px; margin-bottom: 6px; color: var(--ppic-h5-color); }
-.ppic-markdown h6 { font-size: 0.9em; font-weight: 600; margin-top: 16px; margin-bottom: 6px; color: var(--ppic-h6-color); }
+.ppic-markdown h1 { font-size: 2em;   font-weight: 800; margin-top: 24px; margin-bottom: 6px; color: var(--ppic-h1-color); }
+.ppic-markdown h2 { font-size: 1.9em; font-weight: 600; margin-top: 20px; margin-bottom: 6px; color: var(--ppic-h2-color); }
+.ppic-markdown h3 { font-size: 1.6em; font-weight: 500; margin-top: 20px; margin-bottom: 6px; color: var(--ppic-h3-color); }
+.ppic-markdown h4 { font-size: 1.1em; font-weight: 400; margin-top: 20px; margin-bottom: 6px; color: var(--ppic-h4-color); }
+.ppic-markdown h5 { font-size: 1em;   font-weight: 400; margin-top: 16px; margin-bottom: 6px; color: var(--ppic-h5-color); }
+.ppic-markdown h6 { font-size: 0.9em; font-weight: 400; margin-top: 16px; margin-bottom: 6px; color: var(--ppic-h6-color); }
 
 /* Bold / italic accent colors */
 .ppic-markdown strong { font-weight: 700; color: var(--ppic-bold-color); }
