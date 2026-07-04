@@ -355,6 +355,12 @@ body {
   padding: 0.1em 0.35em;
   color: var(--ppic-orange-400);
 }
+/* Inline code inside an H3 takes the heading color, with a softer chip. */
+.ppic-markdown h3 .ppic-inline-code {
+  color: var(--ppic-h3-color);
+  background: color-mix(in srgb, var(--ppic-neutral-50) 45%, transparent);
+  border-color: color-mix(in srgb, var(--ppic-border) 45%, transparent);
+}
 
 /* Horizontal rule */
 .ppic-markdown hr {

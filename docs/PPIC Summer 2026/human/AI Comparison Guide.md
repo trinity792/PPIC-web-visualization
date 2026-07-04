@@ -1,6 +1,6 @@
 ---
 Topic: AI
-Content Type: guide
+Content Type: Explainer
 pinned: true
 description: Comparative guide to AI tools (Perplexity, NotebookLM, Claude, ChatGPT, Gemini, and Copilot) for research and policy workflows, with recommendations by task. Emphasizes independently verifying AI output and protecting confidential data.
 Date Published: June 30, 2026

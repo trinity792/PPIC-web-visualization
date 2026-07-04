@@ -1,5 +1,5 @@
 ---
-Topic: tbd
+Topic: Population
 Content Type: codebook
 pinned: false
 description: "Data dictionary for the California Department of Finance P3 population projections (2020–2070, Baseline 2024, Vintage 2026), covering file format and field definitions. Serves as the codebook for the projections dataset."

@@ -62,6 +62,7 @@ This VS Code workspace has three folders:
 - Read `lib/pophousing_config.py` before making Population & Housing data changes —
   it is the source of truth for regions, geographic classifications, and column definitions
 - Follow Python conventions in `docs/agent/python_conventions.md` when writing or modifying `.py` files
+- Follow `docs/agent/markdown-conventions.md` while editing markdown files.
 - Reference `docs/agent/frontend-conventions.md` before implementing any frontend UI;
   match its patterns for layout, typography, color usage, and component styling
 - Use the shared constants/theme module (e.g., `constants.js`) for all colors, fonts,

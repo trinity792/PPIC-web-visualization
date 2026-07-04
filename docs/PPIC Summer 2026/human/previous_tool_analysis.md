@@ -1,6 +1,6 @@
 ---
-Topic: tbd
-Content Type: guide
+Topic: Technical
+Content Type: analysis
 pinned: false
 description: "A complete technical breakdown of the legacy \"Previous Tool\" codebase — what each script does, how the pieces fit together, and where it is fragile. Doubles as a guide for migrating its visualizations to React."
 Date Published: June 22, 2026
@@ -18,36 +18,41 @@ A complete technical breakdown of the legacy "Previous Tool" codebase — what e
 
 ## Table of Contents
 
-- [Overview](#overview)
-- [Key Architecture Facts](#key-architecture-facts)
-- [Directory Structure](#directory-structure)
-- [Visualization Tool](#visualization-tool)
-  - [Pop-Housing](#pop-housing)
-  - [Components of Change](#components-of-change)
-  - [Age-Sex-Race Projections](#age-sex-race-projections)
-  - [Building Permits](#building-permits)
-  - [ACS Housing Stress](#acs-housing-stress)
-  - [Shared Patterns](#shared-patterns)
-  - [Jupyter Notebooks](#jupyter-notebooks)
-- [Automated Data Pipeline](#automated-data-pipeline)
-  - [Pipeline Orchestrator](#pipeline-orchestrator)
-  - [Historical Data Downloader](#historical-data-downloader)
-  - [Historical Data Processor](#historical-data-processor)
-  - [Modern Data Pipeline](#modern-data-pipeline)
-  - [Configuration](#configuration)
-  - [Forward Fill Helpers](#forward-fill-helpers)
-  - [Data Cleaning Utilities](#data-cleaning-utilities)
-  - [Logging Configuration](#logging-configuration)
-  - [Validation](#validation)
-- [Shiny Web Application](#shiny-web-application)
-  - [Main Application](#main-application)
-  - [App Configuration](#app-configuration)
-  - [Shiny Visualization Modules](#shiny-visualization-modules)
-- [Data Flow and Interactions](#data-flow-and-interactions)
-- [Data Sources Reference](#data-sources-reference)
-- [Robustness Risks & Improvement Opportunities](#robustness-risks--improvement-opportunities)
-- [React Migration Guide](#react-migration-guide)
-- [Glossary](#glossary)
+- [Previous Tool: Technical Analysis \& Migration Guide](#previous-tool-technical-analysis--migration-guide)
+  - [Table of Contents](#table-of-contents)
+  - [Overview](#overview)
+  - [Key Architecture Facts](#key-architecture-facts)
+  - [Directory Structure](#directory-structure)
+  - [Visualization Tool](#visualization-tool)
+    - [Pop-Housing](#pop-housing)
+    - [Components of Change](#components-of-change)
+    - [Age-Sex-Race Projections](#age-sex-race-projections)
+    - [Building Permits](#building-permits)
+    - [ACS Housing Stress](#acs-housing-stress)
+    - [Shared Patterns](#shared-patterns)
+    - [Jupyter Notebooks](#jupyter-notebooks)
+  - [Automated Data Pipeline](#automated-data-pipeline)
+    - [Pipeline Orchestrator](#pipeline-orchestrator)
+    - [Historical Data Downloader](#historical-data-downloader)
+    - [Historical Data Processor](#historical-data-processor)
+    - [Modern Data Pipeline](#modern-data-pipeline)
+    - [Configuration](#configuration)
+    - [Forward Fill Helpers](#forward-fill-helpers)
+    - [Data Cleaning Utilities](#data-cleaning-utilities)
+    - [Logging Configuration](#logging-configuration)
+    - [Validation](#validation)
+  - [Shiny Web Application](#shiny-web-application)
+    - [Main Application](#main-application)
+    - [App Configuration](#app-configuration)
+    - [Shiny Visualization Modules](#shiny-visualization-modules)
+  - [Data Flow and Interactions](#data-flow-and-interactions)
+  - [Data Sources Reference](#data-sources-reference)
+  - [Robustness Risks \& Improvement Opportunities](#robustness-risks--improvement-opportunities)
+  - [React Migration Guide](#react-migration-guide)
+    - [Target architecture](#target-architecture)
+    - [Mapping the current pieces to React](#mapping-the-current-pieces-to-react)
+    - [Suggested sequence](#suggested-sequence)
+  - [Glossary](#glossary)
 
 ---
 

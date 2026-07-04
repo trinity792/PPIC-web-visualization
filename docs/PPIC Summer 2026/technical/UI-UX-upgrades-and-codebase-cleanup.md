@@ -1,5 +1,5 @@
 ---
-Topic: tbd
+Topic: UI/UX
 Content Type: implementation plan
 pinned: false
 description: "A running checklist of UI/UX improvements and codebase cleanup tasks spanning the back end and front end. Tracks work such as integrating the UI Kit, building shared preset charts and validators, and creating navbar and sidebar components."

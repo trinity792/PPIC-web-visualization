@@ -1,238 +1,355 @@
 ---
-Topic: tbd
+Topic: Population
 Content Type: refractor plan
 pinned: false
-description: "Refactoring plan for migrating the legacy Components of Change module into the V3 architecture. Inventories every legacy function and maps it to the shared helpers built during the Pop & Housing refactor rather than recreating them."
+description: "Reference guide to the refactored Components of Change module: what it produces, how each phase works, how the three charts are built, and a per-script breakdown of the modern code with its lineage from the legacy tool. First half is for curious non-programmers; second half is for programmers."
 Date Published: June 25, 2026
-Last Updated: 06/25/2026 - 12:41 PM
+Last Updated: 07/04/2026 - 09:20 AM
 ---
 
-# Components of Change Script
+# Components of Change Refractor Guide
 
-Legacy source: `Previous Tool/Visualization Tool/Components-Of-Change/components_code.py` (1,867 lines). It powers the three legacy notebooks (`VISUALIZE_COMPONENTS_LINEPLOT`, `_BARPLOT`, `_MAP`): it scrapes the California DOF **E-6** workbook and the Census **FTP2 component estimates**, cleans both, merges them with a hardcoded `R:\UCF\...` historical CSV, and renders Plotly line / bar / choropleth charts.
+The Components of Change module turns two families of population-estimate sources - the California Department of Finance (DoF) E-6 report and the U.S. Census county component estimates - into a single validated CSV of births, deaths, migration, and population change for every California county, the nine PPIC regions, the state, and the fifty states, then renders that CSV as line, bar, and choropleth charts. This document describes the module in its refactored form: the shared and Components-specific scripts that replaced the legacy monolith, organized around the five phases the pipeline runs and the visualization layer that consumes it.
 
-This document mirrors [[pophousing-pipeline-refractor]]: it inventories every legacy function, classifies it, and states where its core responsibility lands in the target `scripts/` tree — **reusing the shared helpers the Pop & Housing refactor already built** rather than re-creating them.
-
-> [!note] Why this refactor matters
-> - **Massive triplication.** The scrape → fallback → clean → combine → archive → save → geographic-level block (~250 lines) is copy-pasted verbatim inside `visualize_line`, `visualize_bar`, and `visualize_map`, then *again* inside each function's `except` fallback. Roughly 70% of the file is duplicated logic.
-> - **Mixed concerns.** Acquisition, cleaning, persistence, and chart rendering all live inside the three "visualize" entry points.
-> - **Hardcoded configuration.** The 9 region→county mappings appear 3×; the state↔abbreviation dicts 2×; the state/region/county classification lists 3×; absolute `R:\UCF\Visualization Tool\...` paths ~15×.
-> - **No reuse of the shared layer** that already exists for downloads, type coercion, row filters, validation, archiving, and regional aggregation.
+> [!info] Who this document is for and how to read it
+> This document has two halves. The first half - through "Architecture and Boundaries" - is written for someone who wants to understand what the module does and how it works without reading code: the data sources, the phases, the three charts, the calculations, and the outputs. The second half is a per-script, per-function technical reference for a programmer who wants to know what each piece does and what legacy code it was derived from, faster than reading the source line by line. Nothing here modifies code; a running list of subtle issues found while documenting the module is collected under "Flagged Issues and Fragilities."
 
 ---
 
-## Phase 1: Acquisition
+## What the Module Produces
 
-**`scrape_dof_e6()`** — **Worker.** Two `requests.get` calls and two rounds of BeautifulSoup parsing: finds the E-6 landing link on the DOF estimates page by matching `e-6`/`e6` in the href, follows it, selects the first workbook link in the first `<ul>`, downloads it into `io.BytesIO`, and reads the **second** Excel sheet. Calls no project functions.
+The pipeline emits one canonical dataset, `ComponentsOfChange_Current.csv`, written to the cleaned-data area under `components-of-change/`. Each row is one place in one year from one source, carrying total population, the year-over-year percent and numeric population change, the demographic components of that change (births, deaths, natural increase, and the migration breakdown), and five crude rates derived from those components. A `Geographic Level` column tags each row as State, Region, County, or Other, and a `Source` column records whether the row came from DoF or Census.
 
-**`scrape_dof_e6_spatially()`** — **Worker.** Identical to `scrape_dof_e6()` except it selects the E-6 landing link *positionally* (the 7th `<ul>` on the page) as a fallback for when DOF removes "e-6" from the href text. Pure DOF page-structure knowledge.
+The dataset is deliberately long on the source axis: the same place-year can appear twice, once as a `DoF` row and once as a `Census` row, because the two agencies measure the components differently and the charts let a user compare them. The frontend visualizations read this CSV indirectly - they call the pipeline, which returns the in-memory dataset - so the pipeline's job is to guarantee the schema, geography, and source coverage are complete and internally consistent, and to overwrite the CSV only when a source actually published new numbers.
 
-**`scrape_census_components()`** — **Worker.** Walks the current year backward up to 10× building the `https://www2.census.gov/.../co-est{YEAR}-alldata.csv` URL until one loads. Census-specific URL pattern.
+## Data Sources
 
-> [!flag] Create New Scripts
-> - `scripts/components_of_change/acquisition/dof_e6_downloader.py`
->   - `get_e6_file_url(source_settings)` should contain DOF estimates-page traversal and link-text E-6 selection.
->   - `get_e6_file_url_positional(source_settings)` should contain the positional (7th `<ul>`) fallback selection.
->   - `download_e6_workbook(url, headers, timeout)` should fetch the workbook and load its second sheet.
-> - `scripts/components_of_change/acquisition/census_components_downloader.py`
->   - `get_census_components_url(base_url, max_lookback_years)` should perform the year-walk URL discovery.
->   - `download_census_components(url)` should load the CSV (`engine='python'`, `encoding='latin1'`).
-> - `scripts/components_of_change/acquisition/source_fallback.py`
->   - `acquire_with_fallback(scrape_fns, manual_path, last_saved_loader)` should encode the **scrape → spatial/positional scrape → manual-download CSV → last-saved CSV** cascade currently inlined (and duplicated 3×) inside every visualizer. Returns `(dataframe, source_failed, used_manual)`.
-> - Reuse `scripts/shared/downloads/http_downloads.py` (`fetch_response`, `download_file`); do not duplicate `requests` or binary-write logic in the Components downloaders.
+The module draws on two live sources, both discovered by scraping or walking a URL pattern rather than hard-coding a file path that changes every year, plus its own saved output as a fallback.
 
----
+| Source | Report | Coverage | Role |
+|---|---|---|---|
+| DoF estimates | E-6 County Population Estimates and Components of Change | 1991 to present, California places | The California county, region, and state series. |
+| Census estimates | FTP2 county component estimates (`co-est{YEAR}-alldata.csv`) | 2010 to present, all counties and states | The national series and the Census view of California. |
+| Saved canonical CSV | `ComponentsOfChange_Current.csv` | Full history | Fallback when a live source is unreachable, and the source of years older than the current live pull. |
 
-## Phase 2: Cleaning
+The E-6 workbook is an Excel file whose second worksheet holds the data. The Census file is a wide CSV with one column per statistic-year (for example `BIRTHS2015`, `DEATHS2015`), which the pipeline reshapes into tidy rows. Each source also has an optional manually downloaded CSV that sits between the live source and the saved data in the fallback order, so an analyst can drop in a hand-saved file when a scraper breaks.
 
-**`clean_e6(df)`** — **Hybrid, leans worker.** Inline work: drop all-NaN columns, assign the 11 canonical E-6 column names, trim every row before the first `California`/`Alameda`, drop the `Apr-Jun 2010/2020` census rows, repair truncated county names (`'Contra '`→`Contra Costa`, `'Los'`→`Los Angeles`, `'San'`→`San Francisco`/`San Joaquin`, `'San Luis'`→`San Luis Obispo`, `'Santa'`→`Santa Barbara`/`Santa Clara`, …), block-forward-fill `Location` across each year span, drop the minimum year, trim rows after the last `Yuba`, retype with comma-stripping, set `Source='DoF'`, rename `California`→`CA`. **Defines an inner `add_region()`** and calls it for all 9 regions, then adds the five crude rates.
+## The Dataset: Grain, Columns, and Geography
 
-**`clean_census_components(df)`** — **Hybrid, leans worker.** Inline work: filter to California + the 49 other states, map state name→abbreviation, `melt` wide→long then `pivot_table` to the canonical schema, rename source columns (`BIRTHS`→`Births`, `DOMESTICMIG`→`Net Domestic Migration`, …), strip `" County"`, retype, compute `Percent`/`Numeric Change in Population` via grouped `pct_change`/`diff`, drop 2020, set `Source='Census'`. **Defines the same inner `add_region()`** and adds the five crude rates.
+The grain of the output is one row per `(Location, Year, Source)`. That triple is the key the pipeline deduplicates and validates uniqueness against, and it is why the same county-year can appear once per source without being flagged as a duplicate.
 
-> [!flag] Create New Scripts
-> - `scripts/components_of_change/cleaning/e6_cleaner.py`
->   - `clean_e6(raw_e6_df, columns_config, geography_config)` should orchestrate the steps below.
->   - `normalize_e6_columns(raw_e6_df, column_names)` should absorb the initial E-6 column assignment and row trimming around the first/last real data row.
->   - `repair_truncated_county_names(e6_df, repair_mapping)` should absorb the truncated-county fixups.
->   - `forward_fill_locations_by_year_block(e6_df, location_col, year_col)` should absorb the year-span `Location` fill (E-6-shaped; no generic equivalent).
-> - `scripts/components_of_change/cleaning/census_cleaner.py`
->   - `clean_census_components(raw_census_df, columns_config, geography_config)` should orchestrate.
->   - `reshape_census_wide_to_long(raw_census_df, schema)` should absorb the `melt`/`pivot_table` reshape.
->   - `map_state_abbreviations(census_df, mapping)` should apply the state→abbreviation mapping.
-> - Reuse `scripts/shared/data_cleaning/type_conversions.py::coerce_numeric_columns` (comma-stripping retype), `row_filters` (year/header trimming), and `dataframe_operations.assign_values_from_mapping` (state-abbreviation apply).
-> - **Remove both duplicate inner `add_region()` definitions** — see Phase 4. The crude-rate and population-change blocks move to Phase 3.
+The output schema is fixed by `config/columns.py` and applied identically to DoF and Census rows so the two can be concatenated. The columns fall into four groups.
 
----
+| Group | Columns |
+|---|---|
+| Identity | `Geographic Level`, `Location`, `Year`, `Source` |
+| Population | `Total Population`, `Percent Change in Population`, `Numeric Change in Population` |
+| Components | `Births`, `Deaths`, `Natural Increase`, `Net Migration`, `Net Foreign Immigration`, `Net Domestic Migration` |
+| Derived rates | `Crude Birth Rate`, `Crude Death Rate`, `Crude Migration Rate`, `Crude Domestic Migration Rate`, `Crude Foreign Migration Rate` |
 
-## Phase 3: Calculations
+Geography carries the module's domain knowledge. The E-6 workbook lists California counties (and the state) with truncated, hierarchical labels that the pipeline has to repair and forward-fill; the Census file lists every county and state in the country. The pipeline standardizes California to the abbreviation `CA`, rolls the fifty-eight counties up into the nine custom PPIC regions by summing their members, keeps the fifty states as national rows (Census only), and finally tags every row's `Geographic Level`. The nine region definitions are the same shared California geography used by the Population and Housing and Building Permits modules, so there is a single owner for what counts as a region.
 
-The five-line crude-rate block and the `Percent`/`Numeric Change in Population` block are duplicated across `clean_e6`, `clean_census_components`, `combine_dof_with_historical`, and `combine_census_with_historical`.
+## How the Pipeline Runs: Five Phases
 
-> [!flag] Create New Script (`scripts/components_of_change/calculations/demographic_rates.py`)
-> - `add_crude_rates(df, population_col, components_map)` should be the single implementation of the Crude Birth / Death / Migration / Domestic Migration / Foreign Migration rates (`value / Total Population * 1000`).
-> - `recalculate_population_change(df, group_col, population_col)` should be the single implementation of `Percent Change in Population` (grouped `pct_change * 100`, rounded to 2) and `Numeric Change in Population` (grouped `diff`). Used by the cleaners, the historical-merge functions, and aggregation.
-> - Do not retain per-source copies of these formulas.
+The orchestrator `scripts/orchestrators/components_of_change_pipeline.py` runs five phases in sequence inside `build_components_dataset`, wrapping each in error handling that reports which phase failed. Each phase hands its work to the next, and the whole thing runs exactly once per chart request rather than being copy-pasted into each visualizer as it was in the legacy tool.
 
----
+A cross-cutting idea runs through the first three phases: a **three-step fallback cascade** for each source. The pipeline first tries the live source, then a manually downloaded CSV, then the last-saved rows from the canonical dataset. A source that falls all the way through to last-saved data is marked "failed" so the pipeline knows not to treat it as new data worth saving.
 
-## Phase 4: Aggregation
+### Phase 1: Setup and Load
 
-The inner `add_region(df, regions_to_combine, new_region)` (groupby `Year`, sum, relabel `Location`, concat) is defined **twice** and is mechanically the same county→region rollup as Pop & Housing's `build_regional_rows`. The 9 region→county groups are byte-identical to `lib/pophousing_config.py::REGIONS_MAPPING`.
+The pipeline loads its four configuration bundles (paths, sources, columns, geography) and reads the saved canonical CSV once. That saved dataset is both the change-detection baseline and the supplier of history older than the current live pull, so loading it first is a prerequisite for everything downstream.
 
-> [!flag] Create New Script (`scripts/components_of_change/aggregation/regional_aggregation.py`)
-> - `add_regional_data(df, regions_mapping)` should be the Components entry point: build the 9 regions by additive groupby-sum (reusing the `build_regional_rows` pattern in `scripts/pophousing/aggregation/regional_aggregation.py`), then call `demographic_rates.add_crude_rates` to recompute rates on the aggregate rows.
-> - Source `regions_mapping` from `scripts/pophousing/config/geography.py::get_geography_config()` — do not re-hardcode the 9 region groups.
-> - Do not keep `add_region` as a nested function inside the cleaners.
+### Phase 2: Acquisition
 
----
+The pipeline acquires each source through the fallback cascade. For DoF it tries two discovery strategies in order - a precise E-6 landing-page match, then a looser "most recent E-6 link" scan - before falling back to the manual CSV and then last-saved DoF rows. For Census it walks the current year backward until a `co-est{YEAR}-alldata.csv` responds, then falls back the same way. This phase only fetches raw data; it does no cleaning.
 
-## Phase 5: Merging with Historical
+### Phase 3: Cleaning
 
-**`combine_dof_with_historical(df)`** — **Worker.** Reads the canonical CSV (hardcoded `R:\` path), drops `Geographic Level`, filters to `Source=='DoF'`, keeps the historical years absent from the new pull, concatenates, sorts by `Location`/`Year`, recomputes change, re-stamps `Source='DoF'`.
+Each raw source becomes clean, canonical rows. The E-6 cleaner assigns column names, trims to the real data rows, repairs truncated county names, forward-fills each location across its block of years, drops the earliest (baseline) year, coerces numerics, adds the crude rates, labels the source `DoF`, renames California to `CA`, and builds the regional aggregates. The Census cleaner filters to California and the fifty states, maps state names to abbreviations, reshapes the wide statistic-year columns into tidy rows, builds regional aggregates, adds crude rates, recomputes population change, drops 2020 (which Census does not measure comparably), and labels the source `Census`. If cleaning throws, the phase falls back to the manual CSV and then to last-saved rows rather than aborting the run.
 
-**`combine_census_with_historical(df)`** — **Worker.** The same logic for `Source=='Census'`.
+### Phase 4: Merge and Change Detection
 
-**`combine_dof_and_census(dof, census)`** — **Worker.** Reads the canonical CSV and uses `pd.testing.assert_frame_equal` (excluding boundary years 1990 for DoF / 2010 for Census) to detect whether the freshly scraped data differs from what's saved, then concatenates. Returns `(merged_df, new_dof_data_exists, new_census_data_exists)`.
+The freshly cleaned data is combined with saved history and checked for novelty. For each source, the pipeline keeps the saved years that the new pull does not cover, concatenates them with the new rows, re-sorts, and recomputes population change across the joined series. It then concatenates the two sources into one frame and validates that there are no duplicate `(Location, Year, Source)` keys. Separately, it compares the new data against the saved data - excluding each source's boundary year - to decide whether DoF or Census actually published anything new, which is what gates the save in Phase 5.
 
-> [!flag] Create New Script (`scripts/components_of_change/merging/historical_merge.py`)
-> - `load_canonical_dataset(current_data_path)` should perform the single read of the current CSV (path from config, not `R:\`).
-> - `combine_source_with_historical(new_df, historical_df, source, year_col)` should be one parametrized implementation replacing the near-identical DoF and Census variants.
-> - `detect_new_source_data(new_df, historical_df, source, boundary_year)` should own the `assert_frame_equal` change-detection, returning one bool per source.
-> - `merge_dof_and_census(dof_df, census_df)` should perform the final concat and `Year` retype.
-> - Reuse `scripts/shared/validation/dataframe_validators.py` (`find_duplicate_rows`, `validate_required_columns`) for post-merge sanity.
+### Phase 5: Finalize, Validate, and Save
 
----
-
-## Phase 6: Output — Geographic Level, Archive, Save
-
-Inline in every visualizer (and duplicated again in their `except` blocks): on new data, archive the current CSV with a `%m-%d-%y` date stamp, assign `Geographic Level` via `np.select` over hardcoded state/region/county lists, reorder columns so `Geographic Level` is first, and write back to the canonical CSV.
-
-> [!flag] Create New Script (`scripts/components_of_change/output/finalize_dataset.py`)
-> - `assign_geographic_level(df, geography_config)` should replace the 3× duplicated `np.select` block (levels State / Region / County / Other). California counties and regions come from the shared geography config; US states come from the new Components national config (below).
-> - `archive_and_save(df, current_data_path, archive_directory)` should archive the prior CSV — reusing `scripts/shared/archives/file_retention.py::archive_or_delete_files` — then write the new one.
-> - This save step should run **once** in the orchestrator, gated on `new_*_data_found`, not inside each chart function.
-
----
-
-## Phase 7: Validation
-
-Input validation is currently inline at the top of each visualizer: valid `parameter` / `location` / `source` / `subset` / year lists, plus rules such as "national data only for Census", "DoF must start ≥ 1991", "Census must start ≥ 2011", and "no Census data for 2020".
-
-> [!flag] Create New Scripts
-> - `scripts/components_of_change/validation/input_validators.py`
->   - `validate_parameters(parameters)`, `validate_locations(locations, source)`, `validate_source(source)`, `validate_subset(subset, source)`, and `validate_year_bounds(source, start_year, end_year, available)` should return structured results or raise, instead of `print` + `return None`.
-> - `scripts/components_of_change/validation/dataset_validator.py`
->   - `validate_components_dataset(df, columns_config)` should compose the shared `validate_required_columns`, `validate_not_empty`, and `find_duplicate_rows` checks before save.
-
----
+The merged frame is tagged, ordered, validated, and conditionally written. The pipeline assigns each row's `Geographic Level`, enforces the exact output column order and sort, and runs the dataset validator (required columns, non-empty, no duplicate keys). Only if validation passes and at least one source was found to have new data does it archive the previous CSV and atomically write the new one. The dataset is always returned in memory even when nothing is saved, so a chart can render from a run that produced no new data.
 
 ## The Three Visualizers
 
-**`visualize_line(locations, parameters, source, start_year, end_year, indexed=False)`** — **Orchestrator + renderer (~460 lines).** Input validation → expands `All Counties`/`All Regions` → inline DoF acquisition cascade → inline Census acquisition cascade → combine → drop 1990 / Census-2010 → year + source filter → optional indexing-from-100 → builds a Plotly line chart → archive/level/save → a giant `except` block that re-loads last-saved data and **re-implements the entire render**.
+The module exposes three notebook-facing chart functions. Each one validates its inputs, calls the pipeline once to get the dataset, filters to the requested locations, years, and source, and hands the result to a generic chart builder that lives in the shared visualization layer.
 
-**`visualize_bar(subset, parameter, metric_of_change, start_year, end_year, source)`** — **Orchestrator + renderer (~490 lines).** Same acquisition/clean/combine prologue and save/`except` epilogue; the middle pivots by year and computes `Percent Change` / `Numeric Change` / `Total`, then a sorted bar chart with California highlighted.
+- **Line chart** (`visualize_line`) plots one or more metrics for one or more locations over time, optionally indexed to 100 at the start year so differently scaled series can be compared on one axis.
+- **Bar chart** (`visualize_bar`) reduces a metric to a single percent change, numeric change, or multi-year total per location over a year span, sorts the bars, and highlights California.
+- **Choropleth map** (`visualize_map`) shades California counties, the regions, or the fifty states by that same change metric, computing bin edges and dissolving county geometries into region shapes on the fly.
 
-**`visualize_map(subset, parameter, metric_of_change, start_year, end_year, source, bins_range, num_bins)`** — **Orchestrator + renderer (~540 lines).** Same prologue/epilogue; the middle adds GeoJSON loading, on-the-fly region geometry dissolve (`unary_union`), bin-edge computation, missing-bin imputation, `abbreviation→state` remap, and a choropleth (CA counties/regions vs. US states).
+The important structural change from the legacy tool is that acquisition, cleaning, merging, and saving no longer live inside these functions. The charts are thin: validate, call the pipeline, filter, draw.
 
-> [!flag] Split each visualizer into orchestrator + shared renderer
-> - `scripts/orchestrators/components_of_change_pipeline.py`
->   - `build_components_dataset(config)` should run acquisition (with fallback), cleaning, calculations, aggregation, historical merge, change-detection, and the conditional archive/save **exactly once**. Returns the merged DataFrame plus `new_dof_data_found` / `new_census_data_found`. This single function replaces the prologue + epilogue copied across all three visualizers and their `except` blocks.
-> - `scripts/shared/visualizations/line_chart.py`
->   - `build_line_chart(df, locations, parameters, sources, indexed, color_palette)` — generic Plotly line builder (palette + SVG export config), no scraping or IO.
-> - `scripts/shared/visualizations/bar_chart.py`
->   - `compute_change_metric(df, parameter, metric_of_change, start_year, end_year)` and `build_bar_chart(result, ...)` — generic change/total bar builder.
-> - `scripts/shared/visualizations/choropleth_map.py`
->   - `build_choropleth(result, geojson, ...)`, `compute_bins(values, bins_range, num_bins)`, and `dissolve_regions(counties_gdf, regions_mapping)` — generic map utilities.
-> - `scripts/components_of_change/` keeps thin notebook-facing wrappers `visualize_line/bar/map` that: validate inputs → call `build_components_dataset()` → filter → call the shared chart builder.
-> - The `except`-block re-render disappears: fallback to last-saved data lives inside `acquire_with_fallback` / `build_components_dataset`, so rendering code exists exactly once.
+## Key Calculations
 
----
+The module computes a small number of values rather than passing the agencies' numbers through unchanged.
 
-## Configuration to Extract
-
-The legacy file hardcodes its configuration repeatedly. These values move out of the code.
-
-> [!flag] Create New Scripts
-> - `scripts/components_of_change/config/paths.py`
->   - Current, archive, and downloaded CSV paths plus the county/state GeoJSON paths — replaces every hardcoded `R:\UCF\Visualization Tool\Components-Of-Change\...` literal.
-> - `scripts/components_of_change/config/sources.py`
->   - DOF estimates URL, Census FTP2 URL template, request headers, the second-sheet rule, manual-download filenames, and the boundary years (1990 DoF, 2010 Census).
-> - `scripts/components_of_change/config/columns.py`
->   - The 11 canonical columns, the valid `parameters` list, the crude-rate component map, and the Census source-column rename map.
-> - `scripts/components_of_change/config/geography.py`
->   - `get_components_geography()` should compose `scripts/pophousing/config/geography.py::get_geography_config()` (California counties / regions / state) **plus** the US `state↔abbreviation` dicts and the national `State`-level list, so the choropleth and `assign_geographic_level` stop hardcoding them.
-
----
-
-## Reusing the Existing Shared Layer
-
-These already exist in `scripts/` from the Pop & Housing refactor. **Do not recreate them.**
-
-| Need in Components | Reuse this existing function |
+| Value | Definition |
 |---|---|
-| HTTP GET + binary download | `scripts/shared/downloads/http_downloads.py` → `fetch_response`, `download_file` |
-| Numeric coercion (strip commas → float) | `scripts/shared/data_cleaning/type_conversions.py` → `coerce_numeric_columns` |
-| Year-range / summary-row / empty-row filtering | `scripts/shared/data_cleaning/row_filters.py` → `filter_year_range`, `remove_summary_rows`, `drop_empty_rows_without_data` |
-| Forward-fill, value mapping | `scripts/shared/data_cleaning/dataframe_operations.py` → `forward_fill_columns`, `assign_values_from_mapping` |
-| Schema / emptiness / duplicate / null checks | `scripts/shared/validation/dataframe_validators.py` → `validate_required_columns`, `validate_not_empty`, `find_duplicate_rows`, `validate_null_counts` |
-| Archive previous CSV before overwrite | `scripts/shared/archives/file_retention.py` → `archive_or_delete_files` |
-| Console / file logging (replace `print`) | `scripts/shared/logging/pipeline_logging.py`, `dataframe_logging.py` |
-| CA county / region names + region→county mapping | `scripts/pophousing/config/geography.py` → `get_geography_config()` (the 9 regions are identical to those hardcoded in `components_code.py`) |
-| County→region groupby-sum aggregation | `scripts/pophousing/aggregation/regional_aggregation.py` → `build_regional_rows` pattern; `aggregation_utils.deduplicate_geographic_rows` |
+| `Crude Birth Rate` | `Births` / `Total Population` x 1000. |
+| `Crude Death Rate` | `Deaths` / `Total Population` x 1000. |
+| `Crude Migration Rate` | `Net Migration` / `Total Population` x 1000. |
+| `Crude Domestic Migration Rate` | `Net Domestic Migration` / `Total Population` x 1000. |
+| `Crude Foreign Migration Rate` | `Net Foreign Immigration` / `Total Population` x 1000. |
+| `Percent Change in Population` | Year-over-year percent change within each location, rounded to two decimals. |
+| `Numeric Change in Population` | Year-over-year difference within each location. |
+
+The crude rates are recomputed - never averaged - whenever a Region row is built, because the correct rate for an aggregate comes from its summed components and summed population, not from the mean of its counties' rates. Population change is recomputed after history is merged in so the joined series is internally consistent across the seam between saved and freshly pulled years.
+
+## Architecture and Boundaries
+
+The refactor's organizing rule is a hard separation between project-independent mechanisms and Components-specific domain knowledge.
+
+- `scripts/shared/` holds generic, dataset-agnostic mechanisms - HTTP downloads, type coercion, value mapping, DataFrame validation, file archiving, the shared California reference geography, and the generic Plotly chart builders. Shared code receives column names, mappings, and settings as arguments; it never imports Components configuration.
+- `scripts/components_of_change/` holds the E-6 and Census schemas, California-plus-national geography, the crude-rate formulas, source-specific parsing, the fallback policy, and pipeline-specific validation. It may import from `scripts/shared/` and it reuses the Population and Housing regional-aggregation helper.
+- `scripts/orchestrators/components_of_change_pipeline.py` sequences the five phases, owns the fallback wiring and change detection, and returns the dataset plus its status flags. It contains no transformation logic of its own.
+
+The intended dependency direction is one-way: `shared helpers` are imported by `components modules`, which are coordinated by the orchestrator, with the notebook-facing charts sitting on top. The nine-region California geography in `scripts/shared/geography/california_geography.py` is deliberately shared with the Population and Housing and Building Permits modules. One boundary is crossed in practice - the regional aggregator imports a private helper from the Population and Housing tree rather than from `shared/` - which is noted under "Flagged Issues and Fragilities." This mirrors the structure adopted across the other module migrations; see [[projectSpec]] for the canonical five-phase pipeline model and [[pophousing-pipeline-refractor]] for the sister module this one reuses.
 
 ---
 
-## Summary Table
+## Technical Reference
 
-This table describes the current legacy implementation. The phase callouts above describe the proposed replacement architecture.
+The rest of this document walks every script the module comprises, grouped by the phase it serves, with configuration and shared helpers first because every phase depends on them. For each function it gives what the function does, the notable libraries it relies on, any performance or efficiency characteristic worth knowing, and what legacy code it was derived from. The legacy module was a single 1,867-line file, `components_code.py`, whose three "visualize" entry points each inlined - and then re-inlined in their `except` blocks - the entire scrape, clean, combine, aggregate, archive, and save sequence, so roughly 70% of the file was duplicated logic. The refactor split that monolith into the many small, single-responsibility modules below and reduced the three chart functions to thin wrappers.
 
-| Legacy function | Classification | Target home |
-|---|---|---|
-| `scrape_dof_e6()` | **Worker** | `components_of_change/acquisition/dof_e6_downloader.py` |
-| `scrape_dof_e6_spatially()` | **Worker** | `dof_e6_downloader.get_e6_file_url_positional` |
-| `scrape_census_components()` | **Worker** | `acquisition/census_components_downloader.py` |
-| inline DoF/Census fallback cascade (×6) | **Inline glue** | `acquisition/source_fallback.py` |
-| `clean_e6()` | **Hybrid** | `cleaning/e6_cleaner.py` (+ shared cleaners, calculations) |
-| `clean_census_components()` | **Hybrid** | `cleaning/census_cleaner.py` (+ shared cleaners, calculations) |
-| inner `add_region()` (×2) | **Worker** | `aggregation/regional_aggregation.py` (reuse pophousing pattern) |
-| crude-rate / population-change blocks (×4) | **Inline** | `calculations/demographic_rates.py` |
-| `combine_dof_with_historical()` | **Worker** | `merging/historical_merge.py` |
-| `combine_census_with_historical()` | **Worker** | `merging/historical_merge.py` (same parametrized fn) |
-| `combine_dof_and_census()` | **Worker** | `merging/historical_merge.py` |
-| geographic-level + archive + save (×3) | **Inline** | `output/finalize_dataset.py` (+ shared archives) |
-| input-validation blocks (×3) | **Inline** | `validation/input_validators.py` |
-| `visualize_line()` | **Orchestrator + renderer** | orchestrator + `shared/visualizations/line_chart.py` |
-| `visualize_bar()` | **Orchestrator + renderer** | orchestrator + `shared/visualizations/bar_chart.py` |
-| `visualize_map()` | **Orchestrator + renderer** | orchestrator + `shared/visualizations/choropleth_map.py` |
+Every module follows the same file convention: a docstring header naming its data sources, outputs, usage, and test folder; banner comments separating sections; and one-line docstrings on each function that name the test file covering it.
 
----
+## Configuration Modules
 
-## Proposed Directory Structure
+The legacy file hardcoded its configuration repeatedly: the nine region-to-county groups appeared three times, the state-to-abbreviation dictionary twice, the classification lists three times, and absolute `R:\UCF\Visualization Tool\...` paths roughly fifteen times. The refactor moves all of it into four accessor modules that return fresh dicts on each call.
 
-> [!flag] Create New Folders
-> - `scripts/components_of_change/`
->   - `config/` — paths, sources, columns/parameters, national-state geography
->   - `acquisition/` — DOF E-6 + Census downloaders (with fallback policy)
->   - `cleaning/` — E-6 and Census cleaners
->   - `calculations/` — crude-rate + population-change formulas
->   - `aggregation/` — regional rollups
->   - `merging/` — combine-with-historical + DoF/Census merge
->   - `output/` — geographic-level tagging, archive, save
->   - `validation/` — input validation + dataset validation
-> - `scripts/shared/visualizations/` — generic Plotly builders (`line_chart.py`, `bar_chart.py`, `choropleth_map.py`)
-> - `scripts/orchestrators/components_of_change_pipeline.py` — single data-prep entry point
+### `config/paths.py`
 
----
+One function, `get_paths()`, composes the project data directories from `lib/config.py::get_project_paths` and returns a dict of `pathlib.Path` objects: the current output path, the download directory, the archive directory, the two manual-fallback CSV paths, and the county and state GeoJSON paths. Derived from the scattered `R:\` literals in `components_code.py`. Imports `pathlib`.
 
-## Dependency Direction
+> [!warning] `historical_data_path` and `current_data_path` are the same file
+> `get_paths()` sets `historical_data_path` equal to `current_data_path` (both `ComponentsOfChange_Current.csv`), so the pipeline reads its own prior output as its history baseline. See "Flagged Issues and Fragilities."
 
-The final dependency direction should be:
+### `config/sources.py`
 
-`shared helpers + shared/visualizations` → imported by → `components_of_change modules` → coordinated by → `orchestrators/components_of_change_pipeline.py`
+`get_source_settings()` returns the DoF estimates URL, the Census FTP2 URL template, the Census initial year and ten-year lookback limit, a fresh copy of the request headers and timeout (from `lib/config.py::get_default_http_settings`), the E-6 second-sheet index, the two manual-download filenames, and the two source boundary years (1990 for DoF, 2010 for Census) used by change detection. Imports `date` from `datetime` so the Census walk always starts at the current year. Derived from the scraping and URL constants embedded in the legacy scrape functions.
 
-The following should be prohibited:
+### `config/columns.py`
 
-- `scripts/shared/` importing anything from `scripts/components_of_change/` or `scripts/pophousing/`.
-- Any module re-hardcoding the region mapping, the state↔abbreviation dicts, the geographic-level classification lists, the crude-rate formulas, or `R:\` paths.
-- Chart functions performing scraping or file IO.
-- Components and Pop & Housing maintaining separate copies of regional aggregation, geography configuration, or shared cleaning/validation logic.
+`get_columns_config()` builds the schema bundle: the eleven canonical columns, the six component columns, the numeric column list, the crude-rate-to-component map, the derived rate-column names, the valid-parameter and chart-change-parameter lists, the full ordered `output_columns`, the Census source-column rename map, and the `duplicate_key_columns` (`Location`, `Year`, `Source`). Pure Python, no imports. Derived from the column lists and the valid-parameter checks that were inlined at the top of each legacy visualizer. This is now the single source of the output schema, which is what lets DoF and Census frames share an identical shape before concatenation.
+
+### `config/geography.py`
+
+`get_components_geography()` composes the shared California reference (county names, region names, region-to-county mapping, state name) from `scripts/shared/geography/california_geography.py` with a module-level fifty-state name-to-abbreviation dictionary, and derives from them the sorted county, region, and state lists, the subset-to-locations map (Counties, Regions, States, All), the abbreviation-to-state reverse map, the national state-name set, the `All Counties`/`All Regions` line expansions, the valid-locations and valid-subsets sets, and the four valid geographic levels. Imports only the shared geography helper. Derived from the region mapping and the two state-abbreviation dicts that legacy `components_code.py` hardcoded across its functions; the nine regions are no longer re-declared here, only the national layer is.
+
+## Shared Helpers Reused
+
+These dataset-agnostic mechanisms in `scripts/shared/` predate this module - most were built during the Population and Housing refactor - and Components consumes them rather than recreating them.
+
+### `shared/downloads/http_downloads.py`
+
+Imports `requests` and `pathlib`. `fetch_response(url, headers, timeout)` performs a GET, raises on HTTP errors, and normalizes every `requests` failure into a single `HTTPDownloadError`. `download_file(...)` streams to a `.part` temp file and atomically replaces it into place. The Components downloaders compose `fetch_response`; they contain no raw `requests.get` calls of their own. Replaces the duplicated `requests.get` blocks inside the three legacy scrape functions.
+
+### `shared/data_cleaning/type_conversions.py`
+
+Imports `pandas`. `coerce_numeric_columns(dataframe, numeric_cols)` strips thousands separators and coerces each named column with `pd.to_numeric(errors="coerce")`, returning a copy. Used by the E-6 cleaner for the comma-stripping retype that legacy `clean_e6` did inline.
+
+### `shared/data_cleaning/dataframe_operations.py`
+
+Pure pandas. `assign_values_from_mapping(dataframe, source_col, target_col, value_mapping)` maps source values into a target column while leaving unmatched originals in place. The Census cleaner uses it to turn full state names into abbreviations - exactly the cross-module reuse the shared tree exists to enable, since the Population and Housing module does not call this function.
+
+### `shared/validation/dataframe_validators.py`
+
+Imports `pandas`. `validate_required_columns` returns missing columns, `validate_not_empty` reports whether any rows exist, and `find_duplicate_rows` returns every row participating in a duplicate key. The merge and dataset validators compose these three. Replaces the ad hoc post-merge checks the legacy tool lacked.
+
+### `shared/archives/file_retention.py`
+
+Imports `re`, `shutil`, `time`, and `pathlib`. `archive_or_delete_files(file_paths, archive_directory)` moves each file into the archive with a numeric suffix on collision, skipping files that no longer exist. The Components output step calls it to preserve the prior CSV before overwrite, replacing the legacy inline `os.rename` date-stamp archive.
+
+### `shared/geography/california_geography.py`
+
+Imports the county list and region mapping from `lib/pophousing_config.py`. `get_california_geography()` returns the state name, county set, region names, and region-to-county mapping (plus the CBSA-metro reference the Building Permits module needs). This is the single shared owner of California geography for three modules; the Components geography config composes it and adds the national layer.
+
+### `shared/logging/pipeline_logging.py` and `dataframe_logging.py`
+
+Both files are present but every function body is `pass` and every test folder is "Not yet implemented." The Components orchestrator performs no logging, so a run leaves no structured record. See "Flagged Issues and Fragilities." Intended to replace the legacy `print` statements scattered through `components_code.py`.
+
+## Phase 1: Setup and Load
+
+Phase 1 is orchestrator code plus one merge-module function; the config accessors above supply the four bundles.
+
+### `merging/historical_merge.py` (load)
+
+`load_canonical_dataset(current_data_path)` is a one-line `pd.read_csv` of the saved CSV. The orchestrator calls it once in Phase 1 and reuses the frame as both the change-detection baseline and the history supplier. Derived from the repeated canonical-CSV reads that legacy `combine_*` functions each performed against a hardcoded `R:\` path.
+
+## Phase 2: Acquisition
+
+### `acquisition/dof_e6_downloader.py`
+
+Imports `re`, `io.BytesIO`, `urllib.parse`, `pandas`, `bs4.BeautifulSoup`, and the shared `fetch_response`. Defines `E6DiscoveryError`.
+
+- `get_e6_file_url(source_settings)` scrapes the DoF estimates page, finds the anchor whose final path segment is exactly `e-6`, follows it, and returns the workbook link on that landing page. Derived from legacy `scrape_dof_e6()`, but selecting the landing page by slug rather than by matching `e-6` anywhere in the href.
+- `get_e6_file_url_positional(source_settings)` is the fallback: it collects every anchor whose href contains `e-6` or `e6` and picks the one whose link text names the most recent year. Derived from legacy `scrape_dof_e6_spatially()`, which selected the seventh `<ul>` positionally; the refactor replaces that brittle positional rule with a most-recent-year heuristic.
+- `download_e6_workbook(url, headers, timeout, sheet_index=1)` fetches the workbook into `BytesIO`, opens it with `pd.ExcelFile`, bounds-checks the sheet index, and reads the configured sheet (the second by default). Derived from the workbook-reading tail of the legacy scrapers, with the "data lives on sheet two" rule now a parameter.
+- The private helpers `_looks_like_workbook`, `_landing_slug`, `_is_e6_link`, `_latest_year_in_text`, and `_get_workbook_url_from_landing_page` encapsulate the URL and link heuristics. `_get_workbook_url_from_landing_page` short-circuits when the landing URL is itself a workbook.
+
+### `acquisition/census_components_downloader.py`
+
+Imports `date`, `io.BytesIO`, `pandas`, the source config, and the shared `fetch_response`/`HTTPDownloadError`. Defines `CensusComponentsDiscoveryError`.
+
+- `get_census_components_url(source_settings, max_lookback_years=None)` walks the current year backward up to the lookback limit, calling `fetch_response` on each candidate `co-est{YEAR}-alldata.csv` URL until one responds, and raises with the last error chained if none do. Derived from legacy `scrape_census_components()`, which did the same year-walk inline.
+- `download_census_components(url, source_settings=None)` reads the CSV with `engine="python", encoding="latin1"` (the Census files are latin-1), fetching over HTTP when given a URL and reading directly when given a local path - the dual mode is what lets the fallback cascade feed it a manual file. Derived from the legacy Census read.
+
+### `acquisition/source_fallback.py`
+
+Imports `pandas`. `acquire_with_fallback(scrape_fns, manual_path, last_saved_loader, manual_read_kwargs=None)` encodes the cascade: it tries each live scrape callable in order, then the manual CSV, then the last-saved loader, collecting every intermediate error and attaching them as notes to a final `RuntimeError` if everything fails. It returns `(dataframe, source_failed, used_manual)`, where `source_failed` is true only when it fell all the way to last-saved data. This single function replaces the scrape-then-fallback ladder that legacy `components_code.py` inlined - and duplicated - inside every visualizer and every `except` block.
+
+## Phase 3: Cleaning
+
+This phase runs the two source cleaners, each of which pulls in the calculations and aggregation modules. Together they replace legacy `clean_e6()`, `clean_census_components()`, the two inner `add_region()` definitions, and the crude-rate and population-change blocks that were copy-pasted across four functions.
+
+### `calculations/demographic_rates.py`
+
+Imports `pandas`. `add_crude_rates(dataframe, population_col, components_map)` validates the required columns, coerces population and each component to numeric, and computes each crude rate as `component / population * 1000`, returning a copy. `recalculate_population_change(dataframe, group_col, population_col)` coerces year and population, stable-sorts by location then year, and computes `Percent Change in Population` (grouped `pct_change * 100`, rounded to two decimals) and `Numeric Change in Population` (grouped `diff`). Derived from the five-line crude-rate block and the population-change block that legacy `clean_e6`, `clean_census_components`, and the two historical-combine functions each carried their own copy of; this module is now their single implementation.
+
+### `aggregation/regional_aggregation.py`
+
+Imports `pandas`, the crude-rate calculator, the Components column config, and - crucially - the private `_aggregate_additive_columns` from the Population and Housing aggregation utilities.
+
+- `build_regional_rows(dataframe, regions_mapping, ...)` iterates the nine regions, selects each region's member-county rows (restricting to County-level rows when a `Geographic Level` column is present), sums the additive columns per year via the reused helper, relabels the result as the region, and derives a per-year `Source` (the common source when the counties agree, otherwise `Aggregated`). It returns an empty frame with the input's columns when no region can be built.
+- `add_regional_data(dataframe, regions_mapping)` strips any existing region rows, rebuilds them, concatenates, and recomputes the crude rates on the combined frame so the aggregate rows get correct rates.
+
+Derived from the inner `add_region()` that legacy `components_code.py` defined twice, generalized to the full nine-region mapping and reusing the Population and Housing additive-sum pattern.
+
+> [!note] Cross-module import of a private helper
+> This module imports `_aggregate_additive_columns` - a leading-underscore, module-private function - from `scripts/pophousing/aggregation/aggregation_utils.py`. It also calls `get_columns_config()` twice per aggregation. Both are noted under "Flagged Issues and Fragilities."
+
+### `cleaning/e6_cleaner.py`
+
+Imports `pandas`, the regional aggregator, the crude-rate calculator, and the shared `coerce_numeric_columns`.
+
+- `normalize_e6_columns(raw_e6_df, column_names)` drops all-NaN columns, asserts the width matches the eleven canonical names, assigns them, trims to the first `California`/`Alameda` row, and drops the `Apr-Jun 2010`/`Apr-Jun 2020` census rows. Derived from the opening of legacy `clean_e6`.
+- `repair_truncated_county_names(e6_df, repair_mapping=None)` fixes DoF's truncated county labels: a dict replace handles `Contra `, `Los`, `San `, and `San Luis`, then a positional `zip` assigns the two bare `San` rows to San Francisco and San Joaquin and the two `Santa` rows to Santa Barbara and Santa Clara. Derived from the truncated-name fixups in legacy `clean_e6`. Its dependence on exact whitespace and row ordering is flagged below.
+- `forward_fill_locations_by_year_block(e6_df, location_col, year_col)` strips a leading `Census ` from year labels, coerces years, computes the span, and forward-fills each newly seen location down its block of years with a Python row loop. Derived from the year-span `Location` fill in legacy `clean_e6`; it remains a per-row loop rather than a vectorized `ffill` because the fill length is the data's year span, not a simple carry-forward.
+- `clean_e6(raw_e6_df, columns_config, geography_config)` orchestrates: normalize, repair names, forward-fill, drop the minimum (baseline) year, trim after the last `Yuba` row, coerce numerics, cast year to int, add crude rates, stamp `Source="DoF"`, rename California to `CA`, and build regional aggregates. Derived from the legacy `clean_e6` hybrid, with transformation now delegated to the imported modules.
+
+### `cleaning/census_cleaner.py`
+
+Imports `pandas`, the regional aggregator, the crude-rate and population-change calculators, and the shared `assign_values_from_mapping`.
+
+- `map_state_abbreviations(census_df, mapping)` maps the `CTYNAME` state-total labels to abbreviations via the shared value-mapping helper. Derived from the legacy state-name-to-abbreviation apply.
+- `reshape_census_wide_to_long(raw_census_df, schema)` takes the value columns from position six onward, `melt`s them long, extracts the statistic and year from each `STATISTIC{YEAR}` column name with a regex, `pivot_table`s back to one row per county-year, renames the Census source columns to canonical names, drops leftover uppercase columns, strips the `" County"` suffix, and casts year to int. Derived from the legacy `melt`/`pivot_table` reshape; its positional `columns[6:]` assumption is flagged below.
+- `clean_census_components(raw_census_df, columns_config, geography_config)` orchestrates: require `STNAME`/`CTYNAME`, filter to California plus the fifty national state totals, map abbreviations, reshape, build regional aggregates, add crude rates, recompute population change, drop 2020, and stamp `Source="Census"`. Derived from the legacy `clean_census_components` hybrid.
+
+## Phase 4: Merge and Change Detection
+
+### `merging/historical_merge.py`
+
+Imports `pandas`, the population-change calculator, and the shared duplicate/required-column validators.
+
+- `combine_source_with_historical(new_df, historical_df, source, year_col)` drops `Geographic Level` from the saved data, filters it to the one source, keeps only the saved years the new pull does not cover, concatenates old and new, stable-sorts by location and year, recomputes population change across the joined series, and re-stamps the source. One parametrized function replaces the near-identical legacy `combine_dof_with_historical` and `combine_census_with_historical`.
+- `detect_new_source_data(new_df, historical_df, source, boundary_year)` decides whether a source published anything new: it drops the boundary year from both frames, aligns columns, stable-sorts both, normalizes numeric dtypes, and compares with `pd.testing.assert_frame_equal`, returning `True` on any difference. Derived from legacy `combine_dof_and_census`'s `assert_frame_equal` change check. The `_normalize_numeric_dtypes` helper casts fully numeric columns to `float64` so that `pd.NA` (from freshly cleaned nullable columns) and `np.nan` (from the reloaded CSV) compare equal - the fix that stopped the pipeline from reporting a spurious change on every run.
+- `merge_dof_and_census(dof_df, census_df)` concatenates the two source frames, casts year to int, and raises if required columns are missing or any `(Location, Year, Source)` key is duplicated. Derived from the final concat in legacy `combine_dof_and_census`, now with an explicit duplicate guard.
+
+## Phase 5: Finalize, Validate, and Save
+
+### `output/finalize_dataset.py`
+
+Imports `pathlib`, `pandas`, and the shared `archive_or_delete_files`.
+
+- `assign_geographic_level(dataframe, geography_config)` defaults every row to `Other`, then vectorized `.isin` checks promote state abbreviations to `State`, region names to `Region`, and county names to `County`, and moves `Geographic Level` to the front. Derived from the three-times-duplicated `np.select` block in the legacy visualizers, now a single vectorized pass sourcing its lists from config.
+- `prepare_components_output(dataframe, output_columns, sort_columns=None)` validates the output columns exist, casts year to int, selects and orders the columns, and stable-sorts. Derived from the column-reordering the legacy tool did inline before each save.
+- `write_components_output(dataframe, output_path)` writes to a `.tmp` file and atomically `replace`s it into place, cleaning up on failure. The atomic write is new and is what makes the archive-then-overwrite step safe.
+- `archive_and_save(dataframe, current_data_path, archive_directory)` archives the prior CSV when present, then writes the new one. Derived from the legacy archive-and-save block, now run once in the orchestrator instead of inside each chart.
+
+### `validation/dataset_validator.py`
+
+Imports the three shared validators. `validate_components_dataset(dataframe, columns_config)` checks required output columns, non-emptiness, and duplicate `(Location, Year, Source)` keys, returning `(is_valid, messages)`. The orchestrator raises if it fails, so a malformed frame is never written. Derived from the scattered pre-save checks the legacy tool lacked a single home for.
+
+### `orchestrators/components_of_change_pipeline.py`
+
+Imports `pandas` and every phase entry point. `build_components_dataset(config=None)` runs the five phases inside per-phase `try/except` blocks, each wrapping failures in `ComponentsPipelinePhaseError` via `_raise_phase_error`. It owns the fallback wiring (the two DoF discovery lambdas and the Census lambda passed to `acquire_with_fallback`), the post-acquisition `_clean_with_fallback` retry that drops to manual then last-saved data if a cleaner throws, the historical merge and change detection, the finalize-validate-save, and the returned status dict (dataframe, per-source new-data and failure and manual flags, output path, row count). `main()` wraps it to return a compact summary (output path, row count, year range, new-data flags, per-level counts). The private `_load_saved_source` and `_clean_with_fallback` helpers implement the last-saved fallback. Derived from the prologue and epilogue that legacy `components_code.py` copied across `visualize_line`, `visualize_bar`, `visualize_map`, and each of their `except` blocks; that logic now exists exactly once.
+
+## The Visualization Layer
+
+The charts are the module's public surface. They validate inputs, call the pipeline once, filter, and delegate drawing to generic builders in `scripts/shared/visualizations/`.
+
+### `validation/input_validators.py`
+
+Pure Python, no imports. `validate_parameters`, `validate_locations`, `validate_source`, `validate_subset`, `validate_metric_of_change`, and `validate_year_bounds` raise `ValueError` with actionable messages instead of the legacy `print`-and-`return None`; they enforce rules such as "national data only for Census," "DoF must start at 1991 or later," "Census must start at 2011 or later," and "no Census 2020." `expand_locations` turns the `All Counties`/`All Regions` aliases into concrete lists, and `locations_for_subset` returns a subset's locations (dropping `CA` for numeric/total metrics where a statewide bar would dwarf the rest). Derived from the input-validation blocks inlined at the top of each legacy visualizer.
+
+### `components_of_change/visualizations.py`
+
+Imports `json`, the three config accessors, the input validators, the pipeline's `build_components_dataset`, and the three shared chart builders. `visualize_line`, `visualize_bar`, and `visualize_map` each validate, call the pipeline, filter to the requested source/location/year window, and call their builder; `visualize_map` additionally loads the county or state GeoJSON (dissolving counties into regions when the subset is Regions). The private `_filtered_chart_data` and `_available_years_by_source` helpers do the filtering and per-source year discovery. Derived from the three ~460-540 line legacy visualizers, reduced here to thin wrappers because all data work moved into the pipeline and all drawing moved into the shared builders.
+
+### `shared/visualizations/line_chart.py`
+
+Imports `plotly.graph_objects`. `apply_indexing(dataframe, baseline_year, group_col)` rebases numeric columns to 100 at the baseline year via a self-join. `build_line_chart(...)` adds one trace per source-location-parameter combination from a fixed nine-color palette and titles the figure. Derived from the Plotly line block inside legacy `visualize_line`, with scraping and IO removed.
+
+### `shared/visualizations/bar_chart.py`
+
+Imports `plotly.graph_objects`. `compute_change_metric(...)` pivots a metric by year and computes percent change, numeric change, or a multi-year total per location, sorted descending. `build_bar_chart(...)` draws the sorted bars, highlights California, and titles the figure by metric and parameter. Derived from the pivot-and-bar block inside legacy `visualize_bar`.
+
+### `shared/visualizations/choropleth_map.py`
+
+Imports `math`, `numpy`, `pandas`, and `plotly.express`. `compute_bins(...)` computes rounded bin edges with sensible handling of degenerate and narrow ranges; `ensure_bins_have_values(...)` injects synthetic blank rows so every bin appears in the legend; `dissolve_regions(counties_gdf, regions_mapping)` merges county geometries into region shapes with `geopandas` (imported lazily); and `build_choropleth(...)` bins the change values, colors them with a reversed Reds ramp, and draws either a California `NAME`-keyed map or a national `name`-keyed USA map. Derived from the GeoJSON, bin, and choropleth block inside legacy `visualize_map`, with the region-dissolve `unary_union` now `union_all`.
+
+## Flagged Issues and Fragilities
+
+These were noted while documenting the module. Per the task, they are recorded here rather than fixed.
+
+> [!warning] The history baseline is the pipeline's own prior output
+> `config/paths.py` sets `historical_data_path` equal to `current_data_path`, so Phase 1 reads `ComponentsOfChange_Current.csv` as its history and Phase 5 writes back to the same file. Years older than the current live pull therefore come from the previous run's output, not from an immutable canonical source. If a bad run ever writes malformed old rows and passes the (relatively light) dataset validation, that corruption becomes the next run's history. This is the same self-perpetuating-history pattern noted for the Population and Housing and Building Permits modules. See [[pophousing-pipeline-refractor]] and [[building-permits-migration]].
+
+> [!warning] Truncated-county repair is whitespace- and order-sensitive
+> `repair_truncated_county_names` fixes DoF's truncated labels with a mix of exact-string dict replacement and positional `zip`. The dict keys include a trailing space (`"San "` maps to San Bernardino, `"Contra "` to Contra Costa) while the bare `"San"` and `"Santa"` rows are assigned by position - the first `San` becomes San Francisco, the second San Joaquin; the first `Santa` becomes Santa Barbara, the second Santa Clara. If DoF changes the truncation whitespace, reorders its rows, or adds or drops a truncated county, rows will be silently mislabeled rather than erroring. This is the most likely place for a quiet data defect if the E-6 layout shifts.
+
+> [!warning] The Census reshape assumes the first six columns are identifiers
+> `reshape_census_wide_to_long` takes value columns as `raw_census_df.columns[6:]`, hardcoding that the first six Census columns (`SUMLEV`, `REGION`, `DIVISION`, `STATE`, `COUNTY`, `STNAME`, and so on) are non-value identifiers. If the Census file's column order or count changes, the reshape will silently include an identifier as a statistic or drop a real statistic. A name-based selection would be more robust.
+
+> [!warning] Structured logging is unimplemented
+> `scripts/shared/logging/pipeline_logging.py` and `dataframe_logging.py` are stubs whose bodies are all `pass`, with test folders marked "Not yet implemented." The orchestrator performs no logging, so a production run leaves no structured progress or data-quality record. Several module docstrings describe behavior that does not yet exist. This is shared with the Population and Housing module.
+
+> [!note] Cross-module import of a private helper couples Components to Population and Housing internals
+> `aggregation/regional_aggregation.py` imports `_aggregate_additive_columns` - a leading-underscore, module-private function - from `scripts/pophousing/aggregation/aggregation_utils.py`. The stated architecture routes shared mechanisms through `scripts/shared/`, so reaching into a sibling module's private internals is a layering smell: a change to that helper's signature or a move within the Population and Housing tree would break Components with no shared-layer contract in between. Promoting the additive-sum helper into `scripts/shared/` would restore the intended boundary.
+
+> [!note] Config bundles are rebuilt inside the aggregation loop
+> `regional_aggregation.py` calls `get_columns_config()` twice per `add_regional_data` invocation (once in `add_regional_data`, once in `build_regional_rows`) rather than receiving it as an argument, and the config accessors build fresh dicts on every call. The cost is small relative to the pandas work but is avoidable by threading the config through. This mirrors the per-call config rebuild noted for the Population and Housing module.
+
+> [!note] The E-6 cleaner drops its earliest year every run
+> `clean_e6` drops the minimum year (the baseline needed to compute the first percent change), so each fresh E-6 pull contributes no data for its own earliest year and relies on the saved history to supply it. Combined with the shared-path history baseline above, the earliest live year is only ever present because a prior run saved it; a from-scratch rebuild with an empty canonical CSV would be missing the first year of coverage until a second run.
+
+## Legacy-to-Refactored Mapping
+
+A one-line index from each legacy unit to where its behavior now lives.
+
+| Legacy unit | Refactored home |
+|---|---|
+| `scrape_dof_e6()` | `acquisition/dof_e6_downloader.py::get_e6_file_url` + `download_e6_workbook` |
+| `scrape_dof_e6_spatially()` | `acquisition/dof_e6_downloader.py::get_e6_file_url_positional` |
+| `scrape_census_components()` | `acquisition/census_components_downloader.py` |
+| inline DoF/Census fallback cascade (x6) | `acquisition/source_fallback.py` + orchestrator wiring |
+| `clean_e6()` | `cleaning/e6_cleaner.py` (+ shared coercion, calculations, aggregation) |
+| `clean_census_components()` | `cleaning/census_cleaner.py` (+ shared mapping, calculations, aggregation) |
+| inner `add_region()` (x2) | `aggregation/regional_aggregation.py` (reuses the Population and Housing additive-sum) |
+| crude-rate / population-change blocks (x4) | `calculations/demographic_rates.py` |
+| `combine_dof_with_historical()`, `combine_census_with_historical()` | `merging/historical_merge.py::combine_source_with_historical` |
+| `combine_dof_and_census()` | `merging/historical_merge.py::detect_new_source_data` + `merge_dof_and_census` |
+| geographic-level + archive + save (x3) | `output/finalize_dataset.py` (+ shared archives) |
+| input-validation blocks (x3) | `validation/input_validators.py` |
+| pre-save sanity (absent in legacy) | `validation/dataset_validator.py` (+ shared validators) |
+| `visualize_line()` | `visualizations.py::visualize_line` + `shared/visualizations/line_chart.py` |
+| `visualize_bar()` | `visualizations.py::visualize_bar` + `shared/visualizations/bar_chart.py` |
+| `visualize_map()` | `visualizations.py::visualize_map` + `shared/visualizations/choropleth_map.py` |
+| prologue/epilogue copied across visualizers | `orchestrators/components_of_change_pipeline.py::build_components_dataset` |
+| hardcoded `R:\` paths, region/state/abbreviation dicts | the four `config/` accessor modules + `shared/geography/california_geography.py` |
+| `print`-based progress | `shared/logging/` (interface defined, bodies unimplemented) |
+
+## Open Items
+
+- [ ] Decide whether the history baseline should live in its own immutable file rather than sharing a path with the current output.
+- [ ] Make `repair_truncated_county_names` robust to DoF whitespace and row-order changes, or add a guard that errors on an unexpected count of truncated rows.
+- [ ] Replace the positional `columns[6:]` assumption in the Census reshape with a name-based identifier selection.
+- [ ] Implement the `shared/logging/` interface, or remove the logging language from module docstrings until it exists.
+- [ ] Promote `_aggregate_additive_columns` into `scripts/shared/` so Components no longer imports a private Population and Housing helper.
+- [ ] Consider threading the column config through the regional-aggregation loop instead of rebuilding it per call.
