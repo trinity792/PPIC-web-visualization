@@ -1,10 +1,11 @@
 ---
-Topic: tbd
+Topic: AI
 Content Type: agent instructions
 pinned: false
 description: "Top-level orientation for AI agents working on the PPIC V3 migration, which consolidates the legacy Jupyter (V1) and partial Shiny (V2) systems into a documented, tested React/Next.js site. Sets the project's goals and ground rules for contributors."
 Date Published: June 22, 2026
 Last Updated: 06/30/2026 - 10:17 AM
+Status: Updating
 ---
 
 # AGENTS.md

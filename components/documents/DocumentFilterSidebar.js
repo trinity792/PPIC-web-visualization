@@ -1,5 +1,5 @@
 /**
- * DocumentFilterSidebar.js — topic + content-type filters for the Documents page.
+ * DocumentFilterSidebar.js — topic, status, and content-type document filters.
  *
  * Ported from the Figma reference "filter-sidebar.tsx", but reuses the shared
  * Select (topic dropdown) and Checkbox (content-type toggles) primitives, and
@@ -9,6 +9,9 @@
  *   topics        {string[]}                 — ["All topics", ...] from getTopics()
  *   topic         {string}                   — selected topic
  *   onTopic       {(t: string) => void}
+ *   statuses      {string[]}                 — ["All statuses", ...] from getStatuses()
+ *   status        {string}                   — selected status
+ *   onStatus      {(s: string) => void}
  *   contentTypes  {string[]}                 — from getContentTypes()
  *   selectedTypes {string[]}                 — currently checked types
  *   onToggleType  {(t: string) => void}
@@ -38,12 +41,18 @@ export function DocumentFilterSidebar({
   topics,
   topic,
   onTopic,
+  statuses,
+  status,
+  onStatus,
   contentTypes,
   selectedTypes,
   onToggleType,
   onClear,
 }) {
-  const isDirty = selectedTypes.length > 0 || (topics.length && topic !== topics[0]);
+  const isDirty =
+    selectedTypes.length > 0 ||
+    (topics.length && topic !== topics[0]) ||
+    (statuses.length && status !== statuses[0]);
 
   return (
     <aside className="w-full shrink-0 md:w-56" style={{ fontFamily: "var(--font-sans)" }}>
@@ -78,6 +87,22 @@ export function DocumentFilterSidebar({
             {topics.map((t) => (
               <SelectItem key={t} value={t}>
                 {t}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Status dropdown */}
+      <div className="mb-6">
+        <Select value={status} onValueChange={onStatus}>
+          <SelectTrigger className="h-11 w-full">
+            <SelectValue placeholder="All statuses" />
+          </SelectTrigger>
+          <SelectContent>
+            {statuses.map((s) => (
+              <SelectItem key={s} value={s}>
+                {s}
               </SelectItem>
             ))}
           </SelectContent>

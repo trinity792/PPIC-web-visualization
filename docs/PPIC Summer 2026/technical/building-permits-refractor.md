@@ -1,10 +1,11 @@
 ---
 Topic: Housing
-Content Type: refractor plan
+Content Type: refractor guide
 pinned: false
 description: "As-built guide to the refactored Building Permits V3 pipeline: a non-technical overview of what it produces and how the five phases run, followed by a per-function programmer reference with legacy lineage. Covers the single Census BPS monthly source, the metro/state grain, the seed-from-snapshot deep history, and the derived values pushed to the frontend."
 Date Published: June 30, 2026
 Last Updated: 07/04/2026 - 09:20 AM
+Status: Finalized
 ---
 
 # Building Permits Refractor Guide

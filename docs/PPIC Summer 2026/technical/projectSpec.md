@@ -5,6 +5,7 @@ pinned: true
 description: "The single source of truth for the web-data-visualization project's specification, architecture, and API reference. A living document for programmers and researchers that uses PopHousing as the reference implementation future data modules should mirror."
 Date Published: June 23, 2026
 Last Updated: 07/04/2026 - 10:10 AM
+Status: Updating
 ---
 
 
@@ -64,6 +65,8 @@ A **module** is one dataset's full vertical slice: its ETL pipeline under `scrip
 
 The rest of this document documents the **project-wide architecture and conventions** (which apply to every module), then **The PopHousing Module** as the concrete reference implementation, followed by **Components of Change**, **Demographic Projections**, **ACS Housing Stress**, and **Building Permits** as four further worked examples — each showing how the shared shape absorbs a new wrinkle (a dual-source contract, extra stratification dimensions, PUMA approximations, and a monthly axis, respectively).
 
+> [!flag] Frontend Updates
+> still need to add the document viewer and markdown renderer functionality to the projectSpec.
 ---
 ## Module Audit Status
 

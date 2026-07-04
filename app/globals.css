@@ -69,6 +69,47 @@
   --ppic-blue-500: #022a47;
   --ppic-blue-600: #000b18;
 
+  /* Teal ramp (data / accent) */
+  --ppic-teal-50: #e4f8ff;
+  --ppic-teal-100: #c7f1ff;
+  --ppic-teal-200: #a7e9ff;
+  --ppic-teal-300: #b1d8e6;
+  --ppic-teal-400: #7fb4c6;
+  --ppic-teal-500: #5692a6;
+  --ppic-teal-600: #1b5365;
+  --ppic-teal-700: #1c3c46;
+
+  /* Site accent ramps */
+  --ppic-navy-blue-50: #b4c4d9;
+  --ppic-navy-blue-100: #5d7fad;
+  --ppic-navy-blue-200: #2d4059;
+  --ppic-navy-blue-300: #233245;
+  --ppic-navy-blue-400: #192331;
+  --ppic-navy-blue-500: #0d131b;
+  --ppic-navy-blue-600: #050609;
+  --ppic-steel-blue-50: #d6e1ec;
+  --ppic-steel-blue-100: #a5bfd5;
+  --ppic-steel-blue-200: #759cbf;
+  --ppic-steel-blue-300: #4c7aa4;
+  --ppic-steel-blue-400: #365674;
+  --ppic-steel-blue-500: #1d2f3f;
+  --ppic-steel-blue-600: #0a1015;
+  --ppic-complement-green-50: #d9faed;
+  --ppic-complement-green-100: #c4ffe8;
+  --ppic-complement-green-200: #bae0d1;
+  --ppic-complement-green-300: #91c7b1;
+  --ppic-complement-green-400: #6dad94;
+  --ppic-complement-green-500: #4e9478;
+  --ppic-complement-green-600: #206248;
+  --ppic-complement-green-700: #1f4737;
+  --ppic-burnt-orange-50: #f4c4b2;
+  --ppic-burnt-orange-100: #e77f59;
+  --ppic-burnt-orange-200: #bf471b;
+  --ppic-burnt-orange-300: #953715;
+  --ppic-burnt-orange-400: #69270f;
+  --ppic-burnt-orange-500: #391508;
+  --ppic-burnt-orange-600: #130703;
+
   /* Neutral ramp */
   --ppic-neutral-50: #edeff0;
   --ppic-neutral-100: #c2c9cc;
@@ -79,9 +120,11 @@
   --ppic-neutral-600: #191b1c;
 
   /* Semantic */
-  --ppic-brand: var(--ppic-orange-300);
+  --ppic-brand: var(--ppic-orange-200);
   --ppic-brand-soft: var(--ppic-orange-100);
   --ppic-data-blue: var(--ppic-blue-400);
+  --ppic-data-teal: var(--ppic-teal-600);
+  --ppic-neutral-main: #6d7075;
   --ppic-surface: #f2f2f2;
   --ppic-card: #fafafa;
   --ppic-border: #c2c9cc;
@@ -206,6 +249,43 @@
   --color-ppic-blue-400: var(--ppic-blue-400);
   --color-ppic-blue-500: var(--ppic-blue-500);
   --color-ppic-blue-600: var(--ppic-blue-600);
+  --color-ppic-teal-50: var(--ppic-teal-50);
+  --color-ppic-teal-100: var(--ppic-teal-100);
+  --color-ppic-teal-200: var(--ppic-teal-200);
+  --color-ppic-teal-300: var(--ppic-teal-300);
+  --color-ppic-teal-400: var(--ppic-teal-400);
+  --color-ppic-teal-500: var(--ppic-teal-500);
+  --color-ppic-teal-600: var(--ppic-teal-600);
+  --color-ppic-teal-700: var(--ppic-teal-700);
+  --color-ppic-navy-blue-50: var(--ppic-navy-blue-50);
+  --color-ppic-navy-blue-100: var(--ppic-navy-blue-100);
+  --color-ppic-navy-blue-200: var(--ppic-navy-blue-200);
+  --color-ppic-navy-blue-300: var(--ppic-navy-blue-300);
+  --color-ppic-navy-blue-400: var(--ppic-navy-blue-400);
+  --color-ppic-navy-blue-500: var(--ppic-navy-blue-500);
+  --color-ppic-navy-blue-600: var(--ppic-navy-blue-600);
+  --color-ppic-steel-blue-50: var(--ppic-steel-blue-50);
+  --color-ppic-steel-blue-100: var(--ppic-steel-blue-100);
+  --color-ppic-steel-blue-200: var(--ppic-steel-blue-200);
+  --color-ppic-steel-blue-300: var(--ppic-steel-blue-300);
+  --color-ppic-steel-blue-400: var(--ppic-steel-blue-400);
+  --color-ppic-steel-blue-500: var(--ppic-steel-blue-500);
+  --color-ppic-steel-blue-600: var(--ppic-steel-blue-600);
+  --color-ppic-complement-green-50: var(--ppic-complement-green-50);
+  --color-ppic-complement-green-100: var(--ppic-complement-green-100);
+  --color-ppic-complement-green-200: var(--ppic-complement-green-200);
+  --color-ppic-complement-green-300: var(--ppic-complement-green-300);
+  --color-ppic-complement-green-400: var(--ppic-complement-green-400);
+  --color-ppic-complement-green-500: var(--ppic-complement-green-500);
+  --color-ppic-complement-green-600: var(--ppic-complement-green-600);
+  --color-ppic-complement-green-700: var(--ppic-complement-green-700);
+  --color-ppic-burnt-orange-50: var(--ppic-burnt-orange-50);
+  --color-ppic-burnt-orange-100: var(--ppic-burnt-orange-100);
+  --color-ppic-burnt-orange-200: var(--ppic-burnt-orange-200);
+  --color-ppic-burnt-orange-300: var(--ppic-burnt-orange-300);
+  --color-ppic-burnt-orange-400: var(--ppic-burnt-orange-400);
+  --color-ppic-burnt-orange-500: var(--ppic-burnt-orange-500);
+  --color-ppic-burnt-orange-600: var(--ppic-burnt-orange-600);
   --color-ppic-neutral-50: var(--ppic-neutral-50);
   --color-ppic-neutral-100: var(--ppic-neutral-100);
   --color-ppic-neutral-200: var(--ppic-neutral-200);
@@ -216,6 +296,8 @@
   --color-ppic-brand: var(--ppic-brand);
   --color-ppic-brand-soft: var(--ppic-brand-soft);
   --color-ppic-data-blue: var(--ppic-data-blue);
+  --color-ppic-data-teal: var(--ppic-data-teal);
+  --color-ppic-neutral-main: var(--ppic-neutral-main);
   --color-ppic-surface: var(--ppic-surface);
   --color-ppic-card: var(--ppic-card);
   --color-ppic-border: var(--ppic-border);

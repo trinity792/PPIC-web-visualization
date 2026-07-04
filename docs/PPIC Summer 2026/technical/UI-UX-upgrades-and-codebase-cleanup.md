@@ -5,20 +5,21 @@ pinned: false
 description: "A running checklist of UI/UX improvements and codebase cleanup tasks spanning the back end and front end. Tracks work such as integrating the UI Kit, building shared preset charts and validators, and creating navbar and sidebar components."
 Date Published: June 27, 2026
 Last Updated: 06/27/2026 - 08:09 PM
+Status: Archive
 ---
 
 # UI/UX Updates
 ## Back End
 - [x] Update constants.js
-- [ ] Determine best way to Integrate UI Kit details to project root 
-- [ ] Build shared preset model charts
-- [ ] Build metadata catalogue for each module
-- [ ] Build "add line" feature
+- [x] Determine best way to Integrate UI Kit details to project root 
+- [x] Build shared preset model charts
+- [x] Build metadata catalogue for each module
+- [x] Build "add line" feature
 - [ ] Build validators for shared preset model chart
 ## Front End
-- [ ] Create navBar component
-- [ ] Create sideBar component
-- [ ] Update current landing to be the dashboard landing example fill in with real graphs & real data
+- [x] Create navBar component
+- [x] Create sideBar component
+- [x] Update current landing to be the dashboard landing example fill in with real graphs & real data
 ### Reference Images
 [[Dashboard Page.png]]
 [[Detailed Module Page.png]]
@@ -30,11 +31,11 @@ Last Updated: 06/27/2026 - 08:09 PM
    - If clicked the see more button then the user is redirected to [[Detailed Module Page.png]] with the contents of the graph/chart/table they clicked loaded.
 
 # Codebase Cleanup
-- [ ] Create markdown-conventions.md file
-- [ ] Create frontend-dev-skill.md file 
-- [ ] Create backend-dev-skill.md file
-- [ ] Add instructions to AGENT.md and CLAUDE.md to check `docs/agent` for the necessary skills
-- [ ] Add context to AGENT.md and CLAUDE.md about structure of `docs/`
+- [x] Create markdown-conventions.md file
+- [x] Create frontend-dev-skill.md file 
+- [x] Create backend-dev-skill.md file
+- [x] Add instructions to AGENT.md and CLAUDE.md to check `docs/agent` for the necessary skills
+- [x] Add context to AGENT.md and CLAUDE.md about structure of `docs/`
 
 # On the Horizon
 - [ ] Setup logging

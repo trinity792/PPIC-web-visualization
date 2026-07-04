@@ -16,6 +16,7 @@ Content Type: agent instructions
 pinned: false
 Date Published: June 30, 2026
 Last Updated: 06/30/2026 - 10:17 AM
+Status: Finalized
 ---
 
 # Frontend Conventions Skill

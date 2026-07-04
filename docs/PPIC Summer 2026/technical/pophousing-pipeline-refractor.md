@@ -1,10 +1,11 @@
 ---
 Topic: Population and Housing
-Content Type: refractor plan
+Content Type: refractor guide
 pinned: false
 description: "Reference guide to the refactored Population and Housing pipeline: what it produces, how each phase works, and a per-script breakdown of the modern code with its lineage from the legacy tool. First half is for curious non-programmers; second half is for programmers."
 Date Published: June 22, 2026
 Last Updated: 07/04/2026 - 8:52 AM
+Status: Finalized
 ---
 
 # Population and Housing Refractor Guide

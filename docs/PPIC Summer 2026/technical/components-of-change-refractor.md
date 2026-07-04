@@ -1,10 +1,11 @@
 ---
 Topic: Population
-Content Type: refractor plan
+Content Type: refractor guide
 pinned: false
 description: "Reference guide to the refactored Components of Change module: what it produces, how each phase works, how the three charts are built, and a per-script breakdown of the modern code with its lineage from the legacy tool. First half is for curious non-programmers; second half is for programmers."
 Date Published: June 25, 2026
 Last Updated: 07/04/2026 - 09:20 AM
+Status: Finalized
 ---
 
 # Components of Change Refractor Guide

@@ -3,11 +3,13 @@
  *
  * Ported from the Figma reference "document-card.tsx", adapted to Next.js:
  * links to the document's slug route, uses a Content-Type icon tile in place of
- * a photo, and reuses the shared Badge for the type chip.
+ * a photo, reuses the shared Badge for the type chip, and displays the
+ * frontmatter Status with the UI Kit's status-chip pattern.
  *
  * Props:
  *   doc {Object} — normalized record from lib/docs/documents.js
- *     { slug, title, type, summary, category, publishedISO, publishedRaw, updatedLabel }
+ *     { slug, title, type, status, summary, category, publishedISO,
+ *       publishedRaw, updatedLabel }
  *
  * Data sources:
  *   - Via props from DocumentsBrowser
@@ -26,13 +28,20 @@ import {
   Bot,
   BookMarked,
   BookOpen,
+  FileCog,
+  FileSearch,
   FileText,
   FlaskConical,
   ListChecks,
+  MessageSquareText,
+  NotebookPen,
+  ScrollText,
+  Workflow,
   Wrench,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { COLORS } from "@/lib/constants";
 import { docTypeStyle } from "@/lib/docs/docTypeStyles";
 
 // Resolve lucide icon names from docTypeStyles into components.
@@ -40,10 +49,24 @@ const ICONS = {
   Bot,
   BookMarked,
   BookOpen,
+  FileCog,
+  FileSearch,
   FileText,
   FlaskConical,
   ListChecks,
+  MessageSquareText,
+  NotebookPen,
+  ScrollText,
+  Workflow,
   Wrench,
+};
+
+const STATUS_COLORS = {
+  Archive: COLORS.gray6,
+  Finalized: COLORS.blue1,
+  "In Progress": COLORS.blue2,
+  "Not Started": COLORS.gray3,
+  Updating: COLORS.blue5,
 };
 
 function formatDate(doc) {
@@ -88,12 +111,27 @@ export function DocumentCard({ doc }) {
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col justify-center">
-        <Badge
-          className="mb-2 self-start rounded-full border-transparent uppercase"
-          style={{ background: style.bg, color: style.fg, letterSpacing: "0.06em" }}
-        >
-          {doc.type}
-        </Badge>
+        <div className="mb-2 flex flex-wrap items-center gap-2 self-start">
+          <Badge
+            className="rounded-full border-transparent uppercase"
+            style={{ background: style.bg, color: style.fg, letterSpacing: "0.06em" }}
+          >
+            {doc.type}
+          </Badge>
+          {doc.status ? (
+            <Badge
+              className="gap-2 uppercase bg-ppic-neutral-50 text-ppic-neutral-600 rounded-full border-transparent"
+              style={{ letterSpacing: "0.06em" }}
+            >
+              <span
+                aria-hidden="true"
+                className="size-2 rounded-full"
+                style={{ backgroundColor: STATUS_COLORS[doc.status] || COLORS.gray3 }}
+              />
+              {doc.status}
+            </Badge>
+          ) : null}
+        </div>
 
         <h3
           className="line-clamp-2"

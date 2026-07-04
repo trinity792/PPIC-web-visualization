@@ -5,6 +5,7 @@ pinned: false
 description: "Guidelines and requirements for writing pytest tests covering the Phase 1 (Setup & Validation) and Phase 2 (Data Acquisition) modules of the refactored Pop-Housing pipeline."
 Date Published: June 22, 2026
 Last Updated: 07/04/2026 - 09:20 AM
+Status: Archive
 ---
 
 # Pop-Housing Pipeline — Unit Testing Guide

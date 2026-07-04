@@ -15,6 +15,7 @@ Content Type: agent instructions
 pinned: false
 Date Published: June 22, 2026
 Last Updated: 06/23/2026 - 01:54 PM
+Status: Finalized
 ---
  
 # Python Scripts Skill

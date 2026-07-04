@@ -15,6 +15,7 @@ import DocumentsBrowser from "@/components/documents/DocumentsBrowser";
 import {
   getContentTypes,
   getDocuments,
+  getStatuses,
   getTopics,
 } from "@/lib/docs/documents";
 
@@ -27,9 +28,15 @@ export const metadata = {
 export default function DocumentsPage() {
   const docs = getDocuments();
   const contentTypes = getContentTypes();
+  const statuses = getStatuses();
   const topics = getTopics();
 
   return (
-    <DocumentsBrowser docs={docs} contentTypes={contentTypes} topics={topics} />
+    <DocumentsBrowser
+      docs={docs}
+      contentTypes={contentTypes}
+      statuses={statuses}
+      topics={topics}
+    />
   );
 }

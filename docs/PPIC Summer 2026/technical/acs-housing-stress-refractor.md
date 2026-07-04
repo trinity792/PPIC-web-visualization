@@ -1,10 +1,11 @@
 ---
 Topic: Housing
-Content Type: refractor plan
+Content Type: refractor guide
 pinned: false
 description: "As-built guide to the refactored ACS Housing Stress (cost-burden) V3 pipeline: a non-technical overview of what it produces and how the five phases run, followed by a per-function programmer reference with legacy lineage. Covers the single ACS 1-year B25140 source, PUMA-based county/region aggregation, and the tenure/cost-burden math."
 Date Published: June 30, 2026
 Last Updated: 07/04/2026 - 09:20 AM
+Status: Finalized
 ---
 
 # ACS Housing Stress Refractor Guide

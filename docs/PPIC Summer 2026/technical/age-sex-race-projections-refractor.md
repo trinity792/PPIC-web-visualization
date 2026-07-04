@@ -1,10 +1,11 @@
 ---
 Topic: Population
-Content Type: refractor plan
+Content Type: refractor guide
 pinned: false
 description: "As-built guide to the refactored Age-Sex-Race Projections (Demographic Projections) V3 pipeline: a non-technical overview of what it produces and how the five phases run, followed by a per-function programmer reference with legacy lineage. Covers the DoF P-3 projections and Census cc-est estimate sources merged into a single stratified contract CSV."
 Date Published: June 22, 2026
 Last Updated: 07/04/2026 - 09:20 AM
+Status: Finalized
 ---
 
 # Age-Sex-Race Projections Refractor Guide

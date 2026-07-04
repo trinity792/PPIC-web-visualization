@@ -3,14 +3,15 @@
 /**
  * DocumentsBrowser.js — client island for the Documents landing page.
  *
- * Ported from the Figma reference "App.tsx": owns the search / topic / type /
- * sort state and the filter+sort pipeline, then renders the hero band, the
+ * Ported from the Figma reference "App.tsx": owns the search, topic, type,
+ * status, and sort state and the filter+sort pipeline, then renders the hero band, the
  * filter sidebar, the sort control, and the results list. All data (documents
  * and filter options) arrives as props from the server page.
  *
  * Props:
  *   docs         {Object[]} — normalized records from lib/docs/documents.js
  *   contentTypes {string[]} — filter options from getContentTypes()
+ *   statuses     {string[]} — filter options from getStatuses()
  *   topics       {string[]} — filter options from getTopics()
  *
  * Data sources:
@@ -40,10 +41,12 @@ const SORT_LABELS = {
   az: "Title A–Z",
 };
 
-export default function DocumentsBrowser({ docs, contentTypes, topics }) {
+export default function DocumentsBrowser({ docs, contentTypes, statuses, topics }) {
   const defaultTopic = topics[0] || "All topics";
+  const defaultStatus = statuses[0] || "All statuses";
   const [query, setQuery] = useState("");
   const [topic, setTopic] = useState(defaultTopic);
+  const [status, setStatus] = useState(defaultStatus);
   const [selectedTypes, setSelectedTypes] = useState([]);
   const [sort, setSort] = useState("newest");
 
@@ -55,6 +58,7 @@ export default function DocumentsBrowser({ docs, contentTypes, topics }) {
   const clear = () => {
     setSelectedTypes([]);
     setTopic(defaultTopic);
+    setStatus(defaultStatus);
   };
 
   const results = useMemo(() => {
@@ -67,7 +71,8 @@ export default function DocumentsBrowser({ docs, contentTypes, topics }) {
         d.category.toLowerCase().includes(q);
       const matchesType = selectedTypes.length === 0 || selectedTypes.includes(d.type);
       const matchesTopic = topic === defaultTopic || d.topic === topic;
-      return matchesQuery && matchesType && matchesTopic;
+      const matchesStatus = status === defaultStatus || d.status === status;
+      return matchesQuery && matchesType && matchesTopic && matchesStatus;
     });
 
     list = [...list].sort((a, b) => {
@@ -78,7 +83,16 @@ export default function DocumentsBrowser({ docs, contentTypes, topics }) {
       return sort === "newest" ? diff : -diff;
     });
     return list;
-  }, [docs, query, selectedTypes, topic, sort, defaultTopic]);
+  }, [
+    docs,
+    query,
+    selectedTypes,
+    topic,
+    status,
+    sort,
+    defaultTopic,
+    defaultStatus,
+  ]);
 
   return (
     <div className="min-h-screen w-full" style={{ background: "var(--background)" }}>
@@ -114,6 +128,9 @@ export default function DocumentsBrowser({ docs, contentTypes, topics }) {
           topics={topics}
           topic={topic}
           onTopic={setTopic}
+          statuses={statuses}
+          status={status}
+          onStatus={setStatus}
           contentTypes={contentTypes}
           selectedTypes={selectedTypes}
           onToggleType={toggleType}
