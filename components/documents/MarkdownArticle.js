@@ -42,6 +42,7 @@ import remarkWikilinks from "@/lib/docs/markdown/remarkWikilinks";
 import remarkSymbols from "@/lib/docs/markdown/remarkSymbols";
 import remarkCallouts from "@/lib/docs/markdown/remarkCallouts";
 import remarkLineParagraphs from "@/lib/docs/markdown/remarkLineParagraphs";
+import { DOC_SVG_DEFAULT_SIZE } from "@/lib/constants";
 
 export default function MarkdownArticle({ content, linkMap, assetMap }) {
   const remarkPlugins = [
@@ -60,6 +61,21 @@ export default function MarkdownArticle({ content, linkMap, assetMap }) {
     pre: ({ children }) => <>{children}</>,
     code({ className, children }) {
       const text = String(children ?? "");
+      // An ```svg fenced block renders as an inline image rather than source.
+      // The render width defaults to DOC_SVG_DEFAULT_SIZE; a ```svg-80 fence
+      // (className "language-svg-80") overrides it to 80%.
+      if (/language-svg\b/.test(className || "")) {
+        const sizeMatch = /language-svg-(\d+)/.exec(className || "");
+        const width = sizeMatch ? `${sizeMatch[1]}%` : DOC_SVG_DEFAULT_SIZE;
+        return (
+          <span
+            className="ppic-doc-svg"
+            role="img"
+            style={{ width }}
+            dangerouslySetInnerHTML={{ __html: text }}
+          />
+        );
+      }
       const isBlock = /language-/.test(className || "") || text.includes("\n");
       return isBlock ? (
         <CodeBlock className={className}>{children}</CodeBlock>

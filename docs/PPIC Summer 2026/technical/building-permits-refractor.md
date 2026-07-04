@@ -4,12 +4,27 @@ Content Type: refractor plan
 pinned: false
 description: "Refactoring plan for migrating the legacy permits_code.py module into the V3 architecture established by the prior module refactors."
 Date Published: June 30, 2026
-Last Updated: 06/30/2026 - 08:17 PM
+Last Updated: 07/03/2026 - 06:20 PM
 ---
 
 # Building Permits: Refactoring Plan
 
 A plan for migrating the legacy `permits_code.py` module into the V3 architecture established by PopHousing, Components of Change, Age-Sex-Race Projections, and ACS Housing Stress.
+
+---
+
+## Implementation Status (2026-07-03)
+
+The full backend (Steps 1–5), the shared-geography additions, and the frontend triad (Step 6) are **implemented and green** (967 Python tests pass; the JS data-access layer and API route are smoke-tested against the live dataset). The contract CSV has been generated: `data/data-cleaned/building-permits/BuildingPermits_Current.csv`, **197 months, 2010-01 → 2026-05, 14,691 rows**.
+
+Several realities surfaced during implementation that refine (not contradict) the plan below; each is called out inline in the relevant section and summarized here:
+
+1. **The Census only hosts a rolling ~2-year window of monthly `.xls` files.** As of 2026-07 the `cbsamonthly_*.xls` endpoint serves back to **2024-01** only; 2010–2023 return HTTP 404. The legacy PPIC tool *accumulated* history month-by-month since 2010, so a cold-start run cannot rebuild the deep history from the live source. Acquisition now **skips** not-published months (logged) instead of aborting, and final-dataset contiguity is checked across the *present* range rather than back to the aspirational 2010-01 floor.
+2. **Deep history is seeded from the legacy accumulated snapshot.** The newest previous-tool export, `data/data-raw/building-permits/BuildingPermits_06-16-25.csv` (2010-01 → 2025-01, already contract-shaped), seeds 2010-01 … 2023-12; the live pipeline owns 2024-01 onward. Seeding runs through the module's own `prepare_output` → `validate_building_permits_dataset` → `archive_and_save`, so the result is validated like any pipeline output.
+3. **The metro grain is "up to 26," not exactly 26.** Current BPS data carries **25** CA metropolitan CBSAs — **Madera** was de-delineated as a standalone MSA and no longer appears (older seeded months still carry it). Final validation therefore requires metros to be a *subset* of the canonical 26 (and flags any non-canonical name), rather than requiring all 26 every month. All 50 states are still required per month.
+4. **CBSA display-name drift is absorbed by code-based renames.** The SF metro is now published as "San Francisco-Oakland-**Fremont**" (was "…-Berkeley"); Bakersfield as "Bakersfield-Delano"; Stockton as "Stockton-Lodi". The CBSA-*code* rename map (12540/41860/44700) pins these to canonical display names regardless of the Census label churn.
+5. **`.xls` parsing needs `xlrd>=2.0.1`** (legacy Excel format); install it in the pipeline environment.
+6. **Frontend monthly axis.** Building Permits is the first *monthly* module; the shared render layer is year-centric. The month-aware shaping (trailing-12 "year-to-date", index-to-100, two-period change, region aggregation, derived `2+ Units`/`Rest of US`) lives in `lib/data/building_permits.js`; the shared year-granular slider is a known integration limitation to smooth over in Step 7.
 
 ---
 
@@ -27,6 +42,8 @@ One external source feeds the module — the **U.S. Census Bureau Building Permi
 - **State monthly:** `https://www.census.gov/construction/bps/xls/statemonthly_{YYYYMM}.xls` — permits by state. The module keeps the 50 states.
 
 Data is published monthly with roughly a two-month lag. The saved series begins **2010-01**; the tool restricts user-selected start dates to **2011-01+**.
+
+> **Availability caveat (discovered 2026-07-03):** the `cbsamonthly_*.xls` / `statemonthly_*.xls` endpoints only host a **rolling ~2-year window** of monthly files (as of 2026-07, back to 2024-01; earlier months 404). The full 2010-onward series is not rebuildable from the live source; it is **seeded once** from the legacy accumulated snapshot and maintained incrementally thereafter. See *Implementation Status* §1–2.
 
 ### Current function inventory
 
@@ -57,7 +74,7 @@ Location (California metros + 50 US states) × Date (monthly `YYYY-MM`) × Struc
 
 ### Geography (legacy)
 
-The legacy geography is bespoke: **27 California CBSA metros** carrying PPIC-specific display names, plus **50 US states**. The metro names diverge from Census labels via two inline dicts — a CBSA-code lookup (`12540 → Bakersfield`, etc.) and a "per Hans' request" rename map (`Riverside-San Bernardino-Ontario → Inland Empire`, `San Francisco-Oakland-Berkeley → San Francisco`, `Sacramento-Roseville-Folsom → Sacramento`, …). A stored `Geographic Level` column tags each row `State`, `Metro`, or `Other` via a copy-pasted `np.select`. The map view additionally unions whole counties into metro polygons via `msa_mapping`.
+The legacy geography is bespoke: **26 California CBSA metros** carrying PPIC-specific display names, plus **50 US states**. The metro names diverge from Census labels via two inline dicts — a CBSA-code lookup (`12540 → Bakersfield`, etc.) and a "per Hans' request" rename map (`Riverside-San Bernardino-Ontario → Inland Empire`, `San Francisco-Oakland-Berkeley → San Francisco`, `Sacramento-Roseville-Folsom → Sacramento`, …). A stored `Geographic Level` column tags each row `State`, `Metro`, or `Other` via a copy-pasted `np.select`. The map view additionally unions whole counties into metro polygons via `msa_mapping`.
 
 ### Legacy fragilities carried forward
 
@@ -98,11 +115,11 @@ Unlike the other migrations, the core issue here is not algorithmic complexity b
 
 ### 2. CBSA metro grain is preserved and promoted to shared config (decided)
 
-**Decision: keep the CBSA-metro grain as a stored geographic level, and lift the metro definitions into the shared geography config** so the pipeline, the frontend, and any future module reference one canonical source. The contract stores **State** and **Metro** rows at their native BPS grain; **Region** is produced as an *aggregate* (see §3), not stored. This preserves PPIC's historically-published 27 metro figures while still reconciling everything onto the shared geography framework.
+**Decision: keep the CBSA-metro grain as a stored geographic level, and lift the metro definitions into the shared geography config** so the pipeline, the frontend, and any future module reference one canonical source. The contract stores **State** and **Metro** rows at their native BPS grain; **Region** is produced as an *aggregate* (see §3), not stored. This preserves PPIC's historically-published 26 metro figures while still reconciling everything onto the shared geography framework.
 
-The bespoke metro definitions that were previously trapped inside `permits_code.py` (the 27 metro display names, the `msa_mapping` metro→county composition, and the derived metro→region grouping) move into `scripts/shared/geography/california_geography.py` (backed by `lib/pophousing_config.py`), alongside the existing county/region reference data:
+The bespoke metro definitions that were previously trapped inside `permits_code.py` (the 26 metro display names, the `msa_mapping` metro→county composition, and the derived metro→region grouping) move into `scripts/shared/geography/california_geography.py` (backed by `lib/pophousing_config.py`), alongside the existing county/region reference data:
 
-- `cbsa_metros` — the 27 canonical CA metro display names.
+- `cbsa_metros` — the 26 canonical CA metro display names.
 - `metro_to_county_mapping` — each metro → its whole member counties (the legacy `msa_mapping`).
 - `metro_to_region_mapping` — each metro → its shared region, derived by composing `metro_to_county_mapping` with the existing `regions_mapping` (every CA CBSA is a union of whole counties nesting within one region).
 
@@ -215,7 +232,7 @@ Shared modules reused (not re-created): `scripts/shared/downloads/http_downloads
 
 **Shared config extended (new work in this module):** `scripts/shared/geography/california_geography.py` (and its backing `lib/pophousing_config.py`) gains the CBSA-metro reference data so the metro grain is owned centrally rather than by this module:
 
-- `cbsa_metros` — the 27 canonical CA metro display names.
+- `cbsa_metros` — the 26 canonical CA metro display names.
 - `metro_to_county_mapping` — metro → whole member counties (the legacy `msa_mapping`).
 - `metro_to_region_mapping` — metro → shared region, derived by composing the above with the existing `regions_mapping`; used by the frontend's region-aggregate view.
 
@@ -241,7 +258,7 @@ Total, 1 Unit, 2 Units, 3 and 4 Units, 5 Units or More
 Where:
 
 - `Geographic Level`: `State` or `Metro`.
-- `Location`: for `State`, the state name (`California`, `Texas`, …, 50 states); for `Metro`, one of the 27 canonical CA metro display names (`Los Angeles`, `San Francisco`, `Inland Empire`, `Sacramento`, `Bakersfield`, …). California appears as a `State` row; its metros appear as `Metro` rows.
+- `Location`: for `State`, the state name (`California`, `Texas`, …, 50 states); for `Metro`, one of the 26 canonical CA metro display names (`Los Angeles`, `San Francisco`, `Inland Empire`, `Sacramento`, `Bakersfield`, …). California appears as a `State` row; its metros appear as `Metro` rows.
 - `Date`: month as `YYYY-MM` (2010-01 onward).
 - `Total`, `1 Unit`, `2 Units`, `3 and 4 Units`, `5 Units or More`: integer counts of authorized housing units. `Total` is the source total, not a recomputed sum.
 
@@ -252,7 +269,7 @@ Where:
 ### Geographic scope and coverage
 
 - **State:** 50 US states, sourced directly from the state monthly file.
-- **Metro:** 27 CA metropolitan CBSAs at native BPS grain, using the canonical display names in `california_geography.cbsa_metros`.
+- **Metro:** 26 CA metropolitan CBSAs at native BPS grain, using the canonical display names in `california_geography.cbsa_metros`.
 - **Region (frontend aggregate, not stored):** 9 CA regions, produced by summing member-metro rows in the data-access layer. **Region aggregates cover metropolitan counties only and under-count rural counties** — a documented methodological limitation surfaced in the frontend.
 - **County:** not stored and not aggregated (see Unique Challenges §4).
 
@@ -260,7 +277,7 @@ The canonical metro list, metro→county composition, and metro→region groupin
 
 ### Date coverage
 
-2010-01 through the latest published BPS month. The pipeline resolves the latest available month explicitly and never silently skips a month without logging it.
+2010-01 through the latest published BPS month. The pipeline resolves the latest available month explicitly and never silently skips a month without logging it. Because the live source hosts only a rolling ~2-year window (see *Implementation Status* §1), 2010-01 … 2023-12 is **seeded** from the legacy accumulated snapshot and 2024-01 onward is pulled live; the two join contiguously. Contiguity is enforced across the present range, so a mid-series gap is still caught, but the series legitimately starts wherever the seed does rather than being forced back to 2010-01.
 
 ---
 
@@ -889,7 +906,7 @@ def validate_building_permits_dataset(df, validation_config):
     Validate the final merged dataset before writing.
 
     Checks: row count within bounds; both geographic levels present; 50 states and up
-    to 27 metros present per month within coverage; Date range contiguous monthly from
+    to 26 metros present per month within coverage; Date range contiguous monthly from
     the earliest expected month; measures non-negative; no duplicate
     (Date, Geographic Level, Location) keys.
 
@@ -1105,7 +1122,7 @@ The client-safe field catalog that plugs the module into the shared UI layer. It
 - `Geographic Level`, `Location` as dimension fields.
 - Measures: `Total`, `1 Unit`, `2 Units`, `3 and 4 Units`, `5 Units or More`, plus the **derived** `2+ Units` (`2 Units + 3 and 4 Units + 5 Units or More`), each with transforms: actual, numericChange, percentChange, indexed, **trailing-12-month sum** (the legacy "aggregated"/year-to-date view).
 - A derived `Rest of US` location (sum of all non-California states per month), computed in the data-access layer.
-- **Subset toggle: "Metros" (27 CA CBSAs), "Regions" (9 CA region aggregates), "States" (50).** Choosing "Regions" renders the metro rows aggregated up to the 9 shared regions on demand — the primary new option requested for this migration.
+- **Subset toggle: "Metros" (26 CA CBSAs), "Regions" (9 CA region aggregates), "States" (50).** Choosing "Regions" renders the metro rows aggregated up to the 9 shared regions on demand — the primary new option requested for this migration.
 - A region-coverage caveat tooltip shown whenever the "Regions" subset is active: region totals reflect metropolitan counties only and under-count rural counties.
 - Curated presets:
   - "Permits over time" (line, y=Total, series=Location, monthly)
@@ -1122,7 +1139,7 @@ Server-only module (uses `node:fs`). Pattern mirrors `lib/data/pop_housing.js`:
 
 - `loadBuildingPermitsData()`: read and parse the contract CSV once per server process; cache in memory.
 - Derives `2+ Units` and the `Rest of US` location on the cached rows.
-- **`aggregateToRegions(rows)`: sums the 27 metro rows into the 9 region aggregates per month**, using a JS mirror of the shared `metro_to_region_mapping` (kept in `lib/geography/californiaGeography.js` so the Python and JS grouping never drift). Invoked when the request's subset is "Regions".
+- **`aggregateToRegions(rows)`: sums the 26 metro rows into the 9 region aggregates per month**, using a JS mirror of the shared `metro_to_region_mapping` (kept in `lib/geography/californiaGeography.js` so the Python and JS grouping never drift). Invoked when the request's subset is "Regions".
 - Query shapes: `queryLineSeries`, `queryTwoPeriod`, `queryGeoValues`, delegating to `lib/data/query_shapes.js`; each accepts the resolved subset (Metros / Regions / States) and applies the region aggregation before shaping.
 - Percent-change against a zero baseline arrives as null and is passed through as null (gap in the chart), never coerced to 0 or infinity — closing the legacy divide-by-zero hole.
 - The numeric-column set and curated-metric list derive from `buildingPermits.js` (single source of truth).
@@ -1162,7 +1179,7 @@ Tests mirror the source tree under `scripts/unit_tests/building_permits/`, with 
 - `test_geographic_levels.py`: validate_metro_names passes canonical metros and raises on an unknown metro; tag_geographic_levels concatenates state + metro rows, tags State/Metro, and sorts by Geographic Level, Location, Date.
 
 ### Shared geography additions (~8 tests, under `scripts/unit_tests/shared/geography/`)
-- Extend `test_california_geography.py`: `get_california_geography()` returns `cbsa_metros` (27), `metro_to_county_mapping`, and `metro_to_region_mapping`; every metro maps to exactly one region; the metro→region derivation matches composing metro→county with region→county (e.g. Bay Area = SF + San Jose + Santa Rosa + Vallejo + Napa); no metro's counties span two regions.
+- Extend `test_california_geography.py`: `get_california_geography()` returns `cbsa_metros` (26), `metro_to_county_mapping`, and `metro_to_region_mapping`; every metro maps to exactly one region; the metro→region derivation matches composing metro→county with region→county (e.g. Bay Area = SF + San Jose + Santa Rosa + Vallejo + Napa); no metro's counties span two regions.
 
 ### Merging tests (~10 tests)
 - `test_historical_merge.py`: load_canonical_dataset returns an empty contract frame when the file is missing; latest_stored_month returns the newest month or None; combine_with_historical atomically replaces an overlapping month without mixing, preserves non-overlapping months, and sorts; detect_new_data ignores row order and returns True/False correctly.
@@ -1182,34 +1199,34 @@ Total estimate: ~95 tests across 12 test files (11 under `scripts/unit_tests/bui
 
 ## Sequencing
 
-The work is ordered so each step is independently testable and useful.
+The work is ordered so each step is independently testable and useful. **Status (2026-07-03): Steps 1–6 complete; Step 7 (presets + caveat polish) remaining.** The monthly-axis shaping that would otherwise depend on the shared year-based transforms lives in `lib/data/building_permits.js`, and a JS geography mirror lives at `lib/geography/californiaGeography.js`.
 
-### Step 1: Configuration + shared geography
+### Step 1: Configuration + shared geography ✅
 Create `config/paths.py`, `sources.py`, `schemas.py`. **Add the CBSA-metro grain to the shared config:** put `cbsa_metros`, `metro_to_county_mapping` (the legacy `msa_mapping`), and the derived `metro_to_region_mapping` into `scripts/shared/geography/california_geography.py` (backed by `lib/pophousing_config.py`), and extend its unit tests. Define paths, URL patterns, the two rename maps, the state list, and validation thresholds. Depends on: nothing.
 
-### Step 2: Acquisition
+### Step 2: Acquisition ✅
 Implement `census_bps_downloader.py` and `source_fallback.py`, including the explicit month-resolution probe that distinguishes "not published" from "malformed" and the forward month enumeration. Write acquisition tests. Depends on: Step 1 + `scripts/shared/downloads/`.
 
-### Step 3: Cleaning
+### Step 3: Cleaning ✅
 Implement `metro_permits_cleaner.py` and `state_permits_cleaner.py`, replacing the four legacy cleaner copies and all positional munging with named, validated transforms. Write cleaning tests against fixture spreadsheets. Depends on: Steps 1–2.
 
-### Step 4: Geographic levels + Merge
+### Step 4: Geographic levels + Merge ✅
 Implement `geographic_levels.py` (validate metro names against shared config + tag State/Metro) and `historical_merge.py`. Write geography and merge tests. At the end of this step the backend can build a full month and merge it with history. Depends on: Steps 1–3.
 
-### Step 5: Validation + Output + Orchestrator
+### Step 5: Validation + Output + Orchestrator ✅
 Implement `building_permits_validators.py`, `finalize_dataset.py`, and `orchestrators/building_permits_pipeline.py`. Write validation, output, and orchestrator tests. At the end, the pipeline runs as a single `build_building_permits_dataset()` call with phase-tagged errors and conditional archival. Depends on: Steps 1–4.
 
-### Step 6: Frontend schema + data-access layer + API route
+### Step 6: Frontend schema + data-access layer + API route ✅
 Implement `lib/visualization/moduleSchemas/buildingPermits.js`, `lib/data/building_permits.js`, and `app/api/building-permits/route.js`. Add the JS mirror of the shared metro→region grouping (`lib/geography/californiaGeography.js`) and the `aggregateToRegions` data-access helper so the **Metros / Regions / States** subset toggle works. Register in `moduleRegistry.js`. Depends on: Step 5 (the contract CSV must exist); can be developed in parallel once the schema is agreed.
 
-### Step 7: Presets and polish
+### Step 7: Presets and polish ⏳ (remaining)
 Add the module-specific presets (region overview, overlay, indexed, year-to-date, two-period change, change map) and the region-coverage caveat tooltip that appears when the Regions subset is active. Depends on: Step 6.
 
 ---
 
 ## Resolved Decisions
 
-1. **CBSA metro grain preserved and stored.** The 27 CA metros are stored at native BPS grain as the `Metro` geographic level, alongside the 50 `State` rows. The metro definitions (`cbsa_metros`, `metro_to_county_mapping`, `metro_to_region_mapping`) are lifted out of `permits_code.py` into the **shared** `california_geography.py` so the grain is owned centrally and reusable.
+1. **CBSA metro grain preserved and stored.** The 26 CA metros are stored at native BPS grain as the `Metro` geographic level, alongside the 50 `State` rows. The metro definitions (`cbsa_metros`, `metro_to_county_mapping`, `metro_to_region_mapping`) are lifted out of `permits_code.py` into the **shared** `california_geography.py` so the grain is owned centrally and reusable.
 
 2. **Region is a frontend aggregate, not a stored level.** The 9 shared regions are produced by the data-access layer summing member metros on demand (via the shared `metro_to_region_mapping`), and exposed through a **Metros / Regions / States** subset toggle. The stored dataset stays at its minimal native grain.
 
@@ -1240,3 +1257,7 @@ Add the module-specific presets (region overview, overlay, indexed, year-to-date
 3. **Percent-change zero-baseline policy at the frontend.** The data-access layer emits null for zero-baseline percent change. Confirm the desired chart behavior (gap vs. dropped point vs. annotated) with the visualization team before finalizing presets — the legacy code produced `inf` and dropped those locations with a printed note.
 
 4. **Micropolitan areas.** The legacy tool drops micropolitan CBSAs (`Metro /Micro Code == 5`). Confirm micropolitan permits should remain excluded, or whether their whole counties should contribute to the region aggregates (which would improve rural coverage).
+
+5. **History preservation given the rolling source window (new, 2026-07-03).** The live `cbsamonthly/statemonthly` endpoints only expose ~2 years; the deep 2010–2023 history now lives *only* in `BuildingPermits_Current.csv` (seeded from the legacy snapshot) and its archives. Two things to decide: (a) treat the seeded `Current.csv` as the durable system of record and never re-derive pre-2024 (current behavior), and (b) whether to also pull the Census **annual** BPS files (or the `place`/`county` archives) to reconstruct or cross-check deep history independently of the legacy PPIC export. Until then, losing `Current.csv` means losing pre-2024 unless the seed file is retained.
+
+6. **Monthly axis in the shared UI (new, 2026-07-03).** The shared sidebar/slider and `query_shapes.js` are year-integer based; Building Permits is monthly. The data-access layer carries its own month-aware shaping, but Step 7 must decide how the shared slider exposes a monthly range (month picker vs. year slider that expands to Jan–Dec vs. generalizing `query_shapes`/the temporal control to a configurable granularity).

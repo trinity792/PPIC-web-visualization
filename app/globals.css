@@ -393,6 +393,18 @@ body {
   margin: 0.5em 0 var(--ppic-paragraph-spacing);
 }
 
+/* Inline SVG rendered from an ```svg fenced block. Width is set per-block via an
+   inline style (default from DOC_SVG_DEFAULT_SIZE); the SVG fills that width. */
+.ppic-doc-svg {
+  display: block;
+  max-width: 100%;
+  margin: 0.5em auto var(--ppic-paragraph-spacing);
+}
+.ppic-doc-svg svg {
+  width: 100%;
+  height: auto;
+}
+
 /* ── Callouts ────────────────────────────────────────────────────────────── */
 .ppic-markdown .ppic-callout {
   margin: 0 0 var(--ppic-paragraph-spacing);

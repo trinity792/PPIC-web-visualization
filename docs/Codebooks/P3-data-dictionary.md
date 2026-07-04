@@ -7,12 +7,12 @@ Date Published: June 30, 2026
 Last Updated: 06/30/2026 - 05:43 PM
 ---
 
-Population Projections Data Dictionary: 2020--2070
+# Population Projections Data Dictionary: 2020--2070
 Baseline 2024.
 Vintage 2026. 
 California Department of Finance. March 2026.
 
-File format
+## File format
 * Compressed format: .zip
 * Comma delimited ASCII text records
 * First line contains variable names

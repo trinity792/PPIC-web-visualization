@@ -4,19 +4,22 @@ Content Type: project specification
 pinned: true
 description: "The single source of truth for the web-data-visualization project's specification, architecture, and API reference. A living document for programmers and researchers that uses PopHousing as the reference implementation future data modules should mirror."
 Date Published: June 23, 2026
-Last Updated: 07/02/2026 - 12:48 PM
+Last Updated: 07/03/2026 - 06:40 PM
 ---
 
 
 # Project Specification, Architecture & API Reference
 Web **Visualizations** Project
-Last Updated: July 1st, 2026
+Last Updated: July 3rd, 2026
 
 ---
 
 A single reference for the **web-data-visualization** project: what it is, how the codebase is laid out, the architecture every data module follows, and the conventions every contributor is expected to follow.
 
-The project is organized as a set of **data modules** — one per dataset — that each flow from a public data source through an ETL (**Extract-Transform-Load** — it's the scrape → clean → save data flow) pipeline to interactive charts on a shared website. **Population & Housing (PopHousing)** is the first module refactored from the legacy notebooks/Shiny app into this structure, and **Components of Change** is the second — the first module built by *following* PopHousing's template rather than defining it, which is the project's first evidence that the module shape generalizes. This document covers the project-wide scaffolding first, uses PopHousing as the **reference implementation** that future modules should mirror, documents Components of Change as a second worked example, **Age, Sex & Race Projections (Demographic Projections)** as a third — the first module built entirely **test-first** (its unit-test suite was written before the implementation and used as the contract) — and **ACS Housing Stress** as a fourth, also built test-first.
+The project is organized as a set of **data modules** — one per dataset — that each flow from a public data source through an ETL (**Extract-Transform-Load** — it's the scrape → clean → save data flow) pipeline to interactive charts on a shared website. **Population & Housing (PopHousing)** is the first module refactored from the legacy notebooks/Shiny app into this structure, and **Components of Change** is the second — the first module built by *following* PopHousing's template rather than defining it, which is the project's first evidence that the module shape generalizes. This document covers the project-wide scaffolding first, uses PopHousing as the **reference implementation** that future modules should mirror, documents Components of Change as a second worked example, **Age, Sex & Race Projections (Demographic Projections)** as a third — the first module built entirely **test-first** (its unit-test suite was written before the implementation and used as the contract) — **ACS Housing Stress** as a fourth, also built test-first, and **Building Permits** as a fifth — the first **monthly** module, built test-first, whose migration **completes all five original legacy datasets**.
+
+> [!note] Milestone (2026-07-03)
+> With Building Permits migrated, **all five V1 legacy datasets now run on the V3 architecture.** No original notebook dataset remains un-migrated; further work is enhancement (deeper history, new views, the graph-editor overhaul) rather than net-new module migration.
 
 ### How to read this document:
 
@@ -56,9 +59,10 @@ A **module** is one dataset's full vertical slice: its ETL pipeline under `scrip
 | **Components of Change** | CA Dept. of Finance E-6 + U.S. Census county population component estimates | **Active** — second module migrated, built by mirroring PopHousing. Full pipeline, data contract, API route, and charts complete, with a **verified end-to-end run** against the live DoF E-6 + Census sources (4,018 rows, 1991–2025). |
 | **Age, Sex & Race Projections** (Demographic Projections) | CA Dept. of Finance **P-3** projections + U.S. Census **cc-est** estimates | **Active** — third module migrated, built **test-first** against the shared architecture. Full Python pipeline, data contract, API route, and chart wiring are complete and the pipeline runs end-to-end. It runs **DoF P-3 only** today — no Census cc-est file is present yet, so the `US State` level is absent until one is added. See *The Demographic Projections Module* for the remaining caveats. |
 | **ACS Housing Stress** | U.S. Census Bureau **ACS 1-year** table-based Summary File, table **B25140** (housing cost burden) | **Active** — fourth module migrated, built **test-first** (136 mirrored tests pass). Full Python pipeline, data contract, API route, module schema, and built-in chart views are complete, with a **verified end-to-end run** against live ACS. It contains the **latest vintage only** (2024, 4,525 rows) — the pipeline fetches one vintage per run and accumulates history over time; the legacy 2012–2023 series was set aside pending a schema migration. See *The ACS Housing Stress Module* for caveats. |
-| *Remaining legacy datasets* | V1 notebooks | **Not started** — to be migrated into the same module shape. |
+| **Building Permits** | U.S. Census Bureau **Building Permits Survey** monthly CBSA + state `.xls` releases | **Active** — fifth module migrated, built **test-first** (95 mirrored tests pass) and the first **monthly** module. Full Python pipeline, data contract, API route, module schema, data-access layer, and a JS geography mirror are complete, with a **verified end-to-end run** against live Census BPS. The contract holds **197 months, 2010-01 → 2026-05, 14,691 rows** — deep history (pre-2024) was seeded from the legacy accumulated snapshot because the source only hosts a rolling ~2-year window; the live pipeline maintains it forward. Curated presets are deferred pending a graph-editor overhaul. See *The Building Permits Module* for caveats. |
+| *Original legacy datasets* | V1 notebooks | **All five migrated** ✅ — PopHousing, Components of Change, Demographic Projections, ACS Housing Stress, and Building Permits are all on the V3 architecture. |
 
-The rest of this document documents the **project-wide architecture and conventions** (which apply to every module), then **The PopHousing Module** as the concrete reference implementation and **The Components of Change Module** as a second worked example.
+The rest of this document documents the **project-wide architecture and conventions** (which apply to every module), then **The PopHousing Module** as the concrete reference implementation, followed by **Components of Change**, **Demographic Projections**, **ACS Housing Stress**, and **Building Permits** as four further worked examples — each showing how the shared shape absorbs a new wrinkle (a dual-source contract, extra stratification dimensions, PUMA approximations, and a monthly axis, respectively).
 
 ---
 ## Tech Stack
@@ -66,7 +70,7 @@ The rest of this document documents the **project-wide architecture and conventi
 | Layer | Technology |
 |---|---|
 | **Frontend** | Next.js 16 (App Router), React 19, Tailwind CSS 4, Plotly.js via `react-plotly.js`, shadcn/Radix UI primitives (`components/ui/`) |
-| **Backend / ETL** | Python 3.12, pandas, `requests`, BeautifulSoup (`bs4`), `openpyxl` |
+| **Backend / ETL** | Python 3.12, pandas, `requests`, BeautifulSoup (`bs4`), `openpyxl`, `xlrd` (legacy `.xls`, Building Permits) |
 | **Testing** | pytest (backend); error handling surfaces messages identifying the failure source |
 | **Tooling** | `ruff` (lint + import sort), `.venv` for Python, ESLint for JS |
 | **Dev environment** | macOS, VS Code multi-folder workspace |
@@ -96,6 +100,7 @@ web-data-visualization/
 │       ├── components-of-change/route.js ← GET /api/components-of-change    (Components)
 │       ├── projections/route.js          ← GET /api/projections            (Demographic Projections)
 │       ├── housing-stress/route.js        ← GET /api/housing-stress         (ACS Housing Stress)
+│       ├── building-permits/route.js      ← GET /api/building-permits       (Building Permits)
 │       └── geography/route.js            ← GET /api/geography (county GeoJSON, choropleth)
 ├── components/
 │   ├── Navbar.js                 ← shared site shell
@@ -111,11 +116,13 @@ web-data-visualization/
 │   ├── data/components_of_change.js     ← server-only data-access layer over the CSV  (Components)
 │   ├── data/demographic_projections.js  ← server-only data-access layer over the CSV  (Projections)
 │   ├── data/housing_stress.js           ← server-only data-access layer over the CSV  (Housing Stress)
+│   ├── data/building_permits.js         ← server-only data-access layer over the CSV  (Building Permits; monthly shaping)
 │   ├── data/geography.js                ← server-only county GeoJSON access  (choropleth)
-│   ├── data/query_shapes.js             ← shared row → line/category/two-period/pairs/matrix shaping
+│   ├── data/query_shapes.js             ← shared row → line/category/two-period/pairs/matrix shaping (year-based)
 │   ├── data/apiParams.js                ← shared API-route query-param helpers
+│   ├── geography/californiaGeography.js ← CLIENT-SAFE JS mirror of the shared CBSA-metro → county/region maps
 │   └── visualization/                   ← CLIENT-SAFE chart catalog + registries (no node:fs)
-│       ├── moduleSchemas/{pophousing,componentsOfChange,demographicProjections,housingStress}.js  ← per-module field catalog
+│       ├── moduleSchemas/{pophousing,componentsOfChange,demographicProjections,housingStress,buildingPermits}.js  ← per-module field catalog
 │       ├── fieldTypes.js  formatters.js  transformRegistry.js  toPlotly.js
 │       ├── chartRegistry.js  presetRegistry.js  validation.js
 │       └── categoryRegistry.js          ← landing categories + built-in dashboard views
@@ -125,6 +132,7 @@ web-data-visualization/
 │   ├── components_of_change/     ← E-6 / Census components domain logic  (Components module)
 │   ├── projections/             ← P-3 / cc-est age-sex-race domain logic  (Projections module)
 │   ├── housing_stress/          ← ACS B25140 cost-burden domain logic  (Housing Stress module)
+│   ├── building_permits/        ← Census BPS monthly permits domain logic  (Building Permits module)
 │   ├── orchestrators/            ← per-module pipeline sequencing
 │   └── unit_tests/               ← pytest suite (mirrors source tree)
 ├── data/                         ← raw, cleaned, and archived data (git-ignored)
@@ -137,9 +145,12 @@ web-data-visualization/
 │   ├── data-cleaned/demographic-projections/DemographicProjections_Current.csv  ← Projections contract
 │   ├── data-raw/housing-stress/                 ← Housing Stress PUMA crosswalks (+ optional manual raw)
 │   ├── data-cleaned/housing-stress/HousingStress_Current.csv  ← Housing Stress contract
+│   ├── data-raw/building-permits/               ← Building Permits legacy history seed + county GeoJSON
+│   ├── data-cleaned/building-permits/BuildingPermits_Current.csv  ← Building Permits contract
 │   ├── archive/housing-population/
 │   ├── archive/demographic-projections/         ← Projections archived prior CSVs
-│   └── archive/housing-stress/                  ← Housing Stress archived prior CSVs
+│   ├── archive/housing-stress/                  ← Housing Stress archived prior CSVs
+│   └── archive/building-permits/                ← Building Permits archived prior CSVs
 ├── logs/deletions/               ← retention warning files
 ├── docs/                         ← this documentation set
 ├── pyproject.toml                ← pytest + ruff config
@@ -153,25 +164,79 @@ A new module adds a folder under `scripts/<module>/`, a `data/data-cleaned/<modu
 
 This is the architecture **every module follows**. A module has two halves connected by one artifact — a single cleaned CSV (the module's *contract*). PopHousing is shown as the concrete instance; `<module>` marks the parts that vary per dataset.
 
-```
-   ┌─────────────────────── BACKEND (Python ETL) ───────────────────────┐
-   │                                                                     │
-   │   source ──► acquisition ──► cleaning ──► merge ──► enrich          │
-   │   (e.g. DOF)                                        │                │
-   │                                                     ▼                │
-   │                       validation ──► data/data-cleaned/<module>/*.csv │
-   │                                                                     │
-   └─────────────────────────────────────────────────┬───────────────── ┘
-                                                      │  (the contract)
-   ┌──────────────────────── FRONTEND (Next.js) ──────▼──────────────────┐
-   │                                                                     │
-   │   lib/data/<module>.js ──► /api/<module> ──► UI layer: chart editor │
-   │   (reads + caches CSV)     (validate +       + category dashboards  │
-   │                            view-dispatch)    (config ─► toPlotly ─► Plotly) │
-   │                                                                     │
-   │   client-safe lib/visualization/ catalog drives fields · charts · presets │
-   │                                                                     │
-   └─────────────────────────────────────────────────────────────────── ┘
+```svg
+<svg width="100%" viewBox="0 0 680 616" role="img" style="" xmlns="http://www.w3.org/2000/svg">
+<title style="fill:rgb(0, 0, 0);stroke:none;color:rgb(11, 11, 11);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto">Web data visualization architecture</title>
+<desc style="fill:rgb(0, 0, 0);stroke:none;color:rgb(11, 11, 11);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto">Backend Python ETL pipeline produces versioned CSV files consumed by a Next.js frontend through an API layer and a shared visualization catalog.</desc>
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker>
+</defs>
+
+<rect x="40" y="40" width="600" height="282" rx="16" fill="#FED4BF" stroke="#E36A18" stroke-width="0.5" style="fill:rgb(254, 212, 191);stroke:rgb(227, 106, 24);color:rgb(11, 11, 11);stroke-width:0.5px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
+<text style="fill:#4C1F03;fill:rgb(76, 31, 3);stroke:none;color:rgb(11, 11, 11);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:14px;font-weight:500;text-anchor:start;dominant-baseline:auto" x="60" y="64" text-anchor="start">Backend (Python ETL)</text>
+
+<rect x="80" y="80" width="160" height="56" rx="8" fill="#FFFFFF" stroke="#E36A18" stroke-width="0.5" style="fill:rgb(255, 255, 255);stroke:rgb(227, 106, 24);color:rgb(11, 11, 11);stroke-width:0.5px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
+<text style="fill:#191B1C;fill:rgb(25, 27, 28);stroke:none;color:rgb(11, 11, 11);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:14px;font-weight:500;text-anchor:middle;dominant-baseline:central" x="160" y="98" text-anchor="middle" dominant-baseline="central">Source</text>
+<text style="fill:#595F61;fill:rgb(89, 95, 97);stroke:none;color:rgb(11, 11, 11);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:12px;font-weight:400;text-anchor:middle;dominant-baseline:central" x="160" y="118" text-anchor="middle" dominant-baseline="central">e.g. DoF</text>
+
+<rect x="260" y="80" width="160" height="56" rx="8" fill="#FFFFFF" stroke="#E36A18" stroke-width="0.5" style="fill:rgb(255, 255, 255);stroke:rgb(227, 106, 24);color:rgb(11, 11, 11);stroke-width:0.5px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
+<text style="fill:#191B1C;fill:rgb(25, 27, 28);stroke:none;color:rgb(11, 11, 11);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:14px;font-weight:500;text-anchor:middle;dominant-baseline:central" x="340" y="98" text-anchor="middle" dominant-baseline="central">Acquisition</text>
+<text style="fill:#595F61;fill:rgb(89, 95, 97);stroke:none;color:rgb(11, 11, 11);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:12px;font-weight:400;text-anchor:middle;dominant-baseline:central" x="340" y="118" text-anchor="middle" dominant-baseline="central">download files</text>
+
+<rect x="440" y="80" width="160" height="56" rx="8" fill="#FFFFFF" stroke="#E36A18" stroke-width="0.5" style="fill:rgb(255, 255, 255);stroke:rgb(227, 106, 24);color:rgb(11, 11, 11);stroke-width:0.5px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
+<text style="fill:#191B1C;fill:rgb(25, 27, 28);stroke:none;color:rgb(11, 11, 11);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:14px;font-weight:500;text-anchor:middle;dominant-baseline:central" x="520" y="98" text-anchor="middle" dominant-baseline="central">Cleaning</text>
+<text style="fill:#595F61;fill:rgb(89, 95, 97);stroke:none;color:rgb(11, 11, 11);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:12px;font-weight:400;text-anchor:middle;dominant-baseline:central" x="520" y="118" text-anchor="middle" dominant-baseline="central">normalize schema</text>
+
+<rect x="80" y="166" width="160" height="56" rx="8" fill="#FFFFFF" stroke="#E36A18" stroke-width="0.5" style="fill:rgb(255, 255, 255);stroke:rgb(227, 106, 24);color:rgb(11, 11, 11);stroke-width:0.5px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
+<text style="fill:#191B1C;fill:rgb(25, 27, 28);stroke:none;color:rgb(11, 11, 11);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:14px;font-weight:500;text-anchor:middle;dominant-baseline:central" x="160" y="184" text-anchor="middle" dominant-baseline="central">Merge</text>
+<text style="fill:#595F61;fill:rgb(89, 95, 97);stroke:none;color:rgb(11, 11, 11);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:12px;font-weight:400;text-anchor:middle;dominant-baseline:central" x="160" y="204" text-anchor="middle" dominant-baseline="central">combine sources</text>
+
+<rect x="260" y="166" width="160" height="56" rx="8" fill="#FFFFFF" stroke="#E36A18" stroke-width="0.5" style="fill:rgb(255, 255, 255);stroke:rgb(227, 106, 24);color:rgb(11, 11, 11);stroke-width:0.5px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
+<text style="fill:#191B1C;fill:rgb(25, 27, 28);stroke:none;color:rgb(11, 11, 11);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:14px;font-weight:500;text-anchor:middle;dominant-baseline:central" x="340" y="184" text-anchor="middle" dominant-baseline="central">Enrich</text>
+<text style="fill:#595F61;fill:rgb(89, 95, 97);stroke:none;color:rgb(11, 11, 11);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:12px;font-weight:400;text-anchor:middle;dominant-baseline:central" x="340" y="204" text-anchor="middle" dominant-baseline="central">derived columns</text>
+
+<rect x="440" y="166" width="160" height="56" rx="8" fill="#FFFFFF" stroke="#E36A18" stroke-width="0.5" style="fill:rgb(255, 255, 255);stroke:rgb(227, 106, 24);color:rgb(11, 11, 11);stroke-width:0.5px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
+<text style="fill:#191B1C;fill:rgb(25, 27, 28);stroke:none;color:rgb(11, 11, 11);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:14px;font-weight:500;text-anchor:middle;dominant-baseline:central" x="520" y="184" text-anchor="middle" dominant-baseline="central">Validation</text>
+<text style="fill:#595F61;fill:rgb(89, 95, 97);stroke:none;color:rgb(11, 11, 11);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:12px;font-weight:400;text-anchor:middle;dominant-baseline:central" x="520" y="204" text-anchor="middle" dominant-baseline="central">schema checks</text>
+
+<line x1="160" y1="136" x2="160" y2="166" stroke="#B25210" stroke-width="1.5" marker-end="url(#arrow)" style="fill:rgb(0, 0, 0);stroke:rgb(178, 82, 16);color:rgb(11, 11, 11);stroke-width:1.5px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
+<line x1="340" y1="136" x2="340" y2="166" stroke="#B25210" stroke-width="1.5" marker-end="url(#arrow)" style="fill:rgb(0, 0, 0);stroke:rgb(178, 82, 16);color:rgb(11, 11, 11);stroke-width:1.5px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
+<line x1="520" y1="136" x2="520" y2="166" stroke="#B25210" stroke-width="1.5" marker-end="url(#arrow)" style="fill:rgb(0, 0, 0);stroke:rgb(178, 82, 16);color:rgb(11, 11, 11);stroke-width:1.5px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
+
+<line x1="160" y1="222" x2="160" y2="252" stroke="#B25210" stroke-width="1.5" marker-end="url(#arrow)" style="fill:rgb(0, 0, 0);stroke:rgb(178, 82, 16);color:rgb(11, 11, 11);stroke-width:1.5px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
+<line x1="340" y1="222" x2="340" y2="252" stroke="#B25210" stroke-width="1.5" marker-end="url(#arrow)" style="fill:rgb(0, 0, 0);stroke:rgb(178, 82, 16);color:rgb(11, 11, 11);stroke-width:1.5px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
+<line x1="520" y1="222" x2="520" y2="252" stroke="#B25210" stroke-width="1.5" marker-end="url(#arrow)" style="fill:rgb(0, 0, 0);stroke:rgb(178, 82, 16);color:rgb(11, 11, 11);stroke-width:1.5px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
+
+<rect x="60" y="252" width="560" height="50" rx="8" fill="#E36A36" stroke="none" style="fill:rgb(227, 106, 54);stroke:none;color:rgb(11, 11, 11);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
+<text style="fill:#FFFFFF;fill:rgb(255, 255, 255);stroke:none;color:rgb(11, 11, 11);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:14px;font-weight:500;text-anchor:middle;dominant-baseline:central" x="340" y="277" text-anchor="middle" dominant-baseline="central">data/data-cleaned/&lt;module&gt;/*.csv</text>
+
+<line x1="340" y1="322" x2="340" y2="380" stroke="#BF471B" stroke-width="1.5" marker-end="url(#arrow)" style="fill:rgb(0, 0, 0);stroke:rgb(191, 71, 27);color:rgb(11, 11, 11);stroke-width:1.5px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
+<text style="fill:#2D4059;fill:rgb(45, 64, 89);stroke:none;color:rgb(11, 11, 11);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:12px;font-weight:400;text-anchor:start;dominant-baseline:auto" x="360" y="351" text-anchor="start">the contract</text>
+
+<rect x="40" y="380" width="600" height="196" rx="16" fill="#B5DBFD" stroke="#1891E3" stroke-width="0.5" style="fill:rgb(181, 219, 253);stroke:rgb(24, 145, 227);color:rgb(11, 11, 11);stroke-width:0.5px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
+<text style="fill:#022A47;fill:rgb(2, 42, 71);stroke:none;color:rgb(11, 11, 11);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:14px;font-weight:500;text-anchor:start;dominant-baseline:auto" x="60" y="404" text-anchor="start">Frontend (Next.js)</text>
+
+<rect x="65" y="420" width="170" height="56" rx="8" fill="#FFFFFF" stroke="#1891E3" stroke-width="0.5" style="fill:rgb(255, 255, 255);stroke:rgb(24, 145, 227);color:rgb(11, 11, 11);stroke-width:0.5px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
+<text style="fill:#191B1C;fill:rgb(25, 27, 28);stroke:none;color:rgb(11, 11, 11);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:14px;font-weight:500;text-anchor:middle;dominant-baseline:central" x="150" y="438" text-anchor="middle" dominant-baseline="central">lib/data/*.js</text>
+<text style="fill:#595F61;fill:rgb(89, 95, 97);stroke:none;color:rgb(11, 11, 11);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:12px;font-weight:400;text-anchor:middle;dominant-baseline:central" x="150" y="458" text-anchor="middle" dominant-baseline="central">reads + caches CSV</text>
+
+<rect x="255" y="420" width="170" height="56" rx="8" fill="#FFFFFF" stroke="#1891E3" stroke-width="0.5" style="fill:rgb(255, 255, 255);stroke:rgb(24, 145, 227);color:rgb(11, 11, 11);stroke-width:0.5px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
+<text style="fill:#191B1C;fill:rgb(25, 27, 28);stroke:none;color:rgb(11, 11, 11);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:14px;font-weight:500;text-anchor:middle;dominant-baseline:central" x="340" y="438" text-anchor="middle" dominant-baseline="central">/api/&lt;module&gt;</text>
+<text style="fill:#595F61;fill:rgb(89, 95, 97);stroke:none;color:rgb(11, 11, 11);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:12px;font-weight:400;text-anchor:middle;dominant-baseline:central" x="340" y="458" text-anchor="middle" dominant-baseline="central">validate + dispatch</text>
+
+<rect x="445" y="420" width="170" height="56" rx="8" fill="#FFFFFF" stroke="#1891E3" stroke-width="0.5" style="fill:rgb(255, 255, 255);stroke:rgb(24, 145, 227);color:rgb(11, 11, 11);stroke-width:0.5px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
+<text style="fill:#191B1C;fill:rgb(25, 27, 28);stroke:none;color:rgb(11, 11, 11);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:14px;font-weight:500;text-anchor:middle;dominant-baseline:central" x="530" y="438" text-anchor="middle" dominant-baseline="central">UI layer</text>
+<text style="fill:#595F61;fill:rgb(89, 95, 97);stroke:none;color:rgb(11, 11, 11);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:12px;font-weight:400;text-anchor:middle;dominant-baseline:central" x="530" y="458" text-anchor="middle" dominant-baseline="central">editor + dashboards</text>
+
+<line x1="235" y1="448" x2="255" y2="448" stroke="#106FB0" stroke-width="1.5" marker-end="url(#arrow)" style="fill:rgb(0, 0, 0);stroke:rgb(16, 111, 176);color:rgb(11, 11, 11);stroke-width:1.5px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
+<line x1="425" y1="448" x2="445" y2="448" stroke="#106FB0" stroke-width="1.5" marker-end="url(#arrow)" style="fill:rgb(0, 0, 0);stroke:rgb(16, 111, 176);color:rgb(11, 11, 11);stroke-width:1.5px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
+
+<line x1="530" y1="506" x2="530" y2="476" stroke="#759CBF" stroke-width="1.5" marker-end="url(#arrow)" style="fill:rgb(0, 0, 0);stroke:rgb(117, 156, 191);color:rgb(11, 11, 11);stroke-width:1.5px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
+
+<rect x="60" y="506" width="560" height="50" rx="8" fill="#2D4059" stroke="none" style="fill:rgb(45, 64, 89);stroke:none;color:rgb(11, 11, 11);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
+<text style="fill:#FFFFFF;fill:rgb(255, 255, 255);stroke:none;color:rgb(11, 11, 11);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:14px;font-weight:500;text-anchor:middle;dominant-baseline:central" x="340" y="524" text-anchor="middle" dominant-baseline="central">lib/visualization/ catalog</text>
+<text style="fill:#B5DBFD;fill:rgb(181, 219, 253);stroke:none;color:rgb(11, 11, 11);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:12px;font-weight:400;text-anchor:middle;dominant-baseline:central" x="340" y="544" text-anchor="middle" dominant-baseline="central">fields · charts · presets</text>
+</svg>
 ```
 
 For PopHousing the source is the DOF website, the contract is `PopHousing_Current.csv`, the access layer is `lib/data/pop_housing.js`, and the route is `/api/pophousing`. The **UI layer above the route is shared across all modules** — see *Frontend Architecture (UI Layer)*; a module plugs into it through its `lib/visualization/moduleSchemas/<module>.js` catalog.
@@ -249,11 +314,11 @@ The reading order follows the dependency direction: the cross-module `scripts/sh
 Most of these modules know nothing about California, housing, or the DOF — they take column names, paths, patterns, and thresholds **as arguments** and are the reusable foundation the domain layer builds on. The one deliberate exception is the **reference-data** provider `geography/california_geography.py`, which owns California place names that more than one California module needs (see *The dependency boundary*).
 
 #### [`shared/geography/california_geography.py`](../../../scripts/shared/geography/california_geography.py) — *Shared reference data*
-The single owner of California county, region, and state reference geography, consumed by both PopHousing and Components of Change so neither reaches into the other's config. Reads the canonical county list and region-to-county mapping from the project config layer (`lib/pophousing_config.py`) and returns fresh, independently-mutable copies.
+The single owner of California county, region, state, **and CBSA-metro** reference geography, consumed by PopHousing, Components of Change, ACS Housing Stress, and Building Permits so no module reaches into another's config. Reads the canonical county list and region-to-county mapping from the project config layer (`lib/pophousing_config.py`) and returns fresh, independently-mutable copies. Building Permits lifted the 26 CA CBSA-metro definitions here (out of the legacy `permits_code.py`) so the metro grain is owned centrally; the metro→region grouping is **derived** by composing whole-county membership with the shared regions (every CA CBSA nests within exactly one of the 9 regions).
 
 | Function | Responsibility |
 |---|---|
-| `get_california_geography()` | Return `{state_name, county_names (incl. San Francisco), region_names, regions_mapping}` as fresh copies. |
+| `get_california_geography()` | Return `{state_name, county_names (incl. San Francisco), region_names, regions_mapping, cbsa_metros (26), metro_to_county_mapping, metro_to_region_mapping}` as fresh copies. |
 
 #### [`shared/archives/file_retention.py`](../../../scripts/shared/archives/file_retention.py) — *Shared mechanism*
 Generic file-age lookup and disposition. The mechanical half of the retention policy: find old files, then move or delete them. The *policy* (which files, how old, archive vs. delete) is supplied by the caller, so the same code serves E-5 retention today and any future dataset.
@@ -1046,6 +1111,141 @@ The module is complete, its tests pass, and it has run end-to-end against live A
 
 ---
 
+# The Building Permits Module
+
+The **Building Permits** module (directory name `building_permits`) is the **fifth dataset migrated** — the one that **completes all five original legacy datasets** — and the third built **test-first** (its 95-test suite existed before any implementation). It measures **residential building permits**: monthly counts of authorized new housing units, split by structure size, for the **50 US states** and California's **CBSA metros**.
+
+Things worth understanding before reading the code:
+
+- **The legacy source had the worst duplication of the five.** V1 `permits_code.py` copy-pasted the full acquire→clean→merge→derive→save pipeline **six times** (the try *and* except branch of each of three `visualize_*` functions), with the two cleaners existing in four copies. The migration collapses this into **one** orchestrator with individually testable phases and a single fallback path.
+- **It is the first *monthly* module.** Its temporal axis is `Date` = "YYYY-MM", not an integer `Year`. Every other module (and the shared `query_shapes.js`) is year-based, so Building Permits carries its own month-aware shaping in the data-access layer.
+- **The CBSA-metro grain is preserved and promoted to shared config.** The 26 CA metros are stored as a `Metro` geographic level alongside the 50 `State` rows; their definitions (`cbsa_metros`, `metro_to_county_mapping`, `metro_to_region_mapping`) were lifted into the shared `california_geography.py`. The **9-region roll-up is a frontend aggregate** (a Metros / Regions / States subset toggle), not a stored level.
+- **The live source only hosts a rolling ~2-year window.** As of 2026-07 the `cbsamonthly`/`statemonthly` `.xls` endpoints serve back to **2024-01** only; 2010–2023 return 404. The legacy tool *accumulated* history since 2010, so deep history is **seeded** from the legacy snapshot and the live pipeline maintains it forward.
+- **It saves incrementally**, writing (and archiving the prior version) only when new source data is detected.
+
+## Sources & Pipeline
+
+| Source | Provides | Cadence / coverage |
+|---|---|---|
+| **U.S. Census Building Permits Survey (BPS)** — `cbsamonthly_{YYYYMM}.xls` + `statemonthly_{YYYYMM}.xls` | Authorized housing units by structure size (Total / 1 / 2 / 3–4 / 5+), per CA CBSA and per US state | Monthly, ~2-month lag; the endpoint hosts only a **rolling ~2-year window** (currently back to 2024-01). Deep history (2010-01…2023-12) is seeded from the legacy accumulated snapshot. |
+
+The entry point is [`scripts/orchestrators/building_permits_pipeline.py`](../../../scripts/orchestrators/building_permits_pipeline.py). `build_building_permits_dataset(config=None)` runs five phases, each wrapped so any exception re-raises as a **`BuildingPermitsPipelinePhaseError`** tagged with the phase name. It returns a summary dict: dataframe, `new_data` / `source_failed` flags, the `acquired_months` list, output path (`None` when nothing changed), and row count.
+
+| Phase | Name | What happens | Primary modules |
+|---|---|---|---|
+| **1** | Setup & Load | Resolve config + shared geography; load the canonical CSV as historical + fallback; find the latest stored month. | `config/*`, `merging/historical_merge` |
+| **2** | Acquisition (resilient) | **Resolve the latest published month** by probing backward from the current month (advancing only on a "not published" 404; *raising* on a parse error so a malformed release isn't mistaken for an absent one). Enumerate the months **after** the last stored one (a cold start floors at `earliest_month`), download each month's CBSA + state file, **skip** any not-published month with a log, and fall back to last-saved rows on a real failure. | `acquisition/*`, `shared/downloads/http_downloads` |
+| **3** | Clean & Tag | Clean each monthly CBSA frame (reseat the header, keep only the *current-month* measure block, split `Name`→Location/State, drop micropolitan, apply CBSA-code + display renames) and each state frame; **validate every metro name against the shared canonical set**; tag `Geographic Level` (`State`/`Metro`). | `cleaning/*`, `geography/geographic_levels` |
+| **4** | Merge | Atomically replace any overlapping stored month **in full** (a month is always one scrape's data, never a key-level mix) and detect whether the data changed. | `merging/historical_merge` |
+| **5** | Finalize, Validate & Save | Enforce output column order + integer types, validate the final dataset, and **archive + save only when new data was detected**. | `output/finalize_dataset`, `validation/building_permits_validators` |
+
+### Month resolution & the six-fold de-duplication (Phases 2–3)
+
+`resolve_latest_month` replaces the legacy bare-`except` month-decrement walk: a 404 steps back a month, a parse error raises — so the pipeline never silently serves a stale month. `acquire_months` then fetches only the window *between* the last stored month and the latest available one (not a blind sweep), skipping any month the rolling source no longer hosts. The two cleaners (`clean_metro_permits`, `clean_state_permits`) replace the four legacy cleaner copies, and the whole acquire→clean→merge→save sequence — copy-pasted six times in V1 — now exists once. The map's legacy `np.random.uniform` empty-bin imputation is **dropped entirely** (it fabricated data).
+
+---
+
+## Module Reference (Building Permits)
+
+Same layering as the other modules: `scripts/shared/` mechanisms → `scripts/building_permits/` domain packages → the orchestrator. Domain packages only:
+
+#### `config/` — single source of truth
+| Script | Public function |
+|---|---|
+| `paths.py` | `get_paths()` — current/download/archive/logs paths + the county GeoJSON path. |
+| `sources.py` | `get_source_settings()` — CBSA/state URL patterns (templated on `{yyyymm}`), headers, timeout, cache age, `earliest_month="2010-01"`, `max_month_lookback`, and expected raw columns. |
+| `schemas.py` | `get_schema_config()` — output/required/measure columns, the CBSA-code and "per Hans" metro display rename maps, the 50 state names, the micropolitan code (5), the two geographic levels, and cleaning/final validation configs (metros drawn from the shared `california_geography`). |
+
+#### `acquisition/` — getting the monthly `.xls` files
+| Script | Public functions |
+|---|---|
+| `census_bps_downloader.py` | `download_cbsa_month`, `download_state_month` (`BPSMonthUnavailableError` on a 404/missing file vs `ValueError` on a present-but-malformed file). |
+| `source_fallback.py` | `resolve_latest_month` (backward month probe), `months_to_acquire` (forward enumeration after the last stored month), `acquire_months` (download the window; skip not-published months; last-saved fallback). |
+
+#### `cleaning/` · `geography/` — normalizing and level tagging
+| Script | Public functions |
+|---|---|
+| `cleaning/metro_permits_cleaner.py` | `clean_metro_permits` — reseat header, keep the current-month block (the BPS sheet repeats each measure across a "Current Month" and "Year to Date" block), filter CA metropolitan CBSAs, apply the two rename maps, stamp `Date`. Named-column selection raises on a missing column (a BPS layout change fails loudly). |
+| `cleaning/state_permits_cleaner.py` | `clean_state_permits` — select + rename the 6 current-month columns, filter to the 50 states, cast measures to int, stamp `Date`. |
+| `geography/geographic_levels.py` | `validate_metro_names` (every metro Location ∈ the shared `cbsa_metros`, else raise), `tag_geographic_levels` (concatenate State + Metro, tag level, sort). Replaces the three copy-pasted `np.select` blocks. |
+
+#### `merging/` · `validation/` · `output/` — history, gates, and contract
+| Script | Public functions |
+|---|---|
+| `merging/historical_merge.py` | `load_canonical_dataset`, `latest_stored_month`, `combine_with_historical` (atomic whole-month replacement), `detect_new_data` (order/index-insensitive). |
+| `validation/building_permits_validators.py` | `validate_cleaning_output`, `validate_building_permits_dataset` (row-count bounds, both levels present, 50 states per month, metros **⊆** the canonical 26, contiguous monthly `Date` range across the present span, non-negative measures, no duplicate keys). |
+| `output/finalize_dataset.py` | `prepare_output` (contract column order + integer casts), `archive_and_save` (content-identical skip; `BuildingPermits_{mm-dd-yy}.csv` archive timestamp). |
+
+---
+
+## Configuration Reference (Building Permits)
+
+| Setting | Value | Source |
+|---|---|---|
+| CBSA URL pattern | `…/construction/bps/xls/cbsamonthly_{yyyymm}.xls` | `sources.py` |
+| State URL pattern | `…/construction/bps/xls/statemonthly_{yyyymm}.xls` | `sources.py` |
+| Request timeout / cache age | 60 s / 30 days | `sources.py` |
+| Earliest month / lookback | `2010-01` / 6 months | `sources.py` |
+| CBSA-code renames | `12540→Bakersfield`, `41860→San Francisco-Oakland-Berkeley`, `44700→Stockton` | `schemas.py` |
+| Micropolitan drop code | `Metro /Micro Code == 5` | `schemas.py` |
+| Valid geographic levels | State (50 US), Metro (≤26 CA CBSA) | `schemas.py` |
+| State scope | 50 states; DC & PR excluded | `schemas.py` |
+
+The 26 CA metro display names, the metro→county composition, and the derived metro→region grouping come from the shared [`california_geography`](../../../scripts/shared/geography/california_geography.py) provider; a JS mirror lives at `lib/geography/californiaGeography.js`.
+
+---
+
+## Data Contract (Building Permits)
+
+The pipeline's output — `data/data-cleaned/building-permits/BuildingPermits_Current.csv` — is the module's contract; changing it is an "ask first" action.
+
+**Grain:** one row per `(Date, Geographic Level, Location)`.
+
+**Geographic levels:** `State` (50 US states) and `Metro` (CA CBSA metros at native BPS grain). California appears as a `State` row; its metros appear as `Metro` rows. **Region** (9 CA regions) is a **frontend aggregate**, not stored; **County** is neither stored nor aggregated (a multi-county CBSA can't be split).
+
+**Date coverage:** 2010-01 → latest published month (currently 2026-05). Pre-2024 is seeded from the legacy snapshot; 2024-01 onward is live. Contiguity is enforced across the present span, not back to a fixed floor.
+
+**Measures:** the five raw structure-size counts. `2+ Units` (multifamily) and the `Rest of US` location are **derived downstream** (data-access layer), never stored; so are index-to-100, the trailing-12-month sum, two-period change, and the 9-region aggregate.
+
+**Metro grain is "up to 26."** Current BPS data carries **25** metros (Madera was de-delineated); older seeded months carry 26. Validation requires metros to be a *subset* of the canonical 26, not all 26 each month.
+
+**Columns** (output order, from `schemas.get_schema_config()`):
+
+```
+Geographic Level, Location, Date, Total, 1 Unit, 2 Units, 3 and 4 Units, 5 Units or More
+```
+
+---
+
+## Frontend (Building Permits)
+
+Same module-specific server pieces as the others, plus a subset toggle and derived measures — but with month-aware shaping because it is the first monthly module.
+
+### `lib/data/building_permits.js` — data-access layer (server-only)
+Owns reading/parsing/filtering of the CSV (`node:fs`). Because the temporal axis is monthly, it carries its **own** month-aware shaping (`buildLineSeries` / `buildTwoPeriod` / geo shaping keyed on `Date`) rather than the year-based shared `query_shapes.js`, while keeping output shapes compatible with the shared render layer. It derives `2+ Units` and the `Rest of US` location on the cached rows; `aggregateToRegions` sums the metros into the 9 shared regions on demand (via the JS geography mirror); and it applies the trailing-12-month ("year-to-date") sum and index-to-100 transforms. A **zero baseline yields null** (a chart gap), never Infinity — closing the legacy divide-by-zero hole. Exposes `queryLineSeries`, `queryTwoPeriod`, `queryGeoValues` (metro/region values **broadcast** across member-county polygons for the choropleth — a display choice, no random-bin imputation). Numeric columns, subsets, and the derived measure derive from [`lib/visualization/moduleSchemas/buildingPermits.js`](../../../lib/visualization/moduleSchemas/buildingPermits.js).
+
+### `app/api/building-permits/route.js` — API endpoint (orchestrator)
+`GET /api/building-permits` — a `view`-based dispatcher (`line`, `twoPeriod`, `geoValues`) plus the extra params `permitType` (one of the 5 raw measures or `2+ Units`), `subset` (`Metros` / `Regions` / `States`), `aggregated` (trailing-12 sum), `indexed` (index-to-100), and monthly bounds (`startMonth`/`endMonth` as `YYYY-MM`, or `startYear`/`endYear` that expand to full years). Errors carry a `source` string (`"building-permits API: …"`). When the `Regions` subset is active the response carries a **caveat** string (region totals cover metropolitan counties only and under-count rural counties).
+
+### Module schema & JS geography mirror
+The schema declares the 6 measures (5 raw + derived `2+ Units`), the `Metros`/`Regions`/`States` subsets, and a monthly `Date` axis; it is registered in `moduleRegistry.js`. The shared metro→county/region maps are mirrored to `lib/geography/californiaGeography.js` (generated from the Python source) so the Python pipeline and the JS data layer never drift.
+
+---
+
+## Current-State Notes & Caveats (Building Permits)
+
+The module is complete, its tests pass, and it has run end-to-end against live Census BPS. A few things about *today's* state are worth recording:
+
+- **Verified run + seeded history.** The live pipeline pulled 2024-01…2026-05 (29 months); deep history (2010-01…2023-12) was **seeded** from `data/data-raw/building-permits/BuildingPermits_06-16-25.csv` (the newest legacy accumulated snapshot) through the module's own `prepare_output` → `validate` → `archive_and_save`, giving `BuildingPermits_Current.csv` = **197 months, 14,691 rows**. The pipeline is idempotent on re-run.
+- **Rolling source window.** The Census hosts only ~2 years of monthly `.xls` files, so a cold-start run cannot rebuild pre-2024 from the source — the seeded `Current.csv` is the durable system of record for deep history. `acquire_months` skips not-published months (logged); final-dataset contiguity is checked across the present span. *(Recorded as an open question: whether to also pull the Census annual/`countymonthly` files to reconstruct or cross-check deep history independently.)*
+- **`.xls` needs `xlrd`.** The BPS files are legacy `.xls`; the pipeline env needs `xlrd>=2.0.1`. There is currently no `requirements.txt` recording it.
+- **25 metros, not 26.** Madera was de-delineated as a standalone MSA and no longer appears in current BPS data; older seeded months still carry it. Validation is "up to 26" (subset of canonical), all 50 states required per month.
+- **CBSA name drift absorbed by code renames.** The SF metro now publishes as "San Francisco-Oakland-**Fremont**" (was "…-Berkeley"), Bakersfield as "Bakersfield-Delano", Stockton as "Stockton-Lodi"; the CBSA-*code* rename map pins these to canonical display names regardless of Census label churn.
+- **Monthly axis vs. the year-based UI.** The shared sidebar/slider and `query_shapes.js` are year-integer based; the data-access layer carries its own monthly shaping, but wiring the shared slider/temporal control for a monthly range is deferred to the graph-editor overhaul.
+- **Presets & landing surface deferred.** Curated presets (region overview, overlay, indexed, year-to-date, two-period change, change map) and a landing-page `CATEGORIES` card are intentionally **not** built — deferred to the forthcoming graph-editor overhaul.
+
+---
+
 ## Frontend Architecture (UI Layer)
 
 *Cross-module — every module renders through this shared layer; only the per-module data-access layer + API route (above) and the module schema differ.*
@@ -1069,7 +1269,7 @@ Three ideas hold it together:
 
 | File                        | Responsibility                                                                                                                                                                                                                              |
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `moduleSchemas/<module>.js` | The module's **field catalog**: each field's kind / unit / comparison group / allowed transforms / chart roles, plus curated metrics, subsets, sources, `yearRange`, canonical columns. Read by both the editor and the server data module. |
+| `moduleSchemas/<module>.js` | The module's **field catalog**: each field's kind / unit / comparison group / allowed transforms / chart roles, plus curated metrics, subsets, sources, `yearRange`, canonical columns. Read by both the editor and the server data module. *(Building Permits is the first **monthly** module — its temporal field is `Date` = "YYYY-MM"; it declares `yearRange` for the year-granular slider and its data layer shapes on months.)* |
 | `fieldTypes.js`             | Field vocabulary + helpers (`isMeasure`, `areComparable`, `allowedTransforms`, `supportsRole`).                                                                                                                                             |
 | `chartRegistry.js`          | Per-chart-type descriptors: required/optional roles, role→kind constraints, sidebar sections, limits, defaults; `CATALOG_ROLE_FOR_BINDING`.                                                                                                 |
 | `presetRegistry.js`         | Task-based presets ("Trend over time", "Latest-year ranking", …) → a chart type + default bindings + sidebar layout.                                                                                                                        |
@@ -1104,7 +1304,7 @@ Three ideas hold it together:
 | Config state + validation | `chart-builder/chartConfigStore.js` (`useReducer` + context) | Holds the declarative config; re-runs `validation.js` on every change; feeds `seriesCount` back for complexity checks. |
 | Preset picker | `chart-builder/PresetPicker.js` | `presetRegistry` → seeds chart type + bindings. |
 | Chart-type select | `ChartSidebar.js` | `chartRegistry.CHART_TYPE_IDS`. |
-| Data section (module, geographic level, **Year-range slider**) | `ChartSidebar.js` (`ui/select`, `ui/slider`) | `schema.subsets`, `schema.yearRange`; sets `filters.subset` + `period`. |
+| Data section (module, geographic level, **Year-range slider**) | `ChartSidebar.js` (`ui/select`, `ui/slider`) | `schema.subsets`, `schema.yearRange`; sets `filters.subset` + `period`. *(Year-granular; a monthly module like Building Permits filters at year resolution here until the temporal control is generalized — see The Building Permits Module caveats.)* |
 | Encodings (X / Y / series / color / size, "+ Add line") | `chart-builder/EncodingSection.js` | `chartRegistry` role constraints + `schema.fields` (only fields whose catalog allows the role). |
 | Comparison (source, transform, base year, benchmark, Top N) | `chart-builder/ComparisonSection.js` | `schema.sources`, `transformRegistry` (allowed transforms per field). |
 | Labels (title / subtitle / axes / legend / tooltip) | `chart-builder/LabelEditor.js` | Display-only overrides; never rewrite canonical field names (guardrail #1). |
@@ -1193,7 +1393,7 @@ Validators **return structured results rather than printing**; only the orchestr
 
 ## Testing
 
-*Project-wide standard; the current suite covers the PopHousing, Components of Change, and Demographic Projections modules.*
+*Project-wide standard; the current suite covers all five modules — PopHousing, Components of Change, Demographic Projections, ACS Housing Stress, and Building Permits (967 tests passing).*
 
 The pytest suite lives in `scripts/unit_tests/`, **mirroring the source tree** (each source file → a `test_{module}.py` in the same relative position). Full requirements are in [`PopHouse-Unit-Tests-Guide.md`](./PopHouse-Unit-Tests-Guide.md). Highlights:
 
@@ -1209,7 +1409,7 @@ The pytest suite lives in `scripts/unit_tests/`, **mirroring the source tree** (
 
 ## Implementation Status
 
-**Project:** four modules (PopHousing, Components of Change, Demographic Projections, ACS Housing Stress) are active and run end-to-end. The rest of the legacy datasets are not yet migrated (see *Modules*). The cross-module `scripts/shared/` layer is now exercised by all four.
+**Project:** all **five** modules (PopHousing, Components of Change, Demographic Projections, ACS Housing Stress, Building Permits) are active and run end-to-end — the **five original V1 legacy datasets are fully migrated** (see *Modules*). The cross-module `scripts/shared/` layer is exercised by all five. Remaining work is enhancement, not net-new module migration.
 
 **Within PopHousing:** the **E-5 modern path and E-8 historical build are both implemented** end-to-end (acquisition → cleaning → merge → enrichment → validation → output), and the **frontend read path is complete**. The E-8 build (`pophousing/historical/*`, `acquisition/dof_historical_downloader.py`) reuses the canonical E-5 cleaning/classification/metric helpers rather than duplicating them, with mirrored unit tests.
 
@@ -1218,6 +1418,8 @@ The pytest suite lives in `scripts/unit_tests/`, **mirroring the source tree** (
 **Within Demographic Projections:** the full Python pipeline (config → acquisition → cleaning → merge → aggregation → validation → output), orchestrator, data contract, API route, module schema, data-access layer, and the module-specific stratification filter controls are complete, with a verified end-to-end run. It runs **DoF P-3 only** today (no Census cc-est file present), and the doc's bespoke chart-shape presets (age pyramid, projection-vs-estimate, overlay comparison) are deferred pending per-module preset support — see *Current-State Notes & Caveats (Demographic Projections)*.
 
 **Within ACS Housing Stress:** the full Python pipeline (config → acquisition → cleaning + geography → build-levels → merge → validation → output), orchestrator, data contract, API route, module schema, data-access layer, the Race/Ethnicity + Tenure sidebar filters, four built-in views, and the navbar tab are complete, with 136 mirrored tests passing and a **verified end-to-end run** (vintage 2024, 4,525 rows). The contract holds the **latest vintage only** today (the pipeline fetches one vintage per run); the legacy 2012–2023 series was set aside pending a schema migration. Shipped alongside it: two acquisition robustness fixes (probe advances past Census-server hangs; download-once-per-table), a cross-module editor fix (`key={moduleId}` on `ChartConfigProvider`), and `__init__.py` package files that fix full-suite pytest collection — see *Current-State Notes & Caveats (ACS Housing Stress)*.
+
+**Within Building Permits:** the full Python pipeline (config → acquisition → cleaning → geography tagging → merge → validation → output), orchestrator, data contract, API route, module schema, month-aware data-access layer, and the JS geography mirror are complete, with 95 mirrored tests passing and a **verified end-to-end run** against live Census BPS. The contract holds **197 months (2010-01 → 2026-05, 14,691 rows)** — deep history was seeded from the legacy accumulated snapshot because the source hosts only a rolling ~2-year window; the live pipeline maintains it forward. Curated presets and the monthly slider control are deferred to the graph-editor overhaul — see *Current-State Notes & Caveats (Building Permits)*.
 
 The remaining scaffolded-but-`TODO` surface is project-wide:
 
@@ -1268,8 +1470,21 @@ that reproduces the team's Obsidian formatting on the web:
 - **Symbols** — a custom `remarkSymbols` plugin prettifies ASCII sequences
   (`->`→→, `>=`→≥, …).
 - **Code blocks** — `CodeBlock` adds a language header, line numbers, and a copy button.
+  An ` ```svg ` fenced block is a special case: instead of rendering the source,
+  `MarkdownArticle` inlines the SVG markup as an image (`.ppic-doc-svg`). Render
+  width defaults to `DOC_SVG_DEFAULT_SIZE` (60%, in `lib/constants.js`); a
+  per-block override rides on the language token — ` ```svg-80 ` renders at 80%
+  (the fence *meta* string can't be used because `rehype-raw` strips it, but the
+  `language-*` class survives).
 - **Table of contents** — `extractToc` + `DocTableOfContents` build an H1–H3 outline
   with scrollspy, matching the UI Kit's contents sidebar.
+
+> [!warning] Raw HTML/SVG is trusted, not sanitized
+> `rehype-raw` (and the ` ```svg ` → inline-image path) render author-supplied
+> HTML/SVG **verbatim** — no `rehype-sanitize` runs. This is safe only because the
+> `docs/` library is authored internally (Obsidian vault → build) and is not
+> user-generated. If document sources ever become user-supplied, both the raw-HTML
+> path and the SVG code block must be sanitized (e.g. `rehype-sanitize`) before render.
 
 ### Acknowledgements
 
