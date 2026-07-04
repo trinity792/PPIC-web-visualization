@@ -1,6 +1,6 @@
 ---
 Topic: Technical
-Content Type: Analysis
+Content Type: analysis
 pinned: false
 description: "Identifies and explains the current test suite"
 Date Published: July 4, 2026
