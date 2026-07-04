@@ -40,6 +40,7 @@ def test_get_source_settings_has_required_keys():
         "p3_cache_max_age_days",
         "p3_fallback_max_age_days",
         "ccest_cache_max_age_days",
+        "ccest_download_timeout",
         "p3_filename_pattern",
         "p3_expected_csv_columns",
         "ccest_expected_columns",
@@ -77,6 +78,8 @@ def test_get_source_settings_request_and_cache_configuration():
     assert settings["p3_cache_max_age_days"] == settings["p3_fallback_max_age_days"]
     assert settings["p3_cache_max_age_days"] > 0
     assert settings["ccest_cache_max_age_days"] > 0
+    # The ~100 MB cc-est download gets at least the generic HTTP read timeout.
+    assert settings["ccest_download_timeout"] >= settings["timeout"]
 
 
 def test_get_source_settings_uses_official_ccest_wide_schema():

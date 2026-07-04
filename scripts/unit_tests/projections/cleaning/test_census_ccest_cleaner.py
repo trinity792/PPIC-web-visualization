@@ -1,5 +1,6 @@
 import pandas as pd
 import pytest
+
 from scripts.projections.cleaning.census_ccest_cleaner import (
     aggregate_ccest_counties_to_states,
     clean_census_estimates,
@@ -213,6 +214,21 @@ def test_parse_ccest_csv_reads_official_wide_schema_and_extras(tmp_path):
     assert set(CCEST_RAW_COLUMNS) <= set(result.columns)
     assert result.loc[0, "YEAR"] == 7
     assert "TOT_POP" in result.columns
+
+
+def test_parse_ccest_csv_reads_latin1_encoded_file(tmp_path):
+    # Arrange — Census PEP files are Latin-1 encoded; accented county names such
+    # as "Doña Ana County" contain bytes that are invalid UTF-8.
+    csv_path = tmp_path / "cc-est-latin1.csv"
+    source = pd.DataFrame([_raw_row()])
+    source["CTYNAME"] = "Doña Ana County"
+    source.to_csv(csv_path, index=False, encoding="latin-1")
+
+    # Act
+    result = parse_ccest_csv(csv_path, _schema_config())
+
+    # Assert
+    assert result.loc[0, "CTYNAME"] == "Doña Ana County"
 
 
 def test_parse_ccest_csv_reports_missing_required_population_header(tmp_path):

@@ -212,6 +212,13 @@ def get_schema_config():
         "p3_race7_code_map": dict(_P3_RACE7_CODE_MAP),
         "ccest_raw_columns": list(CCEST_RAW_COLUMNS),
         "census_race_code_map": dict(_CENSUS_RACE_CODE_MAP),
+        # Rename aggregated cc-est identifier headers to canonical pipeline names;
+        # the race-by-sex population columns keep their raw names for reshaping.
+        "census_rename_map": {
+            "STNAME": "Location",
+            "YEAR": "Year",
+            "AGEGRP": "Age Group",
+        },
         "census_year_code_map": dict(_CENSUS_YEAR_CODE_MAP),
         "census_age_group_code_map": {
             code: label for code, label in enumerate(_CANONICAL_AGE_GROUPS, start=1)

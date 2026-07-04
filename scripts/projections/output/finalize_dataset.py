@@ -16,10 +16,14 @@ Test Folders:
     - scripts/unit_tests/projections/output/
 """
 
+import hashlib
+import shutil
 from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
+
+_HASH_CHUNK_BYTES = 1 << 20  # 1 MiB streaming reads for the byte-identity check
 
 _SORT_COLUMNS = [
     "Geographic Level",
@@ -44,20 +48,19 @@ def assign_geographic_level(df, geography_config):
     regions = set(geography_config["region_names"])
     us_states = set(geography_config["us_state_names"])
 
-    def classify(row):
-        location = row["Location"]
-        if row["Source"] == "Census cc-est" and location in us_states:
-            return "US State"
-        if location == "California":
-            return "State"
-        if location in counties:
-            return "County"
-        if location in regions:
-            return "Region"
-        return "Other"
-
     result = df.copy()
-    result["Geographic Level"] = result.apply(classify, axis=1)
+    location = result["Location"]
+
+    # Vectorized equivalent of the priority ladder
+    # (US State > State > County > Region > Other): start at the lowest priority
+    # and overwrite upward so the highest-priority match wins.
+    level = pd.Series("Other", index=result.index)
+    level = level.mask(location.isin(regions), "Region")
+    level = level.mask(location.isin(counties), "County")
+    level = level.mask(location == "California", "State")
+    level = level.mask((result["Source"] == "Census cc-est") & location.isin(us_states), "US State")
+
+    result["Geographic Level"] = level
     return result
 
 
@@ -86,17 +89,28 @@ def archive_and_save(df, current_path, archive_directory):
     """Compare the new dataset against the existing file and save only when data changed. Test file: scripts/unit_tests/projections/output/test_finalize_dataset.py"""
     current_path = Path(current_path)
     archive_directory = Path(archive_directory)
-    new_csv = df.to_csv(index=False)
+    new_bytes = df.to_csv(index=False).encode("utf-8")
 
     if current_path.is_file():
-        existing_csv = current_path.read_text(encoding="utf-8")
-        if existing_csv == new_csv:
+        # Compare by streamed hash so we never hold a second full-file string in
+        # memory; on a match the existing file is left byte- and mtime-identical.
+        if _sha256_of_file(current_path) == hashlib.sha256(new_bytes).hexdigest():
             return None
         archive_directory.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.now().strftime("%m-%d-%y")
         archive_path = archive_directory / f"{current_path.stem}_{timestamp}{current_path.suffix}"
-        archive_path.write_text(existing_csv, encoding="utf-8")
+        # Copy the file rather than round-tripping its contents through a string.
+        shutil.copy2(current_path, archive_path)
 
     current_path.parent.mkdir(parents=True, exist_ok=True)
-    current_path.write_text(new_csv, encoding="utf-8")
+    current_path.write_bytes(new_bytes)
     return current_path
+
+
+def _sha256_of_file(path):
+    """Return the SHA-256 hex digest of a file read in fixed-size chunks."""
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(_HASH_CHUNK_BYTES), b""):
+            digest.update(chunk)
+    return digest.hexdigest()

@@ -3,9 +3,9 @@ from unittest.mock import Mock
 from zipfile import ZipFile
 
 import pytest
+
 from scripts.projections.acquisition import dof_p3_downloader
 from scripts.projections.acquisition.dof_p3_downloader import P3DiscoveryError
-
 from scripts.shared.downloads.http_downloads import HTTPDownloadError
 
 EXPECTED_COLUMNS = ["fips", "year", "sex", "race7", "agerc", "perwt"]
@@ -64,6 +64,43 @@ def test_get_p3_file_url_discovers_zip_and_resolves_relative_url(monkeypatch):
         {"User-Agent": "test"},
         30,
     )
+
+
+def test_get_p3_file_url_matches_unhyphenated_p3_filename(monkeypatch):
+    # Arrange — DoF now publishes the archive as "P3_Complete.zip" (no hyphen).
+    html = b'<html><body><a href="/media/docs/projections/P3_Complete.zip">P3 Complete</a></body></html>'
+    monkeypatch.setattr(
+        dof_p3_downloader,
+        "fetch_response",
+        Mock(return_value=_response(html)),
+    )
+
+    # Act
+    result = dof_p3_downloader.get_p3_file_url(
+        "https://dof.ca.gov/forecasting/demographics/projections/",
+        {},
+        30,
+    )
+
+    # Assert
+    assert result == "https://dof.ca.gov/media/docs/projections/P3_Complete.zip"
+
+
+def test_get_most_recent_p3_file_matches_unhyphenated_default_pattern(tmp_path, set_file_age):
+    # Arrange — the current extracted CSV is named "P3_Complete.csv".
+    csv_path = tmp_path / "P3_Complete.csv"
+    csv_path.touch()
+    set_file_age(csv_path, 1)
+
+    # Act
+    result = dof_p3_downloader.get_most_recent_p3_file(
+        tmp_path,
+        dof_p3_downloader.P3_CSV_FILENAME_PATTERN,
+        60,
+    )
+
+    # Assert
+    assert result == csv_path
 
 
 def test_get_p3_file_url_without_matching_zip_raises(monkeypatch):

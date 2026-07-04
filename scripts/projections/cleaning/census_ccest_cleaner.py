@@ -56,7 +56,9 @@ Parsing and Reshaping
 
 def parse_ccest_csv(csv_path, schema_config):
     """Read the raw cc-est CSV and return a DataFrame with validated headers. Test file: scripts/unit_tests/projections/cleaning/test_census_ccest_cleaner.py"""
-    df = pd.read_csv(csv_path)
+    # Census PEP files are Latin-1 encoded (accented county names such as
+    # "Doña Ana" contain bytes that are invalid UTF-8), so decode as latin-1.
+    df = pd.read_csv(csv_path, encoding="latin-1")
     required = schema_config["ccest_raw_columns"]
     missing = [column for column in required if column not in df.columns]
     if missing:

@@ -31,14 +31,38 @@ URL Discovery
 """
 
 
+# Vintage subdirectories on the Census datasets index are named "<start>-<end>/".
+_VINTAGE_DIR_PATTERN = re.compile(r"^(\d{4})-(\d{4})/$")
+
+
 def get_census_ccest_url(base_url, headers, timeout):
-    """Discover the current cc-est CSV URL on the Census Bureau site. Test file: scripts/unit_tests/projections/acquisition/test_census_ccest_downloader.py"""
+    """Discover the current cc-est ALLDATA CSV URL on the Census Bureau site. Test file: scripts/unit_tests/projections/acquisition/test_census_ccest_downloader.py
+
+    The datasets index lists vintage subdirectories ("2020-2024/", ...) rather
+    than the CSV directly, and the nested counties/asrh/ listing is too large to
+    scrape reliably. We therefore pick the latest vintage from the index and
+    construct the canonical ALLDATA filename from its end year
+    (e.g. .../2020-2024/counties/asrh/cc-est2024-alldata.csv).
+    """
     response = fetch_response(base_url, headers, timeout)
     soup = BeautifulSoup(response.content, "html.parser")
+
+    latest_end_year = None
+    latest_vintage_href = None
     for link in soup.find_all("a", href=True):
-        if re.search(r"cc-est.*\.csv", link["href"], re.IGNORECASE):
-            return urljoin(base_url, link["href"])
-    raise RuntimeError(f"Could not find a cc-est CSV link on {base_url}")
+        match = _VINTAGE_DIR_PATTERN.match(link["href"])
+        if match is None:
+            continue
+        end_year = int(match.group(2))
+        if latest_end_year is None or end_year > latest_end_year:
+            latest_end_year = end_year
+            latest_vintage_href = link["href"]
+
+    if latest_vintage_href is None:
+        raise RuntimeError(f"Could not find a Census vintage directory on {base_url}")
+
+    vintage_url = urljoin(base_url, latest_vintage_href)
+    return urljoin(vintage_url, f"counties/asrh/cc-est{latest_end_year}-alldata.csv")
 
 
 """

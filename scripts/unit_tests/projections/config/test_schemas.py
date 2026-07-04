@@ -113,6 +113,7 @@ def test_get_schema_config_has_required_keys_and_output_contract():
         "p3_race7_code_map",
         "ccest_raw_columns",
         "census_race_code_map",
+        "census_rename_map",
         "census_year_code_map",
         "census_age_group_code_map",
         "census_state_names",

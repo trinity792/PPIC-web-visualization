@@ -2,8 +2,8 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
-from scripts.projections.acquisition import census_ccest_downloader
 
+from scripts.projections.acquisition import census_ccest_downloader
 from scripts.shared.downloads.http_downloads import HTTPDownloadError
 
 EXPECTED_COLUMNS = [
@@ -30,11 +30,14 @@ EXPECTED_COLUMNS = [
     "H_FEMALE",
 ]
 
-CCEST_LINK_HTML = b"""
+# The datasets index lists vintage subdirectories rather than the CSV itself.
+CCEST_INDEX_HTML = b"""
 <html>
   <body>
+    <a href="1990-2000/">1990-2000/</a>
+    <a href="2010-2020/">2010-2020/</a>
+    <a href="2020-2024/">2020-2024/</a>
     <a href="documentation.pdf">Documentation</a>
-    <a href="files/cc-est2025-alldata.csv">County characteristics estimates</a>
   </body>
 </html>
 """
@@ -51,29 +54,29 @@ URL Discovery
 """
 
 
-def test_get_census_ccest_url_discovers_csv_and_resolves_relative_url(monkeypatch):
+def test_get_census_ccest_url_picks_latest_vintage_and_constructs_alldata_url(monkeypatch):
     # Arrange
-    mock_fetch = Mock(return_value=_response(CCEST_LINK_HTML))
+    mock_fetch = Mock(return_value=_response(CCEST_INDEX_HTML))
     monkeypatch.setattr(census_ccest_downloader, "fetch_response", mock_fetch)
 
     # Act
     result = census_ccest_downloader.get_census_ccest_url(
-        "https://www2.census.gov/programs-surveys/popest/datasets/2020-2025/",
+        "https://www2.census.gov/programs-surveys/popest/datasets/",
         {"User-Agent": "test"},
         30,
     )
 
-    # Assert
+    # Assert — latest vintage (2020-2024) drives the constructed ASRH filename.
     assert result == (
         "https://www2.census.gov/programs-surveys/popest/datasets/"
-        "2020-2025/files/cc-est2025-alldata.csv"
+        "2020-2024/counties/asrh/cc-est2024-alldata.csv"
     )
     mock_fetch.assert_called_once()
 
 
-def test_get_census_ccest_url_without_matching_csv_raises(monkeypatch):
+def test_get_census_ccest_url_without_vintage_directory_raises(monkeypatch):
     # Arrange
-    html = b'<html><body><a href="other.csv">Other data</a></body></html>'
+    html = b'<html><body><a href="documentation.pdf">Docs</a></body></html>'
     monkeypatch.setattr(
         census_ccest_downloader,
         "fetch_response",
@@ -81,7 +84,7 @@ def test_get_census_ccest_url_without_matching_csv_raises(monkeypatch):
     )
 
     # Act / Assert
-    with pytest.raises(RuntimeError, match="cc-est"):
+    with pytest.raises(RuntimeError, match="vintage"):
         census_ccest_downloader.get_census_ccest_url(
             "https://www2.census.gov/programs-surveys/popest/datasets/",
             {},

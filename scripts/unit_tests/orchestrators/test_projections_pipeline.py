@@ -224,7 +224,7 @@ def test_clean_with_fallback_preserves_acquisition_failure(tmp_path):
     result, cleaning_failed, used_manual = pipeline._clean_with_fallback(
         saved,
         cleaner,
-        {},
+        _base_strata_schema(),
         "DoF P-3",
         {"current_data_path": tmp_path / "current.csv"},
         True,
@@ -232,7 +232,7 @@ def test_clean_with_fallback_preserves_acquisition_failure(tmp_path):
         tmp_path / "manual.csv",
     )
 
-    # Assert
+    # Assert — saved rows are already base strata, so they pass through unchanged.
     pd.testing.assert_frame_equal(result, saved)
     assert (cleaning_failed, used_manual) == (True, False)
     cleaner.assert_not_called()
@@ -284,7 +284,7 @@ def test_clean_with_fallback_uses_saved_rows_when_cleaning_fails(
     result, cleaning_failed, used_manual = pipeline._clean_with_fallback(
         pd.DataFrame({"raw": ["live"]}),
         cleaner,
-        {},
+        _base_strata_schema(),
         "DoF P-3",
         {"current_data_path": tmp_path / "current.csv"},
         False,
@@ -292,7 +292,7 @@ def test_clean_with_fallback_uses_saved_rows_when_cleaning_fails(
         tmp_path / "missing-manual.csv",
     )
 
-    # Assert
+    # Assert — saved rows are already base strata, so they pass through unchanged.
     pd.testing.assert_frame_equal(result, saved)
     assert (cleaning_failed, used_manual) == (True, False)
 
@@ -382,3 +382,66 @@ def test_build_projections_dataset_sets_census_failed_flag(
     # Assert
     assert result["dof_failed"] is False
     assert result["census_failed"] is True
+
+
+"""
+========================================================================================================================
+Base-Strata Reduction (saved-fallback guard)
+========================================================================================================================
+"""
+
+
+def _base_strata_schema():
+    return {
+        "canonical_age_groups": ["0-4", "5-9"],
+        "canonical_sexes": ["Male", "Female"],
+        "canonical_race_groups": ["White", "Hispanic"],
+    }
+
+
+def test_reduce_to_base_strata_drops_marginal_and_derived_rows():
+    # Arrange — an enriched saved frame: base County/US State rows mixed with the
+    # derived Region/State geographies and "All Ages"/"Both Sexes"/"All" marginals.
+    enriched = pd.DataFrame(
+        [
+            # base strata (should survive)
+            {"Geographic Level": "County", "Location": "Alameda", "Year": 2025,
+             "Age Group": "0-4", "Sex": "Female", "Race/Ethnicity": "White",
+             "Population": 10, "Source": "DoF P-3"},
+            {"Geographic Level": "US State", "Location": "Nevada", "Year": 2025,
+             "Age Group": "5-9", "Sex": "Male", "Race/Ethnicity": "Hispanic",
+             "Population": 20, "Source": "Census cc-est"},
+            # marginal aggregates (should be dropped)
+            {"Geographic Level": "County", "Location": "Alameda", "Year": 2025,
+             "Age Group": "All Ages", "Sex": "Female", "Race/Ethnicity": "White",
+             "Population": 30, "Source": "DoF P-3"},
+            {"Geographic Level": "County", "Location": "Alameda", "Year": 2025,
+             "Age Group": "0-4", "Sex": "Both Sexes", "Race/Ethnicity": "White",
+             "Population": 40, "Source": "DoF P-3"},
+            {"Geographic Level": "County", "Location": "Alameda", "Year": 2025,
+             "Age Group": "0-4", "Sex": "Female", "Race/Ethnicity": "All",
+             "Population": 50, "Source": "DoF P-3"},
+            # derived geographies (should be dropped — recomputed by aggregation)
+            {"Geographic Level": "Region", "Location": "Bay Area", "Year": 2025,
+             "Age Group": "0-4", "Sex": "Female", "Race/Ethnicity": "White",
+             "Population": 60, "Source": "DoF P-3"},
+            {"Geographic Level": "State", "Location": "California", "Year": 2025,
+             "Age Group": "0-4", "Sex": "Female", "Race/Ethnicity": "White",
+             "Population": 70, "Source": "DoF P-3"},
+        ],
+        columns=CONTRACT_COLUMNS,
+    )
+
+    # Act
+    result = pipeline._reduce_to_base_strata(enriched, _base_strata_schema())
+
+    # Assert — only the two base rows survive.
+    assert len(result) == 2
+    assert set(result["Population"]) == {10, 20}
+    assert set(result["Geographic Level"]) == {"County", "US State"}
+
+
+def test_reduce_to_base_strata_passes_through_empty_frame():
+    empty = pd.DataFrame(columns=CONTRACT_COLUMNS)
+    result = pipeline._reduce_to_base_strata(empty, _base_strata_schema())
+    assert result.empty

@@ -4,7 +4,7 @@ Content Type: project specification
 pinned: true
 description: "The single source of truth for the web-data-visualization project's specification, architecture, and API reference. A living document for programmers and researchers that uses PopHousing as the reference implementation future data modules should mirror."
 Date Published: June 23, 2026
-Last Updated: 07/03/2026 - 06:40 PM
+Last Updated: 07/03/2026 - 08:45 PM
 ---
 
 
@@ -57,7 +57,7 @@ A **module** is one dataset's full vertical slice: its ETL pipeline under `scrip
 |---|---|---|
 | **Population & Housing** (PopHousing) | CA Dept. of Finance E-5 (modern) + E-8 (historical) estimates | **Active** — first module migrated. End-to-end complete, including the E-8 historical build; only cross-module logging remains stubbed. |
 | **Components of Change** | CA Dept. of Finance E-6 + U.S. Census county population component estimates | **Active** — second module migrated, built by mirroring PopHousing. Full pipeline, data contract, API route, and charts complete, with a **verified end-to-end run** against the live DoF E-6 + Census sources (4,018 rows, 1991–2025). |
-| **Age, Sex & Race Projections** (Demographic Projections) | CA Dept. of Finance **P-3** projections + U.S. Census **cc-est** estimates | **Active** — third module migrated, built **test-first** against the shared architecture. Full Python pipeline, data contract, API route, and chart wiring are complete and the pipeline runs end-to-end. It runs **DoF P-3 only** today — no Census cc-est file is present yet, so the `US State` level is absent until one is added. See *The Demographic Projections Module* for the remaining caveats. |
+| **Age, Sex & Race Projections** (Demographic Projections) | CA Dept. of Finance **P-3** projections + U.S. Census **cc-est** estimates | **Active** — third module migrated, built **test-first** against the shared architecture. Full Python pipeline, data contract, API route, and chart wiring are complete, with a **verified dual-source end-to-end run** against live DoF P-3 + Census cc-est (**1,718,208 rows**: DoF County/Region/State 2020–2070 + Census US State 2020–2025), idempotent on re-run and free of duplicate keys. A 2026-07-03 reliability audit repaired the live source scrapers (both filenames had moved), a fallback-reaggregation crash, and two Census-cleaning gaps. See *The Demographic Projections Module → Verification*. |
 | **ACS Housing Stress** | U.S. Census Bureau **ACS 1-year** table-based Summary File, table **B25140** (housing cost burden) | **Active** — fourth module migrated, built **test-first** (136 mirrored tests pass). Full Python pipeline, data contract, API route, module schema, and built-in chart views are complete, with a **verified end-to-end run** against live ACS. It contains the **latest vintage only** (2024, 4,525 rows) — the pipeline fetches one vintage per run and accumulates history over time; the legacy 2012–2023 series was set aside pending a schema migration. See *The ACS Housing Stress Module* for caveats. |
 | **Building Permits** | U.S. Census Bureau **Building Permits Survey** monthly CBSA + state `.xls` releases | **Active** — fifth module migrated, built **test-first** (95 mirrored tests pass) and the first **monthly** module. Full Python pipeline, data contract, API route, module schema, data-access layer, and a JS geography mirror are complete, with a **verified end-to-end run** against live Census BPS. The contract holds **197 months, 2010-01 → 2026-05, 14,691 rows** — deep history (pre-2024) was seeded from the legacy accumulated snapshot because the source only hosts a rolling ~2-year window; the live pipeline maintains it forward. Curated presets are deferred pending a graph-editor overhaul. See *The Building Permits Module* for caveats. |
 | *Original legacy datasets* | V1 notebooks | **All five migrated** ✅ — PopHousing, Components of Change, Demographic Projections, ACS Housing Stress, and Building Permits are all on the V3 architecture. |
@@ -848,6 +848,8 @@ The entry point is [`scripts/orchestrators/projections_pipeline.py`](../../../sc
 
 `acquire_with_fallback` tries each live strategy, then a manually-placed raw CSV (`P-3_Downloaded.csv` / `cc-est_Downloaded.csv` under `data/data-raw/demographic-projections/`), then the rows already saved for that source. **Live and manual strategies yield a raw file *path* the cleaner reads; only the last-saved fallback returns an already-cleaned DataFrame** (paired with `source_failed=True` so the orchestrator skips re-cleaning it). `_clean_with_fallback` mirrors the ladder.
 
+**Saved-fallback base-strata guard.** The saved canonical rows are *fully enriched* — they already carry the derived Region/State geographies and the `All Ages`/`Both Sexes`/`All` marginals. Feeding those straight into Phase 4 would double-count them (aggregation re-summing rows that are themselves sums). So when a source falls back to saved rows, `_reduce_to_base_strata` first strips them back to the same base shape a fresh clean produces — base `County`/`US State` levels, no marginal rows — and Phase 4 regenerates every rollup and total consistently. This makes a degraded (stale-data) run produce a byte-consistent, duplicate-free contract identical in shape to a live run.
+
 **Offline mode** — set `config={"offline": True}` or the env var `PROJECTIONS_OFFLINE=1` and the orchestrator swaps live network strategies for local-file strategies: DoF reuses an already-extracted `P*3*.csv` else extracts a local `*.zip`; Census reuses a local `cc-est*.csv`. This is how the pipeline runs with no network:
 
 ```bash
@@ -873,7 +875,7 @@ Same layering as the other modules: `scripts/shared/` mechanisms → `scripts/pr
 | Script | Public functions |
 |---|---|
 | `dof_p3_downloader.py` | `get_p3_file_url`, `get_p3_file_url_positional`, `download_p3_data`, `extract_csv_from_zip`, `get_most_recent_p3_file`, `validate_p3_csv` (raw-header check catching duplicate columns before pandas mangles them). |
-| `census_ccest_downloader.py` | `get_census_ccest_url`, `download_census_ccest`, `validate_ccest_headers`. |
+| `census_ccest_downloader.py` | `get_census_ccest_url` (navigates the datasets index to the **latest `YYYY-YYYY` vintage**, then constructs `.../counties/asrh/cc-est<endyear>-alldata.csv` — the `asrh/` listing is too large to scrape), `download_census_ccest`, `validate_ccest_headers`. |
 | `source_fallback.py` | `acquire_with_fallback` — the *live → manual → saved* ladder (path for live/manual, DataFrame for saved). |
 
 #### `cleaning/` — normalizing each source to the canonical schema
@@ -904,10 +906,10 @@ Same layering as the other modules: `scripts/shared/` mechanisms → `scripts/pr
 | Setting | Value | Source |
 |---|---|---|
 | DoF projections URL | `https://dof.ca.gov/forecasting/demographics/projections/` | `sources.py` |
-| Census cc-est base URL | `https://www2.census.gov/programs-surveys/popest/datasets/` | `sources.py` |
+| Census cc-est base URL | `https://www2.census.gov/programs-surveys/popest/datasets/` (datasets index; discovery picks the latest `YYYY-YYYY` vintage and constructs the `counties/asrh/cc-est<endyear>-alldata.csv` URL) | `sources.py` |
 | P-3 cache / fallback age | 90 days each | `sources.py` |
 | cc-est cache age | 30 days | `sources.py` |
-| P-3 filename pattern | `P-3_.+\.csv` | `sources.py` |
+| P-3 filename pattern | `P-?3.*\.csv` (matches both the legacy `P-3_…` and current `P3_…` names) | `sources.py` / `dof_p3_downloader.py` |
 | DoF / Census boundary years | 2019 / 2019 (both series start 2020) | `sources.py` |
 | Manual fallback filenames | `P-3_Downloaded.csv`, `cc-est_Downloaded.csv` | `paths.py` |
 | Canonical age groups | 18 five-year groups (`0-4` … `85+`) | `schemas.py` |
@@ -956,15 +958,67 @@ The schema advertises `filterDimensions` (Age Group / Sex / Race/Ethnicity, each
 
 ---
 
+## Verification (Demographic Projections)
+
+The pipeline is **verified end-to-end against both live sources**. Verification here is a repeatable four-step process — run it live, prove the output is well-formed, prove it's stable, and prove the units still hold — not just "it didn't crash":
+
+1. **Live run.** `python -m scripts.orchestrators.projections_pipeline` (no offline flag) exercises real DoF + Census discovery, download, cleaning, aggregation, validation, and save. It printed `Rows: 1718208` and `Written to: …/DemographicProjections_Current.csv` with **no `WARNING:` fallback lines** — i.e. both sources were acquired live, not served from stale saved data.
+2. **Shape / contract check.** The written CSV holds **1,718,208 rows** across the expected level split — `DoF P-3`: `County` 1,348,848 + `Region` 209,304 + `State` 23,256; `Census cc-est`: `US State` 136,800 — and **zero duplicate rows** on the full contract key `(Geographic Level, Location, Year, Age Group, Sex, Race/Ethnicity, Source)`. Census 136,800 = 50 states × 6 years × (19 age × 3 sex × 8 race enriched combinations), confirming the precomputed-total math.
+3. **Idempotency.** An immediate second run detects no new source data and prints `No new data detected; file unchanged.` — the byte-identical-skip in `archive_and_save` holds, so re-running never churns the contract or the archive.
+4. **Regression suite.** `python -m pytest` is green (**972 tests**, including new regressions locking each audit fix below), and `ruff check` is clean on every changed file.
+
+Offline verification (`PROJECTIONS_OFFLINE=1`, DoF-only from the local zip) remains a fast no-network smoke test and writes the 1,581,408-row DoF-only contract idempotently.
+
+### Reliability audit (2026-07-03)
+
+A first live run **crashed** in final validation (`Duplicate key rows found: 1840488`) even though all unit tests passed — the mocked acquisition tests had hidden four live-only defects. All were fixed, each with an added regression test:
+
+| Defect | Root cause | Fix |
+|---|---|---|
+| DoF live acquisition always failed | Discovery + cache regex matched `P-3…`, but DoF now serves `P3_Complete.zip` (no hyphen) | Relaxed to `P-?3.*` in both discovery strategies and the cache pattern |
+| Census live acquisition never worked | `census_base_url` is a directory index of vintage folders, and the nested `asrh/` listing is too large to scrape (times out) | Rewrote `get_census_ccest_url` to pick the latest `YYYY-YYYY` vintage and **construct** the `cc-est<endyear>-alldata.csv` URL |
+| Pipeline crash on any source failure | Saved-fallback returns *enriched* rows that Phase 4 **re-aggregated**, double-counting into 1.84M duplicate keys | `_reduce_to_base_strata` strips a saved fallback back to base strata before aggregation (see *the base-strata guard*) |
+| Census cleaning failed on real data | (a) file is **Latin-1** (accented county names like "Doña Ana"), read as UTF-8; (b) `get_schema_config()` was missing the `census_rename_map` key the cleaner requires (tests supplied their own) | `parse_ccest_csv` reads `encoding="latin-1"`; added `census_rename_map` to the config and to the required-keys contract test |
+
+The CLI now also prints a `WARNING:` line whenever a source degrades to last-saved data, so a stale run is never silent.
+
+### Pipeline performance (Demographic Projections)
+
+This is the highest-volume module (~1.72M-row contract, 4.6M raw P-3 rows, ~100 MB Census download), so the backend pipeline was tuned for time and peak memory. Measured against the real contract:
+
+| Change | Before | After | Why |
+|---|---|---|---|
+| **Geographic-level assignment** vectorized (`finalize_dataset.assign_geographic_level`) — replaced a per-row `df.apply(axis=1)` with masked `Series` assignments applied low→high priority | **3.29 s** | **0.21 s** (~16× on 1.72M rows) | Row-wise Python callbacks over millions of rows are the classic pandas anti-pattern; the priority ladder expresses cleanly as ordered `.mask()` overwrites. |
+| **Archive byte-identity check** (`finalize_dataset.archive_and_save`) — stream-hash the existing file (1 MiB chunks) and copy it to the archive with `shutil.copy2`, instead of reading it into one full string and building the new CSV as a second full string | peak **≈189 MB** | peak **≈2 MB** | The save step no longer holds two ~90 MB file strings plus the DataFrame at once; it still skips writes when nothing changed and preserves the existing file's mtime. |
+| **Canonical CSV read once** (`_load_saved_source` / `_clean_with_fallback` accept the Phase-1 `historical` frame) | up to **3×** ~90 MB parses on a double-fallback run | **1×** | The last-saved fallback reused the already-loaded frame instead of re-parsing the canonical CSV per source. |
+| **DoF cleaner reads only needed columns** (`pd.read_csv(usecols=…)`, dropping a redundant subset `.copy()`) | full read + extra 4.6M-row copy | columns-only read, no extra copy | One fewer full-frame allocation on the largest input; the per-worker `.copy()`s that enforce each cleaner's no-mutation contract are deliberately kept. |
+| **Per-source download timeout** (`sources.ccest_download_timeout`, ≥300 s) | shared 60 s HTTP timeout | 300 s for the cc-est body only | The ~100 MB Census file needs a longer read window than page/discovery requests; discovery and the smaller DoF zip keep the generic timeout. |
+
+**How it was measured.** Each timing/memory figure was taken against the **real 1,718,208-row contract** (`DemographicProjections_Current.csv`), not a synthetic frame: wall-clock with `time.time()` around the isolated call, and peak allocation with `tracemalloc.get_traced_memory()`. The full run was also timed end-to-end (`time python -m scripts.orchestrators.projections_pipeline`) and re-run to confirm idempotency. All 972 unit tests stay green and every changed file is `ruff`-clean; the archive path was additionally exercised on a copy of the real 87 MB file to confirm the skip/mtime/archive behaviour survived the rewrite.
+
+Item by item:
+
+- **Geographic-level assignment — `finalize_dataset.assign_geographic_level`.** The old body called a Python `classify(row)` closure through `df.apply(…, axis=1)`, i.e. one interpreted function call per row — 1.72M of them per run, on every run (it runs in Phase 5 whether or not anything is saved). The rewrite expresses the same County/Region/State/US State/Other **priority ladder** as ordered `pandas.Series.mask()` overwrites (seed `"Other"`, then overwrite upward so the highest-priority match wins), which runs in vectorised C. **Measured: 3.29 s → 0.21 s (~16×)** on the real frame; output is byte-identical and the input frame is still not mutated (a `.copy()` is taken first, asserted by `test_assign_geographic_level_does_not_modify_input`).
+
+- **Archive byte-identity check — `finalize_dataset.archive_and_save`.** The save step decides whether to write by comparing the new CSV against the file already on disk. The old code held **two full ~90 MB strings at once** — `df.to_csv()` for the new content and `current_path.read_text()` for the existing file — plus the DataFrame, and then wrote the old string back out to the archive. The rewrite encodes the new CSV once to `bytes`, computes its SHA-256, and compares against a **streamed 1 MiB-chunk hash** of the existing file (`_sha256_of_file`); when they differ it copies the previous file to the archive with `shutil.copy2` rather than round-tripping its bytes through a string. **Measured: peak ≈189 MB → ≈2 MB** for the compare. Behaviour is unchanged and still test-covered: a byte-identical dataset is skipped with the file's `mtime` preserved and no archive directory created; a changed dataset archives the prior file under an `mm-dd-yy` stamp and writes the new one.
+
+- **Canonical CSV read once — orchestrator `_load_saved_source` / `_clean_with_fallback`.** Phase 1 already loads the ~90 MB canonical CSV into `historical`. Previously the *last-saved fallback* for each source re-opened and re-parsed that same file, so a run where both sources fell back to saved data parsed it **three times**. Both helpers now accept the already-loaded `historical` frame (defaulting to `None`, so the standalone contract and existing tests are unchanged) and reuse it. **Reads drop from up to 3× to 1×** per run; the happy path was already 1× (the fallback never fires), so the win lands on degraded/offline runs.
+
+- **DoF cleaner reads only needed columns — `dof_p3_cleaner.clean_p3_projections`.** The 114 MB P-3 CSV was read in full and then narrowed with `df[raw_columns].copy()`, allocating an extra 4.6M-row frame. The header is already validated for the six required columns, so the read now uses `pd.read_csv(usecols=raw_columns)` and drops the redundant `.copy()`. The per-worker `.copy()`s inside `map_fips_to_county` / `standardize_sex_labels` / `map_race_ethnicity` are **left in place on purpose** — they are each cleaner's no-mutation contract, verified by tests — so this is a targeted removal of one avoidable full-frame allocation, not a blanket copy-stripping.
+
+- **Per-source download timeout — `sources.ccest_download_timeout`.** All requests shared the generic 60 s HTTP timeout, which is a `requests` read-inactivity window, not a total budget — fine for an HTML page or the 18 MB DoF zip, risky for the ~100 MB national cc-est body from a frequently slow Census host. A dedicated `ccest_download_timeout` (`max(default, 300)` s) is threaded into the cc-est **download** call only; discovery and DoF keep the 60 s default. This is a robustness fix (avoid a spurious timeout → stale-data fallback) rather than a speed-up, and is covered by a contract test asserting `ccest_download_timeout ≥ timeout`.
+
+---
+
 ## Current-State Notes & Caveats (Demographic Projections)
 
-The module is complete and runs end-to-end, but a few things about *today's* state are worth recording:
+The module is complete and runs end-to-end against both live sources; a few things about *today's* state are worth recording:
 
-- **DoF-only until a Census file lands.** No `cc-est*.csv` is present in `data/data-raw/demographic-projections/`, so real runs produce **DoF P-3 only**: the `US State` level and Census years (2020–2025) are absent until a cc-est file (or `cc-est_Downloaded.csv` manual fallback) is added, after which the pipeline picks it up automatically. The verified end-to-end run wrote **1,581,408 rows (~82 MB)** and is idempotent on re-run ("No new data detected").
-- **Integration gaps fixed after the first real run** (the mocked orchestrator tests had hidden them): the acquisition→cleaning **seam** now passes a *path* to cleaners (not a DataFrame); `sources.py` gained the `dof_boundary_year` / `census_boundary_year` keys the orchestrator reads; and `paths.py` manual-path keys were renamed to `manual_dof_path` / `manual_census_path` to match the orchestrator. The `test_source_fallback.py` contract was updated accordingly.
+- **Both sources live.** Real runs now include DoF P-3 (`County`/`Region`/`State`, 2020–2070) **and** Census cc-est (`US State`, 2020–2025), for **1,718,208 rows (~87 MB)**. The discovery currently resolves the `2020-2025` Census vintage → `cc-est2025-alldata.csv` (~105 MB download).
+- **Integration gaps fixed after the first real runs** (the mocked orchestrator tests had hidden them): the acquisition→cleaning **seam** now passes a *path* to cleaners (not a DataFrame); `sources.py` gained the `dof_boundary_year` / `census_boundary_year` keys the orchestrator reads; and `paths.py` manual-path keys were renamed to `manual_dof_path` / `manual_census_path` to match the orchestrator. The 2026-07-03 audit (above) fixed four further live-only defects. The `test_source_fallback.py` contract was updated accordingly.
 - **Run it as a module.** `python -m scripts.orchestrators.projections_pipeline` (the `Usage:` docstrings in all three orchestrators were corrected from the direct `python scripts/…py` form, which never worked with the repo's absolute imports).
 - **Deferred bespoke presets.** The shared `presetRegistry` is intentionally module-agnostic (presets reference roles/kinds, never specific fields), so the doc's **age pyramid** (Age Group on an axis), **projection-vs-estimate** (Source series with a boundary annotation), and **overlay comparison** presets are **not implemented** — they would need per-module preset support. "Population by race over time" and "race composition map" are already achievable via the generic line/map presets plus the new race filter.
-- **Contract size / performance.** The DoF-only contract is already ~1.6M rows and will grow substantially once Census is added. `loadProjectionsData()` parses the whole CSV into memory once per server process (the pattern that suits the other modules' ~20K rows); this is the first place to revisit if request latency or memory becomes a concern (streaming parse, typed arrays, or a binary build step).
+- **Contract size / performance.** The contract is ~1.72M rows (~87 MB). `loadProjectionsData()` parses the whole CSV into memory once per server process (the pattern that suits the other modules' ~20K rows); this is the first place to revisit if request latency or memory becomes a concern (streaming parse, typed arrays, or a binary build step). Backend pipeline efficiency (canonical-CSV re-parsing, cleaner copies, the archive-compare, and geographic-level assignment) is tracked in *Pipeline performance (Demographic Projections)*.
 - **Age-preset approximation.** The default coarse presets don't align with 5-year bin edges (18/25/26 vs 15/20/25/30); each maps to the nearest whole bins (the 15-19 bin counts as "Under 18", 20-24 as "18-25") — an inherent approximation the API documents.
 - **cc-est reshape rule.** `reshape_ccest_to_long` treats a `TOT`-prefixed `_MALE/_FEMALE` column as an ignorable total but **raises** on any other unmapped race prefix; in the real flow this is moot because aggregation already narrows to the 14 canonical race×sex columns.
 - **Archive location.** Prior contracts archive to `data/archive/demographic-projections/` (chosen for consistency with the other modules' `archive/`).
@@ -1415,7 +1469,7 @@ The pytest suite lives in `scripts/unit_tests/`, **mirroring the source tree** (
 
 **Within Components of Change:** the full pipeline, dual-source acquisition with fallback, data contract, API route, and charts are complete.
 
-**Within Demographic Projections:** the full Python pipeline (config → acquisition → cleaning → merge → aggregation → validation → output), orchestrator, data contract, API route, module schema, data-access layer, and the module-specific stratification filter controls are complete, with a verified end-to-end run. It runs **DoF P-3 only** today (no Census cc-est file present), and the doc's bespoke chart-shape presets (age pyramid, projection-vs-estimate, overlay comparison) are deferred pending per-module preset support — see *Current-State Notes & Caveats (Demographic Projections)*.
+**Within Demographic Projections:** the full Python pipeline (config → acquisition → cleaning → merge → aggregation → validation → output), orchestrator, data contract, API route, module schema, data-access layer, and the module-specific stratification filter controls are complete, with a **verified dual-source end-to-end run** (live DoF P-3 + Census cc-est, 1,718,208 rows, idempotent, zero duplicate keys — see *Verification (Demographic Projections)*). A 2026-07-03 reliability audit fixed four live-only defects (both source scrapers, a fallback-reaggregation crash, and two Census-cleaning gaps). The doc's bespoke chart-shape presets (age pyramid, projection-vs-estimate, overlay comparison) are deferred pending per-module preset support — see *Current-State Notes & Caveats (Demographic Projections)*.
 
 **Within ACS Housing Stress:** the full Python pipeline (config → acquisition → cleaning + geography → build-levels → merge → validation → output), orchestrator, data contract, API route, module schema, data-access layer, the Race/Ethnicity + Tenure sidebar filters, four built-in views, and the navbar tab are complete, with 136 mirrored tests passing and a **verified end-to-end run** (vintage 2024, 4,525 rows). The contract holds the **latest vintage only** today (the pipeline fetches one vintage per run); the legacy 2012–2023 series was set aside pending a schema migration. Shipped alongside it: two acquisition robustness fixes (probe advances past Census-server hangs; download-once-per-table), a cross-module editor fix (`key={moduleId}` on `ChartConfigProvider`), and `__init__.py` package files that fix full-suite pytest collection — see *Current-State Notes & Caveats (ACS Housing Stress)*.
 

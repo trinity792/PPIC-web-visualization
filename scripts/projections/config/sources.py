@@ -42,7 +42,11 @@ def get_source_settings():
         "p3_cache_max_age_days": p3_cache_max_age_days,
         "p3_fallback_max_age_days": p3_cache_max_age_days,
         "ccest_cache_max_age_days": 30,
-        "p3_filename_pattern": r"P-3_.+\.csv",
+        # The national cc-est ALLDATA file is ~100 MB from a frequently slow
+        # Census host, so its download gets a longer read timeout than the
+        # generic HTTP default used for page/discovery requests.
+        "ccest_download_timeout": max(http_settings["timeout_seconds"], 300),
+        "p3_filename_pattern": r"P-?3.*\.csv",
         "p3_expected_csv_columns": list(P3_RAW_COLUMNS),
         "ccest_expected_columns": list(CCEST_RAW_COLUMNS),
         # Change detection ignores years at or before the boundary; both sources

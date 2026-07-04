@@ -29,7 +29,9 @@ from scripts.shared.downloads.http_downloads import download_file, fetch_respons
 # ── Constants ─────────────────────────────────────────────────────────────────
 
 # Matches the extracted P-3 CSV filenames when scanning the download cache.
-P3_CSV_FILENAME_PATTERN = r"P-3.*\.csv"
+# DoF publishes the archive as both "P-3_*" (older) and "P3_*" (current), so the
+# hyphen is optional.
+P3_CSV_FILENAME_PATTERN = r"P-?3.*\.csv"
 
 """
 ========================================================================================================================
@@ -50,7 +52,7 @@ def get_p3_file_url(base_url, headers, timeout):
     response = fetch_response(base_url, headers, timeout)
     soup = BeautifulSoup(response.content, "html.parser")
     for link in soup.find_all("a", href=True):
-        if re.search(r"P-3.*\.zip", link["href"], re.IGNORECASE):
+        if re.search(r"P-?3.*\.zip", link["href"], re.IGNORECASE):
             return urljoin(base_url, link["href"])
     raise P3DiscoveryError(f"Could not find a P-3 zip link on {base_url}")
 
@@ -60,7 +62,7 @@ def get_p3_file_url_positional(base_url, headers, timeout):
     response = fetch_response(base_url, headers, timeout)
     soup = BeautifulSoup(response.content, "html.parser")
     for container in soup.find_all("div", class_="et_pb_text_inner"):
-        heading = container.find(string=re.compile("P-3", re.IGNORECASE))
+        heading = container.find(string=re.compile(r"P-?3", re.IGNORECASE))
         if heading is None:
             continue
         link = container.find("a", href=re.compile(r"\.zip", re.IGNORECASE))

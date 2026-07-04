@@ -86,22 +86,54 @@ def _raise_phase_error(phase_name, error) -> NoReturn:
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
-def _load_saved_source(paths, source):
-    """Load last-saved rows for one source from the canonical CSV. Test file: scripts/unit_tests/orchestrators/test_projections_pipeline.py"""
-    historical = load_canonical_dataset(paths["current_data_path"])
+def _load_saved_source(paths, source, historical=None):
+    """Return last-saved rows for one source. Test file: scripts/unit_tests/orchestrators/test_projections_pipeline.py
+
+    Reuses an already-loaded `historical` frame when given, so the pipeline reads
+    the (large) canonical CSV once per run instead of re-parsing it per fallback.
+    """
+    if historical is None:
+        historical = load_canonical_dataset(paths["current_data_path"])
     if "Source" in historical.columns:
         return historical[historical["Source"] == source]
     return historical
 
 
-def _clean_with_fallback(raw, clean_fn, schema_config, source, paths, source_failed, used_manual, manual_path):
+_BASE_GEOGRAPHIC_LEVELS = ["County", "US State"]
+
+
+def _reduce_to_base_strata(df, schema_config):
+    """Strip an enriched saved frame back to base (non-aggregate) strata. Test file: scripts/unit_tests/orchestrators/test_projections_pipeline.py
+
+    Saved canonical rows are fully enriched — they already carry the derived
+    Region/State geographies and the "All Ages"/"Both Sexes"/"All"-race marginals.
+    Feeding those straight into the aggregation phase double-counts them, so a
+    saved fallback is first reduced to the same base-strata shape a fresh clean
+    would produce (source base levels only, no marginal aggregate rows).
+    """
+    if df.empty:
+        return df
+
+    mask = (
+        df["Age Group"].isin(schema_config["canonical_age_groups"])
+        & df["Sex"].isin(schema_config["canonical_sexes"])
+        & df["Race/Ethnicity"].isin(schema_config["canonical_race_groups"])
+    )
+    if "Geographic Level" in df.columns:
+        mask &= df["Geographic Level"].isin(_BASE_GEOGRAPHIC_LEVELS)
+    return df[mask].reset_index(drop=True)
+
+
+def _clean_with_fallback(raw, clean_fn, schema_config, source, paths, source_failed, used_manual, manual_path, historical=None):
     """Clean source data or fall back to manual and last-saved rows. Test file: scripts/unit_tests/orchestrators/test_projections_pipeline.py
 
-    When source_failed, `raw` is already-cleaned last-saved rows and is returned
-    as-is; otherwise `raw` is a path the cleaner reads.
+    When source_failed, `raw` is already-cleaned last-saved rows and is reduced
+    to base strata (aggregation regenerates all totals); otherwise `raw` is a
+    path the cleaner reads. `historical` (when given) is reused for the
+    last-saved fallback instead of re-reading the canonical CSV.
     """
     if source_failed:
-        return raw, True, used_manual
+        return _reduce_to_base_strata(raw, schema_config), True, used_manual
 
     try:
         return clean_fn(raw, schema_config), False, used_manual
@@ -115,7 +147,8 @@ def _clean_with_fallback(raw, clean_fn, schema_config, source, paths, source_fai
         except Exception:
             pass
 
-    return _load_saved_source(paths, source), True, False
+    saved = _load_saved_source(paths, source, historical)
+    return _reduce_to_base_strata(saved, schema_config), True, False
 
 
 def _is_offline(config):
@@ -191,7 +224,7 @@ def _census_live_strategies(source_settings, paths, offline):
             url,
             paths["download_directory"],
             source_settings["request_headers"],
-            source_settings["timeout"],
+            source_settings["ccest_download_timeout"],
             source_settings["ccest_cache_max_age_days"],
         )
 
@@ -242,13 +275,13 @@ def build_projections_dataset(config=None):
         dof_raw, dof_source_failed, dof_used_manual = acquire_with_fallback(
             _dof_live_strategies(source_settings, paths, offline),
             paths["manual_dof_path"],
-            lambda: _load_saved_source(paths, _DOF_SOURCE),
+            lambda: _load_saved_source(paths, _DOF_SOURCE, historical),
             _DOF_SOURCE,
         )
         census_raw, census_source_failed, census_used_manual = acquire_with_fallback(
             _census_live_strategies(source_settings, paths, offline),
             paths["manual_census_path"],
-            lambda: _load_saved_source(paths, _CENSUS_SOURCE),
+            lambda: _load_saved_source(paths, _CENSUS_SOURCE, historical),
             _CENSUS_SOURCE,
         )
     except Exception as error:
@@ -258,11 +291,11 @@ def build_projections_dataset(config=None):
     try:
         dof_clean, dof_failed, dof_used_manual = _clean_with_fallback(
             dof_raw, clean_p3_projections, schema_config, _DOF_SOURCE, paths,
-            dof_source_failed, dof_used_manual, paths["manual_dof_path"],
+            dof_source_failed, dof_used_manual, paths["manual_dof_path"], historical,
         )
         census_clean, census_failed, census_used_manual = _clean_with_fallback(
             census_raw, clean_census_estimates, schema_config, _CENSUS_SOURCE, paths,
-            census_source_failed, census_used_manual, paths["manual_census_path"],
+            census_source_failed, census_used_manual, paths["manual_census_path"], historical,
         )
     except Exception as error:
         _raise_phase_error("Phase 3 — Cleaning", error)
@@ -326,6 +359,10 @@ def build_projections_dataset(config=None):
 if __name__ == "__main__":
     result = build_projections_dataset()
     print(f"  Rows: {result['row_count']}")
+    if result["dof_failed"]:
+        print("  WARNING: DoF P-3 live acquisition failed; used last-saved data (stale).")
+    if result["census_failed"]:
+        print("  WARNING: Census cc-est live acquisition failed; used last-saved data (stale).")
     if result["output_path"]:
         print(f"  Written to: {result['output_path']}")
     else:

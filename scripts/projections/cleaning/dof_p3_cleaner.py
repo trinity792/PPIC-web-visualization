@@ -125,7 +125,9 @@ def clean_p3_projections(csv_path, schema_config):
     raw_columns = schema_config["p3_raw_columns"]
     _validate_p3_header(csv_path, raw_columns)
 
-    df = pd.read_csv(csv_path)[raw_columns].copy()
+    # Read only the mandatory columns (header already validated) — avoids
+    # loading unused columns and the extra full-frame copy of a subset slice.
+    df = pd.read_csv(csv_path, usecols=raw_columns)
     _validate_p3_values(df, schema_config)
 
     df = map_fips_to_county(df, "fips", schema_config["fips_to_county_map"])
