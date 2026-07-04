@@ -15,13 +15,13 @@ Note: not in order
 - [ ] Setup logging
 - [ ] Setup automatic updates and error handling
 ## Documentation
-- [ ] Add all front end documentation to `projectSpec.md`
-  - [ ] what pulls from globals.css & constants.js
+- [x] Add all front end documentation to `projectSpec.md`
+  - [x] what pulls from globals.css & constants.js
 - [ ] **Begin** documentation for graph editor overhaul. *Start* with feature list and user flow
 - [ ] Write `proccesses.md`
 - [ ] Write `unit-tests.md`
 - [ ] Instructions for adding a new module (human and AI instructions)
-- [ ] Documentation for logging format, explainations, and error handling
+- [ ] Documentation for logging format, explanations, and error handling
 - [ ] Adjust or create a document that acts as a project hub readable by both AI and people (connects to other instruction pages)
 - [ ] Automatic updates should have a `git-conventions.md` file
 - [ ] Non technical explainer for how the website works

@@ -4,7 +4,7 @@ Content Type: project specification
 pinned: true
 description: "The single source of truth for the web-data-visualization project's specification, architecture, and API reference. A living document for programmers and researchers that uses PopHousing as the reference implementation future data modules should mirror."
 Date Published: June 23, 2026
-Last Updated: 07/04/2026 - 10:10 AM
+Last Updated: 07/04/2026 - 3:05 PM
 Status: Updating
 ---
 
@@ -1341,6 +1341,30 @@ Three ideas hold it together:
 - **Declarative configs, not figures.** A chart is plain JSON (`{ module, preset, chartType, bindings, filters, period, labels, appearance, layers }`); `toPlotly` turns config + fetched data into Plotly props. Saved views store the config, never a rendered figure.
 - **One server/client boundary.** `lib/data/*` (CSV / GeoJSON, `node:fs`) is server-only; `lib/visualization/*` is the client-safe seam the editor and dashboards import.
 
+### The chart config — the object everything revolves around
+
+Every chart on the site (an editor canvas, a landing tile, a saved view, a `?view=` deep-link) is described by one plain-JSON **config** object. The sidebar edits it, [`validation.js`](../../../lib/visualization/validation.js) grades it, [`chartData.js`](../../../components/chart-builder/chartData.js) turns it into an API request, and [`toPlotly.js`](../../../lib/visualization/toPlotly.js) turns it (plus the fetched data) into a Plotly figure. Nothing downstream keeps its own state — the config *is* the state. It is built by [`createChartConfig(schema, initial)`](../../../components/chart-builder/chartConfigStore.js) and has this shape:
+
+| Key | Type | Written by | Meaning / who reads it |
+|---|---|---|---|
+| `module` | string | schema | The module id (`"pophousing"`). `deserialize` rejects a view whose `module` ≠ the active schema. |
+| `preset` | string | Presets section | Which task-preset seeded the config (`trend-over-time` \| `compare-places` \| `geographic-pattern`). Drives the Encodings layout. |
+| `chartType` | string | Graph Type section | One of the 8 `chartRegistry` ids. Selects the query shape (`chartData`) and the render adapter (`toPlotly`). |
+| `bindings` | `{ role → fieldName }` | Encodings section | Which canonical field fills each encoding role (`x`, `y`, `series`, `color`, `category`, `geography`, `start`, `end`, `size`, `unit`). Field names are **canonical CSV columns**, never display labels (guardrail #1). |
+| `filters` | object | Data Sources / Encodings | `subset` (geographic level), optional `source`, optional `topN`, `benchmark` label, and one key **per stratification dimension** (e.g. `"Age Group"`). Sent to the API. |
+| `period` | object | Date-range slider + Comparison | `startYear`/`endYear` (range charts) or `year` (single-period charts), plus `baseYear` for indexing/change transforms. |
+| `transform` | string | Comparison section | A `transformRegistry` id (`actual`, `indexed`, `percentChange`, …). **Applied client-side in `toPlotly`, line charts only** (see *Flagged Issues*). |
+| `comparisonMode` | string | preset | `"places"` or `"sources"`; gates the "must pick a source" guardrail for multi-source modules. |
+| `labels` | object | Labels section | `title`, `subtitle`, `xAxis`, `yAxis`, `legend`, `tooltip`, `footnote` — display-only overrides; blanks fall back to `deriveLabels`. |
+| `appearance` | object | Appearance section | `legendPosition`, `markerMode`, `orientation`, `stackMode`, `colorScale`, `sort`, `watermark`, `area`, … — consumed only by `toPlotly`. Seeded from the chart type's `defaults`. |
+| `layers` | array | "+ Add line" / Layer editor | Extra traces, each a **predefined** layer type (`selectedPlaces`, `benchmark`, `secondSource`, `secondMeasure`, `referenceValue`, `derivedComparison`) — never a raw Plotly trace (guardrail #2). |
+| `referenceLines` | array | built-in views | Horizontal/vertical/diagonal guide lines (`{ type, value, label }`). |
+| `seriesCount` | number | fed back after load | How many series/rows the last fetch produced; lets complexity validation run. |
+| `validation` | array | `revalidate` (computed) | The current findings (`{ level, code, message, suggestion }`); recomputed on **every** reducer step. |
+
+> [!note] Saved views are configs, not figures (guardrail #8)
+> A saved view, an exported JSON blob, and a `?view=` deep-link all serialize this same object (minus computed `validation`/`seriesCount`) — never a rendered Plotly figure or a data snapshot. That is what makes a built-in landing view and a user-built view identical in kind.
+
 ### The client-safe visualization layer (`lib/visualization/`)
 
 | File                        | Responsibility                                                                                                                                                                                                                              |
@@ -1360,6 +1384,89 @@ Three ideas hold it together:
 > Plotly's `cleanLayout` writes to the layout object it is handed (it normalizes `layout.font.color`, among others). Any **shared or frozen** default must therefore be spread into a fresh object **per layout** — `font: { ...PLOTLY_FONT }`, never `font: PLOTLY_FONT` — or Plotly throws *"Cannot assign to read only property 'color'"*. `react-plotly.js` swallows that error (no `onError` prop is passed), so the only visible symptom is a **blank chart**: the div has `data` but no `_fullLayout`/SVG. `toPlotly` makes this fresh copy; `plotlyDefaults.js` documents the rule beside `PLOTLY_FONT`.
 > **Still outstanding (note, not fixed):** the `/ui-kit` `GraphsShowcase` reuses one module-level `baseLayout` (with nested `font`/`legend` objects) across its four charts, and Plotly mutates each chart's layout in place. It renders today only because those objects are not frozen — it is the same footgun and should build a fresh layout per chart.
 
+### End-to-end: the life of one chart
+
+Follow a single chart from URL to pixels. Every arrow is a real file boundary.
+
+1. **Route resolves the module.** [`app/[module]/page.js`](../../../app/[module]/page.js) (a server component) looks the module up with `getModuleSchema`; an unknown id is a `notFound()`. If the URL carries `?view=<id>`, it tries `getBuiltInView(id)` and uses that config as `initialConfig` when the view belongs to this module, otherwise it starts from `{ module: schema.id }`.
+2. **Editor mounts, keyed on the module.** [`ModuleEditor`](../../../components/chart-builder/ModuleEditor.js) wraps everything in `<ChartConfigProvider key={moduleId}>`. The `key` is load-bearing: because every module shares the one `/[module]` route, without it the reducer would carry the previous module's bindings into the new schema and fail validation (`UNKNOWN_FIELD`), blocking every preset. Remounting rebuilds a clean config.
+3. **Config is born.** [`createChartConfig`](../../../components/chart-builder/chartConfigStore.js) seeds `bindings` from the preset (`bindingsForPreset` picks the first catalog field each role accepts, preferring `curated` measures and avoiding reusing one measure across x/y/size), fills `filters` with the first subset + default source + stratification defaults, copies the chart type's appearance `defaults`, then runs `revalidate`.
+4. **A saved/deep-link view may hydrate.** `ViewHydrator` (inside `ModuleEditor`) dispatches `LOAD_VIEW` for a `localStorage` view or a serialized deep-link; failures fall back silently to the default preset.
+5. **The user edits.** Each sidebar control dispatches one reducer action (table below). The reducer produces the next config and **re-validates on every step**.
+6. **The canvas reacts.** `ChartWorkspace` recomputes a `requestKey` (a JSON digest of `chartType`, `bindings`, `period`, `filters`, `layers`, and `appearance.sort` — the parts that change the *server* result). When it changes, and only if there are no blocking errors, it calls `loadChartData`.
+7. **Data loads.** [`chartData.loadChartData`](../../../components/chart-builder/chartData.js) maps the chart type to a query "view", builds the query string, fetches `/api/<module>` (plus `/api/geography` for maps), and returns `{ response, series, geometry }`. It aborts the in-flight request on any change (`AbortController`).
+8. **Render.** A `useMemo` calls [`toPlotly`](../../../lib/visualization/toPlotly.js) with the config + fetched `series` + `geometry`, producing `{ data, layout, config }`, handed to [`PlotlyChart`](../../../components/charts/PlotlyChart.js) (a `next/dynamic`, `ssr:false` wrapper over `react-plotly.js`). The workspace shows one of five states: `loading / invalid / empty / error / ready`.
+
+The **landing tiles take the exact same path** from step 7 on: [`ChartPreview`](../../../components/charts/ChartPreview.js) starts from a built-in config and calls the identical `loadChartData` + `toPlotly`. A built-in tile and a user-built chart differ only in **where the config comes from**.
+
+### The config store & reducer — what each action changes
+
+[`chartConfigStore.js`](../../../components/chart-builder/chartConfigStore.js) is a `useReducer` behind React context (`useChartConfig()` exposes `{ config, dispatch, schema }`). Every action returns a new config and is piped through `revalidate` (which re-runs `validateConfig`) — except the two that rebuild from scratch (`LOAD_VIEW`/`RESET` call `createChartConfig`, which validates internally) and `SET_SERIES_COUNT` (which early-returns when unchanged to avoid a render loop).
+
+| Action | Dispatched by | Effect |
+|---|---|---|
+| `SET_PRESET` | Presets `OptionList` | Swaps chart type + re-seeds bindings/appearance/title from the preset; forces `subset: Counties` for the map preset. |
+| `SET_CHART_TYPE` | Graph Type `OptionList` | Switches chart type, **re-derives bindings** for it, resets appearance to the type defaults. Keeps the current `preset` id when no preset maps to the type (see *Flagged Issues*). |
+| `SET_BINDING` | Encodings selects | Sets/clears one role→field; mirrors `start`↔`end` for dumbbell/slope (`sameMetricBothEnds`); resets `transform` if the new field disallows the current one. |
+| `SET_FILTER` | Data Sources, geo level, Top N, benchmark | Sets one `filters` key (`subset`, `source`, stratification column, `topN`, `benchmark`). |
+| `SET_PERIOD` | Date-range slider, Base year | Sets `startYear`/`endYear`/`year`/`baseYear`. |
+| `SET_TRANSFORM` | Comparison transform select/switch | Sets `transform`. |
+| `SET_LABEL` | Labels editor, footnote | Sets one `labels` key. |
+| `SET_APPEARANCE` | Appearance section | Sets one `appearance` key. |
+| `ADD_LAYER` / `REMOVE_LAYER` | Layer editor / "+ Add line" | Appends/removes a predefined trace layer. |
+| `SET_SERIES_COUNT` | `ChartWorkspace` after a fetch | Feeds the loaded row/series count back so complexity validation can fire. |
+| `LOAD_VIEW` | ViewHydrator, Restore/Import | Rebuilds the config from a saved/imported view via `createChartConfig`. |
+| `RESET` | "Reset View" | Rebuilds the module's default config. |
+
+### Data loading: config → API request → series
+
+[`chartData.js`](../../../components/chart-builder/chartData.js) is the only place the browser talks to the module APIs. It:
+
+- **Maps chart type → query view** via `QUERY_SHAPES`: `line→line`, `bar→category`, `dumbbell/slope→twoPeriod`, `scatter/bubble→pairs`, `heatmap→matrix`, `choroplethMap→geo`. The server never sees "chart type", only this data-shape verb.
+- **Builds the query string** (`buildSearchParams`): always `view` + `subset`; adds `source` and each `schema.filterDimensions` param (stratification); `locations` (collected from `selectedPlaces` layers); `startYear`/`endYear`/`period`; then either `xMeasure`/`yMeasure`/`sizeMeasure` (pairs) or a single `parameter` (everything else); plus `topN`+`sort` for category.
+- **Fans out layers in parallel** for line charts (`loadLineData`): the primary series and every trace layer are fetched with `Promise.all`, since layers depend only on the config, not on the primary response. `secondMeasure`/`secondSource`/`benchmark` each become a re-query with an override and a `· suffix` appended to the series name.
+- **Caches geometry** (`geometryCache`, keyed by level) so changing the measure or period on a choropleth doesn't re-download and re-parse the county GeoJSON.
+- **Returns `{ response, series, geometry }`**, coalescing `response.series || response.records || response.matrix`. `hasChartData`/`seriesCountOf` special-case the heatmap (whose "series" is a `{x,y,z}` matrix).
+
+### The server query layer (API routes + `query_shapes`)
+
+Each `app/api/<module>/route.js` is a **thin orchestrator** (mirroring the backend's orchestrator/worker split). Using [`/api/pophousing`](../../../app/api/pophousing/route.js) as the reference: it parses params with [`apiParams.js`](../../../lib/data/apiParams.js), **validates** `view`/`subset`/`parameter`/measures/period (returning `invalid(message, source)` — a `400` with a `source` string the UI surfaces), then dispatches to one query function in the server-only data-access layer [`lib/data/pop_housing.js`](../../../lib/data/pop_housing.js). On a thrown error it returns `{ error, source }` with status `500`.
+
+The data-access layer reads and caches the contract CSV once per process, then delegates shaping to the shared [`query_shapes.js`](../../../lib/data/query_shapes.js):
+
+| Builder | Returns | For view |
+|---|---|---|
+| `buildLineSeries` | `{ series:[{location, years[], values[]}], yearRange }` | line |
+| `buildCategoryValues` | `{ period, records:[{location, category, value}] }` sorted, Top-N sliced | category |
+| `buildTwoPeriod` | `{ startYear, endYear, records:[{category, start, end}] }` | twoPeriod |
+| `buildMeasurePairs` | `{ period, records:[{location, x, y, size?}] }` | pairs |
+| `buildMatrix` | `{ matrix:{x, y, z}, yearRange }` | matrix |
+
+The **geo** view is the one that reaches across modules: `queryGeoValues` builds category values then joins each Location to a county GEOID via [`lib/data/geography.js`](../../../lib/data/geography.js) `getFeatureIdLookup`, and [`/api/geography`](../../../app/api/geography/route.js) serves the raw GeoJSON `FeatureCollection` (stored under `data/data-cleaned/`, not `public/`) with an aggressive cache header. `featureidkey` (`properties.GEOID`) travels in the response so `toPlotly` can join data to polygons.
+
+### Rendering: the `toPlotly` adapter
+
+[`toPlotly.js`](../../../lib/visualization/toPlotly.js) is a pure `(spec) → { data, layout, config }` switch, one builder per chart type (`lineSpec`, `barSpec`, `twoPeriodSpec` for dumbbell/slope, `scatterSpec` for scatter/bubble, `heatmapSpec`, `choroplethSpec`). Shared behavior:
+
+- `baseLayout` assembles axes, margins, the title (`wrapTitle`), a subtitle/watermark annotation, and legend placement from [`plotlyDefaults.js`](../../../lib/visualization/plotlyDefaults.js) tokens — spreading a **fresh `font` copy** per layout (the Plotly-mutation footgun above).
+- Colors come from `BASE_PLOTLY_COLORS` (the brand cycle in `lib/constants.js`); choropleths use a light→dark blue ramp, diverging scales use `RdBu`.
+- `withReferenceLines` overlays `referenceLines` (and line-chart `referenceValue` layers) as shapes+annotations.
+- **Transforms and derived layers are applied here, and only in `lineSpec`** — `transformSeries` (via `transformRegistry.applyTransform`, which is null-safe and gated by the field's allowed transforms) and the dotted `derivedComparison` traces exist only on line charts.
+
+### Validation & the guardrails
+
+[`validation.js`](../../../lib/visualization/validation.js) is the single enforcement point for the project's charting guardrails, run by the reducer on every change. `validateConfig` composes six checks into a flat, de-duplicated findings array:
+
+- `validateBindings` — required roles present; each field's `kind` matches the role's `roleConstraints`; catalog `chartRoles` respected; dumbbell/slope use one metric at both ends.
+- `validatePresetBindings` — the active preset's required roles are bound.
+- `validateComparability` — two measures may share a value axis only when their `comparisonGroup` matches (population vs vacancy rate is blocked); scatter/bubble opt out (`allowsIncomparableAxes`).
+- `validateLayers` — only the six predefined layer types; `secondMeasure` must be comparable; `secondSource` needs a multi-source module.
+- `validateTransform` — the transform is allowed for the bound measure (rates use percentage-point change, never percent change).
+- `validateGeographyAndSource` — no silent source mixing (multi-source modules must pick a source) and one geographic level per choropleth.
+- `validateComplexity` — recommends a better chart when the loaded `seriesCount` blows past a chart's `limits`.
+
+`level: "error"` findings **block the render** (`hasBlockingErrors` → the canvas shows the `invalid` state); `warn` findings recommend a better chart but still render. [`ValidationNotice`](../../../components/chart-builder/ValidationNotice.js) renders them, with the finding `code` in a help tooltip.
+
 ### Detailed component map — what renders each thing, front and back
 
 **Landing page (`/`)** — `app/page.js` renders one dashboard per live category via `components/landing/dashboards/` (a registry keyed by category id, so adding a category = add a dashboard component + a `categoryRegistry` entry).
@@ -1378,7 +1485,7 @@ Three ideas hold it together:
 | Sidebar / canvas part | Front end | What it drives / where data comes from |
 |---|---|---|
 | Config state + validation | `chart-builder/chartConfigStore.js` (`useReducer` + context) | Holds the declarative config; re-runs `validation.js` on every change; feeds `seriesCount` back for complexity checks. |
-| Preset picker | `chart-builder/PresetPicker.js` | `presetRegistry` → seeds chart type + bindings. |
+| Preset picker | `ChartSidebar.js` → inline `PresetSection` (`OptionList`) | `presetRegistry` (`PRESET_ORDER`/`PRESETS`) → dispatches `SET_PRESET`, seeding chart type + bindings. *(A `Select`-based `chart-builder/PresetPicker.js` duplicate was deleted in the 2026-07-04 pre-clean.)* |
 | Chart-type select | `ChartSidebar.js` | `chartRegistry.CHART_TYPE_IDS`. |
 | Data section (module, geographic level, **Year-range slider**) | `ChartSidebar.js` (`ui/select`, `ui/slider`) | `schema.subsets`, `schema.yearRange`; sets `filters.subset` + `period`. *(Year-granular; a monthly module like Building Permits filters at year resolution here until the temporal control is generalized — see The Building Permits Module caveats.)* |
 | Encodings (X / Y / series / color / size, "+ Add line") | `chart-builder/EncodingSection.js` | `chartRegistry` role constraints + `schema.fields` (only fields whose catalog allows the role). |
@@ -1414,7 +1521,63 @@ editor edits config ──► chartConfigStore (revalidate) ──► chartData.
 The same `loadChartData` + `toPlotly` path renders both the editor canvas and every landing dashboard tile (`ChartPreview`), so a built-in view and a user-built view differ only in **where the config comes from**, not in kind.
 
 ### Saved views & deep-links
-A saved or built-in view is the declarative config serialized to JSON (guardrail #8 — never a rendered figure). The landing "See more" button links to `/[module]?view=<id>`, which the module page hydrates into the editor via the config store's `LOAD_VIEW`. Users export/import the same JSON (copy-paste) and save named views to `localStorage`.
+A saved or built-in view is the declarative config serialized to JSON (guardrail #8 — never a rendered figure). The landing "See more" button links to `/[module]?view=<id>`, which the module page hydrates into the editor via the config store's `LOAD_VIEW`. Users export/import the same JSON (copy-paste) and save named views to `localStorage` (`ppic.savedViews.v1`).
+
+[`savedViews.js`](../../../components/chart-builder/savedViews.js) owns the round-trip: `serialize`/`savedShape` write a version-tagged shape; `deserialize` re-parses it, **rejects a version or module mismatch and re-runs `validateConfig`**, throwing (with the failed findings' messages) if the imported view has blocking errors. So a hand-edited or stale JSON can't load a broken chart — it fails loudly at import.
+
+### Design tokens: `app/globals.css` vs `lib/constants.js`
+
+The PPIC palette (the orange/blue/teal/neutral ramps) appears **twice** — as CSS custom properties in [`app/globals.css`](../../../app/globals.css) and as JavaScript strings in [`lib/constants.js`](../../../lib/constants.js). This looks like duplication, and the color values genuinely are duplicated, but the two files serve **two consumption media that cannot share one source**: the CSS cascade vs. JavaScript values handed to libraries that don't read CSS.
+
+**`app/globals.css` — the CSS/Tailwind side (declarative styling).** Everything styled through a `className` resolves here:
+
+| What it defines | Who pulls from it |
+|---|---|
+| shadcn base tokens (`--background`, `--primary`, `--border`, `--radius`, sidebar tokens) + their `.dark` overrides | Every `components/ui/*` primitive and app component via Tailwind utilities (`bg-primary`, `border-input`, …). |
+| PPIC brand ramps as CSS vars (`--ppic-orange-300`, `--ppic-brand`, …), re-exported as Tailwind color utilities in the `@theme inline` block | Brand-colored classes everywhere: `text-ppic-brand`, `bg-ppic-orange-300`, `border-ppic-neutral-600` (Navbar, sidebar, editor, tiles). Registering them in `@theme` lets `tailwind-merge` dedupe them, unlike arbitrary `bg-(--ppic-…)` values. |
+| Font variables wired to `next/font` (`--font-heading`, `--font-serif`, …) | Set on `<html>` in [`app/layout.js`](../../../app/layout.js); used by `font-heading`, `font-body`, etc. |
+| Layout CSS vars + utilities (`--sb-top`, `.page-container` reading `--page-max-width`) | The chart-editor sidebar's scroll offset and the shared page-width cap. |
+| The entire `.ppic-markdown` scope (headings, callouts, code blocks, tables, task lists) | The Documents library renderer (`components/documents/MarkdownArticle.js`, `DocumentView.js`). |
+
+These are consumed at **style-resolution time by the browser** — a component references a token by class name and the cascade resolves it. Nothing in JS logic ever reads them as strings.
+
+**`lib/constants.js` — the JavaScript side (imperative values).** Anything that needs a literal value inside JS, before there's a DOM to cascade over, imports from here:
+
+| What it defines | Who pulls from it |
+|---|---|
+| `COLORS` (raw hex ramps) + `BASE_PLOTLY_COLORS` (trace cycle) | **Plotly** through [`toPlotly.js`](../../../lib/visualization/toPlotly.js) + [`plotlyDefaults.js`](../../../lib/visualization/plotlyDefaults.js), and the UI-kit `GraphsShowcase`/`ColorPalette`. Plotly is handed a plain config object of literal color strings — it renders into a `<div>` and **never reads CSS variables**. |
+| `DOCUMENT_THUMBNAIL_COLORS` (fg/bg pairs) | Document-card thumbnails and content-type badges, which compute color pairs in JS. |
+| Layout/behavior constants (`CHART_HEIGHTS`, `CHART_SIDEBAR`, `VIEWPORT_BREAKPOINTS`, `UI_SIDEBAR`, `PAGE_LAYOUT`, `DOC_SVG_DEFAULT_SIZE`, `GOOGLE_FONTS`) | Editor sizing math (`ModuleEditor`, `ChartSidebar` resize/zoom), the mobile breakpoint (`use-mobile.js`), `app/layout.js`, and the Markdown SVG sizing. |
+
+These are consumed at **runtime by JS**, often to be passed to a third party (Plotly, inline-SVG/thumbnail generation) that has no knowledge of the CSS cascade.
+
+**Why not one file?** Because there is no single mechanism both consumers can read. Tailwind needs the palette as CSS custom properties to generate utilities; Plotly needs it as JavaScript strings. A CSS variable can't be handed to Plotly's `layout`, and a JS constant can't drive a Tailwind class. The palette therefore lives in both, split by *medium, not by arbitrary choice*. The one explicit **bridge** runs JS → CSS: `PAGE_LAYOUT.maxWidth` is injected as the `--page-max-width` CSS var on `<body>` in `app/layout.js`, then read back by the `.page-container` utility — the pattern to reach for when a value must exist in both worlds without hand-copying.
+
+> [!flag] The palette is hand-synced across the two files, with mismatched numbering
+> There is **no single source of truth** for the brand colors: a value changed in `globals.css` must be changed in `constants.js` by hand (and vice-versa), or a Tailwind-styled element and a Plotly chart will drift apart. Worse, the two use **different numbering schemes** — CSS is 50-based (`--ppic-orange-50 … 700`) while JS is 1-based (`COLORS.orange1 … 7`), so `orange1` == `--ppic-orange-50`, `orange7` == `--ppic-orange-700`, etc. — which makes cross-referencing non-obvious and the drift easy to miss. The navbar height is likewise duplicated (`--sb-top: 7.5rem` default vs `CHART_SIDEBAR.navbarHeightRem: 7.5`). A future cleanup could generate one file from the other (e.g. emit the CSS `:root` block from `COLORS`, or vice-versa) so the palette has a single owner.
+>
+> **Decided direction (2026-07-04, pending the overhaul — not yet implemented):** make **`lib/constants.js` `COLORS` the single source of truth** and *generate* the `--ppic-*` `:root` ramp in `globals.css` from it, unifying on one numbering scheme. Rationale: Plotly needs literal JS strings available at module-eval time (it can't read CSS vars), so the JS side must hold real values regardless; deriving the CSS from JS keeps both in lockstep without hand-copying. This is a build-step change deferred to the graph-editor overhaul, not part of the thin pre-clean.
+
+### Frontend — Flagged Issues
+
+*Subtle issues found while documenting the front-end workflow, mirroring the per-module flagged-issues process. Ordered roughly by user impact.*
+
+> [!note] These are the graph-editor overhaul's acceptance criteria
+> The graph-editor overhaul should **fix items 1–4 and 6 by design** (i.e. the rewritten editor is not "done" until a change transform works on bar/map, every chart type shows its own encoding roles, choropleths aren't county-locked, base year is validated against the loaded range, and saved-view serialization stops overloading `filters`). Item 7 (palette single-owner) is a separate build-step cleanup with a decided direction above. Capturing them here means the rewrite fixes each **once, in the new code**, rather than being hardened in code slated for replacement.
+>
+> **Thin pre-clean done (2026-07-04):** item 5 (orphaned `PresetPicker.js`) resolved by deletion; the palette single-owner *direction* was decided (see the flag above). No behavior-changing fixes were applied to code the overhaul will rewrite — those wait for the overhaul, pending supervisor sign-off.
+
+1. **Transforms are a silent no-op on every non-line chart.** `toPlotly` applies `transformSeries` **only in `lineSpec`**; `barSpec`, `twoPeriodSpec`, `scatterSpec`, `heatmapSpec`, and `choroplethSpec` ignore `config.transform`, and the server never computes change either. Yet the Comparison sidebar still shows the Transform selector for bar/dumbbell/slope/heatmap/map, and the `compare-places` and `geographic-pattern` presets advertise `numericChange`/`percentChange`. The legacy notebooks' `metric_of_change` (numeric/percent **change** bar rankings and choropleths) is therefore effectively **unimplemented** in V3 — the control appears to work but changes nothing. Fix: either apply transforms in the other adapters (or server-side for category/geo/twoPeriod), or hide the Transform control where it has no effect.
+
+2. **Picking a chart type with no matching preset leaves a stale preset, so the Encodings panel shows the wrong roles.** Only `line`, `bar`, and `choroplethMap` have presets. Selecting **Scatter, Bubble, Dumbbell, Slopegraph, or Matrix heatmap** from Graph Type keeps the previous `preset` id (`SET_CHART_TYPE` sets `preset: preset?.id || config.preset`), and `EncodingSection` renders that preset's `sidebar.encodings`. Result: the sidebar hides roles the new chart *requires* (e.g. scatter's `unit`) and offers roles it doesn't use (e.g. `series`, whose field list comes back empty). The chart still renders because `bindingsForPreset` auto-binds required roles — but the user can't see or change them. Fix: fall back to the chart type's own roles when no preset maps to it, or add presets for the remaining five types.
+
+3. **Choropleths are county-only, and drop unmatched places silently.** `chartData.loadGeometry` is hard-coded to `"counties"`, `queryGeoValues` throws unless `subset === "Counties"`, and both the map preset and the reducer force `subset: "Counties"` — so a Region- or State-level choropleth is impossible even though those subsets exist in the schema. Separately, `queryGeoValues` keeps only records whose Location is in the GEOID lookup (`.filter(record => ids.has(record.location))`), so any county-name drift between the contract CSV and the GeoJSON makes those counties **vanish from the map with no warning**. Fix: parameterize the geometry level; surface a notice when records fail the GEOID join.
+
+4. **Base year can silently disagree with the rendered chart.** The Comparison "Base year" (`period.baseYear`) is independent of the Date-range slider window. For `indexed`/`percentChange`, if the chosen base year falls outside the fetched `[startYear, endYear]`, `transformRegistry.baseValueOf` silently falls back to the *first in-range non-null value* rather than the requested base — so the series indexes to a different base than the axis label claims, with no notice. Fix: clamp/validate `baseYear` against the loaded range, or warn.
+
+5. **`PresetPicker.js` was orphaned — ✅ resolved (pre-clean 2026-07-04).** `components/chart-builder/PresetPicker.js` (a `Select`-based preset control) was imported nowhere; the live control is `ChartSidebar`'s inline `PresetSection` (`OptionList`). The dead file was **deleted** in the thin pre-clean, leaving `PresetSection` as the single preset control.
+
+6. **`savedViews` overloads `filters` as a transport for non-filter keys.** `savedShape` stashes `transform`, `chartType`, and `appearance` **inside** the serialized `filters` object, and `deserialize` pulls them back out and `delete`s them. Any future module whose stratification/filter key is named `transform`, `chartType`, or `appearance` would collide and be silently stripped on save/load. The reserved keys are undocumented. Fix: serialize these as top-level fields instead of hiding them in `filters`.
 
 ---
 
