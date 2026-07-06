@@ -98,6 +98,6 @@ This VS Code workspace has three folders:
 
 ## Context
 
-For full legacy codebase understanding, read `docs/PPIC Summer 2026/human/previous_tool_analysis.md`.
+For full legacy codebase understanding, read `docs/PPIC Summer 2026/specifications/previous_tool_analysis.md`.
 
-For the full project spec, read `docs/PPIC Summer 2026/technical/projectSpec.md`
+For the full project spec, read `docs/PPIC Summer 2026/specifications/projectSpec.md`

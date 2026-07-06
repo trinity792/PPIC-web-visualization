@@ -1634,7 +1634,7 @@ Validators **return structured results rather than printing**; only the orchestr
 
 *Project-wide standard; the current suite covers all five modules — PopHousing, Components of Change, Demographic Projections, ACS Housing Stress, and Building Permits (967 tests passing).*
 
-The pytest suite lives in `scripts/unit_tests/`, **mirroring the source tree** (each source file → a `test_{module}.py` in the same relative position). Full requirements are in [`PopHouse-Unit-Tests-Guide.md`](./PopHouse-Unit-Tests-Guide.md). Highlights:
+The pytest suite lives in `scripts/unit_tests/`, **mirroring the source tree** (each source file → a `test_{module}.py` in the same relative position). Full requirements are in [`PopHouse-Unit-Tests-Guide.md`](PopHouse-Unit-Tests-Guide.md). Highlights:
 
 - **Arrange → Act → Assert**, named `test_{function}_{scenario}` (scenario describes the *condition*, not the return value).
 - `tmp_path` for all file I/O; small inline DataFrame fixtures; **no real network calls** (HTTP is mocked, with an autouse safety net that fails any accidental real request).
