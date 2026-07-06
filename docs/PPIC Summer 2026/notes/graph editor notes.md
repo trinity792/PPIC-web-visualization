@@ -4,7 +4,7 @@ Content Type: Notes
 pinned: false
 description: "Notes to create the overhauled graph editor documentation"
 Date Published: July 4, 2026
-Last Updated: 07/04/2026 - 9:00 AM
+Last Updated: 07/06/2026 - 12:00 PM
 Status: Updating
 ---
 # Graph Editor Notes
@@ -23,3 +23,283 @@ Status: Updating
 ## Current Ideas
 - Add built in code editor interface and UI w/ dropdowns so users can toggle between the two. Build the UI toggles with some language as the backend so it can be easy to import/export saved configs
   - If downloading configs then need to review data/user security stuff
+
+---
+
+prompt:
+Review this entire document and `@docs/PPIC Summer 2026/specifications/projectSpec.md`. Then create a highly detailed and comprehensive implementation plan for the graphEditor overhaul. Output the plan to `@docs/PPIC Summer 2026/specifications/graphEditor-overhaul.md`. It should be a similar format to the refractor guides in `@docs/PPIC Summer 2026/refractor-guide`, however, this plan should have a higher level of detail: For each proposed new backend or frontend file, include the required docstrings as described. Prefer to create reusable components with variants over new components. 
+
+Include sections detailing unit-tests, error-handling, log integration, user flow, backend changes, front end changes, additional libraries (if applicable), and performance/efficiency strategies.
+
+Ask the user for clarifying questions if needed.
+
+Before reporting progress, audit each claim against a tool result from this session. Only report work you can point to evidence for; if something is not yet verified, say so explicitly. Report outcomes faithfully: if tests fail, say so with the output; if a step was skipped, say that; when something is done and verified, state it plainly without hedging.
+
+Delegate independent subtasks to subagents and keep working while they run. Intervene if a subagent goes off track or is missing relevant context.
+
+---
+
+# Feature List
+- Code editor interface for R, Stata, Excel
+  - Small edits update automatically
+  - Large edits require user to press a "run" button
+- Color palette picker functionality
+- toggle to switch between GUI and Code Editor
+- Graph type functionality
+- Code -> svg mapping(?)
+- Export graphs as jpg, svg, png.
+  - Include toggle for background/transparency
+  - Image compression option
+- Ability for user to copy/paste ordered table in csv format
+  - Front end checker to ensure that the site interprets the graph correctly.
+    - numbers should be in green; text in black; headings in orange; red for malformed information; gray line for empty cell
+    - ability for user to edit csv in place
+- Set basic presets for existing modules
+- introduce or use existing variables for R and Stata?
+- Ability for users to export/import configs. Save as JSONs with the option to download or copy to save and upload or paste to set
+- For the front end include 3 tiers of settings -> Basic, Moderate, Advanced. 
+- Create a simple plan to add more presets given requirements or configs. 
+- switching between GUI and Code Editor should be seamless. If someone starts in the code editor and wants to switch to using R or Stata, a wait is allowed while the code is generated/written but after that switching between the two should be efficient with minimal lag (depending on dataset size)
+- Once a chart is configured, there needs to be an "export data" button for the user to export the table as a csv or excel file showing just the data from the chart.
+
+---
+
+## Data and Dataset Controls
+### Data Inputs
+- Pasting a table directly from Excel, Google Sheets
+- Uploading a CSV, TSV, TXT, XLS, XLSX, ODS, or DBF file
+### Input Table Editor
+Should automatically detect text, numeric, and date columns.
+| Variable               | What you can edit                                                |
+| ---------------------- | ---------------------------------------------------------------- |
+| Header row             | Mark the first row as column labels or treat it as data          |
+| Column names           | Rename headers directly                                          |
+| Cell values            | Correct individual values                                        |
+| Rows and columns       | Add, delete, hide, or adjust data fields                         |
+| Column type            | Force a field to be treated as **text**, **number**, or **date** |
+| Row/column orientation | Transpose the dataset to swap rows and columns                   |
+| Column order           | Rearrange the data structure by editing or transposing           |
+| Revert state           | Restore the original uploaded data after changes                 |
+
+Create added columns based on existing data. These can support:
+- Arithmetic calculations, such as addition, subtraction, multiplication, and division
+- Conditional logic
+- Text transformations, such as trimming text
+- Derived measures, ratios, differences, shares, or custom metrics
+### Number, Dates, Geography
+- Decimal places
+- Thousands separators
+- Percent formatting
+- Currency display
+- Prefixes and suffixes
+- Custom units, such as %, million people, tons, or per 100,000
+- Locale-specific decimal and thousands conventions
+For dates, you can control the display format of years, months, quarters, date ranges, custom date tokens, and localized month/day names.
+## Visualization Controls
+### Charts
+Supports several recognizable chart forms by configuring a base type rather than selecting a distinct chart type. For example, a slope chart is configured from a line chart, a population pyramid from split bars, and a bump chart from a line chart or scatterplot
+21 Types:
+| Family                             | Built-in chart types                                       |
+| ---------------------------------- | ---------------------------------------------------------- |
+| Bar charts                         | Bar, stacked bar, grouped bar, split bar, bullet bar       |
+| Column charts                      | Column, stacked column, grouped column, multiple columns   |
+| Line and area charts               | Line, multiple lines, area                                 |
+| Pie and donut charts               | Pie, donut, multiple pies, multiple donuts, election donut |
+| Relationship and comparison charts | Scatterplot, dot plot, range plot, arrow plot              |
+### Maps
+3 Types:
+| Map type       | Primary purpose                                                          |
+| -------------- | ------------------------------------------------------------------------ |
+| Choropleth map | Colors geographic regions by a value or category                         |
+| Symbol map     | Places proportionally sized or categorized symbols on locations          |
+| Locator map    | Creates custom point, line, and area maps with manual markers and labels |
+### Tables
+| Table type       | Primary purpose                                       |
+| ---------------- | ----------------------------------------------------- |
+| Data table       | Searchable, sortable, paginated information display   |
+| Heatmap table    | Color-encodes values or categories inside cells       |
+| Mini-chart table | Embeds line, bar, or column charts inside table cells |
+## Variables
+### Universal
+| Layer              | Editable variables                                                                    |
+| ------------------ | ------------------------------------------------------------------------------------- |
+| Data               | Source, fields, field types, display names, derived fields, formatting                |
+| Visualization type | Chart/map/table type and structural variant                                           |
+| Encodings          | Which values determine position, size, color, label, grouping, or tooltip content     |
+| Scale              | Minimum, maximum, custom range, logarithmic scale, reversed scale where supported     |
+| Axes               | Tick positions, tick formats, gridlines, labels, label placement, left/right position |
+| Marks              | Bar, line, area, dot, symbol, slice, region, or cell style                            |
+| Color              | Palette, individual series colors, opacity, highlight colors, conditional colors      |
+| Labels             | Series labels, direct labels, value labels, legends, label order, label position      |
+| Annotation         | Text, arrows, callout lines, circles, range highlights, reference lines               |
+| Interaction        | Hover tooltips, clickable/sticky tooltips, zoom, search, sort, pagination             |
+| Layout             | Height, margins, legend placement, alignment, locale, theme, dark mode                |
+| Metadata           | Title, description, notes, source, byline, accessibility description                  |
+| Publishing         | Embed code, share link, export, data-download link, privacy state                     |
+### Axes and Scales
+For applicable charts, you can edit:
+- Horizontal and vertical axis ranges
+- Custom tick values
+- Number of ticks
+- Tick-label formatting
+- Date formatting
+- Gridline visibility
+- Label visibility
+- Label placement inside or outside the chart
+- Left versus right y-axis placement
+- Logarithmic scaling
+- Reversed axes
+- Fixed versus responsive plot height
+- Label margin around the plot
+Line, area, column, and scatter charts generally allow more direct control over chart height. Bar-like charts derive height from the number of categories, and maps often derive it from the basemap’s aspect ratio.
+### Bars and Columns
+For bar, stacked-bar, grouped-bar, split-bar, bullet-bar, and column variants, you can generally control:
+- Category order and grouping
+- Stacking versus grouping versus splitting
+- Bar colors and individual category colors
+- Bar labels and value labels
+- Number format and units
+- Bar direction and baseline behavior
+- Highlighted categories
+- Background comparison columns
+- Overlays
+- Confidence intervals
+- Flag icons for country-coded categories
+- Text annotations, reference lines, and highlight ranges
+Population pyramids are produced by mirroring the two sides of a split-bar chart.
+### Lines and Areas
+For line, multiple-line, and area charts, controls include:
+- Individual series color
+- Individual series name
+- Line width
+- Line dash pattern
+- Line interpolation: straight, curved, stepped, and related options
+- Missing-data treatment and optional point connection
+- Direct line labels versus legend labels versus no labels
+- Connector lines for direct labels
+- First, last, and selected value labels
+- Symbol type: circle, square, diamond, triangle, cross, hexagon, star, or wye
+- Symbol placement: first point, last point, all points, or selected points
+- Symbol fill, outline, size, and opacity
+- Area fills between series or between a series and zero
+- Different area-fill colors for positive versus negative differences
+- Stack order, 100% stacking, opacity, and area interpolation
+- Range highlights, reference lines, and confidence intervals
+- Tooltip date and number formatting
+style multiple line series in batches or customize one series at a time, which is useful for emphasizing a policy-relevant benchmark while muting comparison lines.
+### Scatterplots and Bubble Charts
+Scatterplots support:
+- X-axis variable
+- Y-axis variable
+- Point label
+- Point color or color category
+- Point size or bubble-size variable
+- Symbol shape
+- Point opacity
+- Axes, ranges, gridlines, and labels
+- Trend lines
+- Custom lines and shaded areas
+- Connected points
+- Timeline-style layouts
+- Text annotations
+- Tooltips using any uploaded field
+A bubble chart is created from the scatterplot type by assigning additional columns to point size and color.
+### Dot, range, and arrow plots
+These comparison-oriented chart types support:
+- One or multiple values per category
+- Dot colors and shapes
+- Range-line styling
+- Arrow direction and styling
+- Grouped categories
+- Value labels
+- Reference lines and shaded ranges
+- Annotations
+- Flag icons
+- Tooltip and number formatting
+They are especially useful for policy comparisons such as before/after changes, demographic gaps, estimates with uncertainty, or comparisons between two jurisdictions.
+### Pie and donut charts
+Pie, donut, multiple-pie, multiple-donut, and election-donut charts let you control the categorical breakdown, slice colors, labels, legends, ordering, display sizing, and annotation/metadata layer. Multiple variants are designed for repeated subgroup comparisons, while election donuts are optimized for electoral compositions.
+### Basemap and geography
+For maps, you can change:
+- Basemap selection
+- Geographic level: country, state, municipality, district, custom geography, cartogram, or hex map
+- Custom basemap upload
+- Map style
+- Map crop to data
+- Additional padding
+- Maximum map height
+- Map alignment
+- Region-border visibility
+- Hillshading
+- 3D-building display and map tilt in supported locator maps
+- Zoom controls
+- Inset-map type, size, position, and offset
+### Choropleth maps
+For choropleths, you can control:
+- Geographic matching field
+- Region colors
+- Color palette
+- Value ranges and class breaks
+- Categorical versus continuous treatment
+- Missing-data appearance
+- Pattern overlays
+- Region labels
+- Color legend title, position, style, and hover behavior
+- Tooltips
+- Highlighted regions
+- Text annotations
+### Symbol maps
+For symbol maps, you can control:
+- Location field or coordinates
+- Symbol size
+- Size scale
+- Symbol color
+- Symbol shape
+- Category color
+- Symbol clustering/grouping
+- Cluster tooltips
+- Size legend
+- Legend position and hover highlighting
+- Place labels
+- Zoom controls
+- Inset map
+- Map crop, padding, border visibility, and map height
+### Tables
+| Area                   | Variables                                                      |
+| ---------------------- | -------------------------------------------------------------- |
+| Columns                | Visibility, order, width behavior, sortability, numeric format |
+| Rows                   | Row styling, highlight treatment, pagination behavior          |
+| Cells                  | Text style, font color, background color, borders, alignment   |
+| Search                 | Turn search on or off                                          |
+| Sorting                | Choose which columns readers can sort                          |
+| Pagination             | Turn on pagination and set rows per page                       |
+| Mobile                 | Compact layout, mobile fallback, sticky first column           |
+| Conditional formatting | Heatmaps, category colors, colors driven by other columns      |
+| Embedded visuals       | Mini line charts, bar charts, or column charts                 |
+| Rich content           | Images, country flags, Markdown, links, formatted text         |
+## Annotations and Metadata
+In the Annotate panel, you can add or edit:
+- Title
+- Description/subtitle
+- Notes
+- Source
+- Byline
+- Alternative description for screen readers
+These fields are available across charts, maps, and tables
+## Appearance
+- Fonts
+- Font size, weight, line height, and color
+- Color palettes
+- Background color
+- Gridline color
+- Header and footer layouts
+- Borders and padding
+- Logos
+- Map styling
+- Dark-mode equivalents
+## Export
+- Interactive web embed
+- PNG export
+- SVG export
+- PDF export
+- Print-oriented graphics

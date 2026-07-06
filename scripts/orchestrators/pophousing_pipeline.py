@@ -61,6 +61,9 @@ from scripts.pophousing.validation.final_dataset_validator import validate_final
 from scripts.pophousing.validation.historical_data_validator import validate_historical_housing_data
 from scripts.shared.archives.file_retention import archive_or_delete_files
 from scripts.shared.downloads.http_downloads import HTTPDownloadError
+from scripts.shared.logging.dataframe_logging import log_data_quality_check
+from scripts.shared.logging.pipeline_logging import log_processing_step
+from scripts.shared.logging.run_records import execute_pipeline_run
 
 """
 ========================================================================================================================
@@ -87,7 +90,7 @@ Population & Housing Pipeline
 """
 
 
-def main():
+def main(logger=None):
     """Run all six pipeline phases and return an output summary. Test file: scripts/unit_tests/orchestrators/test_pophousing_pipeline.py"""
     try:
         paths = get_paths()
@@ -131,6 +134,7 @@ def main():
                 historical_validation_config,
             )
         )
+        log_data_quality_check(logger, "Historical data validation", historical_data_is_valid)
         if not historical_data_is_valid:
             raise ValueError(
                 "Historical data validation failed: "
@@ -170,6 +174,9 @@ def main():
     try:
         modern_housing_df = clean_e5_data(
             raw_e5_df, schema_config, geography_config
+        )
+        log_processing_step(
+            logger, "Phase 3 — Cleaning", raw_e5_df.shape, modern_housing_df.shape
         )
     except Exception as error:
         _raise_phase_error("Phase 3", error)
@@ -259,6 +266,7 @@ def main():
                 schema_config["final_validation"],
             )
         )
+        log_data_quality_check(logger, "Final dataset validation", final_data_is_valid)
         if not final_data_is_valid:
             raise ValueError(
                 "Final data validation failed: "
@@ -289,4 +297,8 @@ def main():
 # ── Main Entry Point ──────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    main()
+    execute_pipeline_run(
+        {"module_id": "pophousing", "module_label": "Population & Housing", "phase_total": 6},
+        main,
+        get_paths()["logs_directory"],
+    )

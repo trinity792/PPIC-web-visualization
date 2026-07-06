@@ -39,6 +39,7 @@ def get_paths():
         "historical_data_path": current_data_path,
         "download_directory": raw_directory,
         "archive_directory": archive_directory,
+        "logs_directory": Path(project_paths["logs_directory"]),
         # Separate manual-fallback files for the two acquisition scopes (50 states, CA PUMAs).
         "manual_state_path": raw_directory / "HousingStress_States_Downloaded.csv",
         "manual_ca_path": raw_directory / "HousingStress_CA_Downloaded.csv",

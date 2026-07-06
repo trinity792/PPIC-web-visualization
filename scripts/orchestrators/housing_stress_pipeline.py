@@ -46,6 +46,8 @@ from scripts.housing_stress.validation.housing_stress_validators import (
     validate_stratification_completeness,
 )
 from scripts.shared.geography.california_geography import get_california_geography
+from scripts.shared.logging.dataframe_logging import log_data_quality_check
+from scripts.shared.logging.run_records import execute_pipeline_run
 
 _YEAR_COLUMN = "Year"
 _LEVEL_COLUMN = "Geographic Level"
@@ -107,7 +109,7 @@ Housing Stress Pipeline
 """
 
 
-def build_housing_stress_dataset(config=None):
+def build_housing_stress_dataset(config=None, logger=None):
     """
     Build the ACS Housing Stress dataset and save only when source data changed.
 
@@ -187,6 +189,7 @@ def build_housing_stress_dataset(config=None):
     try:
         prepared = prepare_output(merged, schema_config)
         is_valid, messages = validate_housing_stress_dataset(prepared, schema_config["final_validation_config"])
+        log_data_quality_check(logger, "Housing Stress final validation", is_valid)
         if not is_valid:
             _raise_phase_error("Phase 5 — Finalize & Save", ValueError(f"final validation failed: {messages}"))
 
@@ -212,7 +215,11 @@ def build_housing_stress_dataset(config=None):
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    result = build_housing_stress_dataset()
+    result = execute_pipeline_run(
+        {"module_id": "housing-stress", "module_label": "ACS Housing Stress", "phase_total": 5},
+        build_housing_stress_dataset,
+        get_paths()["logs_directory"],
+    )
     print(f"  Vintage: {result['resolved_year']}")
     print(f"  Rows: {result['row_count']}")
     if result["output_path"]:

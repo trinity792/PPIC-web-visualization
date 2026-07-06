@@ -20,3 +20,8 @@ trinitys_notes/
 data/data-raw/
 data/archive/
 data/images/
+
+# Live pipeline run logs are runtime artifacts; the committed sample-runs.jsonl
+# fixture is kept so /logs is never blank in the repo/demo.
+logs/*_pipeline.log
+logs/pipeline-runs.jsonl

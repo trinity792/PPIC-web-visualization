@@ -41,4 +41,5 @@ def get_paths():
         "current_data_path": Path(CURRENT_DATA_PATH),
         "historical_data_path": Path(HISTORICAL_DATA_PATH),
         "deletion_log_directory": Path(DELETION_LOG_DIR),
+        "logs_directory": Path(DELETION_LOG_DIR).parent,
     }

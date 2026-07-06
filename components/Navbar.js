@@ -18,6 +18,16 @@ import { Search } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import NavDropdown from "@/components/ui/nav-dropdown";
+
+// Data modules — each links to its detailed graph-editor page at /[module].
+const MODULE_LINKS = [
+  { href: "/pophousing", label: "Population & Housing" },
+  { href: "/components-of-change", label: "Components of Change" },
+  { href: "/demographic-projections", label: "Age, Sex & Race Projections" },
+  { href: "/housing-stress", label: "Housing Stress" },
+  { href: "/building-permits", label: "Building Permits" },
+];
 
 export default function Navbar() {
   return (
@@ -53,21 +63,13 @@ export default function Navbar() {
               <Search aria-hidden="true" className="text-muted-foreground" />
             </Button>
           </form>
-          <div className="flex flex-wrap gap-x-8 gap-y-2 font-body text-sm">
-            <Link href="/pophousing" className="hover:underline">
-              Population &amp; Housing
-            </Link>
-            <Link href="/components-of-change" className="hover:underline">
-              Components of Change
-            </Link>
-            <Link href="/demographic-projections" className="hover:underline">
-              Age, Sex &amp; Race Projections
-            </Link>
-            <Link href="/housing-stress" className="hover:underline">
-              Housing Stress
-            </Link>
+          <div className="flex flex-wrap items-center gap-x-8 gap-y-2 font-body text-sm">
+            <NavDropdown label="Modules" items={MODULE_LINKS} />
             <Link href="/documents" className="hover:underline">
               Documents
+            </Link>
+            <Link href="/logs" className="hover:underline">
+              Logs
             </Link>
             <Link href="/ui-kit" className="hover:underline">
               UI Kit

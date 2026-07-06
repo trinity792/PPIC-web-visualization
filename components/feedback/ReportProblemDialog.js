@@ -46,7 +46,7 @@ export default function ReportProblemDialog() {
         <Button
           variant="outline"
           size="sm"
-          className="fixed right-4 bottom-4 z-40 rounded-full border-ppic-neutral-300 bg-white text-ppic-neutral-600 shadow-md hover:bg-ppic-neutral-50 hover:text-ppic-neutral-600 sm:right-6 sm:bottom-6"
+          className="rounded-full border-ppic-neutral-300 bg-white text-ppic-neutral-600 shadow-md hover:bg-ppic-neutral-50 hover:text-ppic-neutral-600"
         >
           <Bug aria-hidden="true" />
           Report a problem

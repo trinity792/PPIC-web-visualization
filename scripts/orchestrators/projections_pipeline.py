@@ -62,6 +62,8 @@ from scripts.projections.validation.projections_validators import (
     validate_stratification_completeness,
 )
 from scripts.shared.geography.california_geography import get_california_geography
+from scripts.shared.logging.dataframe_logging import log_data_quality_check
+from scripts.shared.logging.run_records import execute_pipeline_run
 
 _DOF_SOURCE = "DoF P-3"
 _CENSUS_SOURCE = "Census cc-est"
@@ -257,7 +259,7 @@ Projections Pipeline
 """
 
 
-def build_projections_dataset(config=None):
+def build_projections_dataset(config=None, logger=None):
     """Build the Demographic Projections dataset and save only when source data changed. Test file: scripts/unit_tests/orchestrators/test_projections_pipeline.py"""
     offline = _is_offline(config)
 
@@ -334,6 +336,7 @@ def build_projections_dataset(config=None):
             "expected_levels": expected_levels,
         }
         is_valid, messages = validate_projections_dataset(prepared, final_validation_config)
+        log_data_quality_check(logger, "Projections final validation", is_valid)
         if not is_valid:
             raise ValueError(f"Final validation failed: {messages}")
 
@@ -357,7 +360,11 @@ def build_projections_dataset(config=None):
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    result = build_projections_dataset()
+    result = execute_pipeline_run(
+        {"module_id": "projections", "module_label": "Demographic Projections", "phase_total": 5},
+        build_projections_dataset,
+        get_paths()["logs_directory"],
+    )
     print(f"  Rows: {result['row_count']}")
     if result["dof_failed"]:
         print("  WARNING: DoF P-3 live acquisition failed; used last-saved data (stale).")

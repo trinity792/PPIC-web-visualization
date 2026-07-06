@@ -35,6 +35,8 @@ from scripts.components_of_change.config.sources import get_source_settings
 from scripts.components_of_change.merging.historical_merge import combine_source_with_historical, detect_new_source_data, load_canonical_dataset, merge_dof_and_census
 from scripts.components_of_change.output.finalize_dataset import archive_and_save, assign_geographic_level, prepare_components_output
 from scripts.components_of_change.validation.dataset_validator import validate_components_dataset
+from scripts.shared.logging.dataframe_logging import log_data_quality_check
+from scripts.shared.logging.run_records import execute_pipeline_run
 
 """
 ========================================================================================================================
@@ -87,7 +89,7 @@ Components Pipeline
 """
 
 
-def build_components_dataset(config=None):
+def build_components_dataset(config=None, logger=None):
     """Build the Components dataset once and save only when source data changed. Test file: scripts/unit_tests/orchestrators/test_components_of_change_pipeline.py"""
     try:
         paths = (config or {}).get("paths") or get_paths()
@@ -156,6 +158,7 @@ def build_components_dataset(config=None):
         finalized_df = assign_geographic_level(merged_df, geography_config)
         finalized_df = prepare_components_output(finalized_df, columns_config["output_columns"])
         data_is_valid, validation_messages = validate_components_dataset(finalized_df, columns_config)
+        log_data_quality_check(logger, "Components dataset validation", data_is_valid)
         if not data_is_valid:
             raise ValueError("Components data validation failed: " + "; ".join(validation_messages))
         output_path = None
@@ -177,9 +180,9 @@ def build_components_dataset(config=None):
     }
 
 
-def main():
+def main(logger=None):
     """Run the Components pipeline and return a summary dictionary. Test file: scripts/unit_tests/orchestrators/test_components_of_change_pipeline.py"""
-    result = build_components_dataset()
+    result = build_components_dataset(logger=logger)
     dataframe = result["dataframe"]
     numeric_years = pd.to_numeric(dataframe["Year"], errors="coerce")
     return {
@@ -188,6 +191,11 @@ def main():
         "year_range": (int(numeric_years.min()), int(numeric_years.max())),
         "new_dof_data_found": result["new_dof_data_found"],
         "new_census_data_found": result["new_census_data_found"],
+        # Surfaced so the run record can flag a recovered (fallback) run.
+        "dof_failed": result["dof_failed"],
+        "census_failed": result["census_failed"],
+        "dof_used_manual": result["dof_used_manual"],
+        "census_used_manual": result["census_used_manual"],
         "geographic_level_counts": dataframe["Geographic Level"].value_counts().to_dict(),
     }
 
@@ -195,4 +203,8 @@ def main():
 # ── Main Entry Point ──────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    main()
+    execute_pipeline_run(
+        {"module_id": "components-of-change", "module_label": "Components of Change", "phase_total": 5},
+        main,
+        get_paths()["logs_directory"],
+    )

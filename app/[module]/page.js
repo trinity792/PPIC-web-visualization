@@ -2,6 +2,7 @@
 import React from "react";
 import { notFound } from "next/navigation";
 import ModuleEditor from "@/components/chart-builder/ModuleEditor";
+import { UnderConstruction } from "@/components/ui/under-construction";
 import { getBuiltInView } from "@/lib/visualization/categoryRegistry";
 import {
   getModuleSchema,
@@ -25,6 +26,17 @@ export default async function DetailedModulePage({ params, searchParams }) {
   const query = await searchParams;
   const schema = getModuleSchema(module);
   if (!schema) notFound();
+
+  // Modules whose editor presets aren't built yet render a placeholder instead
+  // of the chart editor (which would otherwise error). See schema flag.
+  if (schema.underConstruction) {
+    return (
+      <UnderConstruction
+        title={schema.label}
+        message="This module is under construction. Check back soon."
+      />
+    );
+  }
 
   const viewId = query.view || null;
   const builtIn = viewId ? getBuiltInView(viewId) : null;

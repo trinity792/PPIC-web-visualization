@@ -52,6 +52,9 @@ from scripts.building_permits.validation.building_permits_validators import (
     validate_building_permits_dataset,
 )
 from scripts.shared.geography.california_geography import get_california_geography
+from scripts.shared.logging.dataframe_logging import log_data_quality_check
+from scripts.shared.logging.pipeline_logging import log_processing_step
+from scripts.shared.logging.run_records import execute_pipeline_run
 
 """
 ========================================================================================================================
@@ -108,7 +111,7 @@ Building Permits Pipeline
 """
 
 
-def build_building_permits_dataset(config=None):
+def build_building_permits_dataset(config=None, logger=None):
     """
     Build the Building Permits dataset and save only when source data changed.
 
@@ -152,6 +155,10 @@ def build_building_permits_dataset(config=None):
         )
         # Report the months actually fetched (unpublished months are skipped upstream).
         acquired_months = list(cbsa_frames) if isinstance(cbsa_frames, dict) else []
+        log_processing_step(
+            logger, "Phase 2 — Acquisition", None, None,
+            acquired_months=len(acquired_months), source_failed=source_failed,
+        )
     except BuildingPermitsPipelinePhaseError:
         raise
     except Exception as error:
@@ -181,6 +188,7 @@ def build_building_permits_dataset(config=None):
     try:
         prepared = prepare_output(merged, schema_config)
         is_valid, messages = validate_building_permits_dataset(prepared, schema_config["final_validation_config"])
+        log_data_quality_check(logger, "Building Permits final validation", is_valid)
         if not is_valid:
             _raise_phase_error("Phase 5 — Finalize & Save", ValueError(f"final validation failed: {messages}"))
 
@@ -205,7 +213,11 @@ def build_building_permits_dataset(config=None):
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    result = build_building_permits_dataset()
+    result = execute_pipeline_run(
+        {"module_id": "building-permits", "module_label": "Building Permits", "phase_total": 5},
+        build_building_permits_dataset,
+        get_paths()["logs_directory"],
+    )
     print(f"  Acquired months: {result['acquired_months']}")
     print(f"  Rows: {result['row_count']}")
     if result["output_path"]:

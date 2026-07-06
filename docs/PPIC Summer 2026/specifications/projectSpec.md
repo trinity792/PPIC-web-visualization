@@ -4,14 +4,14 @@ Content Type: project specification
 pinned: true
 description: "The single source of truth for the web-data-visualization project's specification, architecture, and API reference. A living document for programmers and researchers that uses PopHousing as the reference implementation future data modules should mirror."
 Date Published: June 23, 2026
-Last Updated: 07/04/2026 - 3:05 PM
+Last Updated: 07/06/2026 - 12:30 PM
 Status: Updating
 ---
 
 
 # Project Specification, Architecture & API Reference
 Web **Visualizations** Project
-Last Updated: July 4th, 2026
+Last Updated: July 6th, 2026
 
 ---
 
@@ -56,7 +56,7 @@ A **module** is one dataset's full vertical slice: its ETL pipeline under `scrip
 
 | Module | Source | Status |
 |---|---|---|
-| **Population & Housing** (PopHousing) | CA Dept. of Finance E-5 (modern) + E-8 (historical) estimates | **Active** — first module migrated. End-to-end complete, including the E-8 historical build; only cross-module logging remains stubbed. |
+| **Population & Housing** (PopHousing) | CA Dept. of Finance E-5 (modern) + E-8 (historical) estimates | **Active** — first module migrated. End-to-end complete, including the E-8 historical build and cross-module run logging (structured JSONL + per-run `.log`, surfaced on `/logs`). |
 | **Components of Change** | CA Dept. of Finance E-6 + U.S. Census county population component estimates | **Active** — second module migrated, built by mirroring PopHousing. Full pipeline, data contract, API route, and charts complete, with a **verified end-to-end run** against the live DoF E-6 + Census sources (4,018 rows, 1991–2025). |
 | **Age, Sex & Race Projections** (Demographic Projections) | CA Dept. of Finance **P-3** projections + U.S. Census **cc-est** estimates | **Active** — third module migrated, built **test-first** against the shared architecture. Full Python pipeline, data contract, API route, and chart wiring are complete, with a **verified dual-source end-to-end run** against live DoF P-3 + Census cc-est (**1,718,208 rows**: DoF County/Region/State 2020–2070 + Census US State 2020–2025), idempotent on re-run and free of duplicate keys. A 2026-07-03 reliability audit repaired the live source scrapers (both filenames had moved), a fallback-reaggregation crash, and two Census-cleaning gaps. See *The Demographic Projections Module → Verification*. |
 | **ACS Housing Stress** | U.S. Census Bureau **ACS 1-year** table-based Summary File, table **B25140** (housing cost burden) | **Active** — fourth module migrated, built **test-first** (136 mirrored tests pass). Full Python pipeline, data contract, API route, module schema, and built-in chart views are complete, with a **verified end-to-end run** against live ACS. It contains the **latest vintage only** (2024, 4,525 rows) — the pipeline fetches one vintage per run and accumulates history over time; the legacy 2012–2023 series was set aside pending a schema migration. See *The ACS Housing Stress Module* for caveats. |
@@ -117,6 +117,7 @@ web-data-visualization/
 ├── app/                          ← Next.js App Router
 │   ├── page.js  layout.js  globals.css   ← landing (category dashboards) + shell + design tokens
 │   ├── [module]/page.js                  ← detailed module page = the chart editor   (per module)
+│   ├── logs/page.js                      ← /logs (pipeline run-log feed; reads logs/*.jsonl)
 │   └── api/
 │       ├── pophousing/route.js           ← GET /api/pophousing             (PopHousing)
 │       ├── components-of-change/route.js ← GET /api/components-of-change    (Components)
@@ -125,10 +126,11 @@ web-data-visualization/
 │       ├── building-permits/route.js      ← GET /api/building-permits       (Building Permits)
 │       └── geography/route.js            ← GET /api/geography (county GeoJSON, choropleth)
 ├── components/
-│   ├── Navbar.js                 ← shared site shell
-│   ├── ui/                       ← shadcn/Radix primitives (button, select, slider, dialog, table, …) + cn util
+│   ├── Navbar.js                 ← shared site shell (Modules dropdown + top-level links)
+│   ├── ui/                       ← shadcn/Radix primitives (button, select, slider, dialog, table, …) + cn util; also nav-dropdown (hover menu) + under-construction placeholder
 │   ├── charts/                   ← PlotlyChart wrapper, ChartPreview, legacy line sections
 │   ├── chart-builder/            ← the dynamic chart editor (sidebar, config store, saved views, layers)
+│   ├── logs/                     ← /logs feed: LogsBrowser, LogFilterSidebar, LogCard, SeverityChip, CopyButton
 │   └── landing/                  ← dashboard shell, chart tiles, stat cards, region table, dashboards/<category>
 ├── lib/
 │   ├── config.py                 ← shared project paths + generic HTTP defaults
@@ -143,6 +145,8 @@ web-data-visualization/
 │   ├── data/query_shapes.js             ← shared row → line/category/two-period/pairs/matrix shaping (year-based)
 │   ├── data/apiParams.js                ← shared API-route query-param helpers
 │   ├── geography/californiaGeography.js ← CLIENT-SAFE JS mirror of the shared CBSA-metro → county/region maps
+│   ├── logs/logs.js                     ← server-only loader over logs/*.jsonl run records
+│   ├── logs/presentation.js             ← CLIENT-SAFE plain-language layer (phase names, cause, impact, timestamps)
 │   └── visualization/                   ← CLIENT-SAFE chart catalog + registries (no node:fs)
 │       ├── moduleSchemas/{pophousing,componentsOfChange,demographicProjections,housingStress,buildingPermits}.js  ← per-module field catalog
 │       ├── fieldTypes.js  formatters.js  transformRegistry.js  toPlotly.js
@@ -401,8 +405,8 @@ Generic data-quality checks. Each **returns structured results** (lists, counts,
 | `validate_null_counts(dataframe, columns)` | Per-column null counts (both `NaN` and `None` count as null). |
 | `validate_numeric_range(dataframe, value_col, min_value, max_value, row_mask)` | Rows where the value is outside `[min, max]`; nulls are not violations; bounds may be `None`; `row_mask` limits which rows are checked. |
 
-#### [`shared/logging/pipeline_logging.py`](../../../scripts/shared/logging/pipeline_logging.py) · [`dataframe_logging.py`](../../../scripts/shared/logging/dataframe_logging.py) — *Stub*
-The intended logging surface: `setup_logging` / `get_logger` / `close_logging` / `log_processing_step`, plus `log_dataframe_info` / `log_data_quality_check`. Bodies are `TODO`. By design the **orchestrator supplies the log directory** as an argument, keeping logging free of pophousing config.
+#### [`shared/logging/pipeline_logging.py`](../../../scripts/shared/logging/pipeline_logging.py) · [`dataframe_logging.py`](../../../scripts/shared/logging/dataframe_logging.py) · [`run_records.py`](../../../scripts/shared/logging/run_records.py) — *Shared mechanism*
+The logging surface, implemented over stdlib `logging`: `setup_logging` / `get_logger` / `close_logging` / `log_processing_step` (file + console logger writing `logs/<module>_pipeline.log`), plus `log_dataframe_info` / `log_data_quality_check`. `run_records.py` adds the structured **run-record** layer: `build_run_record` (derives severity — success / recovered / error — a Pacific-time timestamp, phase index, and traceback location), `append_run_record` (one JSON line to `logs/pipeline-runs.jsonl`), and `execute_pipeline_run` (the wrapper each orchestrator's `__main__` calls: set up logging → run → write a record → close, re-raising on failure). By design the **orchestrator supplies the log directory** as an argument (`get_paths()["logs_directory"]`), keeping logging free of any module's config. The `logs/*.jsonl` records are the contract the `/logs` page reads.
 
 ---
 
@@ -1319,6 +1323,7 @@ The module is complete, its tests pass, and it has run end-to-end against live C
 - **CBSA name drift absorbed by code renames.** The SF metro now publishes as "San Francisco-Oakland-**Fremont**" (was "…-Berkeley"), Bakersfield as "Bakersfield-Delano", Stockton as "Stockton-Lodi"; the CBSA-*code* rename map pins these to canonical display names regardless of Census label churn.
 - **Monthly axis vs. the year-based UI.** The shared sidebar/slider and `query_shapes.js` are year-integer based; the data-access layer carries its own monthly shaping, but wiring the shared slider/temporal control for a monthly range is deferred to the graph-editor overhaul.
 - **Presets & landing surface deferred.** Curated presets (region overview, overlay, indexed, year-to-date, two-period change, change map) and a landing-page `CATEGORIES` card are intentionally **not** built — deferred to the forthcoming graph-editor overhaul.
+- **Detailed page shows a placeholder.** Because the presets aren't built, opening the editor for this module errored. The schema carries `underConstruction: true`, so `app/[module]/page.js` renders the shared `UnderConstruction` placeholder for `/building-permits` instead of `ModuleEditor`. The module stays in the registry and the Modules dropdown; remove the flag once the overhaul wires up its presets.
 
 ---
 
@@ -1480,7 +1485,7 @@ The **geo** view is the one that reaches across modules: `queryGeoValues` builds
 | Region table | `landing/RegionTable.js` (uses `ui/table`) | `lib/data/pop_housing.js` `queryRegionTable()` — latest Region rows |
 | "Coming soon" category cards | `app/page.js` + `ui/card`, `ui/badge` | `categoryRegistry` (status `coming-soon`) |
 
-**Detailed module page (`/[module]`)** — `app/[module]/page.js` resolves the module schema, optionally hydrates a `?view=` deep-link, and renders `components/chart-builder/ModuleEditor.js` (config store + sidebar + canvas).
+**Detailed module page (`/[module]`)** — `app/[module]/page.js` resolves the module schema, optionally hydrates a `?view=` deep-link, and renders `components/chart-builder/ModuleEditor.js` (config store + sidebar + canvas). A schema flagged `underConstruction: true` short-circuits to the shared `UnderConstruction` placeholder instead (currently Building Permits, whose presets aren't built yet).
 
 | Sidebar / canvas part | Front end | What it drives / where data comes from |
 |---|---|---|
@@ -1501,7 +1506,10 @@ The **geo** view is the one that reaches across modules: `queryGeoValues` builds
 
 | Element | Front end | Notes |
 |---|---|---|
-| Masthead / nav | `components/Navbar.js` | Brand bar; Tailwind tokens + `lib/constants.js` palette. |
+| Masthead / nav | `components/Navbar.js` | Brand bar; Tailwind tokens + `lib/constants.js` palette. The five data modules live under a **Modules** dropdown (`MODULE_LINKS` in `Navbar.js`); `Documents`, `Logs`, and `UI Kit` are top-level links. |
+| Modules dropdown | `components/ui/nav-dropdown.js` | Reusable hover-activated menu (`NavDropdown`). Opens on hover/focus, bridges the trigger→menu gap with padding (not margin) so a diagonal move can't drop it, closes ~100 ms after the pointer leaves, on item click, on blur, or on Escape. Each item links to `/[module]` (the detailed graph editor). |
+| Under-construction placeholder | `components/ui/under-construction.js` | Reusable `UnderConstruction` (title / message / icon props) for not-yet-built routes; renders on the shared `--ppic-surface`. Used by `app/[module]/page.js` for any schema flagged `underConstruction` (currently Building Permits — presets not built). |
+| Logs feed | `app/logs/page.js` → `components/logs/{LogsBrowser,LogFilterSidebar,LogCard,SeverityChip,CopyButton}.js` | The `/logs` page. Reuses the **Documents landing layout** — a hero band, a left `LogFilterSidebar` (module / type / date-range dropdowns, mirroring `DocumentFilterSidebar`), and a results section with a `Sort by` control. Each run is a `LogCard` styled as a **DocumentCard variant**: the severity icon fills the left thumbnail tile (`AlertTriangle`/`CheckCircle2`/`ShieldAlert`, tinted amber/green/blue), with a `SeverityChip` (colored-dot status chip) + copy button top-right. A sidebar **Technical details** `Switch` (the UI Kit's "Appearance" toggle, **off by default**) flips every card between the plain-language view and the raw JSON record; a **Show more** button pages 15 at a time. `BackToTopButton` is extended to render on `/logs`. |
 | Plotly wrapper | `charts/PlotlyChart.js` | `react-plotly.js` via `next/dynamic({ ssr: false })`; mobile mode-bar off. |
 | Data fetching | `chart-builder/chartData.js` | Picks the `view` per chart type, fans out trace-layer requests in parallel, caches geometry client-side, returns `{ response, series, geometry }`. |
 | Design system | `components/ui/*` + `app/globals.css` tokens | shadcn/Radix primitives; PPIC brand ramps + shadcn tokens drive the Tailwind v4 utilities. |
@@ -1660,13 +1668,7 @@ The pytest suite lives in `scripts/unit_tests/`, **mirroring the source tree** (
 
 **Within Building Permits:** the full Python pipeline (config → acquisition → cleaning → geography tagging → merge → validation → output), orchestrator, data contract, API route, module schema, month-aware data-access layer, and the JS geography mirror are complete, with 95 mirrored tests passing and a **verified end-to-end run** against live Census BPS. The contract holds **197 months (2010-01 → 2026-05, 14,691 rows)** — deep history was seeded from the legacy accumulated snapshot because the source hosts only a rolling ~2-year window; the live pipeline maintains it forward. Curated presets and the monthly slider control are deferred to the graph-editor overhaul — see *Current-State Notes & Caveats (Building Permits)*.
 
-The remaining scaffolded-but-`TODO` surface is project-wide:
-
-| Area | Scripts | Effect |
-|---|---|---|
-| **Logging** | `shared/logging/pipeline_logging.py`, `shared/logging/dataframe_logging.py` | The logging surface is defined but inert; orchestrators are structured to pass in a log directory once implemented. *(Cross-module — benefits every module.)* |
-
-When implementing it, follow the dependency boundary and reuse shared helpers rather than writing duplicates.
+Cross-module **run logging is now implemented** (`shared/logging/pipeline_logging.py`, `dataframe_logging.py`, `run_records.py`): all five orchestrators set up a file + console logger, log each phase, and write one structured JSONL record per run to `logs/pipeline-runs.jsonl`. The `/logs` page (`app/logs/page.js` → `components/logs/`) reads those records via `lib/logs/logs.js` and renders them, Documents-landing-style, as a sidebar-filtered feed of **DocumentCard-variant run cards** — severity icon as the thumbnail tile, status chip + copy button top-right — with plain-language cause & impact derived on the client (`lib/logs/presentation.js`), a sidebar **Technical details** switch (off by default) that reveals the raw record, collapsible tracebacks, and 15-at-a-time "Show more" paging. The live `logs/pipeline-runs.jsonl` is git-ignored; a committed `logs/sample-runs.jsonl` fixture keeps the page populated in the repo. No scaffolded-but-`TODO` surface remains project-wide; further work is enhancement.
 
 ---
 
@@ -1717,6 +1719,11 @@ that reproduces the team's Obsidian formatting on the web:
   `language-*` class survives).
 - **Table of contents** — `extractToc` + `DocTableOfContents` build an H1–H3 outline
   with scrollspy, matching the UI Kit's contents sidebar.
+- **Floating actions** — a shared `fixed` bottom-right row in `app/layout.js` holds
+  `ReportProblemDialog` (site-wide) and `BackToTopButton` (`components/documents/`).
+  `BackToTopButton` only renders on `/documents` routes and only once the page has
+  scrolled past `SCROLL_THRESHOLD` (400px), sitting to the right of the report button
+  in the same row.
 
 > [!warning] Raw HTML/SVG is trusted, not sanitized
 > `rehype-raw` (and the ` ```svg ` → inline-image path) render author-supplied

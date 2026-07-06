@@ -39,6 +39,7 @@ def get_paths():
         "historical_data_path": current_data_path,
         "download_directory": component_raw_dir,
         "archive_directory": component_archive_dir,
+        "logs_directory": Path(project_paths["logs_directory"]),
         "manual_dof_path": component_raw_dir / "E6_Downloaded.csv",
         "manual_census_path": component_raw_dir / "Census_Components_Downloaded.csv",
         "california_counties_geojson_path": component_raw_dir / "california-counties.geojson",

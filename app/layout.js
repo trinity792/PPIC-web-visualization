@@ -3,6 +3,7 @@ import React from "react";
 import { Orbitron, Source_Sans_3, Inter, Source_Serif_4 } from "next/font/google";
 import Navbar from "@/components/Navbar";
 import ReportProblemDialog from "@/components/feedback/ReportProblemDialog";
+import BackToTopButton from "@/components/documents/BackToTopButton";
 import { PAGE_LAYOUT } from "@/lib/constants";
 import "./globals.css";
 import { Analytics } from "@vercel/analytics/next"
@@ -53,7 +54,10 @@ export default function RootLayout({ children }) {
       >
         <Navbar />
         {children}
-        <ReportProblemDialog />
+        <div className="fixed right-4 bottom-4 z-40 flex items-center gap-2 sm:right-6 sm:bottom-6">
+          <ReportProblemDialog />
+          <BackToTopButton />
+        </div>
         <Analytics />
       </body>
     </html>
