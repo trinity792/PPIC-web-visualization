@@ -19,18 +19,16 @@
  */
 
 import { AVAILABLE_GEO_LEVELS, loadGeometry } from "@/lib/data/geography";
+import { invalid } from "@/lib/data/apiParams";
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const level = searchParams.get("level") || "counties";
 
   if (!AVAILABLE_GEO_LEVELS.includes(level)) {
-    return Response.json(
-      {
-        error: `Invalid 'level'. Expected one of: ${AVAILABLE_GEO_LEVELS.join(", ")}`,
-        source: "geography API: level validation",
-      },
-      { status: 400 },
+    return invalid(
+      `Invalid 'level'. Expected one of: ${AVAILABLE_GEO_LEVELS.join(", ")}`,
+      "geography API: level validation",
     );
   }
 

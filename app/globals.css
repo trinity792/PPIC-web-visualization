@@ -49,6 +49,7 @@
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
 
+  /* ppic-palette:begin — generated from lib/constants.js COLORS by tools/generate-palette-css.mjs; edit COLORS and run `npm run build:palette`, never this block */
   /* ===== PPIC brand tokens ===== */
   /* Orange ramp (primary brand) */
   --ppic-orange-50: #fed4bf;
@@ -118,6 +119,7 @@
   --ppic-neutral-400: #595f61;
   --ppic-neutral-500: #383b3d;
   --ppic-neutral-600: #191b1c;
+  /* ppic-palette:end */
 
   /* Semantic */
   --ppic-brand: var(--ppic-orange-200);

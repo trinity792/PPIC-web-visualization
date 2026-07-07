@@ -22,8 +22,11 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Clipboard, Download, RotateCcw, Save, Trash2, Upload } from "lucide-react";
 
 import ComparisonSection from "@/components/chart-builder/ComparisonSection";
+import DataSourcePanel from "@/components/chart-builder/DataSourcePanel";
+import EditorActivityLog from "@/components/chart-builder/EditorActivityLog";
 import EncodingSection from "@/components/chart-builder/EncodingSection";
 import LabelEditor from "@/components/chart-builder/LabelEditor";
+import PalettePicker from "@/components/chart-builder/PalettePicker";
 import ValidationNotice from "@/components/chart-builder/ValidationNotice";
 import {
   Accordion,
@@ -65,6 +68,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
+import { isChangeTransform } from "@/components/chart-builder/chartData";
 import {
   deleteView,
   deserialize,
@@ -78,6 +82,7 @@ import {
   getChartType,
 } from "@/lib/visualization/chartRegistry";
 import { PRESET_ORDER, PRESETS } from "@/lib/visualization/presetRegistry";
+import { isVisible } from "@/lib/visualization/settingsTiers";
 
 import { CHART_SIDEBAR } from "@/lib/constants";
 
@@ -157,39 +162,45 @@ function OptionList({ value, onChange, options, ariaLabel }) {
 function DataSourcesSection() {
   const { config, dispatch, schema } = useChartConfig();
   const sources = schema.sources || [];
+  const isInline = config.data?.source === "inline";
 
   return (
     <div className="grid gap-4">
-      {sources.length <= 1 ? (
-        // Single-dataset module: show the dataset/source name (e.g. "DoF"), not
-        // the module name. The lone source lives on the Source field's values.
-        <p className="text-sm font-medium">
-          {sources[0] || schema.fields?.Source?.values?.[0] || schema.label}
-        </p>
-      ) : (
-        <div className="grid gap-2">
-          <Label htmlFor="data-source">Source</Label>
-          <Select
-            value={config.filters.source || ""}
-            onValueChange={(value) =>
-              dispatch({ type: "SET_FILTER", key: "source", value })
-            }
-          >
-            <SelectTrigger id="data-source">
-              <SelectValue placeholder="Choose a source" />
-            </SelectTrigger>
-            <SelectContent>
-              {sources.map((source) => (
-                <SelectItem key={source} value={source}>
-                  {source}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
+      <DataSourcePanel />
+      {!isInline ? (
+        <>
+          {sources.length <= 1 ? (
+            // Single-dataset module: show the dataset/source name (e.g. "DoF"), not
+            // the module name. The lone source lives on the Source field's values.
+            <p className="text-sm font-medium">
+              {sources[0] || schema.fields?.Source?.values?.[0] || schema.label}
+            </p>
+          ) : (
+            <div className="grid gap-2">
+              <Label htmlFor="data-source">Source</Label>
+              <Select
+                value={config.filters.source || ""}
+                onValueChange={(value) =>
+                  dispatch({ type: "SET_FILTER", key: "source", value })
+                }
+              >
+                <SelectTrigger id="data-source">
+                  <SelectValue placeholder="Choose a source" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sources.map((source) => (
+                    <SelectItem key={source} value={source}>
+                      {source}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
-      <StratificationFilters />
+          <StratificationFilters />
+        </>
+      ) : null}
     </div>
   );
 }
@@ -232,7 +243,12 @@ function StratificationFilters() {
 function YearRangeSection() {
   const { config, dispatch, schema } = useChartConfig();
   const [min, max] = schema.yearRange || [2000, new Date().getFullYear()];
-  const isRange = RANGE_CHART_TYPES.includes(config.chartType);
+  // Bar/choropleth become two-period charts when a change transform is active
+  // (legacy metric_of_change), so they get the dual-handle window too.
+  const isRange =
+    RANGE_CHART_TYPES.includes(config.chartType) ||
+    (["bar", "choroplethMap"].includes(config.chartType) &&
+      isChangeTransform(config.transform));
 
   const committed = isRange
     ? [config.period.startYear ?? min, config.period.endYear ?? max]
@@ -323,6 +339,7 @@ function AppearanceSection() {
   const { config, dispatch } = useChartConfig();
   return (
     <div className="grid gap-4">
+      <PalettePicker seriesNames={config.seriesNames || []} />
       <div className="grid gap-2">
         <Label htmlFor="appearance-legend">Legend</Label>
         <Select
@@ -425,16 +442,17 @@ function AppearanceSection() {
 }
 
 // The eight top-level sections, top to bottom. `key` entries only render when
-// the current chart type lists them in its `sidebarSections`.
+// the current chart type lists them in its `sidebarSections`; `controlId`
+// gates each section by the active settings tier (settingsTiers.js).
 const TOP_SECTIONS = [
-  { value: "data-sources", label: "Data Sources", Component: DataSourcesSection },
-  { value: "presets", label: "Presets", Component: PresetSection },
-  { value: "graph-type", label: "Graph Type", Component: GraphTypeSection },
-  { value: "date-range", label: "Date Range", Component: YearRangeSection },
-  { value: "encodings", label: "Encodings", Component: EncodingSection, key: "encodings" },
-  { value: "comparison", label: "Comparisons", Component: ComparisonSection, key: "comparison" },
-  { value: "labels", label: "Labels", Component: LabelEditor, key: "labels" },
-  { value: "appearance", label: "Appearance", Component: AppearanceSection, key: "appearance" },
+  { value: "data-sources", label: "Data Sources", Component: DataSourcesSection, controlId: "dataSources" },
+  { value: "presets", label: "Presets", Component: PresetSection, controlId: "presets" },
+  { value: "graph-type", label: "Graph Type", Component: GraphTypeSection, controlId: "graphType" },
+  { value: "date-range", label: "Date Range", Component: YearRangeSection, controlId: "dateRange" },
+  { value: "encodings", label: "Encodings", Component: EncodingSection, key: "encodings", controlId: "encodings" },
+  { value: "comparison", label: "Comparisons", Component: ComparisonSection, key: "comparison", controlId: "comparison" },
+  { value: "labels", label: "Labels", Component: LabelEditor, key: "labels", controlId: "labels" },
+  { value: "appearance", label: "Appearance", Component: AppearanceSection, key: "appearance", controlId: "appearance" },
 ];
 
 /**
@@ -763,7 +781,9 @@ export default function ChartSidebar({ scale = 1, onScaleChange }) {
 
   const chartSections = getChartType(config.chartType)?.sidebarSections || [];
   const visibleSections = TOP_SECTIONS.filter(
-    (section) => !section.key || chartSections.includes(section.key),
+    (section) =>
+      (!section.key || chartSections.includes(section.key)) &&
+      isVisible(section.controlId, config.tier),
   );
 
   const body = (
@@ -781,6 +801,9 @@ export default function ChartSidebar({ scale = 1, onScaleChange }) {
             <ValidationNotice />
             <Accordion
               type="multiple"
+              // Keyed on the tier so sections revealed by a tier switch mount
+              // expanded (defaultValue is only read on mount).
+              key={config.tier}
               defaultValue={visibleSections.map((section) => section.value)}
               className="grid gap-1"
             >
@@ -793,7 +816,8 @@ export default function ChartSidebar({ scale = 1, onScaleChange }) {
           </div>
         </ScrollArea>
       </SidebarContent>
-      <SidebarFooter className="p-4">
+      <SidebarFooter className="grid gap-3 p-4">
+        <EditorActivityLog />
         <FooterActions scale={scale} />
       </SidebarFooter>
     </>

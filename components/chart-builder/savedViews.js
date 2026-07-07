@@ -9,8 +9,20 @@
  *
  * UI Kit reference:
  *   - None — persistence utility that does not render UI
+ *
+ * Wire format: spec v2 (see lib/visualization/chartSpec.js) — the declarative
+ * config with computed keys stripped and `transform`/`chartType`/`appearance`
+ * serialized top-level. Version-1 views (which folded those three keys inside
+ * `filters` — flagged issue 6) are still read via `migrateSpec`, so existing
+ * saved views keep loading; new saves are always v2.
  */
 
+import {
+  INLINE_DATA_MAX_BYTES,
+  migrateSpec,
+  normalizeSpec,
+  SPEC_VERSION,
+} from "@/lib/visualization/chartSpec";
 import { getPreset } from "@/lib/visualization/presetRegistry";
 import {
   hasBlockingErrors,
@@ -18,7 +30,7 @@ import {
 } from "@/lib/visualization/validation";
 
 export const SAVED_VIEWS_KEY = "ppic.savedViews.v1";
-export const SAVED_VIEW_VERSION = 1;
+export const SAVED_VIEW_VERSION = SPEC_VERSION;
 
 function clone(value) {
   return value == null ? value : JSON.parse(JSON.stringify(value));
@@ -28,23 +40,9 @@ function storage() {
   return typeof window === "undefined" ? null : window.localStorage;
 }
 
+/** The serialized shape: the normalized spec (computed keys already stripped). */
 function savedShape(config) {
-  return {
-    version: SAVED_VIEW_VERSION,
-    module: config.module,
-    preset: config.preset,
-    bindings: clone(config.bindings || {}),
-    period: clone(config.period || {}),
-    filters: {
-      ...clone(config.filters || {}),
-      transform: config.transform || "actual",
-      chartType: config.chartType,
-      appearance: clone(config.appearance || {}),
-    },
-    labels: clone(config.labels || {}),
-    referenceLines: clone(config.referenceLines || []),
-    layers: clone(config.layers || []),
-  };
+  return normalizeSpec(config);
 }
 
 export function serialize(config) {
@@ -65,9 +63,9 @@ function parseJson(json) {
 
 export function deserialize(json, schema) {
   const saved = parseJson(json);
-  if (saved.version !== SAVED_VIEW_VERSION) {
+  if (saved.version !== 1 && saved.version !== SAVED_VIEW_VERSION) {
     throw new Error(
-      `Unsupported saved-view version "${saved.version}". Expected version ${SAVED_VIEW_VERSION}.`,
+      `Unsupported saved-view version "${saved.version}". Expected 1 or ${SAVED_VIEW_VERSION}.`,
     );
   }
   if (saved.module !== schema.id) {
@@ -79,26 +77,14 @@ export function deserialize(json, schema) {
   const preset = getPreset(saved.preset);
   if (!preset) throw new Error(`Unknown preset "${saved.preset}".`);
 
-  const filters = clone(saved.filters || {});
-  const appearance = clone(filters.appearance || {});
-  const chartType = filters.chartType || preset.chartType;
-  const transform = filters.transform || preset.defaults?.transform || "actual";
-  delete filters.appearance;
-  delete filters.chartType;
-  delete filters.transform;
+  // migrateSpec unpacks the v1 filters-smuggled keys; normalizeSpec fills the
+  // v2 containers. A v2 view passes through unchanged.
+  const migrated = migrateSpec(saved);
+  const config = normalizeSpec(
+    { ...migrated, chartType: migrated.chartType || preset.chartType },
+    schema,
+  );
 
-  const config = {
-    ...saved,
-    chartType,
-    transform,
-    appearance,
-    filters,
-    bindings: clone(saved.bindings || {}),
-    period: clone(saved.period || {}),
-    labels: clone(saved.labels || {}),
-    referenceLines: clone(saved.referenceLines || []),
-    layers: clone(saved.layers || []),
-  };
   const findings = validateConfig(config, schema);
   if (hasBlockingErrors(findings)) {
     const messages = findings
@@ -129,6 +115,17 @@ export function getView(id, schema) {
 export function saveView(name, config, id) {
   const store = storage();
   if (!store) throw new Error("Saved views are only available in the browser.");
+
+  const shape = savedShape(config);
+  const serialized = JSON.stringify(shape);
+  if (shape.data?.inline && serialized.length > INLINE_DATA_MAX_BYTES) {
+    throw new Error(
+      `VIEW_TOO_LARGE: this view carries ${Math.round(serialized.length / 1024)} KB of inline data — ` +
+        `the saved-view limit is ${Math.round(INLINE_DATA_MAX_BYTES / 1024)} KB. ` +
+        "Export the view as a JSON file instead.",
+    );
+  }
+
   const views = listViews();
   const viewId =
     id ||
@@ -139,7 +136,7 @@ export function saveView(name, config, id) {
     name: name?.trim() || config.labels?.title || "Untitled view",
     module: config.module,
     updatedAt: new Date().toISOString(),
-    config: savedShape(config),
+    config: shape,
   };
   const index = views.findIndex((view) => view.id === viewId);
   if (index === -1) views.push(next);

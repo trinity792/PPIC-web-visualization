@@ -27,10 +27,16 @@ import {
 
 import { getChartType } from "@/lib/visualization/chartRegistry";
 import {
+  migrateSpec,
+  normalizeSpec,
+  SPEC_VERSION,
+} from "@/lib/visualization/chartSpec";
+import {
   getPreset,
   PRESET_ORDER,
   PRESETS,
 } from "@/lib/visualization/presetRegistry";
+import { DEFAULT_TIER } from "@/lib/visualization/settingsTiers";
 import {
   allowedTransforms,
   isMeasure,
@@ -141,18 +147,23 @@ function revalidate(config, schema) {
     ...config,
     validation: validateConfig(config, schema, {
       seriesCount: config.seriesCount,
+      geoUnmatched: config.geoUnmatched,
     }),
   };
 }
 
 export function createChartConfig(schema, initialConfig = {}) {
-  const preset = getPreset(initialConfig.preset) || PRESETS["trend-over-time"];
+  // Accept v1 shapes (including the legacy wire shape that folded
+  // transform/chartType/appearance into `filters`) via the spec migration.
+  const initial = migrateSpec(initialConfig) || {};
+  const preset = getPreset(initial.preset) || PRESETS["trend-over-time"];
   const base = {
-    version: 1,
+    version: SPEC_VERSION,
     module: schema.id,
     preset: preset.id,
     chartType: preset.chartType,
-    bindings: bindingsForPreset(preset, schema, initialConfig.bindings),
+    data: { source: "module" },
+    bindings: bindingsForPreset(preset, schema, initial.bindings),
     period: {},
     filters: defaultFilters(schema),
     labels: {
@@ -165,22 +176,30 @@ export function createChartConfig(schema, initialConfig = {}) {
     },
     transform: preset.defaults?.transform || "actual",
     comparisonMode: preset.defaults?.comparisonMode || "places",
+    format: {},
+    annotations: [],
     referenceLines: [],
     layers: [],
     appearance: clone(getChartType(preset.chartType)?.defaults || {}),
+    tier: DEFAULT_TIER,
   };
 
   return revalidate(
     {
       ...base,
-      ...clone(initialConfig),
-      bindings: { ...base.bindings, ...clone(initialConfig.bindings || {}) },
-      period: { ...base.period, ...clone(initialConfig.period || {}) },
-      filters: { ...base.filters, ...clone(initialConfig.filters || {}) },
-      labels: { ...base.labels, ...clone(initialConfig.labels || {}) },
-      appearance: { ...base.appearance, ...clone(initialConfig.appearance || {}) },
-      referenceLines: clone(initialConfig.referenceLines || base.referenceLines),
-      layers: clone(initialConfig.layers || base.layers),
+      ...clone(initial),
+      version: SPEC_VERSION,
+      data: { ...base.data, ...clone(initial.data || {}) },
+      bindings: { ...base.bindings, ...clone(initial.bindings || {}) },
+      period: { ...base.period, ...clone(initial.period || {}) },
+      filters: { ...base.filters, ...clone(initial.filters || {}) },
+      labels: { ...base.labels, ...clone(initial.labels || {}) },
+      format: { ...base.format, ...clone(initial.format || {}) },
+      appearance: { ...base.appearance, ...clone(initial.appearance || {}) },
+      annotations: clone(initial.annotations || base.annotations),
+      referenceLines: clone(initial.referenceLines || base.referenceLines),
+      layers: clone(initial.layers || base.layers),
+      tier: initial.tier || base.tier,
     },
     schema,
   );
@@ -311,16 +330,104 @@ export function reduceChartConfig(config, action, schema) {
       next = { ...config, transform: action.transform };
       break;
 
-    case "SET_SERIES_COUNT":
-      // Loaded-data size, fed back in so complexity validation can run.
-      if (config.seriesCount === action.count) return config;
-      next = { ...config, seriesCount: action.count };
+    case "SET_SERIES_COUNT": {
+      // Loaded-data size, fed back in so complexity validation can run, plus
+      // any geographic-join fallout (geoUnmatched) and the live trace names
+      // (seriesNames, used by the palette per-series override rows) — all
+      // three are computed keys (chartSpec.js COMPUTED_KEYS), never config.
+      const geoUnmatched = action.geoUnmatched || [];
+      const seriesNames = action.seriesNames || [];
+      const previousUnmatched = config.geoUnmatched || [];
+      const countUnchanged = config.seriesCount === action.count;
+      const geoUnchanged =
+        geoUnmatched.length === previousUnmatched.length &&
+        geoUnmatched.every((name, index) => name === previousUnmatched[index]);
+      if (countUnchanged && geoUnchanged) return config;
+      next = {
+        ...config,
+        seriesCount: action.count,
+        geoUnmatched,
+        seriesNames,
+      };
       break;
+    }
 
     case "SET_APPEARANCE":
       next = {
         ...config,
         appearance: { ...config.appearance, [action.key]: action.value },
+      };
+      break;
+
+    case "SET_DATA_SOURCE":
+      // { source: "module" | "inline", inline?: { columns, rows, meta } }
+      next = {
+        ...config,
+        data:
+          action.source === "inline"
+            ? { source: "inline", inline: clone(action.inline) }
+            : { source: "module" },
+      };
+      break;
+
+    case "SET_FORMAT": {
+      // { field, format } — format=null clears the field's override.
+      const format = { ...config.format };
+      if (action.format) format[action.field] = clone(action.format);
+      else delete format[action.field];
+      next = { ...config, format };
+      break;
+    }
+
+    case "SET_PALETTE":
+      next = {
+        ...config,
+        appearance: { ...config.appearance, palette: action.palette },
+      };
+      break;
+
+    case "SET_SERIES_COLOR": {
+      // { seriesName, token } — token=null clears the override.
+      const seriesColors = { ...(config.appearance.seriesColors || {}) };
+      if (action.token) seriesColors[action.seriesName] = action.token;
+      else delete seriesColors[action.seriesName];
+      next = {
+        ...config,
+        appearance: { ...config.appearance, seriesColors },
+      };
+      break;
+    }
+
+    case "ADD_ANNOTATION":
+      next = {
+        ...config,
+        annotations: [...(config.annotations || []), clone(action.annotation)],
+      };
+      break;
+
+    case "REMOVE_ANNOTATION":
+      next = {
+        ...config,
+        annotations: (config.annotations || []).filter(
+          (annotation) => annotation.id !== action.id,
+        ),
+      };
+      break;
+
+    case "SET_TIER":
+      // Tiers only change which controls render — never the config's effect.
+      if (config.tier === action.tier) return config;
+      next = { ...config, tier: action.tier };
+      break;
+
+    case "LOAD_SPEC":
+      // Code-mode apply: the parsed spec replaces the config as-is (already
+      // validated by parseSpec), keeping the loaded seriesCount for
+      // complexity checks. Unlike LOAD_VIEW, no preset re-seeding happens —
+      // the code is the truth.
+      next = {
+        ...normalizeSpec({ ...action.spec, module: config.module }, schema),
+        seriesCount: config.seriesCount,
       };
       break;
 

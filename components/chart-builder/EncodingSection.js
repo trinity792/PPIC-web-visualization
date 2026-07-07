@@ -62,7 +62,13 @@ export default function EncodingSection() {
   const { config, dispatch, schema } = useChartConfig();
   const chart = getChartType(config.chartType);
   const preset = getPreset(config.preset);
-  const declared = preset?.sidebar?.encodings;
+  // A preset's declared encoding list only applies to ITS OWN chart type. Once
+  // the chart type has been switched away from the preset (e.g. to scatter,
+  // bubble, dumbbell, slope, or heatmap — none of which any preset maps to),
+  // fall back to the chart type's own roles so they're never hidden
+  // (flagged issue 2).
+  const declared =
+    preset?.chartType === config.chartType ? preset?.sidebar?.encodings : null;
   const roles = declared?.length
     ? declared
     : [...chart.requiredRoles, ...chart.optionalRoles];

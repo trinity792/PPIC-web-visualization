@@ -4,8 +4,8 @@ Content Type: implementation plan
 pinned: false
 description: "Implementation plan for the graph-editor overhaul: a Datawrapper-class chart editor with a GUI ⇄ code-editor toggle, user-supplied data, palette control, tiered settings, image/data export, and an expanded chart-type catalog — built by extending the existing chart-builder with variants rather than replacing it."
 Date Published: July 6, 2026
-Last Updated: 07/06/2026 - 03:10 PM
-Status: Design approved (2026-07-06) — build paused
+Last Updated: 07/07/2026
+Status: Design approved (2026-07-06) — build in progress: **Phases 0–4 shipped & verified, Phase 5 (export) next** (as of 2026-07-07)
 ---
 
 # Graph Editor Overhaul — Implementation Plan
@@ -13,8 +13,8 @@ Status: Design approved (2026-07-06) — build paused
 > [!info] How to read this document
 > This is a **plan, not an as-built guide** — the counterpart documents in `refractor-guide/` describe finished code; this one describes code to be written. The **first half** is for non-technical readers: what the overhauled editor will do, who it serves, and how a researcher will use it. The **second half** is a programmer reference: every proposed new file with its required header docstring, every modified file with the exact change, plus the unit-test, error-handling, logging, and performance strategies. When the overhaul ships, this document should be rewritten as an as-built guide per the process in [[refactor-doc-as-built-rewrite-process]]. Related: [[projectSpec]] (esp. *Frontend Architecture (UI Layer)* and its *Flagged Issues*), the graph-editor notes this plan implements, and the per-module refractor guides.
 
-> [!warning] Gate: design approved, build still paused (2026-07-06)
-> The **design, scope, and dependency choices in this plan are signed off** (2026-07-06): ExcelJS confirmed as the spreadsheet reader (legacy `.xls`/`.ods`/`.dbf` deferred), the recognized-subset boundary for the R/Stata code editor accepted, and the new-dependency list approved (ask-first per `AGENTS.md`). **The build itself remains paused** — Phase 0 is *not* yet green-lit and no code should be written, including the items marked *pre-approved cleanup*, until the pause is lifted. This gate now blocks only *starting implementation*, not the design.
+> [!info] Gate cleared: build green-lit (2026-07-06)
+> The **design, scope, and dependency choices are signed off** (2026-07-06): ExcelJS confirmed as the spreadsheet reader (legacy `.xls`/`.ods`/`.dbf` deferred), the recognized-subset boundary for the R/Stata code editor accepted, and the new-dependency list approved (ask-first per `AGENTS.md`). Later the same day the **build pause was lifted** — implementation proceeds phase by phase per *Part 10*.
 
 ---
 
@@ -877,16 +877,29 @@ Deliberately **not** added: a color-picker library (brand-token swatches only), 
 
 Each phase is shippable and ends with its tests green (`python -m pytest` stays green throughout; `npm test` grows per phase).
 
-| Phase | Scope | Exit criteria |
-|---|---|---|
-| **0. Pre-approved cleanup** | Palette single-owner build step (`COLORS` → generated CSS ramp); Vitest scaffolding + first tests for existing pure modules (`transformRegistry`, `validation`) | site renders pixel-identical; `npm test` exists and passes |
-| **1. Spec v2 + store** | `chartSpec.js`, store/savedViews migration, new reducer actions, `settingsTiers.js`, tier toggle in sidebar | old saved views + deep links load; **issue 6 fixed**; tiers filter the sidebar |
-| **2. GUI hardening** | transforms in all `toPlotly` builders (+ control gating), per-type encoding fallback, geo level + `unmatched` (client+server), base-year validation, `PalettePicker`, month-granular temporal control, Building Permits editor enabled | **issues 1–4 fixed**; permits module out of `UnderConstruction` |
-| **3. Code mode** | `EditorModeToggle`, `CodeEditorPanel`, diff-classified auto-apply/Run, `codebridge/*` **bidirectional** R + Stata (generate + parse) against one grammar, `editorLog` + `EditorActivityLog` + Copy-technical-details | Flow C works end-to-end **including code→chart**; the `parseX(toXCode(spec)) ≈ spec` round-trip test passes per chart family |
-| **4. Your-data path** | `lib/tabular/*` (papaparse + ExcelJS), `DataSourcePanel`, `InputTableEditor` with cell grading, inline shaping via `toSeries` | Flow B works; alignment test vs `query_shapes` passes; no network traffic with inline data |
-| **5. Export** | `lib/export/*` (image incl. **PDF**, data CSV/XLSX, config), `ExportMenu`, modebar consolidation | Flow D works; PDF/PNG/SVG/JPG all export; exported CSV equals codebridge's input table |
-| **6. Catalog growth** | `pie`/`symbolMap`/`dataTable` registry ids + builders, `DataTableView`, variant switches (donut/pyramid/stacked/area), module-aware presets incl. the Projections age pyramid + Building Permits | every chart type has ≥1 preset; RegionTable re-based on DataTableView |
-| **7. Docs + sign-off** | rewrite this doc as-built per [[refactor-doc-as-built-rewrite-process]]; projectSpec *Frontend Architecture* update; module audit statuses | supervisor sign-off on the shipped editor |
+> [!success] Build progress (2026-07-07)
+> **Phases 0–4 shipped** — 291 Vitest tests green, eslint clean, `npm run build` compiles. Phases 2+ are implemented by the `code-implementer` subagent; the orchestrator runs the gates (tests/lint/build) and reviews for gaps each phase. Verification is **unit-test + lint + build only — no in-browser click-through yet**. Phase 5 (export) is next.
+
+| Phase | Scope | Exit criteria | Status |
+|---|---|---|---|
+| **0. Pre-approved cleanup** | Palette single-owner build step (`COLORS` → generated CSS ramp); Vitest scaffolding + first tests for existing pure modules (`transformRegistry`, `validation`) | site renders pixel-identical; `npm test` exists and passes | ✅ Shipped |
+| **1. Spec v2 + store** | `chartSpec.js`, store/savedViews migration, new reducer actions, `settingsTiers.js`, tier toggle in sidebar | old saved views + deep links load; **issue 6 fixed**; tiers filter the sidebar | ✅ Shipped |
+| **2. GUI hardening** | transforms in all `toPlotly` builders (+ control gating), per-type encoding fallback, geo level + `unmatched` (client+server), base-year validation, `PalettePicker`, month-granular temporal control, Building Permits editor enabled | **issues 1–4 fixed**; permits module out of `UnderConstruction` | ✅ Shipped¹ |
+| **3. Code mode** | `EditorModeToggle`, `CodeEditorPanel`, diff-classified auto-apply/Run, `codebridge/*` **bidirectional** R + Stata (generate + parse) against one grammar, `editorLog` + `EditorActivityLog` + Copy-technical-details | Flow C works end-to-end **including code→chart**; the `parseX(toXCode(spec)) ≈ spec` round-trip test passes per chart family | ✅ Shipped |
+| **4. Your-data path** | `lib/tabular/*` (papaparse + ExcelJS), `DataSourcePanel`, `InputTableEditor` with cell grading, inline shaping via `toSeries` | Flow B works; alignment test vs `query_shapes` passes; no network traffic with inline data | ✅ Shipped |
+| **5. Export** | `lib/export/*` (image incl. **PDF**, data CSV/XLSX, config), `ExportMenu`, modebar consolidation | Flow D works; PDF/PNG/SVG/JPG all export; exported CSV equals codebridge's input table | ⬜ Pending |
+| **6. Catalog growth** | `pie`/`symbolMap`/`dataTable` registry ids + builders, `DataTableView`, variant switches (donut/pyramid/stacked/area), module-aware presets incl. the Projections age pyramid + Building Permits | every chart type has ≥1 preset; RegionTable re-based on DataTableView | ⬜ Pending |
+| **7. Docs + sign-off** | rewrite this doc as-built per [[refactor-doc-as-built-rewrite-process]]; projectSpec *Frontend Architecture* update; module audit statuses | supervisor sign-off on the shipped editor | ⬜ Pending |
+
+¹ Phase 2 shipped except **Building Permits shared-view wiring**, deferred to Phase 6: `/api/building-permits` speaks only `line|twoPeriod|geoValues` with `permitType`/`startMonth`/`endMonth`, not the shared query views, so the module stays `underConstruction` until its presets + monthly slider land in Phase 6.
+
+### As-built notes (concise; refined into the full as-built rewrite in Phase 7)
+
+- **Phase 0** — `tools/generate-palette-css.mjs` regenerates the `--ppic-*` CSS ramp from `COLORS` between markers in `globals.css` (byte-identical first run; `prebuild` hook + drift-guard test). Vitest scaffold: a custom `ppic:jsx-in-js` pre-plugin (`transformWithOxc`) because Vitest 4/rolldown ignores esbuild opts; `tests/js/setup.js` installs a MemoryStorage (jsdom's localStorage is a broken stub), an `afterEach(cleanup)` (RTL auto-cleanup doesn't self-register with `globals:false`), and a fetch stub that throws.
+- **Phase 1** — `chartSpec.js` (SPEC_VERSION=2; `migrateSpec` unpacks the v1 `filters`-smuggled `transform`/`chartType`/`appearance` — **issue 6**; `normalizeSpec`/`printSpec`/`parseSpec` never throws/`diffSpec` small-vs-structural; `INLINE_DATA_MAX_BYTES`=1 MB). `settingsTiers.js` (basic/moderate/advanced, unknown controls fail open). Store + `savedViews` on the v2 wire shape; sidebar tier toggle.
+- **Phase 2** — transforms run in every `toPlotly` builder gated by a `transformCapable` flag; bar/choropleth change-transforms fetch differently (bar→`twoPeriod` view, choropleth→two geo fetches joined). `palettes.js` + `PalettePicker` (brand tokens, never raw hex). `validateBaseYear` (**issue 4**) + geo `unmatched` client+server (**issue 3**); `/api/geography?level=` parameterized. Orchestrator gap-fixes: `requestKey` includes a `fetchTransform` term; dual-handle year window for change-transforms.
+- **Phase 3** — `codebridge/` is one shared `grammar.js` read by both `toRCode`/`toStataCode` (generate) and `parseRCode`/`parseStataCode` (static, never-executing parsers that overlay onto the live config: `CODE_UNSUPPORTED` warns per unrecognized call, `CODE_PARSE_ERROR` carries a line). `parseX(toXCode(spec)) ≈ spec` round-trips pass per family. `CodeEditorPanel` hosts Spec/R/Stata CodeMirror tabs via `next/dynamic` (out of the default bundle); decision logic in a pure `codePanelController.js`. `editorLog` (in-memory ring, never localStorage) + `EditorActivityLog` + Copy-technical-details.
+- **Phase 4** — `lib/tabular/` (client-safe; papaparse + ExcelJS **dynamic-imported** so neither enters the bundle): `parseTable` (paste/upload, legacy formats rejected by name, size cap), `columnTypes` (locale-aware, ties→text), `tableChecker` (per-cell colour grades), `derivedColumns` (**no `eval`** — hand-rolled parser, div-by-zero→null, no global access), `toSeries` (calls the real `query_shapes.js` builders so inline shapes are byte-identical — the alignment test drives both off one fixture). `DataSourcePanel` + color-graded `InputTableEditor`; `chartData` shapes inline data locally (no network). Orchestrator fix: `validateConfig` was raising schema-coupled false positives (`UNKNOWN_FIELD`/`SOURCE_REQUIRED`) on inline bindings — now gated off for inline mode, with a regression test.
 
 ### Adding a preset (the repeatable recipe the notes asked for)
 
@@ -905,14 +918,14 @@ The open questions from the first draft were reviewed and resolved:
 5. **Sharing — no server links; sharing *is* export.** Two independent actions: share the **chart** by handing over its PNG/SVG/PDF, and/or share the **data** by handing over the exported (cleaned, curated) CSV/Excel — user-supplied or preset. Nothing is uploaded or stored server-side; there is no share URL to build.
 6. **Telemetry — off.** No editor activity is sent anywhere. Only the local Activity log exists, plus a **Copy technical details** button so a user can *voluntarily* paste the log into a bug report.
 
-### Sign-off status (2026-07-06)
+### Sign-off status (updated 2026-07-07)
 
-Design-level sign-off is **granted**; the build stays **paused**.
+Design-level sign-off is **granted**; the build is **underway** (pause lifted 2026-07-06).
 
 - ✅ **ExcelJS confirmed** — accepted, with legacy `.xls`/`.ods`/`.dbf` deferred from v1.
 - ✅ **Recognized-subset boundary for R/Stata accepted** — the code editor charts the documented grammar and warns on the rest; arbitrary-script execution is not expected. This bounds Phase 3.
 - ✅ **New-dependency list approved** — the *Additional Libraries* table (CodeMirror 6, papaparse, ExcelJS, jsPDF + svg2pdf.js, Vitest/RTL) is cleared under the `AGENTS.md` ask-first rule.
-- ⏸️ **Build not yet green-lit** — Phase 0 does **not** begin yet. The pre-approved-cleanup items (palette single-owner, Vitest scaffold) also wait for the pause to lift. This is the one item still held; lifting it is a separate, explicit go-ahead.
+- ✅ **Build green-lit (2026-07-06) and underway** — the pause was lifted the same day; implementation proceeds phase-by-phase via the `code-implementer` subagent, gates run per phase. **Phases 0–4 shipped as of 2026-07-07** (see *Part 10* for the live status table); Phase 5 (export) is next. Final supervisor sign-off on the shipped editor is Phase 7's exit criterion.
 
 ### Deferred (post-v1, not blocking)
 

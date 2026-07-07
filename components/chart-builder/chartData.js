@@ -6,12 +6,15 @@
  *
  * Data sources:
  *   - Module API routes selected through schema.apiPath
+ *   - lib/tabular/toSeries.js for the "your data" (inline) source — shaped
+ *     entirely client-side, no fetch
  *
  * UI Kit reference:
  *   - None — data-loading utility that does not render UI
  */
 
 import { getChartType } from "@/lib/visualization/chartRegistry";
+import { buildShapes } from "@/lib/tabular/toSeries";
 
 const QUERY_SHAPES = Object.freeze({
   line: "line",
@@ -24,6 +27,50 @@ const QUERY_SHAPES = Object.freeze({
   choroplethMap: "geo",
 });
 
+// Transforms computed at the data layer rather than by transformRegistry: the
+// single-period "category"/"geo" API views don't carry a base period, so a
+// change transform needs the two-period shape instead (flagged issue 1).
+const CHANGE_TRANSFORMS = new Set([
+  "numericChange",
+  "percentChange",
+  "percentagePointChange",
+]);
+
+export function isChangeTransform(transformId) {
+  return CHANGE_TRANSFORMS.has(transformId);
+}
+
+/**
+ * Map two-period records ({category|location, start, end, ...}) to the
+ * {..., value} shape barSpec/choroplethSpec already consume, computing
+ * `value` as the requested change. Pure and fetch-free so it's directly
+ * testable without stubbing fetch.
+ *
+ * @param {Array<{start: number|null, end: number|null}>} records
+ * @param {"numericChange"|"percentChange"|"percentagePointChange"} transformId
+ */
+export function changeRecords(records, transformId) {
+  return records.map(({ start, end, ...rest }) => {
+    let value = null;
+    if (start != null && end != null) {
+      value =
+        transformId === "percentChange"
+          ? start === 0
+            ? null
+            : ((end - start) / start) * 100
+          : end - start; // numericChange, percentagePointChange
+    }
+    return { ...rest, value };
+  });
+}
+
+/** "Counties" subset → the "counties" geometry level; anything else lowercased
+ * (flagged issue 3 — the geometry level was previously hard-coded). */
+function geometryLevelForSubset(subset) {
+  if (!subset) return "counties";
+  return subset === "Counties" ? "counties" : subset.toLowerCase();
+}
+
 function selectedLocations(config) {
   const places = config.layers
     .filter((layer) => layer.type === "selectedPlaces")
@@ -32,7 +79,7 @@ function selectedLocations(config) {
 }
 
 function buildSearchParams(config, schema, overrides = {}) {
-  const view = QUERY_SHAPES[config.chartType];
+  const view = overrides.view || QUERY_SHAPES[config.chartType];
   const params = new URLSearchParams({
     view,
     subset: overrides.subset || config.filters.subset,
@@ -48,9 +95,12 @@ function buildSearchParams(config, schema, overrides = {}) {
 
   const locations = overrides.locations || selectedLocations(config);
   if (locations?.length) params.set("locations", locations.join(","));
-  if (config.period.startYear) params.set("startYear", config.period.startYear);
-  if (config.period.endYear) params.set("endYear", config.period.endYear);
-  if (config.period.year) params.set("period", config.period.year);
+  const startYear = overrides.startYear ?? config.period.startYear;
+  const endYear = overrides.endYear ?? config.period.endYear;
+  if (startYear) params.set("startYear", startYear);
+  if (endYear) params.set("endYear", endYear);
+  const period = overrides.period ?? config.period.year;
+  if (period) params.set("period", period);
 
   if (view === "pairs") {
     params.set("xMeasure", overrides.xMeasure || config.bindings.x);
@@ -132,7 +182,7 @@ async function loadLineData(config, schema, signal) {
     ...config.layers.map((layer) => loadLayerSeries(layer, config, schema, signal)),
   ]);
   const series = [primary.series, ...layerResults].flat();
-  return { response: primary, series, geometry: null };
+  return { response: primary, series, geometry: null, unmatched: primary.unmatched || [] };
 }
 
 // Parsed geometry is static; cache per level so changing the measure/period on a
@@ -152,15 +202,97 @@ async function loadGeometry(level, signal) {
   return body;
 }
 
+/** Bar-chart change transform: fetch the two-period shape instead of category. */
+async function loadBarChangeData(config, schema, signal) {
+  const response = await requestData(config, schema, signal, { view: "twoPeriod" });
+  const chart = getChartType(config.chartType);
+  const topN = config.filters.topN || chart?.limits?.recommendTopN || 20;
+  const records = changeRecords(response.records || [], config.transform).slice(0, topN);
+  return {
+    response: { ...response, records },
+    series: records,
+    geometry: null,
+    unmatched: response.unmatched || [],
+    transformApplied: config.transform,
+  };
+}
+
+/**
+ * Choropleth change transform: fetch the geo view at both periods in
+ * parallel (geometry fetched once), join by location, and compute change.
+ */
+async function loadChoroplethChangeData(config, schema, signal) {
+  const level = geometryLevelForSubset(config.filters.subset);
+  // Unset bounds fall back to the schema's full year range — without this,
+  // both fetches would default to the latest period and every change would
+  // compute as zero.
+  const [rangeStart, rangeEnd] = schema.yearRange || [];
+  const startPeriod = config.period.startYear ?? rangeStart;
+  const endPeriod = config.period.endYear ?? rangeEnd;
+  const [startResponse, endResponse, geometry] = await Promise.all([
+    requestData(config, schema, signal, { period: startPeriod }),
+    requestData(config, schema, signal, { period: endPeriod }),
+    loadGeometry(level, signal),
+  ]);
+  const endByLocation = new Map(
+    (endResponse.records || []).map((record) => [record.location, record]),
+  );
+  const joined = (startResponse.records || [])
+    .filter((record) => endByLocation.has(record.location))
+    .map((record) => ({
+      ...record,
+      start: record.value,
+      end: endByLocation.get(record.location).value,
+    }));
+  const records = changeRecords(joined, config.transform);
+  return {
+    response: { ...endResponse, records },
+    series: records,
+    geometry,
+    unmatched: [
+      ...new Set([...(startResponse.unmatched || []), ...(endResponse.unmatched || [])]),
+    ],
+    transformApplied: config.transform,
+  };
+}
+
+/**
+ * Inline ("your data") path: shaped entirely client-side via
+ * lib/tabular/toSeries.js — no fetch, matching the same
+ * `{ response, series, geometry, unmatched }` envelope the module fetch
+ * paths return so every downstream consumer (toPlotly, validation) is
+ * unaware which source produced the data.
+ *
+ * TODO(Phase 4 follow-up): the bar/choropleth change-transform two-period
+ * fetches (loadBarChangeData/loadChoroplethChangeData) and line's layer
+ * fetches (loadLineData's benchmark/secondSource/secondMeasure layers) have
+ * no inline equivalent yet — an inline chart with a change transform or
+ * comparison layers simply renders the untransformed/layer-less shape.
+ */
+function loadInlineData(config) {
+  const response = buildShapes(config.data.inline, config);
+  const series = response.series || response.records || response.matrix || [];
+  return { response, series, geometry: null, unmatched: response.unmatched || [] };
+}
+
 export async function loadChartData(config, schema, signal) {
+  if (config.data?.source === "inline") {
+    return loadInlineData(config);
+  }
   if (config.chartType === "line") {
     return loadLineData(config, schema, signal);
+  }
+  if (config.chartType === "bar" && isChangeTransform(config.transform)) {
+    return loadBarChangeData(config, schema, signal);
+  }
+  if (config.chartType === "choroplethMap" && isChangeTransform(config.transform)) {
+    return loadChoroplethChangeData(config, schema, signal);
   }
 
   const responsePromise = requestData(config, schema, signal);
   const geometryPromise =
     config.chartType === "choroplethMap"
-      ? loadGeometry("counties", signal)
+      ? loadGeometry(geometryLevelForSubset(config.filters.subset), signal)
       : Promise.resolve(null);
 
   const [response, geometry] = await Promise.all([
@@ -172,7 +304,7 @@ export async function loadChartData(config, schema, signal) {
     response.records ||
     response.matrix ||
     [];
-  return { response, series, geometry };
+  return { response, series, geometry, unmatched: response.unmatched || [] };
 }
 
 export function hasChartData(chartType, result) {
@@ -186,4 +318,31 @@ export function seriesCountOf(chartType, result) {
   if (!result) return 0;
   if (chartType === "heatmap") return result.series?.y?.length || 0;
   return Array.isArray(result.series) ? result.series.length : 0;
+}
+
+/**
+ * Distinct series/trace names a result will render, for the palette
+ * per-series override rows (PalettePicker.js). Best-effort: derived from the
+ * same fields toPlotly's builders use to name a trace, so the palette rows
+ * line up with what's on the chart.
+ */
+export function seriesNamesOf(chartType, result) {
+  if (!result) return [];
+  if (chartType === "heatmap") return result.series?.y || [];
+  const records = Array.isArray(result.series)
+    ? result.series
+    : result.series?.records || [];
+  if (chartType === "line") {
+    return [...new Set(records.map((item) => item.location || item.label).filter(Boolean))];
+  }
+  if (chartType === "bar") {
+    return [...new Set(records.map((item) => item.group || item.series).filter(Boolean))];
+  }
+  if (chartType === "scatter" || chartType === "bubble") {
+    return [...new Set(records.map((item) => item.group || item.color).filter(Boolean))];
+  }
+  if (chartType === "dumbbell" || chartType === "slope") {
+    return [...new Set(records.map((item) => item.category || item.location).filter(Boolean))];
+  }
+  return [];
 }

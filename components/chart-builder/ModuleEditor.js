@@ -25,6 +25,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import { AlertCircle, BarChart3, LoaderCircle } from "lucide-react";
 
 import ChartSidebar from "@/components/chart-builder/ChartSidebar";
+import CodeEditorPanel from "@/components/chart-builder/CodeEditorPanel";
+import EditorModeToggle from "@/components/chart-builder/EditorModeToggle";
 import {
   ChartConfigProvider,
   useChartConfig,
@@ -39,26 +41,34 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
+  Sidebar,
+  SidebarContent,
+  SidebarHeader,
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 import {
   hasChartData,
+  isChangeTransform,
   loadChartData,
   seriesCountOf,
+  seriesNamesOf,
 } from "@/components/chart-builder/chartData";
 import { deserialize, getView } from "@/components/chart-builder/savedViews";
 import { effectiveLabels } from "@/lib/visualization/deriveLabels";
 import { getModuleSchema } from "@/lib/visualization/moduleRegistry";
+import { isVisible } from "@/lib/visualization/settingsTiers";
 import { toPlotly } from "@/lib/visualization/toPlotly";
 import { hasBlockingErrors } from "@/lib/visualization/validation";
 
 import { CHART_SIDEBAR } from "@/lib/constants";
 
 const SIDEBAR_SCALE_KEY = "chartSidebarScale";
+const EDITOR_MODE_KEY = "chartEditorMode";
 
 function clampScale(value) {
   if (!Number.isFinite(value)) return CHART_SIDEBAR.minScale;
@@ -76,6 +86,7 @@ export default function ModuleEditor({
 }) {
   const schema = getModuleSchema(moduleId);
   const [scale, setScale] = useState(CHART_SIDEBAR.minScale);
+  const [mode, setMode] = useState("gui");
 
   // Restore persisted client-only state after hydration.
   useEffect(() => {
@@ -87,6 +98,15 @@ export default function ModuleEditor({
     window.localStorage.setItem(SIDEBAR_SCALE_KEY, String(scale));
   }, [scale]);
 
+  useEffect(() => {
+    const saved = window.localStorage.getItem(EDITOR_MODE_KEY);
+    if (saved === "gui" || saved === "code") setMode(saved);
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(EDITOR_MODE_KEY, mode);
+  }, [mode]);
+
   return (
     // Key on the module so navigating between modules (all under the same
     // /[module] route) remounts the provider and rebuilds a fresh config for the
@@ -94,15 +114,22 @@ export default function ModuleEditor({
     // the reducer and fail validation against the new schema ("UNKNOWN_FIELD"),
     // blocking every preset with a configuration error.
     <ChartConfigProvider key={moduleId} schema={schema} initialConfig={initialConfig}>
-      <SidebarProvider
-        style={{
-          "--sidebar-width": `${(CHART_SIDEBAR.baseRem * scale).toFixed(3)}rem`,
-        }}
-      >
-        <ViewHydrator viewId={viewId} hasBuiltInView={hasBuiltInView} />
-        <ChartSidebar scale={scale} onScaleChange={setScale} />
-        <ChartWorkspace />
-      </SidebarProvider>
+      <div className="grid gap-0">
+        <EditorHeader mode={mode} onModeChange={setMode} />
+        <SidebarProvider
+          style={{
+            "--sidebar-width": `${(CHART_SIDEBAR.baseRem * scale).toFixed(3)}rem`,
+          }}
+        >
+          <ViewHydrator viewId={viewId} hasBuiltInView={hasBuiltInView} />
+          {mode === "code" ? (
+            <CodeEditorSidebar />
+          ) : (
+            <ChartSidebar scale={scale} onScaleChange={setScale} />
+          )}
+          <ChartWorkspace />
+        </SidebarProvider>
+      </div>
     </ChartConfigProvider>
   );
 }
@@ -112,6 +139,59 @@ export default function ModuleEditor({
  * Tightly Coupled Sub-components
  * ======================================================================
  */
+
+/**
+ * GUI/Code mode switch + settings-tier toggle, rendered above the sidebar +
+ * workspace row so it's visible in both modes. Reads/writes `config.tier`
+ * through the store (EditorModeToggle itself is a controlled, presentational
+ * component); forces `mode` back to "gui" if a tier drop hides code mode
+ * (settingsTiers.js gates "codeEditor" at "moderate" and up).
+ */
+function EditorHeader({ mode, onModeChange }) {
+  const { config, dispatch } = useChartConfig();
+
+  useEffect(() => {
+    if (mode === "code" && !isVisible("codeEditor", config.tier)) {
+      onModeChange("gui");
+    }
+  }, [config.tier, mode, onModeChange]);
+
+  return (
+    <EditorModeToggle
+      mode={mode}
+      onModeChange={onModeChange}
+      tier={config.tier}
+      onTierChange={(tier) => dispatch({ type: "SET_TIER", tier })}
+    />
+  );
+}
+
+/**
+ * Code mode's left-column slot. Reuses the same Sidebar shell ChartSidebar
+ * mounts (so SidebarProvider's layout math and the reopen/close toggle stay
+ * consistent) but without ChartSidebar's resize handle or zoom scaling,
+ * which code mode's fixed-width editor doesn't need.
+ */
+function CodeEditorSidebar() {
+  const { schema } = useChartConfig();
+
+  return (
+    <Sidebar collapsible="offcanvas" className="overflow-hidden">
+      <SidebarHeader className="p-4 pb-2">
+        <div className="text-center">
+          <h2 className="inline-block border-b-2 border-ppic-brand pb-1 font-heading text-lg font-semibold">
+            {schema.label} — Code
+          </h2>
+        </div>
+      </SidebarHeader>
+      <SidebarContent>
+        <ScrollArea className="h-full px-2">
+          <CodeEditorPanel />
+        </ScrollArea>
+      </SidebarContent>
+    </Sidebar>
+  );
+}
 
 function ViewHydrator({ viewId, hasBuiltInView }) {
   const { dispatch, schema } = useChartConfig();
@@ -142,6 +222,15 @@ function ChartWorkspace() {
   const [result, setResult] = useState(null);
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState(null);
+  // Bar/choropleth change transforms alter WHAT is fetched (two-period data
+  // instead of a single period), so the transform joins the request digest for
+  // those charts. Line/heatmap transforms stay client-side and must NOT
+  // refetch.
+  const fetchTransform =
+    ["bar", "choroplethMap"].includes(config.chartType) &&
+    isChangeTransform(config.transform)
+      ? config.transform
+      : null;
   const requestKey = useMemo(
     () =>
       JSON.stringify({
@@ -151,6 +240,7 @@ function ChartWorkspace() {
         filters: config.filters,
         layers: config.layers,
         sort: config.appearance.sort,
+        fetchTransform,
       }),
     [
       config.appearance.sort,
@@ -159,6 +249,7 @@ function ChartWorkspace() {
       config.filters,
       config.layers,
       config.period,
+      fetchTransform,
     ],
   );
 
@@ -177,6 +268,8 @@ function ChartWorkspace() {
         dispatch({
           type: "SET_SERIES_COUNT",
           count: seriesCountOf(config.chartType, next),
+          geoUnmatched: next.unmatched || [],
+          seriesNames: seriesNamesOf(config.chartType, next),
         });
         if (!hasChartData(config.chartType, next)) {
           setStatus("empty");

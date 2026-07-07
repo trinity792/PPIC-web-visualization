@@ -29,6 +29,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
+import { getChartType } from "@/lib/visualization/chartRegistry";
 import { allowedTransforms } from "@/lib/visualization/fieldTypes";
 
 const TRANSFORM_LABELS = {
@@ -50,11 +51,16 @@ export default function ComparisonSection() {
   const measure = schema.fields[measureName];
   const transforms = allowedTransforms(measure);
   const canIndex = transforms.includes("indexed");
+  // A change/indexed transform is meaningless for some chart types (dumbbell,
+  // slope show two raw values; scatter/bubble axes are two different
+  // measures) — hide the whole transform block rather than render a dead
+  // control (flagged issue 1).
+  const transformCapable = Boolean(getChartType(config.chartType)?.transformCapable);
 
   return (
     <div className="grid gap-4">
       {/* Source lives in the Data Sources section; geographic level too. */}
-      {transforms.length ? (
+      {transformCapable && transforms.length ? (
         <div className="grid gap-2">
           <Label htmlFor="comparison-transform">Transform</Label>
           <Select
@@ -81,7 +87,7 @@ export default function ComparisonSection() {
         </div>
       ) : null}
 
-      {canIndex ? (
+      {transformCapable && canIndex ? (
         <div className="flex items-center justify-between gap-3">
           <Label htmlFor="comparison-index">Index to base year</Label>
           <Switch
@@ -97,7 +103,7 @@ export default function ComparisonSection() {
         </div>
       ) : null}
 
-      {config.transform !== "actual" ? (
+      {transformCapable && config.transform !== "actual" ? (
         <NumberField
           id="comparison-base-year"
           label="Base year"

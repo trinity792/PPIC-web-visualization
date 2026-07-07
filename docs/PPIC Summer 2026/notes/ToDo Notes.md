@@ -12,34 +12,38 @@ Note: not in order
 ## Backend
 - [ ] Manually verify all modules -> based on flags on each refractor guide
 - [ ] Add live tests
-- [ ] Setup logging
+- [x] Setup logging
 - [ ] Setup automatic updates and error handling
 ## Documentation
 - [x] Add all front end documentation to `projectSpec.md`
   - [x] what pulls from globals.css & constants.js
-- [ ] **Begin** documentation for graph editor overhaul. *Start* with feature list and user flow
+- [x] **Begin** documentation for graph editor overhaul. *Start* with feature list and user flow
 - [ ] Write `proccesses.md`
 - [ ] Write `unit-tests.md`
 - [ ] Instructions for adding a new module (human and AI instructions)
-- [ ] Documentation for logging format, explanations, and error handling
+- [x] Documentation for logging format, explanations, and error handling
 - [ ] Adjust or create a document that acts as a project hub readable by both AI and people (connects to other instruction pages)
 - [ ] Automatic updates should have a `git-conventions.md` file
 - [ ] Non technical explainer for how the website works
+- [ ] Update refractor guides since logging has been implemented
 ## Frontend
-- [ ] Graph editor overhaul
-  - [ ] Plan front and backend architecture & uses
-  - [ ] Write down/brainstorm feature list
-- [ ] Figure out how to display logs & errors on the front end
+- [x] Graph editor overhaul
+  - [x] Plan front and backend architecture & uses
+  - [x] Write down/brainstorm feature list
+- [x] Figure out how to display logs & errors on the front end
+- [ ] Fix indentations on markdown renderer
+- [ ] Need to strip identifying information from the logs. Should use relative paths.
+- [ ] Update UI kit fonts and graphs
 ## Information Gaps
 - Internal server hardware capabilities
 - Open ports to host visualizations, traefik or other reverse proxy setup viability (is there someone who can maintain it?)
 ## Codebase
 - [ ] Scan frontend files for individual or duplicated configs (fonts, colors, styling, etc.)
-  - [ ] Centralize frontend configs
+  - [x] Centralize frontend configs
   - [ ] Prefer adding variants to modifying components in place
   - Consider long centralized config for all components -> all status chips variants and where they go
 - [ ] Review codebase structure for inefficiencies
-- [ ] Modularize `docs/` folder
+- [x] Modularize `docs/` folder
 
 ---
 
