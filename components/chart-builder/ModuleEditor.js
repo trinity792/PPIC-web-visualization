@@ -20,13 +20,14 @@
 
 /* eslint-disable react/prop-types */
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { AlertCircle, BarChart3, LoaderCircle } from "lucide-react";
 
 import ChartSidebar from "@/components/chart-builder/ChartSidebar";
 import CodeEditorPanel from "@/components/chart-builder/CodeEditorPanel";
 import EditorModeToggle from "@/components/chart-builder/EditorModeToggle";
+import ExportMenu from "@/components/chart-builder/ExportMenu";
 import {
   ChartConfigProvider,
   useChartConfig,
@@ -222,6 +223,9 @@ function ChartWorkspace() {
   const [result, setResult] = useState(null);
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState(null);
+  // The mounted Plotly graph div, handed up by PlotlyChart, so ExportMenu can
+  // drive Plotly.toImage without ExportMenu importing Plotly itself.
+  const graphDivRef = useRef(null);
   // Bar/choropleth change transforms alter WHAT is fetched (two-period data
   // instead of a single period), so the transform joins the request digest for
   // those charts. Line/heatmap transforms stay client-side and must NOT
@@ -336,14 +340,21 @@ function ChartWorkspace() {
       <main className="flex-1 p-4 sm:p-6">
         <Card className="min-w-0 min-h-[calc(100svh-12rem)] overflow-hidden shadow-sm">
           <CardHeader className="border-b">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <BarChart3 aria-hidden="true" className="size-5 text-ppic-brand" />
-              {schema.label}
-            </CardTitle>
-            <CardDescription>
-              {config.labels.subtitle ||
-                "Use the graph editor to configure fields, comparisons, and labels."}
-            </CardDescription>
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <BarChart3 aria-hidden="true" className="size-5 text-ppic-brand" />
+                  {schema.label}
+                </CardTitle>
+                <CardDescription>
+                  {config.labels.subtitle ||
+                    "Use the graph editor to configure fields, comparisons, and labels."}
+                </CardDescription>
+              </div>
+              {status === "ready" && plotly && !renderError ? (
+                <ExportMenu graphDivRef={graphDivRef} loaded={result} />
+              ) : null}
+            </div>
           </CardHeader>
           <CardContent className="flex min-w-0 min-h-130 items-center justify-center overflow-hidden px-2 pt-6 sm:px-6">
             {status === "loading" ? (
@@ -380,7 +391,13 @@ function ChartWorkspace() {
               </Alert>
             ) : null}
             {status === "ready" && plotly && !renderError ? (
-              <PlotlyChart {...plotly} className="min-w-0 w-full" />
+              <PlotlyChart
+                {...plotly}
+                className="min-w-0 w-full"
+                onGraphDiv={(graphDiv) => {
+                  graphDivRef.current = graphDiv;
+                }}
+              />
             ) : null}
           </CardContent>
         </Card>

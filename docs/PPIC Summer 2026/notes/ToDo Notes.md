@@ -34,6 +34,7 @@ Note: not in order
 - [ ] Fix indentations on markdown renderer
 - [ ] Need to strip identifying information from the logs. Should use relative paths.
 - [ ] Update UI kit fonts and graphs
+- [ ] Documents: Wire in Footnote YAML field
 ## Information Gaps
 - Internal server hardware capabilities
 - Open ports to host visualizations, traefik or other reverse proxy setup viability (is there someone who can maintain it?)

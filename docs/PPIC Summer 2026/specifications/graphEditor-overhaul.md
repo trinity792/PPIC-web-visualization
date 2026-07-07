@@ -5,7 +5,7 @@ pinned: false
 description: "Implementation plan for the graph-editor overhaul: a Datawrapper-class chart editor with a GUI ⇄ code-editor toggle, user-supplied data, palette control, tiered settings, image/data export, and an expanded chart-type catalog — built by extending the existing chart-builder with variants rather than replacing it."
 Date Published: July 6, 2026
 Last Updated: 07/07/2026
-Status: Design approved (2026-07-06) — build in progress: **Phases 0–4 shipped & verified, Phase 5 (export) next** (as of 2026-07-07)
+Status: Design approved (2026-07-06) — build in progress: Phases 0–5 shipped & verified, Phase 6 (catalog growth) next (as of 2026-07-07)
 ---
 
 # Graph Editor Overhaul — Implementation Plan
@@ -878,7 +878,7 @@ Deliberately **not** added: a color-picker library (brand-token swatches only), 
 Each phase is shippable and ends with its tests green (`python -m pytest` stays green throughout; `npm test` grows per phase).
 
 > [!success] Build progress (2026-07-07)
-> **Phases 0–4 shipped** — 291 Vitest tests green, eslint clean, `npm run build` compiles. Phases 2+ are implemented by the `code-implementer` subagent; the orchestrator runs the gates (tests/lint/build) and reviews for gaps each phase. Verification is **unit-test + lint + build only — no in-browser click-through yet**. Phase 5 (export) is next.
+> **Phases 0–5 shipped** — 312 Vitest tests green (eslint clean, `npm run build` compiles). Red acceptance tests for Phases 6–7 were pre-written TDD-style and are the only failures (23); no phase 0–5 regressions. Phases 2+ are implemented by the `code-implementer` subagent (Phase 5 directly by the orchestrator against the pre-written tests); the orchestrator runs the gates (tests/lint/build) and reviews for gaps each phase. Verification is **unit-test + lint + build only — no in-browser click-through yet**. Phase 6 (catalog growth) is next.
 
 | Phase | Scope | Exit criteria | Status |
 |---|---|---|---|
@@ -887,7 +887,7 @@ Each phase is shippable and ends with its tests green (`python -m pytest` stays 
 | **2. GUI hardening** | transforms in all `toPlotly` builders (+ control gating), per-type encoding fallback, geo level + `unmatched` (client+server), base-year validation, `PalettePicker`, month-granular temporal control, Building Permits editor enabled | **issues 1–4 fixed**; permits module out of `UnderConstruction` | ✅ Shipped¹ |
 | **3. Code mode** | `EditorModeToggle`, `CodeEditorPanel`, diff-classified auto-apply/Run, `codebridge/*` **bidirectional** R + Stata (generate + parse) against one grammar, `editorLog` + `EditorActivityLog` + Copy-technical-details | Flow C works end-to-end **including code→chart**; the `parseX(toXCode(spec)) ≈ spec` round-trip test passes per chart family | ✅ Shipped |
 | **4. Your-data path** | `lib/tabular/*` (papaparse + ExcelJS), `DataSourcePanel`, `InputTableEditor` with cell grading, inline shaping via `toSeries` | Flow B works; alignment test vs `query_shapes` passes; no network traffic with inline data | ✅ Shipped |
-| **5. Export** | `lib/export/*` (image incl. **PDF**, data CSV/XLSX, config), `ExportMenu`, modebar consolidation | Flow D works; PDF/PNG/SVG/JPG all export; exported CSV equals codebridge's input table | ⬜ Pending |
+| **5. Export** | `lib/export/*` (image incl. **PDF**, data CSV/XLSX, config), `ExportMenu`, modebar consolidation | Flow D works; PDF/PNG/SVG/JPG all export; exported CSV equals codebridge's input table | ✅ Shipped |
 | **6. Catalog growth** | `pie`/`symbolMap`/`dataTable` registry ids + builders, `DataTableView`, variant switches (donut/pyramid/stacked/area), module-aware presets incl. the Projections age pyramid + Building Permits | every chart type has ≥1 preset; RegionTable re-based on DataTableView | ⬜ Pending |
 | **7. Docs + sign-off** | rewrite this doc as-built per [[refactor-doc-as-built-rewrite-process]]; projectSpec *Frontend Architecture* update; module audit statuses | supervisor sign-off on the shipped editor | ⬜ Pending |
 
@@ -900,6 +900,7 @@ Each phase is shippable and ends with its tests green (`python -m pytest` stays 
 - **Phase 2** — transforms run in every `toPlotly` builder gated by a `transformCapable` flag; bar/choropleth change-transforms fetch differently (bar→`twoPeriod` view, choropleth→two geo fetches joined). `palettes.js` + `PalettePicker` (brand tokens, never raw hex). `validateBaseYear` (**issue 4**) + geo `unmatched` client+server (**issue 3**); `/api/geography?level=` parameterized. Orchestrator gap-fixes: `requestKey` includes a `fetchTransform` term; dual-handle year window for change-transforms.
 - **Phase 3** — `codebridge/` is one shared `grammar.js` read by both `toRCode`/`toStataCode` (generate) and `parseRCode`/`parseStataCode` (static, never-executing parsers that overlay onto the live config: `CODE_UNSUPPORTED` warns per unrecognized call, `CODE_PARSE_ERROR` carries a line). `parseX(toXCode(spec)) ≈ spec` round-trips pass per family. `CodeEditorPanel` hosts Spec/R/Stata CodeMirror tabs via `next/dynamic` (out of the default bundle); decision logic in a pure `codePanelController.js`. `editorLog` (in-memory ring, never localStorage) + `EditorActivityLog` + Copy-technical-details.
 - **Phase 4** — `lib/tabular/` (client-safe; papaparse + ExcelJS **dynamic-imported** so neither enters the bundle): `parseTable` (paste/upload, legacy formats rejected by name, size cap), `columnTypes` (locale-aware, ties→text), `tableChecker` (per-cell colour grades), `derivedColumns` (**no `eval`** — hand-rolled parser, div-by-zero→null, no global access), `toSeries` (calls the real `query_shapes.js` builders so inline shapes are byte-identical — the alignment test drives both off one fixture). `DataSourcePanel` + color-graded `InputTableEditor`; `chartData` shapes inline data locally (no network). Orchestrator fix: `validateConfig` was raising schema-coupled false positives (`UNKNOWN_FIELD`/`SOURCE_REQUIRED`) on inline bindings — now gated off for inline mode, with a regression test.
+- **Phase 5** — `lib/export/exportTable.js` (`displayTable` flattens the loaded result to `{filename, columns, rows}` per chart family, filename `<module>-<chartType>.csv` matching codebridge so exported CSV + generated R/Stata agree; `toCsv` RFC-4180; `toXlsxBlob` via **dynamic-imported** ExcelJS; `copyText`/`downloadBlob`) and `lib/export/exportImage.js` (`IMAGE_FORMATS` png/svg/jpeg/pdf; `suggestFilename`; `exportImage` drives `Plotly.toImage` off the **caller-supplied graph div** — never imports Plotly; PNG/SVG/JPEG via data-URL anchor; **PDF renders SVG then converts via dynamic-imported jsPDF + svg2pdf.js**; failures → named `EXPORT_RENDER_FAILED`/`EXPORT_ENCODE_FAILED`). `ExportMenu` is one dropdown (image / CSV-XLSX / copy-download-import config; copy = compact spec JSON); `PlotlyChart` gained `onGraphDiv` and drops Plotly's built-in `toImage` modebar button so ExportMenu is the sole export path; `ModuleEditor` captures the graph-div ref and mounts `ExportMenu`. New deps: `jspdf`, `svg2pdf.js` (dynamic-imported, PDF only).
 
 ### Adding a preset (the repeatable recipe the notes asked for)
 
@@ -925,7 +926,7 @@ Design-level sign-off is **granted**; the build is **underway** (pause lifted 20
 - ✅ **ExcelJS confirmed** — accepted, with legacy `.xls`/`.ods`/`.dbf` deferred from v1.
 - ✅ **Recognized-subset boundary for R/Stata accepted** — the code editor charts the documented grammar and warns on the rest; arbitrary-script execution is not expected. This bounds Phase 3.
 - ✅ **New-dependency list approved** — the *Additional Libraries* table (CodeMirror 6, papaparse, ExcelJS, jsPDF + svg2pdf.js, Vitest/RTL) is cleared under the `AGENTS.md` ask-first rule.
-- ✅ **Build green-lit (2026-07-06) and underway** — the pause was lifted the same day; implementation proceeds phase-by-phase via the `code-implementer` subagent, gates run per phase. **Phases 0–4 shipped as of 2026-07-07** (see *Part 10* for the live status table); Phase 5 (export) is next. Final supervisor sign-off on the shipped editor is Phase 7's exit criterion.
+- ✅ **Build green-lit (2026-07-06) and underway** — the pause was lifted the same day; implementation proceeds phase-by-phase via the `code-implementer` subagent, gates run per phase. **Phases 0–5 shipped as of 2026-07-07** (see *Part 10* for the live status table); Phase 6 (catalog growth) is next. Final supervisor sign-off on the shipped editor is Phase 7's exit criterion.
 
 ### Deferred (post-v1, not blocking)
 
