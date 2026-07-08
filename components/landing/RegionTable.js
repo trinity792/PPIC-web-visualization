@@ -1,6 +1,10 @@
 /**
  * RegionTable.js — latest population and housing estimates by California region.
  *
+ * A thin preset of DataTableView (graph-editor overhaul, Phase 6): it maps the
+ * region records onto the shared displayed-table shape and delegates rendering,
+ * so there is one table renderer, not two.
+ *
  * Props:
  *   regionRows {Array<Object>} — region, population, and housing-unit records
  *   year       {number|null}   — latest estimate year, when available
@@ -9,29 +13,31 @@
  *   - Via props from queryRegionTable() in lib/data/pop_housing.js
  *
  * UI Kit reference:
- *   - Implements the "Data Table" pattern
+ *   - Delegates to components/charts/DataTableView (the "Data Table" pattern)
  */
 
 /* eslint-disable react/prop-types */
 
 import React from "react";
 
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import DataTableView from "@/components/charts/DataTableView";
 
-const NUMBER = new Intl.NumberFormat("en-US");
-
-function formatCell(value) {
-  return value == null ? "—" : NUMBER.format(value);
-}
+const REGION_COLUMNS = [
+  { name: "Region", type: "text" },
+  { name: "Population", type: "number" },
+  { name: "Housing units", type: "number" },
+];
 
 export default function RegionTable({ regionRows = [], year = null }) {
+  const table = {
+    columns: REGION_COLUMNS,
+    rows: regionRows.map((regionRow) => [
+      regionRow.region,
+      regionRow.population,
+      regionRow.housingUnits,
+    ]),
+  };
+
   return (
     <div className="flex h-full flex-col">
       <div className="border-b px-4 py-3">
@@ -40,37 +46,12 @@ export default function RegionTable({ regionRows = [], year = null }) {
           {year ? `${year} estimates` : "Latest estimates"}
         </p>
       </div>
-      <div className="min-h-0 flex-1 overflow-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Region</TableHead>
-              <TableHead className="text-right">Population</TableHead>
-              <TableHead className="text-right">Housing units</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {regionRows.length ? (
-              regionRows.map((regionRow) => (
-                <TableRow key={regionRow.region}>
-                  <TableCell className="font-medium">{regionRow.region}</TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {formatCell(regionRow.population)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {formatCell(regionRow.housingUnits)}
-                  </TableCell>
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={3} className="py-8 text-center text-muted-foreground">
-                  Regional estimates are unavailable. Try refreshing the page.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+      <div className="min-h-0 flex-1 overflow-auto p-4">
+        <DataTableView
+          table={table}
+          format={{}}
+          appearance={{ search: false, sortable: true, pageSize: 25 }}
+        />
       </div>
     </div>
   );

@@ -129,6 +129,16 @@ function buildSearchParams(config, schema, overrides = {}) {
     );
     params.set("sort", config.appearance.sort || "value");
   }
+
+  // Building Permits' API predates the shared query vocabulary: it names the
+  // measure selector `permitType` (not `parameter`). Translate so the shared
+  // encoding path drives the right measure instead of silently defaulting to
+  // "Total". (Its monthly bounds and lack of a `category` view are handled by
+  // that module's presets, which use only the line/twoPeriod/geoValues shapes.)
+  if (schema.id === "building-permits" && params.has("parameter")) {
+    params.set("permitType", params.get("parameter"));
+    params.delete("parameter");
+  }
   return params;
 }
 
