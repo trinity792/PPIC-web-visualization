@@ -1,14 +1,14 @@
 ---
 Topic: Technical
-Content Type: as-built reference guide
+Content Type: project specification
 pinned: false
 description: "As-built guide for the graph-editor overhaul: a Datawrapper-class chart editor with a GUI ⇄ code-editor toggle, user-supplied data, palette control, tiered settings, image/data export, and an expanded chart-type catalog — built by extending the existing chart-builder with variants rather than replacing it."
 Date Published: July 6, 2026
 Last Updated: 07/07/2026
-Status: Shipped & signed off (2026-07-07) — Phases 0–7 complete
+Status: Updating
 ---
 
-# Graph Editor Overhaul — As-Built Guide
+# Graph Editor Overhaul Guide
 
 > [!info] How to read this document
 > This is an **as-built reference guide** — the editor described here is shipped and verified. The **first half** is for non-technical readers: what the overhauled editor does, who it serves, and how a researcher uses it. The **second half** is a programmer reference: every new file with its header docstring, every modified file with the exact change, plus the unit-test, error-handling, logging, and performance strategies. It follows the as-built conventions in [[refactor-doc-as-built-rewrite-process]]. Related: [[projectSpec]] (esp. *Frontend Architecture (UI Layer)* and its *Flagged Issues*), the graph-editor notes this work implemented, and the per-module refractor guides.

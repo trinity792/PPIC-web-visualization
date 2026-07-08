@@ -42,11 +42,16 @@ import remarkWikilinks from "@/lib/docs/markdown/remarkWikilinks";
 import remarkSymbols from "@/lib/docs/markdown/remarkSymbols";
 import remarkCallouts from "@/lib/docs/markdown/remarkCallouts";
 import remarkLineParagraphs from "@/lib/docs/markdown/remarkLineParagraphs";
+import remarkIndentNesting from "@/lib/docs/markdown/remarkIndentNesting";
 import { DOC_SVG_DEFAULT_SIZE } from "@/lib/constants";
 
 export default function MarkdownArticle({ content, linkMap, assetMap }) {
   const remarkPlugins = [
     remarkGfm,
+    // Matches Obsidian: a sub-bullet indented at all under its parent nests,
+    // even when under CommonMark's stricter threshold. Runs after remarkGfm so
+    // the lists are parsed and carry source positions.
+    remarkIndentNesting,
     // Matches Obsidian: single `$` is inline math, `$$ … $$` is display math.
     // Literal dollars in prose (e.g. "\$20/month") must be escaped as `\$`.
     remarkMath,

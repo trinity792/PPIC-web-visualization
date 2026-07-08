@@ -7,7 +7,23 @@ Date Published: July 4, 2026
 Last Updated: 07/04/2026 - 9:00 AM
 Status: Updating
 ---
-# ToDos
+
+# Structured ToDos
+- [ ] Improve graph editor UI/UX
+- [ ] Add a couple of simple features
+  - [ ] For horizontal dot plots -> toggles for which variables/columns to show especially for regession models (lower, upper, middle bounds). Especially: more line ends (arrows, none, '|', etc.)
+  - [ ] Undo/redo buttons
+  - [ ] Tabs/buttons
+  - [ ] Two charts side by side
+  - [ ] Full control over axis labeling
+  - [ ] Excel like grouping
+  - [ ] Transpose over the data(?)
+- [ ] Stress test and validate all existing modules
+- [ ] Setup automatic data updates for existing modules
+- [ ] Add RHNA Progress Report Module. [Link](https://data.ca.gov/dataset/rhna-progress-report)
+
+---
+# Unstructured ToDos
 Note: not in order
 ## Backend
 - [ ] Manually verify all modules -> based on flags on each refractor guide
@@ -53,3 +69,4 @@ Note: not in order
 - [ ] Economy stats
 - [ ] Climate/Water stats
 - [ ] Document edit mode that allows pushing to git
+- [ ] Map geojson library
