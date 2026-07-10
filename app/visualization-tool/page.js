@@ -1,3 +1,5 @@
+/* eslint-disable react/prop-types */
+
 import React from "react";
 
 import VisualizationWizard, {
@@ -9,7 +11,8 @@ export const metadata = {
   title: "Visualization Tool | PPIC Data Explorer",
 };
 
-export default function VisualizationToolPage() {
+export default async function VisualizationToolPage({ searchParams }) {
+  const query = await searchParams;
   // Standalone bring-your-own-data editor: the byod schema has no server
   // dataset, so start in the inline data source with an empty table — the
   // Import step populates it from a paste or upload.
@@ -20,6 +23,8 @@ export default function VisualizationToolPage() {
       schema={BYOD_SCHEMA}
       initialConfig={initialConfig}
       steps={DEFAULT_STEPS}
+      viewId={query?.view || null}
+      embedded={query?.embed === "1"}
     />
   );
 }

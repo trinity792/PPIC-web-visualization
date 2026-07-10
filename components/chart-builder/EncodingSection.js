@@ -34,11 +34,30 @@ import {
   getChartType,
 } from "@/lib/visualization/chartRegistry";
 import { isMeasure, supportsRole } from "@/lib/visualization/fieldTypes";
+import { inlineFields } from "@/lib/visualization/inlineMapping";
 import { getPreset } from "@/lib/visualization/presetRegistry";
 
 const NONE = "__none__";
 
-function roleLabel(role) {
+/**
+ * Fields the encoding dropdowns bind to: a module's curated catalog, or — for
+ * the standalone bring-your-own-data tool — the pasted/uploaded table's columns
+ * (schema.inlineOnly). Modules keep their own catalog even in "Your data" mode.
+ */
+export function bindableFields(schema, config) {
+  if (schema.inlineOnly && config.data?.source === "inline" && config.data.inline) {
+    return inlineFields(config.data.inline);
+  }
+  return schema.fields;
+}
+
+export function roleLabel(role, chartType) {
+  // The dot plot borrows the heatmap's x/y/color roles but reads more naturally
+  // with dot-plot-specific labels (rows / dots / plotted value).
+  if (chartType === "dotPlot") {
+    const dotLabels = { y: "Category (rows)", x: "Series (dots)", color: "Value" };
+    if (dotLabels[role]) return dotLabels[role];
+  }
   const labels = {
     x: "X axis",
     y: "Y axis",
@@ -52,6 +71,7 @@ function roleLabel(role) {
     period: "Period",
     start: "Start value",
     end: "End value",
+    point: "Center point",
     unit: "Observation unit",
     size: "Bubble size",
   };
@@ -73,14 +93,20 @@ export default function EncodingSection() {
     ? declared
     : [...chart.requiredRoles, ...chart.optionalRoles];
 
+  // Inline (byod) fields carry no measure catalog, so only the kind filter
+  // applies; module fields also honor the per-field catalog-role restriction.
+  const catalog = bindableFields(schema, config);
+  const inline = catalog !== schema.fields;
+
   return (
     <div className="grid gap-4">
       <GeographicLevelControl />
       {roles.map((role) => {
         const accepted = chart.roleConstraints[role] || [];
         const catalogRole = CATALOG_ROLE_FOR_BINDING[role];
-        const fields = Object.entries(schema.fields).filter(([, field]) => {
+        const fields = Object.entries(catalog).filter(([, field]) => {
           if (!accepted.includes(field.kind)) return false;
+          if (inline) return true;
           return !isMeasure(field) || !catalogRole || supportsRole(field, catalogRole);
         });
         const required = chart.requiredRoles.includes(role);
@@ -88,7 +114,7 @@ export default function EncodingSection() {
         return (
           <div className="grid gap-2" key={role}>
             <Label htmlFor={`binding-${role}`}>
-              {roleLabel(role)}
+              {roleLabel(role, config.chartType)}
               {required ? <span className="text-destructive">*</span> : null}
             </Label>
             <Select

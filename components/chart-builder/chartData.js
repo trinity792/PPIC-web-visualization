@@ -24,6 +24,8 @@ const QUERY_SHAPES = Object.freeze({
   scatter: "pairs",
   bubble: "pairs",
   heatmap: "matrix",
+  // Multi-series dot plot shares the heatmap's two-dimension matrix shape.
+  dotPlot: "matrix",
   choroplethMap: "geo",
 });
 
@@ -319,14 +321,19 @@ export async function loadChartData(config, schema, signal) {
 
 export function hasChartData(chartType, result) {
   if (!result) return false;
-  if (chartType === "heatmap") return Boolean(result.series?.y?.length);
+  // Matrix-shaped results (heatmap + multi-series dot plot) carry {x,y,z}.
+  if (chartType === "heatmap" || chartType === "dotPlot") {
+    return Boolean(result.series?.y?.length);
+  }
   return Array.isArray(result.series) && result.series.length > 0;
 }
 
 /** Number of series/categories/rows a result holds (for complexity validation). */
 export function seriesCountOf(chartType, result) {
   if (!result) return 0;
-  if (chartType === "heatmap") return result.series?.y?.length || 0;
+  if (chartType === "heatmap" || chartType === "dotPlot") {
+    return result.series?.y?.length || 0;
+  }
   return Array.isArray(result.series) ? result.series.length : 0;
 }
 
@@ -339,6 +346,8 @@ export function seriesCountOf(chartType, result) {
 export function seriesNamesOf(chartType, result) {
   if (!result) return [];
   if (chartType === "heatmap") return result.series?.y || [];
+  // Dot plot colours by series = the matrix columns (x), one trace each.
+  if (chartType === "dotPlot") return result.series?.x || [];
   const records = Array.isArray(result.series)
     ? result.series
     : result.series?.records || [];

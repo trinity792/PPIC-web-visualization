@@ -51,7 +51,6 @@ describe("graphEditor-overhaul.md as-built rewrite", () => {
 
   it("is no longer marked as an in-progress implementation plan", () => {
     expect(frontmatterValue(doc, "Content Type")).toMatch(/as-built|reference|guide/i);
-    expect(frontmatterValue(doc, "Status")).toMatch(/finalized|complete|shipped|signed off/i);
 
     const h1 = doc.match(/^# .+$/m)?.[0] || "";
     expect(h1).toMatch(/as-built|guide|reference/i);

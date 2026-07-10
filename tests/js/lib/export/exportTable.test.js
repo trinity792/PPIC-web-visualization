@@ -10,6 +10,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   copyText,
   displayTable,
+  originalTable,
   toCsv,
   toXlsxBlob,
 } from "@/lib/export/exportTable";
@@ -115,6 +116,72 @@ describe("displayTable", () => {
     expect(toStataCode(spec, table).code).toContain(
       `import delimited "${table.filename}", clear`,
     );
+  });
+});
+
+describe("originalTable", () => {
+  it("reconstructs a source-style table from module line responses", () => {
+    const spec = {
+      ...baseSpec,
+      chartType: "line",
+      bindings: { x: "Year", y: "Total Widgets", series: "Location" },
+    };
+    const loaded = {
+      response: {
+        view: "line",
+        parameter: "Total Widgets",
+        subset: "Counties",
+        source: "Census",
+        series: [
+          { location: "Alameda", years: [2020, 2021], values: [100, 110] },
+          { location: "Butte", years: [2020, 2021], values: [50, null] },
+        ],
+      },
+    };
+
+    expect(originalTable(spec, loaded)).toEqual({
+      filename: "original-data.csv",
+      columns: [
+        { name: "Subset", type: "text" },
+        { name: "Source", type: "text" },
+        { name: "Location", type: "text" },
+        { name: "Period", type: "number" },
+        { name: "Total Widgets", type: "number" },
+      ],
+      rows: [
+        ["Counties", "Census", "Alameda", 2020, 100],
+        ["Counties", "Census", "Alameda", 2021, 110],
+        ["Counties", "Census", "Butte", 2020, 50],
+        ["Counties", "Census", "Butte", 2021, null],
+      ],
+    });
+  });
+
+  it("returns the full imported table for bring-your-own-data configs", () => {
+    const spec = {
+      ...baseSpec,
+      data: {
+        source: "inline",
+        inline: {
+          columns: [
+            { name: "Location", type: "text" },
+            { name: "Population", type: "number" },
+            { name: "Note", type: "text" },
+          ],
+          rows: [["Alameda", 100, "A"]],
+        },
+      },
+    };
+
+    expect(originalTable(spec, {})).toEqual({
+      filename: "original-data.csv",
+      columns: [
+        { name: "Location", type: "text" },
+        { name: "Population", type: "number" },
+        { name: "Note", type: "text" },
+      ],
+      rows: [["Alameda", 100, "A"]],
+    });
   });
 });
 

@@ -40,6 +40,7 @@ import {
 import { effectiveLabels } from "@/lib/visualization/deriveLabels";
 import { toPlotly } from "@/lib/visualization/toPlotly";
 import { hasBlockingErrors } from "@/lib/visualization/validation";
+import { inlineRenderBlock } from "@/lib/visualization/inlineMapping";
 
 const PreviewContext = createContext(null);
 
@@ -52,121 +53,211 @@ export function usePreview() {
 }
 
 export function PreviewProvider({ children }) {
-  const { config, dispatch, schema } = useChartConfig();
-  const [result, setResult] = useState(null);
-  const [status, setStatus] = useState("loading");
-  const [error, setError] = useState(null);
-  // The mounted Plotly graph div, handed up by PlotlyChart, so ExportMenu can
-  // drive Plotly.toImage without importing Plotly itself.
-  const graphDivRef = useRef(null);
+  const { dispatch, schema, workspace } = useChartConfig();
+  const [previewState, setPreviewState] = useState({});
+  // One graph div per chart slot; ExportMenu reads the active slot through the
+  // compatibility `graphDivRef` below.
+  const graphDivRefs = useRef({});
 
-  // Bar/choropleth change transforms alter WHAT is fetched (two-period data),
-  // so the transform joins the request digest for those charts only.
-  const fetchTransform =
-    ["bar", "choroplethMap"].includes(config.chartType) &&
-    isChangeTransform(config.transform)
-      ? config.transform
-      : null;
+  const charts = workspace?.charts || [];
+  const activeChartId = workspace?.activeChartId || charts[0]?.id;
 
   const requestKey = useMemo(
     () =>
-      JSON.stringify({
-        chartType: config.chartType,
-        bindings: config.bindings,
-        period: config.period,
-        filters: config.filters,
-        layers: config.layers,
-        sort: config.appearance.sort,
-        data: config.data,
-        fetchTransform,
-      }),
-    [
-      config.appearance.sort,
-      config.bindings,
-      config.chartType,
-      config.data,
-      config.filters,
-      config.layers,
-      config.period,
-      fetchTransform,
-    ],
+      JSON.stringify(
+        charts.map(({ id, config }) => {
+          const fetchTransform =
+            ["bar", "choroplethMap"].includes(config.chartType) &&
+            isChangeTransform(config.transform)
+              ? config.transform
+              : null;
+          return {
+            id,
+            chartType: config.chartType,
+            bindings: config.bindings,
+            period: config.period,
+            filters: config.filters,
+            layers: config.layers,
+            sort: config.appearance.sort,
+            data: config.data,
+            fetchTransform,
+          };
+        }),
+      ),
+    [charts],
   );
 
   useEffect(() => {
-    if (hasBlockingErrors(config.validation)) {
-      setStatus("invalid");
-      setResult(null);
-      return undefined;
-    }
-
     const controller = new AbortController();
-    setStatus("loading");
-    setError(null);
-    loadChartData(config, schema, controller.signal)
-      .then((next) => {
-        dispatch({
-          type: "SET_SERIES_COUNT",
-          count: seriesCountOf(config.chartType, next),
-          geoUnmatched: next.unmatched || [],
-          seriesNames: seriesNamesOf(config.chartType, next),
-        });
-        if (!hasChartData(config.chartType, next)) {
-          setStatus("empty");
-          setResult(next);
-          return;
-        }
-        setResult(next);
-        setStatus("ready");
-      })
-      .catch((nextError) => {
-        if (nextError.name === "AbortError") return;
-        setError(nextError);
-        setStatus("error");
-      });
-    return () => controller.abort();
-    // requestKey captures the config inputs that change the query; schema is stable.
-  }, [requestKey, schema]);
+    const initial = {};
 
-  const { plotly, renderError } = useMemo(() => {
-    if (!result) return { plotly: null, renderError: null };
-    try {
-      return {
-        plotly: toPlotly({
-          chartType: config.chartType,
-          bindings: config.bindings,
-          series: result.series,
-          geometry: result.geometry,
-          featureidkey: result.response?.featureidkey,
-          field:
-            schema.fields[
-              config.bindings.y ||
-                config.bindings.color ||
-                config.bindings.start
-            ],
-          transforms: {
-            id: config.transform,
-            baseYear: config.period.baseYear,
-          },
-          labels: effectiveLabels(config, schema),
-          appearance: config.appearance,
-          period: {
-            ...config.period,
-            startYear: result.response?.startYear ?? config.period.startYear,
-            endYear: result.response?.endYear ?? config.period.endYear,
-          },
-          referenceLines: config.referenceLines,
-          layers: config.layers,
-        }),
-        renderError: null,
+    charts.forEach(({ id, config }) => {
+      const isInline =
+        schema.inlineOnly && config.data?.source === "inline" && config.data.inline;
+      const inlineBlock = isInline
+        ? inlineRenderBlock(config.chartType, config.data.inline, config.bindings)
+        : null;
+      const blocked = isInline
+        ? Boolean(inlineBlock)
+        : hasBlockingErrors(config.validation);
+
+      if (blocked) {
+        initial[id] = {
+          status: "invalid",
+          result: null,
+          error: null,
+          notice: inlineBlock,
+        };
+        return;
+      }
+
+      initial[id] = {
+        status: "loading",
+        result: null,
+        error: null,
+        notice: null,
       };
-    } catch (nextError) {
-      return { plotly: null, renderError: nextError };
-    }
-  }, [config, result, schema.fields]);
+
+      loadChartData(config, schema, controller.signal)
+        .then((next) => {
+          dispatch({
+            type: "SET_SERIES_COUNT",
+            chartId: id,
+            count: seriesCountOf(config.chartType, next),
+            geoUnmatched: next.unmatched || [],
+            seriesNames: seriesNamesOf(config.chartType, next),
+          });
+          setPreviewState((current) => ({
+            ...current,
+            [id]: {
+              status: hasChartData(config.chartType, next) ? "ready" : "empty",
+              result: next,
+              error: null,
+              notice: null,
+            },
+          }));
+        })
+        .catch((nextError) => {
+          if (nextError.name === "AbortError") return;
+          setPreviewState((current) => ({
+            ...current,
+            [id]: {
+              status: "error",
+              result: null,
+              error: nextError,
+              notice: null,
+            },
+          }));
+        });
+    });
+
+    setPreviewState((current) => {
+      const next = {};
+      for (const chart of charts) {
+        next[chart.id] = initial[chart.id] || current[chart.id];
+      }
+      return next;
+    });
+
+    return () => {
+      controller.abort();
+      const ids = new Set(charts.map((chart) => chart.id));
+      for (const id of Object.keys(graphDivRefs.current)) {
+        if (!ids.has(id)) delete graphDivRefs.current[id];
+      }
+    };
+  }, [requestKey, schema, dispatch]);
+
+  const previews = useMemo(
+    () =>
+      charts.map(({ id, name, config }) => {
+        const state = previewState[id] || {
+          status: "loading",
+          result: null,
+          error: null,
+          notice: null,
+        };
+        let plotly = null;
+        let renderError = null;
+
+        if (state.result) {
+          try {
+            plotly = toPlotly({
+              chartType: config.chartType,
+              bindings: config.bindings,
+              series: state.result.series,
+              geometry: state.result.geometry,
+              featureidkey: state.result.response?.featureidkey,
+              field:
+                schema.fields[
+                  config.bindings.y ||
+                    config.bindings.color ||
+                    config.bindings.start
+                ],
+              transforms: {
+                id: config.transform,
+                baseYear: config.period.baseYear,
+              },
+              labels: effectiveLabels(config, schema),
+              appearance: config.appearance,
+              period: {
+                ...config.period,
+                startYear:
+                  state.result.response?.startYear ?? config.period.startYear,
+                endYear: state.result.response?.endYear ?? config.period.endYear,
+              },
+              referenceLines: config.referenceLines,
+              layers: config.layers,
+            });
+          } catch (nextError) {
+            renderError = nextError;
+          }
+        }
+
+        return {
+          id,
+          name,
+          config,
+          active: id === activeChartId,
+          graphDiv: graphDivRefs.current[id] || null,
+          ...state,
+          plotly,
+          renderError,
+        };
+      }),
+    [activeChartId, charts, previewState, schema],
+  );
+
+  const activePreview =
+    previews.find((preview) => preview.id === activeChartId) || previews[0] || {};
+  const graphDivRef = useMemo(
+    () => ({
+      get current() {
+        return activePreview.id ? graphDivRefs.current[activePreview.id] : null;
+      },
+      set current(value) {
+        if (activePreview.id) graphDivRefs.current[activePreview.id] = value;
+      },
+    }),
+    [activePreview.id],
+  );
 
   const value = useMemo(
-    () => ({ status, result, error, plotly, renderError, graphDivRef }),
-    [status, result, error, plotly, renderError],
+    () => ({
+      previews,
+      status: activePreview.status || "loading",
+      result: activePreview.result || null,
+      error: activePreview.error || null,
+      notice: activePreview.notice || null,
+      plotly: activePreview.plotly || null,
+      renderError: activePreview.renderError || null,
+      graphDivRef,
+      graphDivRefs,
+      setGraphDiv(chartId, graphDiv) {
+        if (chartId) graphDivRefs.current[chartId] = graphDiv;
+      },
+    }),
+    [activePreview, graphDivRef, previews],
   );
 
   return <PreviewContext.Provider value={value}>{children}</PreviewContext.Provider>;

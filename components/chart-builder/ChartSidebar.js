@@ -77,18 +77,33 @@ import {
   serialize,
 } from "@/components/chart-builder/savedViews";
 import { cn } from "@/components/ui/utils";
+import { effectiveLabels } from "@/lib/visualization/deriveLabels";
 import {
   CHART_TYPE_IDS,
   getChartType,
 } from "@/lib/visualization/chartRegistry";
 import { PRESET_ORDER, PRESETS } from "@/lib/visualization/presetRegistry";
 import { isVisible } from "@/lib/visualization/settingsTiers";
+import { isTemporal } from "@/lib/visualization/fieldTypes";
 
 import { CHART_SIDEBAR } from "@/lib/constants";
 
 // Charts whose period is a span (vs a single year). Dumbbell/slope also use a
 // start+end pair, so a dual-handle slider fits them too.
 const RANGE_CHART_TYPES = ["line", "heatmap", "dumbbell", "slope"];
+
+function hasTemporalData(config, schema) {
+  if (config.data?.source === "inline") {
+    return Boolean(
+      config.data?.inline?.columns?.some((column) => column.type === "date"),
+    );
+  }
+  return (
+    Array.isArray(schema.yearRange) &&
+    schema.yearRange.length === 2 &&
+    Object.values(schema.fields || {}).some(isTemporal)
+  );
+}
 
 /**
  * ======================================================================
@@ -337,6 +352,15 @@ function PresetSection() {
 
 function AppearanceSection() {
   const { config, dispatch } = useChartConfig();
+  const setAppearanceNumber = (key, raw) => {
+    const value = Number(raw);
+    dispatch({
+      type: "SET_APPEARANCE",
+      key,
+      value: Number.isFinite(value) ? value : undefined,
+    });
+  };
+
   return (
     <div className="grid gap-4">
       <PalettePicker seriesNames={config.seriesNames || []} />
@@ -358,6 +382,80 @@ function AppearanceSection() {
           </SelectContent>
         </Select>
       </div>
+      {isVisible("chartTypography", config.tier) ? (
+        <div className="grid gap-3 rounded-lg border bg-card p-3">
+          <span className="text-sm font-medium">Chart typography</span>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-2">
+              <Label htmlFor="appearance-title-size">Title size</Label>
+              <Input
+                id="appearance-title-size"
+                type="number"
+                min="14"
+                max="32"
+                value={config.appearance.titleFontSize ?? 20}
+                onChange={(event) =>
+                  setAppearanceNumber("titleFontSize", event.target.value)
+                }
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="appearance-subtitle-size">Subtitle size</Label>
+              <Input
+                id="appearance-subtitle-size"
+                type="number"
+                min="11"
+                max="24"
+                value={config.appearance.subtitleFontSize ?? 18}
+                onChange={(event) =>
+                  setAppearanceNumber("subtitleFontSize", event.target.value)
+                }
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="appearance-axis-size">Axis label size</Label>
+              <Input
+                id="appearance-axis-size"
+                type="number"
+                min="9"
+                max="20"
+                value={config.appearance.axisFontSize ?? 14}
+                onChange={(event) =>
+                  setAppearanceNumber("axisFontSize", event.target.value)
+                }
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="appearance-data-label-size">Data label size</Label>
+              <Input
+                id="appearance-data-label-size"
+                type="number"
+                min="9"
+                max="22"
+                value={config.appearance.dataLabelFontSize ?? 14}
+                onChange={(event) =>
+                  setAppearanceNumber("dataLabelFontSize", event.target.value)
+                }
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {isVisible("legendTypography", config.tier) ? (
+        <div className="grid gap-2">
+          <Label htmlFor="appearance-legend-size">Legend text size</Label>
+          <Input
+            id="appearance-legend-size"
+            type="number"
+            min="10"
+            max="20"
+            value={config.appearance.legendFontSize ?? 14}
+            onChange={(event) =>
+              setAppearanceNumber("legendFontSize", event.target.value)
+            }
+          />
+        </div>
+      ) : null}
       {config.chartType === "line" ? (
         <div className="grid gap-2">
           <Label htmlFor="appearance-markers">Markers</Label>
@@ -416,6 +514,67 @@ function AppearanceSection() {
           </Select>
         </div>
       ) : null}
+      {/* Range / dot-plot value-axis + per-point number toggles, each gated by
+          its settings tier (showValueAxis: moderate, showPointLabels: advanced). */}
+      {["dumbbell", "dotPlot"].includes(config.chartType) &&
+      isVisible("showValueAxis", config.tier) ? (
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor="appearance-value-axis">Show values on plot</Label>
+          <Switch
+            id="appearance-value-axis"
+            checked={config.appearance.showValueAxis !== false}
+            onCheckedChange={(checked) =>
+              dispatch({ type: "SET_APPEARANCE", key: "showValueAxis", value: checked })
+            }
+          />
+        </div>
+      ) : null}
+      {["dumbbell", "dotPlot"].includes(config.chartType) &&
+      isVisible("showPointLabels", config.tier) ? (
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor="appearance-point-labels">Show point values</Label>
+          <Switch
+            id="appearance-point-labels"
+            checked={Boolean(config.appearance.showPointLabels)}
+            onCheckedChange={(checked) =>
+              dispatch({ type: "SET_APPEARANCE", key: "showPointLabels", value: checked })
+            }
+          />
+        </div>
+      ) : null}
+      {/* Advanced: per-series value labels for the dot plot — turn the master
+          "Show point values" on, then hide individual series (e.g. show only
+          "Women"). Keyed on the last-rendered series names. */}
+      {config.chartType === "dotPlot" &&
+      config.appearance.showPointLabels &&
+      isVisible("pointLabelSeries", config.tier) &&
+      (config.seriesNames || []).length ? (
+        <div className="grid gap-2 rounded-lg border bg-card p-3">
+          <span className="text-sm font-medium">Show values for</span>
+          {(config.seriesNames || []).map((name) => {
+            const perSeries = config.appearance.pointLabelSeries || {};
+            const on = perSeries[name] !== false;
+            return (
+              <div key={name} className="flex items-center justify-between gap-3">
+                <Label htmlFor={`point-label-${name}`} className="text-sm font-normal">
+                  {name}
+                </Label>
+                <Switch
+                  id={`point-label-${name}`}
+                  checked={on}
+                  onCheckedChange={(checked) =>
+                    dispatch({
+                      type: "SET_APPEARANCE",
+                      key: "pointLabelSeries",
+                      value: { ...perSeries, [name]: checked },
+                    })
+                  }
+                />
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
       <div className="flex items-center justify-between gap-3">
         <Label htmlFor="appearance-watermark">PPIC watermark</Label>
         <Switch
@@ -463,11 +622,12 @@ export const TOP_SECTIONS = [
  * gating lives in exactly one place. Pass `only` to restrict to specific
  * section values (order preserved from TOP_SECTIONS).
  */
-export function visibleSectionsFor(config, { only } = {}) {
+export function visibleSectionsFor(config, schema, { only } = {}) {
   const chartSections = getChartType(config.chartType)?.sidebarSections || [];
   return TOP_SECTIONS.filter(
     (section) =>
       (!only || only.includes(section.value)) &&
+      (section.value !== "date-range" || hasTemporalData(config, schema)) &&
       (!section.key || chartSections.includes(section.key)) &&
       isVisible(section.controlId, config.tier),
   );
@@ -479,8 +639,8 @@ export function visibleSectionsFor(config, { only } = {}) {
  * `only` restricts to a subset of section values.
  */
 export function SidebarSections({ only }) {
-  const { config } = useChartConfig();
-  const sections = visibleSectionsFor(config, { only });
+  const { config, schema } = useChartConfig();
+  const sections = visibleSectionsFor(config, schema, { only });
 
   return (
     <Accordion
@@ -509,7 +669,9 @@ export function FooterActions({ scale = 1 }) {
   const { config, dispatch, schema } = useChartConfig();
   const [mode, setMode] = useState("export");
   const [json, setJson] = useState(() => serialize(config));
-  const [name, setName] = useState(config.labels.title || "Untitled view");
+  const [name, setName] = useState(
+    () => config.labels.title || effectiveLabels(config, schema).title || "Untitled view",
+  );
   const [message, setMessage] = useState("");
   const [views, setViews] = useState([]);
 

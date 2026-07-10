@@ -13,6 +13,7 @@
  *   initialConfig  {Object}      — validated initial chart configuration
  *   viewId         {string|null} — saved or built-in deep-link view identifier
  *   hasBuiltInView {boolean}     — whether initialConfig already represents viewId
+ *   embedded       {boolean}     — render preview-only iframe mode
  *
  * Data sources:
  *   - Module schema from lib/visualization/moduleRegistry.js
@@ -35,6 +36,7 @@ export default function ModuleEditor({
   initialConfig,
   viewId,
   hasBuiltInView = false,
+  embedded = false,
 }) {
   const schema = getModuleSchema(moduleId);
 
@@ -45,6 +47,7 @@ export default function ModuleEditor({
       steps={MODULE_STEPS}
       viewId={viewId}
       hasBuiltInView={hasBuiltInView}
+      embedded={embedded}
     />
   );
 }

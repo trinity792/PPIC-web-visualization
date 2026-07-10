@@ -28,6 +28,7 @@ import React from "react";
 import dynamic from "next/dynamic";
 
 import { useIsMobile } from "@/components/ui/use-mobile";
+import { cn } from "@/components/ui/utils";
 
 import { CHART_HEIGHTS } from "@/lib/constants";
 
@@ -55,7 +56,11 @@ export default function PlotlyChart({
   const handleGraphDiv = (_figure, graphDiv) => onGraphDiv?.(graphDiv);
 
   return (
-    <div role="group" aria-label={accessibleSummary} className={className}>
+    <div
+      role="group"
+      aria-label={accessibleSummary}
+      className={cn("ppic-plotly-chart", className)}
+    >
       <Plot
         data={data}
         layout={layout}

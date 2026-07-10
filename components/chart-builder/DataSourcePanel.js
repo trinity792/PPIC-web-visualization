@@ -82,7 +82,13 @@ export default function DataSourcePanel() {
         original: { columns: table.columns, rows: table.rows },
       },
     };
-    dispatch({ type: "SET_DATA_SOURCE", source: "inline", inline: withMeta });
+    // defaultChart: a fresh import picks a chart type that fits the columns.
+    dispatch({
+      type: "SET_DATA_SOURCE",
+      source: "inline",
+      inline: withMeta,
+      defaultChart: true,
+    });
     logEditorEvent({
       severity: "info",
       code: "TABLE_IMPORTED",

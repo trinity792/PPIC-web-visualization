@@ -14,6 +14,7 @@
  *   steps          {Array<string>}  — ordered step ids; omit "import" for modules
  *   viewId         {string|null}    — saved/built-in deep-link view id
  *   hasBuiltInView {boolean}        — whether initialConfig already is viewId
+ *   embedded       {boolean}        — render chart preview only for iframe embeds
  *
  * Data sources:
  *   - components/chart-builder/chartConfigStore.js (ChartConfigProvider)
@@ -28,24 +29,30 @@ import {
   ChartConfigProvider,
   useChartConfig,
 } from "@/components/chart-builder/chartConfigStore";
+import MultiChartToolbar from "@/components/chart-builder/MultiChartToolbar";
 import { deserialize, getView } from "@/components/chart-builder/savedViews";
 
 import { PreviewProvider } from "@/components/chart-builder/wizard/PreviewContext";
+import PreviewPane from "@/components/chart-builder/wizard/PreviewPane";
 import StepNav from "@/components/chart-builder/wizard/StepNav";
 import ImportStep from "@/components/chart-builder/wizard/steps/ImportStep";
 import ChartTypeStep from "@/components/chart-builder/wizard/steps/ChartTypeStep";
 import EditStep from "@/components/chart-builder/wizard/steps/EditStep";
 import ExportStep from "@/components/chart-builder/wizard/steps/ExportStep";
+import ViewDataStep from "@/components/chart-builder/wizard/steps/ViewDataStep";
 
 const STEP_DEFS = {
   import: { id: "import", label: "Import" },
+  viewData: { id: "viewData", label: "View Data" },
   chartType: { id: "chartType", label: "Chart Type" },
   edit: { id: "edit", label: "Edit" },
   export: { id: "export", label: "Export" },
 };
 
 export const DEFAULT_STEPS = ["import", "chartType", "edit", "export"];
-export const MODULE_STEPS = ["chartType", "edit", "export"];
+// Module editors have no Import step (data is preloaded); they open on View Data
+// — the actual table behind the chart — before Chart Type / Edit / Export.
+export const MODULE_STEPS = ["viewData", "chartType", "edit", "export"];
 
 /** Loads a saved / deep-linked view into the store once on mount. */
 function ViewHydrator({ viewId, hasBuiltInView }) {
@@ -67,6 +74,25 @@ function ViewHydrator({ viewId, hasBuiltInView }) {
   }, [dispatch, hasBuiltInView, schema, viewId]);
 
   return null;
+}
+
+function EmbedChromeHider() {
+  useEffect(() => {
+    document.body.classList.add("chart-embed-mode");
+    return () => document.body.classList.remove("chart-embed-mode");
+  }, []);
+  return null;
+}
+
+function EmbeddedPreview() {
+  return (
+    <>
+      <EmbedChromeHider />
+      <main className="min-h-svh bg-white p-3">
+        <PreviewPane />
+      </main>
+    </>
+  );
 }
 
 function WizardInner({ steps }) {
@@ -95,6 +121,8 @@ function WizardInner({ steps }) {
     switch (currentId) {
       case "import":
         return <ImportStep />;
+      case "viewData":
+        return <ViewDataStep />;
       case "chartType":
         return <ChartTypeStep />;
       case "edit":
@@ -118,6 +146,7 @@ function WizardInner({ steps }) {
           onSelect={setCurrentId}
           isEnabled={isEnabled}
         />
+        <MultiChartToolbar />
       </div>
       {renderStep()}
     </div>
@@ -130,6 +159,7 @@ export default function VisualizationWizard({
   steps = DEFAULT_STEPS,
   viewId = null,
   hasBuiltInView = false,
+  embedded = false,
 }) {
   return (
     // Key on the schema id so switching modules remounts the provider and
@@ -137,11 +167,15 @@ export default function VisualizationWizard({
     <ChartConfigProvider key={schema.id} schema={schema} initialConfig={initialConfig}>
       <PreviewProvider>
         <ViewHydrator viewId={viewId} hasBuiltInView={hasBuiltInView} />
-        <main className="min-h-[calc(100svh-7.5rem)] bg-muted/45 px-4 py-6 sm:px-8 lg:px-12">
-          <div className="page-container">
-            <WizardInner steps={steps} />
-          </div>
-        </main>
+        {embedded ? (
+          <EmbeddedPreview />
+        ) : (
+          <main className="min-h-[calc(100svh-7.5rem)] bg-muted/45 px-4 py-6 sm:px-8 lg:px-12">
+            <div className="page-container">
+              <WizardInner steps={steps} />
+            </div>
+          </main>
+        )}
       </PreviewProvider>
     </ChartConfigProvider>
   );

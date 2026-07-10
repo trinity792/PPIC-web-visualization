@@ -551,3 +551,26 @@ body {
 }
 .ppic-markdown .ppic-codeblock-copy:hover { color: var(--ppic-brand); }
 .ppic-markdown .ppic-codeblock pre { margin: 0 !important; border-radius: 0 !important; }
+
+.ppic-plotly-chart .legend .legendlines path {
+  stroke-width: 1px !important;
+}
+
+.ppic-plotly-chart .legend .legendpoints path {
+  transform: scale(0.58);
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.ppic-plotly-chart .legend .legendpoints path[style*="stroke-width"] {
+  stroke-width: 1px !important;
+}
+
+body.chart-embed-mode {
+  background: #ffffff;
+}
+
+body.chart-embed-mode > nav[aria-label="Primary navigation"],
+body.chart-embed-mode > .fixed {
+  display: none;
+}

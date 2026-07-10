@@ -1356,7 +1356,7 @@ Every chart on the site (an editor canvas, a landing tile, a saved view, a `?vie
 |---|---|---|---|
 | `module` | string | schema | The module id (`"pophousing"`). `deserialize` rejects a view whose `module` ≠ the active schema. |
 | `preset` | string | Presets section | Which task-preset seeded the config (`trend-over-time` \| `compare-places` \| `geographic-pattern`). Drives the Encodings layout. |
-| `chartType` | string | Graph Type section | A `chartRegistry` id (`line`, `bar`, `pie`, `symbolMap`, `dataTable`, `choroplethMap`, `heatmap`, `dumbbell`, `slope`, `scatter`, `bubble`). Selects the query shape (`chartData`) and the render adapter (`toPlotly`). |
+| `chartType` | string | Graph Type section | A `chartRegistry` id (`line`, `bar`, `pie`, `symbolMap`, `dataTable`, `choroplethMap`, `heatmap`, `dumbbell` (labeled **Range**), `dotPlot`, `slope`, `scatter`, `bubble`). Selects the query shape (`chartData`) and the render adapter (`toPlotly`). |
 | `bindings` | `{ role → fieldName }` | Encodings section | Which canonical field fills each encoding role (`x`, `y`, `series`, `color`, `category`, `geography`, `start`, `end`, `size`, `unit`). Field names are **canonical CSV columns**, never display labels (guardrail #1). |
 | `filters` | object | Data Sources / Encodings | `subset` (geographic level), optional `source`, optional `topN`, `benchmark` label, and one key **per stratification dimension** (e.g. `"Age Group"`). Sent to the API. |
 | `period` | object | Date-range slider + Comparison | `startYear`/`endYear` (range charts) or `year` (single-period charts), plus `baseYear` for indexing/change transforms. |
@@ -1388,6 +1388,20 @@ The overhaul turned the editor into a general-purpose graph editor. Shipped surf
 | **Activity log** | [`editorLog.js`](../../../lib/logs/editorLog.js), `EditorActivityLog.js` | An in-memory, never-persisted ring of editor events with a "Copy technical details" button. Telemetry stays off — nothing is sent to a server. |
 
 Full detail lives in the as-built guide [`graphEditor-overhaul.md`](graphEditor-overhaul.md).
+
+### Post-overhaul additions — the Visualization Tool wizard (2026-07-08 → 07-10)
+
+After the overhaul shipped, the editor was re-presented as a **step wizard** and extended. The chart config and the whole `lib/visualization` seam are unchanged — this is presentation + new appearance options, gated so **module pipeline data is never touched** (all bring-your-own-data behavior keys on `schema.inlineOnly`). Detail is in *Part 11* of the as-built guide.
+
+| Surface | File(s) | What it adds |
+|---|---|---|
+| **Step wizard** | [`components/chart-builder/wizard/*`](../../../components/chart-builder/wizard/) | The editor is now Import → View Data → Chart Type → Edit → Export. `ModuleEditor` is a thin wrapper over `VisualizationWizard`; the only difference between the standalone tool and a module is the `steps` prop (`DEFAULT_STEPS` vs `MODULE_STEPS`). |
+| **Standalone Visualization Tool** | [`app/visualization-tool/page.js`](../../../app/visualization-tool/page.js), [`moduleSchemas/byod.js`](../../../lib/visualization/moduleSchemas/byod.js) | Bring-your-own-data as its own top-level page, driven by a synthetic `byod` schema (`inlineOnly`, no `apiPath`). Pasted **columns** are the bindable fields; [`inlineMapping.js`](../../../lib/visualization/inlineMapping.js) auto-maps them onto roles and suggests a fitting chart on import. |
+| **Multi-chart workspace + undo/redo** | [`chartConfigStore.js`](../../../components/chart-builder/chartConfigStore.js), [`MultiChartToolbar.js`](../../../components/chart-builder/MultiChartToolbar.js) | The store wraps the config in a `workspace` (up to `MAX_CHARTS = 4`, `1x1/1x2/2x1/2x2` layouts) inside an undo/redo history. `useChartConfig()` still returns the active chart's `config`; `PreviewPane` renders a grid of chart slots. |
+| **View Data step** | [`wizard/steps/ViewDataStep.js`](../../../components/chart-builder/wizard/steps/ViewDataStep.js), [`exportTable.js`](../../../lib/export/exportTable.js) | Shows the table behind the chart (reusing the loaded preview result). A **"View original data" toggle (on by default)** switches between the full source/imported table (`originalTable`) and the narrowed chart table (`displayTable`). |
+| **Range / dot-plot family** | [`chartRegistry.js`](../../../lib/visualization/chartRegistry.js), [`toPlotly.js`](../../../lib/visualization/toPlotly.js) | `dumbbell` relabeled **Range** (id kept) with an optional `point` center dot (e.g. an estimate inside a CI); new sibling **`dotPlot`** (multi-series coloured dots on a shared axis, matrix data path). Per-series value labels via `appearance.pointLabelSeries`. |
+| **Iframe embed** | [`ExportMenu.js`](../../../components/chart-builder/ExportMenu.js), `VisualizationWizard` `embedded` prop | "Embed code" builds a `?embed=1&view=…` iframe URL; the wizard renders a chrome-less preview for that URL. Still export-based — no server-side share links. |
+| **Official palette + typography** | [`constants.js`](../../../lib/constants.js), [`palettes.js`](../../../lib/visualization/palettes.js), `toPlotly.js` | Official PPIC style-guide colors (`ppic-official` 10-group + two-group), per-element font sizes / family, and legend-label wrapping, surfaced as Appearance controls. |
 
 ### The client-safe visualization layer (`lib/visualization/`)
 

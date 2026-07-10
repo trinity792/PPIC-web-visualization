@@ -27,6 +27,10 @@ import {
 
 import { getChartType } from "@/lib/visualization/chartRegistry";
 import {
+  autoMapInlineBindings,
+  suggestChartType,
+} from "@/lib/visualization/inlineMapping";
+import {
   migrateSpec,
   normalizeSpec,
   SPEC_VERSION,
@@ -50,9 +54,68 @@ import { validateConfig } from "@/lib/visualization/validation";
  */
 
 const ChartConfigContext = createContext(null);
+export const MAX_CHARTS = 4;
+export const CHART_LAYOUTS = Object.freeze(["1x1", "1x2", "2x1", "2x2"]);
+const HISTORY_LIMIT = 50;
+const COMPUTED_ACTIONS = new Set(["SET_SERIES_COUNT"]);
 
 function clone(value) {
   return value == null ? value : JSON.parse(JSON.stringify(value));
+}
+
+function chartCapacity(layout) {
+  if (layout === "2x2") return 4;
+  if (layout === "1x2" || layout === "2x1") return 2;
+  return 1;
+}
+
+export function layoutForCount(count) {
+  if (count <= 1) return "1x1";
+  if (count === 2) return "1x2";
+  return "2x2";
+}
+
+function chartId() {
+  return (
+    globalThis.crypto?.randomUUID?.() ||
+    `chart-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+  );
+}
+
+function stripComputed(config) {
+  const next = normalizeSpec(config);
+  return clone(next);
+}
+
+function createWorkspace(schema, initialConfig = {}) {
+  const config = createChartConfig(schema, initialConfig);
+  return {
+    activeChartId: "chart-1",
+    layout: "1x1",
+    charts: [{ id: "chart-1", name: "Chart 1", config }],
+  };
+}
+
+function activeChart(workspace) {
+  return (
+    workspace.charts.find((chart) => chart.id === workspace.activeChartId) ||
+    workspace.charts[0]
+  );
+}
+
+function updateChart(workspace, chartId, updater) {
+  let changed = false;
+  const charts = workspace.charts.map((chart) => {
+    if (chart.id !== chartId) return chart;
+    const next = updater(chart);
+    changed = changed || next !== chart;
+    return next;
+  });
+  return changed ? { ...workspace, charts } : workspace;
+}
+
+function sameWorkspace(a, b) {
+  return JSON.stringify(a) === JSON.stringify(b);
 }
 
 // Roles that bind to a measure and should each get a distinct default field.
@@ -167,7 +230,9 @@ export function createChartConfig(schema, initialConfig = {}) {
     period: {},
     filters: defaultFilters(schema),
     labels: {
-      title: preset.title,
+      // Left blank so the title auto-derives from the bound variables
+      // (deriveLabels/effectiveLabels); a user-typed title overrides it.
+      title: "",
       subtitle: "",
       xAxis: "",
       yAxis: "",
@@ -234,7 +299,9 @@ export function reduceChartConfig(config, action, schema) {
           ...clone(getChartType(preset.chartType)?.defaults || {}),
           ...clone(preset.defaults || {}),
         },
-        labels: { ...config.labels, title: preset.title },
+        // Keep the user's labels; the title stays derived (or their override)
+        // rather than being reset to the preset's static name.
+        labels: { ...config.labels },
         filters: {
           ...config.filters,
           ...(preset.chartType === "choroplethMap" &&
@@ -250,15 +317,21 @@ export function reduceChartConfig(config, action, schema) {
       const chart = getChartType(action.chartType);
       if (!chart) return config;
       const preset = presetForChartType(chart.id);
+      // Bring-your-own-data (byod) auto-maps the pasted columns onto the new
+      // chart's roles by name/type so switching chart types "just works";
+      // modules keep their catalog-driven preset defaults.
+      const inlineTable = schema.inlineOnly ? config.data?.inline : null;
       next = {
         ...config,
         chartType: chart.id,
         preset: preset?.id || config.preset,
-        bindings: bindingsForPreset(
-          preset || { chartType: chart.id, defaults: {} },
-          schema,
-          config.bindings,
-        ),
+        bindings: inlineTable
+          ? autoMapInlineBindings(chart.id, inlineTable, config.bindings)
+          : bindingsForPreset(
+              preset || { chartType: chart.id, defaults: {} },
+              schema,
+              config.bindings,
+            ),
         appearance: clone(chart.defaults || {}),
         filters: {
           ...config.filters,
@@ -275,7 +348,13 @@ export function reduceChartConfig(config, action, schema) {
       if (action.field) bindings[action.role] = action.field;
       else delete bindings[action.role];
       const chart = getChartType(config.chartType);
-      if (chart?.sameMetricBothEnds && ["start", "end"].includes(action.role)) {
+      // Modules force both range endpoints to the same metric; bring-your-own-
+      // data binds two distinct columns (Lower/Upper), so don't mirror there.
+      if (
+        chart?.sameMetricBothEnds &&
+        !schema.inlineOnly &&
+        ["start", "end"].includes(action.role)
+      ) {
         bindings.start = action.field;
         bindings.end = action.field;
       }
@@ -338,11 +417,15 @@ export function reduceChartConfig(config, action, schema) {
       const geoUnmatched = action.geoUnmatched || [];
       const seriesNames = action.seriesNames || [];
       const previousUnmatched = config.geoUnmatched || [];
+      const previousSeriesNames = config.seriesNames || [];
       const countUnchanged = config.seriesCount === action.count;
       const geoUnchanged =
         geoUnmatched.length === previousUnmatched.length &&
         geoUnmatched.every((name, index) => name === previousUnmatched[index]);
-      if (countUnchanged && geoUnchanged) return config;
+      const seriesUnchanged =
+        seriesNames.length === previousSeriesNames.length &&
+        seriesNames.every((name, index) => name === previousSeriesNames[index]);
+      if (countUnchanged && geoUnchanged && seriesUnchanged) return config;
       next = {
         ...config,
         seriesCount: action.count,
@@ -359,16 +442,38 @@ export function reduceChartConfig(config, action, schema) {
       };
       break;
 
-    case "SET_DATA_SOURCE":
-      // { source: "module" | "inline", inline?: { columns, rows, meta } }
+    case "SET_DATA_SOURCE": {
+      // { source: "module" | "inline", inline?, defaultChart? }
+      if (action.source !== "inline") {
+        next = { ...config, data: { source: "module" } };
+        break;
+      }
+      const inlineTable = action.inline;
+      const isByod = schema.inlineOnly && inlineTable;
+      // On a FRESH byod import (defaultChart), pick a chart type that fits the
+      // columns so the tool lands on something renderable; a plain table edit
+      // keeps the current chart type. Either way, auto-map columns onto roles.
+      const chartType =
+        isByod && action.defaultChart ? suggestChartType(inlineTable) : config.chartType;
+      const chart = getChartType(chartType);
+      const preset = presetForChartType(chartType);
+      const bindings = isByod
+        ? autoMapInlineBindings(chartType, inlineTable, config.bindings)
+        : config.bindings;
       next = {
         ...config,
-        data:
-          action.source === "inline"
-            ? { source: "inline", inline: clone(action.inline) }
-            : { source: "module" },
+        data: { source: "inline", inline: clone(inlineTable) },
+        chartType,
+        ...(chartType !== config.chartType
+          ? {
+              preset: preset?.id || config.preset,
+              appearance: clone(chart?.defaults || {}),
+            }
+          : {}),
+        bindings,
       };
       break;
+    }
 
     case "SET_FORMAT": {
       // { field, format } — format=null clears the field's override.
@@ -445,6 +550,148 @@ export function reduceChartConfig(config, action, schema) {
   return revalidate(next, schema);
 }
 
+function addChart(workspace, schema) {
+  if (workspace.charts.length >= MAX_CHARTS) return workspace;
+  const current = activeChart(workspace);
+  const id = chartId();
+  const chartNumber = workspace.charts.length + 1;
+  const base = stripComputed(current.config);
+  const config = revalidate(
+    {
+      ...base,
+      labels: { ...base.labels },
+    },
+    schema,
+  );
+  const charts = [
+    ...workspace.charts,
+    { id, name: `Chart ${chartNumber}`, config },
+  ];
+  return {
+    ...workspace,
+    activeChartId: id,
+    layout: layoutForCount(charts.length),
+    charts,
+  };
+}
+
+function removeChart(workspace, chartIdToRemove) {
+  if (workspace.charts.length <= 1) return workspace;
+  const removeIndex = workspace.charts.findIndex(
+    (chart) => chart.id === chartIdToRemove,
+  );
+  if (removeIndex === -1) return workspace;
+  const charts = workspace.charts.filter((chart) => chart.id !== chartIdToRemove);
+  const nextActive =
+    workspace.activeChartId === chartIdToRemove
+      ? charts[Math.max(0, removeIndex - 1)]?.id || charts[0].id
+      : workspace.activeChartId;
+  return {
+    ...workspace,
+    activeChartId: nextActive,
+    layout:
+      chartCapacity(workspace.layout) >= charts.length
+        ? workspace.layout
+        : layoutForCount(charts.length),
+    charts,
+  };
+}
+
+function reduceWorkspace(workspace, action, schema) {
+  switch (action.type) {
+    case "SET_ACTIVE_CHART":
+      return workspace.charts.some((chart) => chart.id === action.chartId)
+        ? { ...workspace, activeChartId: action.chartId }
+        : workspace;
+
+    case "ADD_CHART":
+      return addChart(workspace, schema);
+
+    case "REMOVE_CHART":
+      return removeChart(workspace, action.chartId || workspace.activeChartId);
+
+    case "SET_CHART_LAYOUT":
+      return CHART_LAYOUTS.includes(action.layout) &&
+        chartCapacity(action.layout) >= workspace.charts.length
+        ? { ...workspace, layout: action.layout }
+        : workspace;
+
+    case "SET_SERIES_COUNT": {
+      const targetId = action.chartId || workspace.activeChartId;
+      return updateChart(workspace, targetId, (chart) => ({
+        ...chart,
+        config: reduceChartConfig(chart.config, action, schema),
+      }));
+    }
+
+    case "SET_DATA_SOURCE":
+      if (schema.inlineOnly) {
+        return {
+          ...workspace,
+          charts: workspace.charts.map((chart) => ({
+            ...chart,
+            config: reduceChartConfig(chart.config, action, schema),
+          })),
+        };
+      }
+      break;
+
+    default:
+      break;
+  }
+
+  const current = activeChart(workspace);
+  if (!current) return workspace;
+  return updateChart(workspace, current.id, (chart) => ({
+    ...chart,
+    config: reduceChartConfig(chart.config, action, schema),
+  }));
+}
+
+function createHistoryState(schema, initialConfig) {
+  return {
+    past: [],
+    present: createWorkspace(schema, initialConfig),
+    future: [],
+  };
+}
+
+function historyReducer(state, action, schema) {
+  if (action.type === "UNDO") {
+    if (!state.past.length) return state;
+    const present = state.past[state.past.length - 1];
+    return {
+      past: state.past.slice(0, -1),
+      present,
+      future: [state.present, ...state.future],
+    };
+  }
+  if (action.type === "REDO") {
+    if (!state.future.length) return state;
+    const present = state.future[0];
+    return {
+      past: [...state.past, state.present].slice(-HISTORY_LIMIT),
+      present,
+      future: state.future.slice(1),
+    };
+  }
+
+  const next = reduceWorkspace(state.present, action, schema);
+  if (sameWorkspace(state.present, next)) return state;
+
+  const isUndoable =
+    !COMPUTED_ACTIONS.has(action.type) && action.type !== "SET_ACTIVE_CHART";
+  if (!isUndoable) {
+    return { ...state, present: next };
+  }
+
+  return {
+    past: [...state.past, state.present].slice(-HISTORY_LIMIT),
+    present: next,
+    future: [],
+  };
+}
+
 /**
  * ======================================================================
  * Context Provider and Hook
@@ -452,15 +699,25 @@ export function reduceChartConfig(config, action, schema) {
  */
 
 export function ChartConfigProvider({ schema, initialConfig, children }) {
-  const [config, dispatch] = useReducer(
-    (state, action) => reduceChartConfig(state, action, schema),
+  const [state, dispatch] = useReducer(
+    (current, action) => historyReducer(current, action, schema),
     initialConfig,
-    (initial) => createChartConfig(schema, initial),
+    (initial) => createHistoryState(schema, initial),
   );
+  const workspace = state.present;
+  const selected = activeChart(workspace);
+  const config = selected?.config || createChartConfig(schema, initialConfig);
 
   const value = useMemo(
-    () => ({ config, dispatch, schema }),
-    [config, schema],
+    () => ({
+      config,
+      dispatch,
+      schema,
+      workspace,
+      canUndo: state.past.length > 0,
+      canRedo: state.future.length > 0,
+    }),
+    [config, schema, state.future.length, state.past.length, workspace],
   );
 
   return (

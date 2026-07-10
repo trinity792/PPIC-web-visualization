@@ -4,7 +4,7 @@ Content Type: process documentation
 pinned: false
 description: "The process behind each module refactor and the key decisions made along the way, with the reasoning that justified them. A narrative companion to projectSpec (the architecture reference) and the per-module refractor guides (the per-function as-built docs)."
 Date Published: June 22, 2026
-Last Updated: 07/09/2026 - 5:00 PM
+Last Updated: 07/10/2026 - 1:04 AM
 Status: Updating
 ---
 

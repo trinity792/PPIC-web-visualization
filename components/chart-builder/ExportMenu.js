@@ -21,11 +21,26 @@
 
 /* eslint-disable react/prop-types */
 
-import React, { useRef } from "react";
+import React, { useMemo, useRef, useState } from "react";
 
-import { Download, FileDown, FileSpreadsheet, Image as ImageIcon, Upload } from "lucide-react";
+import {
+  Code2,
+  Download,
+  FileDown,
+  FileSpreadsheet,
+  Image as ImageIcon,
+  Upload,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,6 +49,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Textarea } from "@/components/ui/textarea";
 
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import { deserialize, serialize } from "@/components/chart-builder/savedViews";
@@ -53,9 +69,28 @@ function imageFilename(config, format) {
   return `${base}-${config.chartType}.${format.ext || format.id}`;
 }
 
+const MAX_EMBED_URL_LENGTH = 16000;
+
+function embedPath(config) {
+  return config.module === "byod" ? "/visualization-tool" : `/${config.module || ""}`;
+}
+
+function embedInfo(config) {
+  const origin =
+    typeof window === "undefined" ? "" : window.location.origin;
+  const src = `${origin}${embedPath(config)}?embed=1&view=${encodeURIComponent(
+    serialize(config),
+  )}`;
+  const title = config.labels?.title || "PPIC chart";
+  const code = `<iframe title="${title.replace(/"/g, "&quot;")}" src="${src}" width="100%" height="560" style="border:0;" loading="lazy"></iframe>`;
+  return { src, code, tooLarge: src.length > MAX_EMBED_URL_LENGTH };
+}
+
 export default function ExportMenu({ graphDivRef, loaded }) {
   const { config, dispatch, schema } = useChartConfig();
   const importInputRef = useRef(null);
+  const [embedOpen, setEmbedOpen] = useState(false);
+  const embed = useMemo(() => embedInfo(config), [config]);
 
   async function onExportImage(format) {
     try {
@@ -114,6 +149,16 @@ export default function ExportMenu({ graphDivRef, loaded }) {
   function onDownloadConfig() {
     const blob = new Blob([serialize(config)], { type: "application/json" });
     downloadBlob(blob, `${config.module || "chart"}-config.json`);
+  }
+
+  async function onCopyEmbed() {
+    await copyText(embed.code);
+    logEditorEvent({
+      severity: "info",
+      code: "EMBED_COPIED",
+      summary: "Copied chart embed code",
+      source: "ExportMenu",
+    });
   }
 
   function onImportFile(event) {
@@ -179,8 +224,48 @@ export default function ExportMenu({ graphDivRef, loaded }) {
             <Upload aria-hidden="true" />
             Import config…
           </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel>Embed</DropdownMenuLabel>
+          <DropdownMenuItem
+            onSelect={(event) => {
+              event.preventDefault();
+              setEmbedOpen(true);
+            }}
+          >
+            <Code2 aria-hidden="true" />
+            Embed code
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      <Dialog open={embedOpen} onOpenChange={setEmbedOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Embed chart</DialogTitle>
+            <DialogDescription>
+              Copy this iframe into a page that can embed PPIC chart URLs.
+            </DialogDescription>
+          </DialogHeader>
+          {embed.tooLarge ? (
+            <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+              This embed URL is long because it carries chart configuration in the
+              link. For large uploaded datasets, export the chart image or config
+              JSON instead.
+            </p>
+          ) : null}
+          <Textarea
+            readOnly
+            value={embed.code}
+            aria-label="Chart iframe embed code"
+            className="min-h-36 font-mono text-xs"
+          />
+          <DialogFooter>
+            <Button type="button" onClick={onCopyEmbed} disabled={embed.tooLarge}>
+              <Code2 aria-hidden="true" />
+              Copy embed code
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <input
         ref={importInputRef}
         type="file"

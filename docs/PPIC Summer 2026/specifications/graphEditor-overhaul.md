@@ -1,10 +1,10 @@
 ---
 Topic: Technical
-Content Type: project specification
+Content Type: as-built reference guide
 pinned: false
 description: "As-built guide for the graph-editor overhaul: a Datawrapper-class chart editor with a GUI ⇄ code-editor toggle, user-supplied data, palette control, tiered settings, image/data export, and an expanded chart-type catalog — built by extending the existing chart-builder with variants rather than replacing it."
 Date Published: July 6, 2026
-Last Updated: 07/07/2026
+Last Updated: 07/10/2026
 Status: Updating
 ---
 
@@ -15,6 +15,9 @@ Status: Updating
 
 > [!info] Gate cleared: design signed off (2026-07-06), editor shipped & signed off (2026-07-07)
 > The **design, scope, and dependency choices were signed off** (2026-07-06): ExcelJS confirmed as the spreadsheet reader (legacy `.xls`/`.ods`/`.dbf` deferred), the recognized-subset boundary for the R/Stata code editor accepted, and the new-dependency list approved (ask-first per `AGENTS.md`). The build proceeded phase by phase per *Part 10* and reached **final supervisor sign-off on 2026-07-07** (see *Sign-off status*).
+
+> [!note] Status: Updating — the base overhaul (Parts 1–10) is shipped & signed off; this doc stays *Updating* because it is still gaining post-overhaul additions
+> Parts 1–10 describe the completed, signed-off overhaul (2026-07-07). **Part 11** records additions layered on afterward (the step wizard, standalone Visualization Tool, multi-chart workspace, iframe embed, Range/dot-plot family, View Data step, official palette/typography) — extended most recently 2026-07-10. The front-matter `Status` stays **Updating** while those additions are still landing; it flips to **Finalized** only when the editor stops changing.
 
 ---
 
@@ -908,6 +911,60 @@ Each phase is shippable and ends with its tests green (`python -m pytest` stays 
 ### Adding a preset (the repeatable recipe the notes asked for)
 
 A preset is data, not code. Given requirements or an exported config: **(1)** build the chart in the editor and export its config; **(2)** strip instance noise (period to defaults, no inline data); **(3)** add it to the owning module schema's `presets` array as `{ id, title, question, config }`; **(4)** a generic Vitest case iterates every `schema.presets` entry and asserts it validates against its schema, so new presets are tested automatically; **(5)** optionally register a landing tile in `categoryRegistry`. No component changes — this is the whole procedure.
+
+---
+
+## Part 11 — Post-overhaul additions (2026-07-08 → 2026-07-10)
+
+> [!info] What this part covers
+> The overhaul (Parts 1–10) shipped and was signed off 2026-07-07. The work below was added afterward, on top of that base, and is **as-built** (shipped in the working tree, unit-test + lint verified; no browser click-through, same standard as the phases). It reframes the editor as a **step wizard**, adds a **standalone Visualization Tool** page, a **multi-chart workspace with undo/redo**, an **iframe embed** path, a **Range/dot-plot chart family**, a **View Data** step, and the **official PPIC palette + typography** controls.
+
+### 11.1 The wizard shell (Import → View Data → Chart Type → Edit → Export)
+
+The single-screen sidebar+canvas `ModuleEditor` is now a thin wrapper over a reusable **step wizard** in [`components/chart-builder/wizard/`](../../../components/chart-builder/wizard/):
+
+- **`VisualizationWizard.js`** — orchestrator. Wraps `ChartConfigProvider` (keyed on `schema.id`) + `PreviewProvider`, owns the current-step state, renders `StepNav` + `MultiChartToolbar` + the active step. The **only difference between the two tools is the `steps` prop**: `DEFAULT_STEPS = ["import","viewData","chartType","edit","export"]` (standalone) vs `MODULE_STEPS = ["viewData","chartType","edit","export"]` (module — data preloaded, no Import). An `embedded` prop renders **just the preview** for iframes (see 11.4).
+- **`StepNav.js`** — the chevron stepper; forward steps gate on readiness (standalone needs an imported table before anything past Import).
+- **`StepShell.js`** — the shared two-column (controls / preview) layout, with a drag-resizable left sidebar (so R/Stata code blocks don't overflow).
+- **Steps**: `ImportStep` (reuses `DataSourcePanel` + `InputTableEditor`), `ViewDataStep` (11.5), `ChartTypeStep` (gallery grouped by family over `CHART_TYPES`), `EditStep` (`EditorModeToggle` + a filtered subset of `ChartSidebar`'s sections), `ExportStep` (`ExportMenu` + `FooterActions`).
+
+Enabling reuse, `ChartSidebar.js` now **exports** `SidebarSections`, `visibleSectionsFor`, `FooterActions`, `TOP_SECTIONS`. A synthetic **`byod` schema** ([`lib/visualization/moduleSchemas/byod.js`](../../../lib/visualization/moduleSchemas/byod.js) — `inlineOnly: true`, no `apiPath`, empty `fields`) satisfies the provider without a server dataset; `getModuleSchema` deliberately does **not** resolve it, so `/byod` is not a module route. The standalone page is `app/visualization-tool/page.js`.
+
+### 11.2 Bring-your-own-data column binding (inline auto-map)
+
+Because the `byod` schema has no field catalog, the pasted table's **columns** are the bindable fields. [`lib/visualization/inlineMapping.js`](../../../lib/visualization/inlineMapping.js) provides: `inlineFields(table)` (column → temporal/dimension/measure), `autoMapInlineBindings(chartType, table, previous)` (fills each role by name-synonym then first type-fitting column, keeping valid previous bindings, deduping columns), `suggestChartType(table)` (picks a fitting default chart on import), and `inlineRenderBlock(chartType, table, bindings)` (returns a `{ incompatible, message }` — distinguishing "needs mapping" from "genuinely wrong shape" — or `null` when renderable). The store wires these: `SET_CHART_TYPE` and `SET_DATA_SOURCE` auto-map for `inlineOnly` schemas (modules keep catalog-driven `bindingsForPreset`); `EncodingSection.bindableFields` exposes inline columns; `ValidationNotice` renders a **"Map your columns"** prompt (per-role dropdowns, red-asterisk required roles) and clicking any config error copies **all** findings. Modules are untouched — their behavior is gated on `schema.inlineOnly` only, so a module's pipeline data is never modified.
+
+### 11.3 Multi-chart workspace + undo/redo
+
+[`chartConfigStore.js`](../../../components/chart-builder/chartConfigStore.js) now holds a **workspace** (`{ activeChartId, layout, charts: [{ id, name, config }] }`) inside an **undo/redo history** (`{ past, present, future }`, `HISTORY_LIMIT = 50`). `useChartConfig()` still returns the active chart's `config` (nothing downstream changed) plus `workspace`, `canUndo`, `canRedo`. Actions: `ADD_CHART` / `REMOVE_CHART` (up to `MAX_CHARTS = 4`), `SET_ACTIVE_CHART`, `SET_CHART_LAYOUT` (`CHART_LAYOUTS = 1x1|1x2|2x1|2x2`), `UNDO`/`REDO`. `SET_SERIES_COUNT` targets a chart by id and is non-undoable (a computed action); a byod `SET_DATA_SOURCE` fans out to all charts. [`MultiChartToolbar.js`](../../../components/chart-builder/MultiChartToolbar.js) is the control strip (add/remove, layout select, per-chart tabs, undo/redo). `PreviewContext` loads **one result per chart** (request digest is the array of per-chart configs) and `PreviewPane` renders a **grid of `ChartSlot`s**, highlighting the active one; the compatibility `graphDivRef` proxies to the active slot so `ExportMenu` still exports the focused chart.
+
+### 11.4 Iframe embed
+
+`ExportMenu` gained an **Embed code** dialog: it serializes the config into a `?embed=1&view=<serialized>` URL (`/visualization-tool` for byod, `/<module>` otherwise) and hands back an `<iframe>` snippet (with a "URL too long — export image/JSON instead" guard at 16 kB, since large inline data won't fit in a link). Both page routes read `searchParams`; when `embed === "1"` the wizard renders `EmbeddedPreview` (preview only) and `EmbedChromeHider` adds `body.chart-embed-mode` (nav/chrome hidden via `globals.css`).
+
+### 11.5 The View Data step + "View original data" toggle
+
+`ViewDataStep.js` shows the tabular data behind the chart via `DataTableView`, reusing the already-loaded `PreviewContext` result (no second fetch; loading state for large module datasets). A **"View original data" toggle (on by default)** switches between:
+
+- **original** — the data as it *entered* the tool: for byod the full imported table (every pasted column, original headers); for a module the widest source-like table `originalTable()` can rebuild from the API response (flat records → union of keys; a line fetch's grouped series → a `Location × Period` table with `Subset`/`Source` context columns);
+- **chart** — `displayTable()`, the exact narrowed rows/columns the chart renders.
+
+Both live in [`lib/export/exportTable.js`](../../../lib/export/exportTable.js) (`originalTable` returns `null` when no wider source exists, and the step falls back to the chart table with an explanatory note).
+
+### 11.6 Range / dot-plot chart family
+
+The old **Dumbbell** is relabeled **Range** (id stays `dumbbell` so saved views/deep links survive) and gains an optional **`point`** center dot — e.g. a point estimate inside a low/high confidence interval — plus `showValueAxis` / `showPointLabels` appearance toggles. A sibling **`dotPlot`** id (preset `MULTI_SERIES_DOTS`) plots several series as coloured dots per category on a shared value axis joined by a light range band; it reuses the **matrix** data path (two dimensions + one measure, like a heatmap: `y` = category rows, `x` = series, `color` = value). `toPlotly` grew `dotPlotSpec` + a `toMatrix` helper and the Range center-dot; per-series value labels are controlled by `appearance.pointLabelSeries` (advanced "Show values for" switches — e.g. label only the "Women" series). Both are wired through `chartData`/`toSeries` (QUERY_SHAPES: `dotPlot → matrix`) and `exportTable`.
+
+### 11.7 Official PPIC palette + typography
+
+[`lib/constants.js`](../../../lib/constants.js) gained the **official style-guide colors** (`officialOrange/Navy/Lime/Blue/Violet/Seafoam/Gray/Red/Green/DarkGray` + a maroon-red scale) and [`palettes.js`](../../../lib/visualization/palettes.js) exposes them as `ppic-official` (10-group) and `ppic-official-two-group`. `toPlotly` added **typography** (`chartFontFamily` — Source Sans 3 / Arial; per-element `titleFontSize`/`subtitleFontSize`/`axisFontSize`/`dataLabelFontSize`/`legendFontSize`) and **legend-label wrapping** (`wrapLegendLabel`/`escapeLegendText`, gated by `legendWrap`/`legendWrapChars`), surfaced as "Chart typography" / "Legend text size" controls in the Appearance section and `chartTypography`/`legendTypography` tier entries. Legend marker sizing is nudged via `.ppic-plotly-chart` CSS.
+
+### 11.8 Verification & open follow-ups
+
+Verified by `npm run test` (Vitest) + `npx eslint` clean; `originalTable`, the Range/dot-plot builders, per-series labels, and inline auto-mapping have unit tests. **No browser click-through** — the interactive surfaces still want an eyeball: multi-chart grid layouts, the embed iframe rendering on a host page, the View Data toggle collapsing to the mapped columns, and the dot-plot per-series label switches.
+
+> [!note] Doc `Status` is now a controlled vocabulary
+> The `graphEditorPhase7Docs` test used to assert this file's `Status` read as "finalized/complete/shipped/signed off"; that assertion was **removed** (2026-07-10). Per project convention the `Status` front-matter field takes only **Updating** (a living document that can still change), **Finalized** (done, no further changes expected), or **Archive** (no longer relevant/referenced) — any nuance beyond that word belongs in a body callout, not the field.
 
 ---
 

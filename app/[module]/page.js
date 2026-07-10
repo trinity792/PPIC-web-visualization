@@ -49,6 +49,7 @@ export default async function DetailedModulePage({ params, searchParams }) {
       initialConfig={initialConfig}
       viewId={viewId}
       hasBuiltInView={Boolean(builtIn?.module === module)}
+      embedded={query.embed === "1"}
     />
   );
 }

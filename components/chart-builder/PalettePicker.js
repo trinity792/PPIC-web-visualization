@@ -54,6 +54,12 @@ const SWATCH_TOKENS = [
   "complementGreen",
   "teal7",
   "gray7",
+  "officialOrange",
+  "officialNavy",
+  "officialBlue",
+  "officialGreen",
+  "officialViolet",
+  "officialDarkGray",
 ];
 
 const CATEGORICAL_PALETTES = Object.entries(PALETTES).filter(

@@ -4,34 +4,65 @@ Content Type: Notes
 pinned: false
 description: "Notes for me to stay on track"
 Date Published: July 4, 2026
-Last Updated: 07/04/2026 - 9:00 AM
+Last Updated: 07/10/2026 - 11:35 AM
 Status: Updating
 ---
+# To Do Notes
+## To Dos Today (7/10)
+- Graph Editor Clean Ups
+  - [ ] View original data checks & fixes
+  - [ ] Add a Forest Plot variant of the Range plot base
+  - [x] Implement ability for Multi charts side by side (or grid layout)
+    - User should be able to click an "add a chart" button where the user can add another chart in a 2x1, 1x2, or 2x2 grid using the data they've already implemented. Only one chart can be edited at a time. User should click a toggle to determine which chart/graph they are editing and the editor sidebar should update. 
+  - [x] Undo/redo buttons
+  - [x] Review the UI Kit page on the website and Add all official styling to visualization tool (color groups, typography, Key / legend structure, etc.). Note: only modifying the charts/graphs not the rest of the website UI. User should be able to choose coloring, styles, font sizes, etc.
+  - [x] Module/Visualization Tool: Chart Type section gap between Base Chart Name and box for the chart needs to be increased.
+  - [x] "Date Range" not needed for datasets w/o dates.
+  - [x] Implement chart embeds
+  - [x] Commit changes
+## To Dos Monday (7/13)
+- Module Issues Fixed
+  - [ ] Pop Housing
+  - [ ] Components of Change
+  - [ ] Age, Race, Sex Projections
+  - [ ] ACS Housing Stress
+  - [ ] Building Permits
+- [ ] Add footnote rendering to docs viewer front end.
+## To Dos Tuesday (7/14)
+- Plan Automations
+- Set up automations
 
-# Structured ToDos
-- [ ] Improve graph editor UI/UX
-- [ ] Add a couple of simple features
-  - [ ] For horizontal dot plots -> toggles for which variables/columns to show especially for regession models (lower, upper, middle bounds). Especially: more line ends (arrows, none, '|', etc.)
+## Structured ToDos
+- [x] Improve graph editor UI/UX
+- Add a couple of features:
+  - [x] For horizontal dot plots -> toggles for which variables/columns to show especially for regession models (lower, upper, middle bounds). 
+  - [ ] Especially: more line ends (arrows, none, '|', etc.)
   - [ ] Undo/redo buttons
-  - [ ] Tabs/buttons
+  - [x] Tabs/buttons
   - [ ] Two charts side by side
   - [ ] Full control over axis labeling
-  - [ ] Excel like grouping
-  - [ ] Transpose over the data(?)
+  - [ ] Excel like csv editor features (especially grouping & sorting)
+  - [x] Transpose over the data(?)
+  - [ ] add a Forest Plot
+- Tweaks to Viz Tool UI/UX:
+  - [x] Alter the view data section to have a "view original data" toggle enabled by default. When it is disabled it shows what data in the chart is.
+  - [ ] Add all official styling to visualization tool (color groups, typography, Key / legend structure, etc.)
+  - [ ] Module/Visualization Tool: Chart Type section gap between Base Chart Name and box for the chart needs to be increased.
+  - [ ] "Date Range" not needed for datasets w/o dates.
 - [ ] Stress test and validate all existing modules
-- [ ] Write `processes.md`
+- [x] Write `processes.md`
 - [ ] Setup automatic data updates for existing modules
 - [ ] Add RHNA Progress Report Module. [Link](https://data.ca.gov/dataset/rhna-progress-report)
 
 ---
-# Unstructured ToDos
+## Unstructured ToDos
 Note: not in order
-## Backend
+### Backend
 - [ ] Manually verify all modules -> based on flags on each refractor guide
 - [ ] Add live tests
 - [x] Setup logging
 - [ ] Setup automatic updates and error handling
-## Documentation
+### Documentation
 - [x] Add all front end documentation to `projectSpec.md`
   - [x] what pulls from globals.css & constants.js
 - [x] **Begin** documentation for graph editor overhaul. *Start* with feature list and user flow
@@ -43,7 +74,7 @@ Note: not in order
 - [ ] Automatic updates should have a `git-conventions.md` file
 - [ ] Non technical explainer for how the website works
 - [ ] Update refractor guides since logging has been implemented
-## Frontend
+### Frontend
 - [x] Graph editor overhaul
   - [x] Plan front and backend architecture & uses
   - [x] Write down/brainstorm feature list
@@ -52,10 +83,11 @@ Note: not in order
 - [ ] Need to strip identifying information from the logs. Should use relative paths.
 - [ ] Update UI kit fonts and graphs
 - [ ] Documents: Wire in Footnote YAML field
-## Information Gaps
+- [ ] Footnotes on the graph clip the x axis labels. They should be rendered as callouts below the x axis title
+### Information Gaps
 - Internal server hardware capabilities
 - Open ports to host visualizations, traefik or other reverse proxy setup viability (is there someone who can maintain it?)
-## Codebase
+### Codebase
 - [ ] Scan frontend files for individual or duplicated configs (fonts, colors, styling, etc.)
   - [x] Centralize frontend configs
   - [ ] Prefer adding variants to modifying components in place
@@ -65,7 +97,7 @@ Note: not in order
 
 ---
 
-# Other Fun Ideas
+## Other Fun Ideas
 - [ ] Tracking for how often PPIC's work is referenced in CA state legislature w/ identification if possible -> replace tool Gov Affairs pays for & create visualization
 - [ ] Economy stats
 - [ ] Climate/Water stats

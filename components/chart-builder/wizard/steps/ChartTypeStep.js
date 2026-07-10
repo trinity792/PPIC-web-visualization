@@ -32,7 +32,7 @@ const FAMILIES = [
   { label: "Bar", ids: ["bar"] },
   { label: "Pie", ids: ["pie"] },
   { label: "Map", ids: ["choroplethMap", "symbolMap"] },
-  { label: "Dumbbell", ids: ["dumbbell", "slope"] },
+  { label: "Range", ids: ["dumbbell", "dotPlot", "slope"] },
   { label: "Distribution", ids: ["scatter", "bubble", "heatmap"] },
   { label: "Table", ids: ["dataTable"] },
 ];
@@ -74,7 +74,7 @@ export default function ChartTypeStep() {
           const ids = family.ids.filter((id) => getChartType(id));
           if (!ids.length) return null;
           return (
-            <div key={family.label} className="grid gap-2">
+            <div key={family.label} className="grid gap-3">
               {/* Short fixed-width accent to match the edit sidebar's SectionHeading. */}
               <div className="relative inline-block self-start">
                 <span className="font-heading text-base font-semibold">
