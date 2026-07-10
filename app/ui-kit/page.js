@@ -1,11 +1,18 @@
 import React from "react";
+import { ConsiderationsShowcase } from "@/components/ui-kit/ConsiderationsShowcase";
 import { ColorPalette } from "@/components/ui-kit/ColorPalette";
+import { ColorMappingShowcase } from "@/components/ui-kit/ColorMappingShowcase";
 import { TypographyShowcase } from "@/components/ui-kit/TypographyShowcase";
+import { OfficialSpecShowcase } from "@/components/ui-kit/OfficialSpecShowcase";
 import { ButtonsShowcase } from "@/components/ui-kit/ButtonsShowcase";
 import { FormControls } from "@/components/ui-kit/FormControls";
 import { CardsShowcase } from "@/components/ui-kit/CardsShowcase";
+import { ChartAnatomyShowcase } from "@/components/ui-kit/ChartAnatomyShowcase";
+import { ChartTypesShowcase } from "@/components/ui-kit/ChartTypesShowcase";
 import { GraphsShowcase } from "@/components/ui-kit/GraphsShowcase";
+import { DataTablesShowcase } from "@/components/ui-kit/DataTablesShowcase";
 import { PatternsShowcase } from "@/components/ui-kit/PatternsShowcase";
+import { ToolingShowcase } from "@/components/ui-kit/ToolingShowcase";
 
 export const metadata = {
   title: "UI Kit · PPIC Data Explorer",
@@ -14,13 +21,20 @@ export const metadata = {
 };
 
 const toc = [
+  { id: "considerations", label: "Considerations" },
   { id: "color", label: "Color" },
+  { id: "color-mapping", label: "Color Mapping" },
   { id: "type", label: "Typography" },
+  { id: "spec", label: "Official Spec" },
   { id: "buttons", label: "Buttons" },
   { id: "forms", label: "Form & Controls" },
   { id: "cards", label: "Cards & Charts" },
+  { id: "chart-anatomy", label: "Chart Anatomy" },
+  { id: "chart-guide", label: "Chart Types" },
   { id: "graphs", label: "Example Graphs" },
+  { id: "tables", label: "Data Tables" },
   { id: "patterns", label: "Patterns" },
+  { id: "tooling", label: "Authoring Tools" },
 ];
 
 export default function UiKitPage() {
@@ -77,13 +91,20 @@ export default function UiKitPage() {
         </aside>
 
         <main className="min-w-0 space-y-16">
+          <ConsiderationsShowcase />
           <ColorPalette />
+          <ColorMappingShowcase />
           <TypographyShowcase />
+          <OfficialSpecShowcase />
           <ButtonsShowcase />
           <FormControls />
           <CardsShowcase />
+          <ChartAnatomyShowcase />
+          <ChartTypesShowcase />
           <GraphsShowcase />
+          <DataTablesShowcase />
           <PatternsShowcase />
+          <ToolingShowcase />
         </main>
       </div>
 
