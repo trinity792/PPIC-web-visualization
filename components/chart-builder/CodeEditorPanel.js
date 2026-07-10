@@ -206,6 +206,7 @@ export default function CodeEditorPanel() {
           <CodeMirror
             value={specText}
             height="360px"
+            width="100%"
             extensions={JSON_EXTENSIONS}
             onChange={onSpecChange}
           />
@@ -228,6 +229,7 @@ export default function CodeEditorPanel() {
           <CodeMirror
             value={rState.text}
             height="360px"
+            width="100%"
             extensions={R_EXTENSIONS}
             onChange={(value) => setRState((prev) => ({ ...prev, text: value }))}
           />
@@ -250,6 +252,7 @@ export default function CodeEditorPanel() {
           <CodeMirror
             value={stataState.text}
             height="360px"
+            width="100%"
             extensions={STATA_EXTENSIONS}
             onChange={(value) => setStataState((prev) => ({ ...prev, text: value }))}
           />

@@ -2,10 +2,203 @@
 Topic: Technical
 Content Type: analysis
 pinned: false
-description: "Identifies and explains the current test suite"
-Date Published: July 4, 2026
-Last Updated: 07/04/2026 - 9:00 AM
-Status: In Progress
+description: "An inventory of the Python pipeline unit-test suite (~992 tests), organized by module and phase, plus the testing gaps found in each phase. For programmers maintaining or extending the backend."
+Date Published: July 04, 2026
+Last Updated: 07/09/2026 - 05:45 PM
+Status: Finalized
 ---
-- [ ] For each module detail each of the tests, per module and per phase. Explain what they test for and how it is tested.
-- [ ] Identify gaps in testing per each phase.
+
+# Unit Test Suite
+
+An inventory of the backend unit-test suite: what each test file covers, how it is exercised, and where coverage is thin. The suite currently holds **992 tests across 104 files** under `scripts/unit_tests/` (969 test functions, some parametrized), mirroring the five data modules plus the shared library and the orchestrators.
+
+> [!info] Scope
+> This document covers the **Python pipeline** suite only (`python -m pytest`). The frontend Vitest suite under `tests/js/` (~349 tests for the chart builder, tabular layer, and visualization codebridge) is a separate concern and is not inventoried here. The Python modules are the ones organized "per module and per phase"; the frontend has no pipeline phases.
+
+---
+
+## How the Suite Is Organized
+
+The test tree mirrors the source tree. Every module under `scripts/<module>/` has a matching `scripts/unit_tests/<module>/` directory, and within it a subdirectory per pipeline phase (`acquisition/`, `cleaning/`, `aggregation/`, `merging/`, `output/`, `validation/`, `config/`, and module-specific folders like `geography/` or `historical/`). The runner is configured in `pyproject.toml`: `testpaths = ["scripts/unit_tests"]` and `pythonpath = ["."]`, so tests import first-party code as `scripts.<module>....`.
+
+### The Canonical Phases
+
+The five data modules ([[building-permits-migration|Building Permits]], Components of Change, [[housing-stress-module-migration|Housing Stress]], Population & Housing, and [[projections-module-migration|Age-Sex-Race Projections]]) each follow the same pipeline shape, and the test folders follow it too:
+
+| Phase | Folder | What its tests exercise |
+|---|---|---|
+| Config | `config/` | The frozen contract: paths, schemas, sources, geography. Guards against accidental edits to column names, URL patterns, region lists, and output contracts. |
+| Acquisition | `acquisition/` | URL discovery / scraping, download, and source fallback (live → manual CSV → last-saved rows). All network calls are mocked. |
+| Cleaning | `cleaning/` | Reshaping raw source frames into the canonical long schema: header reseating, renaming, type coercion, label reconciliation. |
+| Aggregation / Calculations | `aggregation/`, `calculations/`, `geography/` | Rolling counties up to regions and state, computing derived rates and measures, and PUMA/FIPS geographic mapping. |
+| Merging | `merging/` | Combining freshly acquired data with the stored canonical CSV, atomic year/month replacement, and change detection. |
+| Output | `output/` | Enforcing the output contract (column order, types, sort grain), and the archive-then-save write path. |
+| Validation | `validation/` | Row-level and dataset-level checks that gate the save (schema, ranges, duplicates, stratification completeness). |
+
+Two directories sit outside the per-module tree. `scripts/unit_tests/shared/` tests the library that every module imports (downloads, data-cleaning primitives, validators, logging, archiving, geography, shared chart builders). `scripts/unit_tests/orchestrators/` tests each module's top-level `build_*_dataset` entry point, verifying phases run in order and failures are wrapped with their phase name.
+
+### Testing Conventions
+
+The suite is consistent about *how* it tests, so the mechanics can be stated once here rather than repeated per file:
+
+- **No real network.** The root `conftest.py` installs an autouse `block_real_http` fixture that monkeypatches `requests.get`/`requests.post` to raise. Every acquisition test must supply its own mock, so a test that accidentally hits the network fails loudly.
+- **Mocked fetch, synthetic payloads.** Downloader tests `monkeypatch.setattr(module, "fetch_response", Mock(...))` and feed back `SimpleNamespace(content=b"...")` for success or `HTTPDownloadError` for a 404, then assert on the resolved URL, the parsed frame, or the fallback that fired.
+- **In-memory fixture frames.** Cleaning, aggregation, merging, and validation tests build small hand-written `pandas.DataFrame`s as canonical inputs and assert on the transformed output. Fixtures like `valid_historical_dataframe` (in `pophousing/conftest.py`) or the `_row(...)` builders keep the inputs minimal and readable.
+- **`tmp_path` for I/O.** Output, archive, and retention tests write to pytest's `tmp_path` and read the file back; `set_file_age` (root `conftest.py`) back-dates file mtimes to exercise age-based retention.
+- **Arrange / Act / Assert** structure with explicit comments, and most transform tests include a `..._does_not_mutate_input` case asserting the source frame is unchanged.
+
+---
+
+## Shared Foundations
+
+`scripts/unit_tests/shared/` (13 files, ~118 tests) plus the two root config tests. These underpin every module, so a regression here fails many pipelines at once.
+
+| File | What it verifies |
+|---|---|
+| `downloads/test_http_downloads.py` | `fetch_response` and `download_file`: success, header/timeout forwarding, HTTP/connection/timeout errors, writing content, creating parent dirs, overwriting. |
+| `data_cleaning/test_dataframe_operations.py` | `forward_fill_columns` and `assign_values_from_mapping`: selected-column fills, new vs. existing targets, missing-source handling, no mutation. |
+| `data_cleaning/test_row_filters.py` | Year-range filtering, summary/header-like row removal, and dropping empty-but-not-data rows (including numeric strings). |
+| `data_cleaning/test_type_conversions.py` | `parse_year_from_date` and `coerce_numeric_columns` (commas, decimals, invalid values, missing columns, no mutation). |
+| `validation/test_dataframe_validators.py` | The generic validators reused everywhere: required columns, duplicate rows, null counts, non-empty, numeric range (with masks, open bounds, null handling, mask-alignment). |
+| `geography/test_california_geography.py` | The single source of truth for counties, 9 regions, and the 26 legacy CBSA metros; cross-checks that every metro maps to known counties and a single region. |
+| `archives/test_file_retention.py` | `find_files_older_than` (age boundaries, pattern filtering, subdirectory skipping) and `archive_or_delete_files` (move vs. delete, collisions, content preservation). |
+| `logging/test_pipeline_logging.py` | Log setup/teardown, handler de-duplication on re-entry, processing-step shape deltas, `None`-logger tolerance, level respect. |
+| `logging/test_dataframe_logging.py` | Shape/null reporting and quality-check severity escalation. |
+| `logging/test_run_records.py` | The run-record ledger: success/recovered/error severities, Pacific timestamp offset, JSON-line append, and `execute_pipeline_run` writing a record and re-raising on error. |
+| `visualizations/test_bar_chart.py`, `test_choropleth_map.py`, `test_line_chart.py` | Shared chart builders return a Plotly figure without rendering; change-metric math, bin computation, and baseline indexing are checked. |
+| `test_config.py` | Project-wide paths and default HTTP settings return independent copies; the general config carries no module-specific constants. |
+| `test_pophousing_config.py` | Smoke checks on region count and E-5 schema width. |
+
+---
+
+## Building Permits
+
+11 files, ~97 tests. Census Building Permits Survey (BPS), metro and state levels, monthly grain. See [[building-permits-migration]].
+
+### Config
+`config/test_paths.py`, `test_schemas.py`, `test_sources.py` lock the contract: BPS directories and county geography; five raw measures, exactly 50 states, non-overlapping metro rename maps, and the geographic classification; and the source URL patterns, month-availability window, and request settings.
+
+### Acquisition
+`acquisition/test_census_bps_downloader.py` verifies the CBSA and state month-template URLs are built and the spreadsheet parses, and that a 404 raises `Unavailable`, a malformed present-file raises `ValueError`, and a non-404 HTTP error is *not* marked unavailable. `acquisition/test_source_fallback.py` (using `FrozenDateTime` classes to pin "now") covers `resolve_latest_month` stepping back over unavailable files and across the year boundary, `months_to_acquire` enumerating the forward window and honoring exclusions, and `acquire_months` preferring live frames but flagging failure and loading saved rows.
+
+### Cleaning
+`cleaning/test_metro_permits_cleaner.py` and `test_state_permits_cleaner.py` are parallel: header reseating, keeping only California / configured-state rows, dropping micropolitan and all-NaN rows, applying CBSA/display rename maps, casting every measure to integer, stamping a zero-padded date, raising on a missing expected column or invalid measure, and not mutating the input.
+
+### Geography, Merging, Output, Validation
+`geography/test_geographic_levels.py` validates metro names against the canonical set, tags and concatenates state+metro rows into contract column order, sorts by level/location/date, and handles empty frames. `merging/test_historical_merge.py` covers loading the canonical CSV (missing → empty contract), finding the latest stored month, atomic whole-month replacement on overlap, and change detection that ignores row order but catches changed/added rows. `output/test_finalize_dataset.py` enforces contract order/types/sort and the archive-and-save path (write when missing, skip identical, archive prior on change, timestamped name). `validation/test_building_permits_validators.py` checks both cleaning-output validation (columns, month format, null keys, negative/non-integer measures, unknown locations) and dataset validation (row-count bounds, missing level, state-by-month coverage, unknown metro, month gaps, duplicate keys).
+
+---
+
+## Components of Change
+
+14 files, ~96 tests. DoF E-6 plus Census population estimates; births, deaths, and migration with derived rates.
+
+### Config
+`config/test_columns.py` and `test_geography.py` confirm the legacy parameters are present, values are returned as independent copies, and the geography reuses the shared California regions while adding national states.
+
+### Acquisition
+`acquisition/test_census_components_downloader.py` walks the `co-est<year>-alldata.csv` URL backward year by year until one responds (chaining the last error, honoring an override), and reads local vs. remote CSVs. `acquisition/test_dof_e6_downloader.py` is the deepest scraper test in the module: workbook-link detection, landing-slug resolution, latest-year-in-text parsing, direct-workbook shortcut, relative-link resolution, the positional "most recent E-6" fallback, and reading the default second sheet (with sheet-index bounds). `acquisition/test_source_fallback.py` covers the full ladder: first scrape → second scrape → manual CSV → last-saved rows, with read-kwargs forwarding and an all-failing case that raises with notes.
+
+### Cleaning, Calculations, Aggregation
+`cleaning/test_census_cleaner.py` maps state abbreviations, pivots wide-to-long, and runs an end-to-end clean that filters non-California states and raises on missing columns. `cleaning/test_e6_cleaner.py` is the workhorse: column normalization (trim/rename, drop all-NaN, drop census-quarter rows, wrong-count and no-anchor raises), truncated-county-name repair (including positional "San"/"Santa" disambiguation), forward-filling locations by year block, and an end-to-end clean that raises if the Yuba terminator row is missing. `calculations/test_demographic_rates.py` checks crude rates use a population denominator and that population-change recalculation groups by location and sorts years. `aggregation/test_regional_aggregation.py` sums additive columns into regions and replaces existing regions while recalculating rates.
+
+### Merging, Output, Validation, Visualizations
+`merging/test_historical_merge.py` keeps absent years, recalculates change, ignores the boundary year and row order in change detection, treats `NA`/`NaN` as equal, and rejects duplicate DoF/Census keys. `output/test_finalize_dataset.py` classifies geographic level (state/region/county/other), orders and sorts columns, and writes atomically. `validation/test_dataset_validator.py` checks the final dataset (columns, empty, duplicate rows, and the duplicate check being skipped when key columns are missing). `validation/test_input_validators.py` is large (22 tests): it governs the query API — rejecting national locations for DoF, rejecting `Total` for rate metrics, applying per-source year bounds, expanding "all counties," and validating source/subset/metric combinations. `test_visualizations.py` smoke-tests the line and bar figures.
+
+---
+
+## Housing Stress
+
+13 files, ~123 tests. ACS Summary File, cost-burden measures by tenure and race, PUMA-aggregated to regions and counties. See [[housing-stress-module-migration]].
+
+### Config
+`config/test_paths.py`, `test_schemas.py`, `test_sources.py` lock the two PUMA crosswalks and two manual-fallback paths, the canonical tenures and legacy cost-burden formulas (which must reference only estimate columns), the nine canonical race groups, the fact that White is sourced from ACS iteration H rather than A, and the URL patterns and ordered race iterations.
+
+### Acquisition
+`acquisition/test_acs_sf_downloader.py` covers the national table returning all geographies, geography join and state filtering, URL templating with HTTP-setting forwarding, 404 → unavailable, malformed file → `ValueError`, and downloading all nine race iterations (recording suppressed non-base tables, raising if the base table is missing). `acquisition/test_source_fallback.py` (with `FrozenDateTime`) resolves the latest vintage stepping back over unavailable years and network timeouts, skips excluded years without probing, and runs the live → manual CSV → saved-rows ladder including the malformed-manual case.
+
+### Cleaning
+`cleaning/test_column_normalization.py` strips the table prefix to bare estimate columns (handling race-iteration prefixes, raising on missing or duplicate-creating strips), drops only exact margin-of-error columns, and renames geography columns. `cleaning/test_cost_burden_measures.py` reproduces the legacy tenure formulas exactly, returns contract columns, yields `NA` (not infinity) on a zero denominator, expands one input row to five tenures, and does not mutate. `cleaning/test_race_ethnicity_mapping.py` confirms the nine-table race map, canonical ordering, reconciliation of every raw label (keeping "All" and "Other" distinct, raising on unmapped), and the White-from-iteration-H rule.
+
+### Geography, Aggregation, Merging, Output, Validation
+`geography/test_puma_aggregation.py` extracts PUMA ids (parsing trailing five digits, rejecting malformed ids), aggregates member PUMAs to geography (dropping unmatched, renaming the crosswalk column, keeping groups separate), and maps all nine region ids to names. `aggregation/test_geographic_levels.py` builds exactly 50 state rows (USPS abbreviations, excluding non-state areas), all nine regions (aggregating PUMAs before computing measures), and crosswalk counties (omitting unmatched PUMAs), then concatenates and sorts — and critically checks a suppressed race iteration yields *absent*, not zero, rows. `merging/test_historical_merge.py` rejects an incomplete vintage before mutation and does atomic whole-year replacement. `output/test_finalize_dataset.py` enforces contract order/types/sort and the archive-and-save path with an MM-DD-YY timestamp. `validation/test_housing_stress_validators.py` checks cleaning output (canonical tenure/race, non-negative, shares in [0,1]), stratification completeness (warns on missing race, errors on missing tenure, never pools groups), and the dataset (row-count bounds, rejecting 2020, duplicate keys).
+
+---
+
+## Population & Housing
+
+31 files, ~294 tests — by far the deepest-tested module, because it merges modern DoF E-5 data with three eras of historical E-8 workbooks. This is the module whose refactor the other four modules were modeled on.
+
+### Config
+`config/test_geography.py`, `test_paths.py`, `test_schemas.py`, `test_sources.py` lock counties/regions/towns/valid-levels, housing directories, the E-5 column count and raw→output mapping, and the E-5 filename pattern with retention consistency.
+
+### Acquisition
+`acquisition/test_dof_e5_downloader.py` (26 tests) is the most thorough scraper test in the suite: E-5 file-URL discovery across normal, multi-link, changed-structure, and relative-URL pages; filename extraction with query params and pattern validation; a download cache with hit/miss/expired/stale-fallback paths; picking the most-recent E-5 file by age; and reading the workbook's data sheet (including the missing-engine error). `acquisition/test_dof_historical_downloader.py` fetches historical landing-page links, resolves each geography workbook (or skips when absent), and downloads each E-8 file while skipping failures.
+
+### Cleaning
+Five files. `cleaning/test_e5_pipeline.py` runs the E-5 clean end-to-end (housing-column calculation, dropping invalid dates, no mutation, missing-anchor raise). `cleaning/test_e5_schema_normalizer.py` checks expected/unexpected width, trimming to the first data row, and schema renaming. `cleaning/test_geographic_classification.py` (14 tests) is the hardest: classifying ambiguous locations (explicit totals, towns, county structure, city default), fixed-level assignment, county-total resolution, state-total normalization, town overrides, balance-row removal, and the idempotent San Francisco city+county split. `cleaning/test_hierarchical_location_cleaning.py` handles meaningful-housing-data detection, county-header identification, and context-aware forward-fill that does not cross an initial blank. `cleaning/test_location_standardization.py` maps city/historical names, removes "city" suffixes, and preserves proper names and nulls.
+
+### Calculations, Aggregation, Archives
+`calculations/test_housing_metrics.py` calculates derived unit columns and recalculates rates (zero denominators, mask alignment). `calculations/test_rate_normalization.py` detects decimal-form rates (ignoring state rows and old years, boundary values, numeric strings) and normalizes them by multiplying and rounding only masked rows. `aggregation/test_aggregation_utils.py` covers removing an existing level and de-duplicating to a preferred level. `aggregation/test_regional_aggregation.py` (13 tests) sums population and housing but not rates, per year, across all nine regions, notably not double-counting San Francisco. `aggregation/test_state_aggregation.py` finds and fills only missing state years from counties. `archives/test_e5_retention.py` archives (never deletes) old E-5 files by age and writes deletion-warning files.
+
+### Historical (the E-8 era pipeline)
+Seven files unique to this module. `historical/test_e8_format_detection.py` detects old vs. new column layouts. `historical/test_e8_schema_normalizer.py` assigns names, truncates surplus columns, and applies rename mapping. `historical/test_e8_era_cleaners.py` covers the three era cleaners (1990-2000, 2000-2010, 2010-2020) with their level classification, summary-label resolution, forward-fill, and derived housing breakdown. `historical/test_e8_standardization.py` extracts annual years (dropping census rows), filters year bounds, scales decimal vacancy rates, and coerces numeric text. `historical/test_boundary_year_resolution.py` resolves overlaps between eras by source priority. `historical/test_missing_county_recovery.py` extracts and integrates only absent county rows. `historical/test_historical_pipeline.py` runs the whole historical build against the output schema.
+
+### Integration, Merging, Output, Validation
+`integration/test_phase6_canonical_reuse.py` is the only true integration test in the module: it re-runs the Phase 6 standardization/level-assignment/SF-duplication logic on already-enriched data and asserts no regressions. `merging/test_historical_modern_merge.py` (23 tests) loads historical data, filters years on an inclusive boundary, merges on a shared schema, and resolves source overlaps by priority (with extensive error-path coverage). `output/test_finalize_dataset.py` sets the source, orders/sorts columns, coerces year to string, and round-trips the CSV. The `validation/` folder has four validators — `test_cleaning_validators.py`, `test_aggregation_validators.py` (rate plausibility), `test_historical_data_validator.py`, and `test_final_dataset_validator.py` (20 tests: all five levels present, California state rows, SF has both levels without triplication, Bay Area 2020 plausibility, no future years, vacancy and persons-per-household ranges).
+
+---
+
+## Age-Sex-Race Projections
+
+15 files, ~184 tests. DoF P-3 projections plus Census county estimates (CCEST), stratified by age group, sex, and race. See [[projections-module-migration]].
+
+### Config
+`config/test_paths.py`, `test_schemas.py`, `test_sources.py` lock the projections directories; seven canonical race groups, eighteen canonical age groups, all 58 California counties, the P-3 semantic ranges, the completeness grouping grain, the CCEST raw schema and code maps, and exactly 50 census states; and the P-3 filename pattern and cache configuration.
+
+### Acquisition
+`acquisition/test_census_ccest_downloader.py` picks the latest vintage directory and builds the `alldata` URL (raising without one), caches to skip HTTP, raises on network failure without cache, and validates CCEST headers. `acquisition/test_dof_p3_downloader.py` discovers the P-3 zip (matching both hyphenated and unhyphenated filenames), resolves relative URLs, extracts exactly one CSV from the zip (raising on zero or multiple), caches, picks the newest non-expired file, and validates the P-3 CSV columns. `acquisition/test_source_fallback.py` runs the live → second-live → manual → saved-rows ladder.
+
+### Cleaning
+`cleaning/test_age_group_standardizer.py` returns the eighteen ordered labels and bin edges, maps single-year ages to groups (including the 84/85 boundary and the 85-110 collapse), rejects negative/over-110 ages, normalizes label variants, and validates completeness. `cleaning/test_census_ccest_cleaner.py` parses the official wide schema (and Latin-1 encoding), renames columns, aggregates counties to exactly 50 states, and reshapes wide race/sex/code columns to long (reporting unmapped race and unknown year codes). `cleaning/test_dof_p3_cleaner.py` maps FIPS to county (reporting every unmapped code), standardizes sex labels, bins single-year ages into five-year groups, and runs an end-to-end clean that rejects unmapped FIPS/race/sex and semantically invalid values. `cleaning/test_race_ethnicity_mapping.py` maps all seven P-3 race codes and validates completeness.
+
+### Aggregation, Merging, Output, Validation
+`aggregation/test_precomputed_totals.py` (17 tests) builds the aggregation cube: all-ages, both-sexes, and all-races totals each summing the right dimension while keeping the others separate, the grand total equaling base population, aggregators running in required order, and no duplicate contract keys. `aggregation/test_regional_aggregation.py` (18 tests) produces nine regions per stratification and a state total, keeping sources/stratifications separate, adding a DoF state when a Census state exists, and aggregating only county-level rows. `merging/test_historical_merge.py` keeps years absent from new data, lets new data win on overlap, rejects incomplete overlapping/new years, filters to the requested source, and detects new source data while ignoring the boundary year. `output/test_finalize_dataset.py` classifies levels, enforces contract order, sorts and casts year, and runs archive-and-save. `validation/test_projections_validators.py` checks cleaning output (columns, null keys, negative population, non-canonical race/age), the dataset (row-count bounds, missing level, year range, duplicates), and stratification completeness (never pooling groups, ignoring aggregate rows, totals cannot fill missing base strata).
+
+---
+
+## Orchestrators
+
+5 files, ~52 tests. Each module's top-level `build_*_dataset` entry point. These tests **monkeypatch the phase functions** and assert on composition rather than data: phases run in the right order, each phase's output is threaded to the next, a failure is wrapped with `raise_phase_error` carrying the phase name, validation failure stops before the save, and no write happens when there is no new data. They also assert the source-status reporting (live / used-manual / source-failed-fallback).
+
+`test_pophousing_pipeline.py` is the most detailed (15 tests: phase 1-6 threading, per-phase failure stops, archive-before-write, no orphaned archive on write failure, and no interactive prompts). `test_building_permits_pipeline.py`, `test_housing_stress_pipeline.py`, and `test_projections_pipeline.py` add module-specific concerns — reporting acquired months as contract strings, reporting the resolved vintage, the clean-with-fallback ladder, and requiring the state-total phase. `test_components_of_change_pipeline.py` covers the save/no-save decision and the cleaning-failure-uses-saved-source path.
+
+---
+
+## Testing Gaps by Phase
+
+These are gaps in *coverage*, noted but not fixed. Several intersect with known code issues documented elsewhere; where a test pins behavior that another document flags as questionable, that is called out.
+
+### Acquisition — upstream drift is untestable by design
+Because `block_real_http` mocks every network call, the scrapers are only ever exercised against **synthetic HTML/workbook fixtures**. No test can catch a real change to a DoF landing page, a Census directory layout, or a workbook's sheet order — exactly the failures that have repeatedly broken the live pipelines ([[components-of-change-live-sources-broken]], [[projections-pipeline-live-broken]]). The URL-walk and positional-fallback tests confirm the *logic*, not that the logic still matches the live sites. A contract/smoke test tier that hits the real sources (run out-of-band, not in CI) is absent.
+
+### Merging — no cold-start / deep-history test
+Every module tests atomic year/month replacement and change detection on small frames, but none asserts that **deep history survives a cold start**. For Building Permits this is a real risk: the Census rolling window means deep history depends on an irreplaceable seed snapshot, and a from-empty run would yield only the rolling window ([[building-permits-refactor-flagged-issues]]). Housing Stress, Projections, and Components keep only the latest vintage with no backfill test ([[housing-stress-refactor-flagged-issues]], [[projections-refactor-flagged-issues]]).
+
+### Merging — change-detection tests pin possibly-wrong behavior
+The `detect_new_*` tests assert that change detection ignores the boundary year and row order. But the flagged-issues docs note that for Projections and Components the detection runs at a **mismatched grain and effectively always fires** ([[projections-refactor-flagged-issues]], [[components-of-change-refactor-flagged-issues]]). The tests encode the current behavior rather than asserting the intended "no-op when data is unchanged" property end-to-end, so they would not catch spurious re-saves.
+
+### Validation — no-op checks are not caught
+Several `validate_cleaning_output` variants contain checks that the flagged-issues docs identify as no-ops (a null check that never fires, a final non-negative check with a key mismatch — [[housing-stress-refactor-flagged-issues]], [[projections-refactor-flagged-issues]]). The validator tests assert the *reported* failures on crafted bad input, but there is no test proving each individual rule actually rejects the specific violation it targets, so a silently-disabled rule passes its suite.
+
+### Orchestration — no true end-to-end run
+Orchestrator tests mock every phase function, so they verify wiring but never run real (or realistic fixture) data through the whole pipeline. Only Population & Housing has any integration test (`integration/test_phase6_canonical_reuse.py`), and it covers a single phase. There is no test that a module's phases actually *compose* on a representative frame — the seam where most integration bugs live.
+
+### Aggregation — uneven depth across modules
+Coverage is lopsided. Projections and Population & Housing have deep aggregation suites (17-18 tests each); **Components of Change has only two aggregation tests** and no county-level aggregation coverage beyond the regional sum. Housing Stress folds its measure math into cleaning with no separate calculations tests.
+
+### Visualizations — smoke only
+The shared chart tests and `components_of_change/test_visualizations.py` assert a figure is *returned without rendering*; they check bin math and indexing but not that the resulting traces carry the correct data. The other four modules have no module-level visualization tests at all — they rely entirely on the three shared builders.
+
+### Logging / run-records — well covered
+For completeness: the shared logging and run-record ledger are among the better-tested areas (severity escalation, Pacific offset, JSON-line append, `execute_pipeline_run` success/error paths), with no obvious gap. Note, however, that the flagged-issues docs mention stubbed logging in the PopHousing Phase 0 build ([[pophousing-refactor-flagged-issues]]), which no test exercises because that build path is unwired.

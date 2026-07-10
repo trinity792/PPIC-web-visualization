@@ -60,9 +60,14 @@ export default function DataSourcePanel() {
   const [editorOpen, setEditorOpen] = useState(false);
   const fileInputRef = useRef(null);
 
-  if (!isVisible("ownData", config.tier)) return null;
+  // The standalone Visualization Tool (byod schema) has no module dataset: the
+  // panel is always shown regardless of tier, the dataset selector is hidden,
+  // and the source stays pinned to "inline".
+  const inlineOnly = Boolean(schema.inlineOnly);
 
-  const source = config.data?.source || "module";
+  if (!inlineOnly && !isVisible("ownData", config.tier)) return null;
+
+  const source = inlineOnly ? "inline" : config.data?.source || "module";
   const inline = config.data?.inline;
 
   function loadInlineTable(table, originName) {
@@ -135,11 +140,19 @@ export default function DataSourcePanel() {
   }
 
   function handleRemove() {
-    dispatch({ type: "SET_DATA_SOURCE", source: "module" });
+    // With no module dataset to fall back to, "Remove" just clears the table
+    // and stays in inline mode (back to the paste/upload prompt).
+    dispatch({
+      type: "SET_DATA_SOURCE",
+      source: inlineOnly ? "inline" : "module",
+      inline: undefined,
+    });
     logEditorEvent({
       severity: "info",
       code: "TABLE_REMOVED",
-      summary: "Removed your data; reverted to the module dataset",
+      summary: inlineOnly
+        ? "Cleared your data"
+        : "Removed your data; reverted to the module dataset",
       source: "DataSourcePanel",
     });
   }
@@ -171,18 +184,20 @@ export default function DataSourcePanel() {
 
   return (
     <div className="grid gap-3 rounded-lg border bg-card p-3">
-      <div className="grid gap-2">
-        <Label htmlFor="data-source-mode">Dataset</Label>
-        <Select value={source === "inline" ? "inline" : "module"} onValueChange={handleSourceChange}>
-          <SelectTrigger id="data-source-mode">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="module">{schema.label}</SelectItem>
-            <SelectItem value="inline">Your data</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      {inlineOnly ? null : (
+        <div className="grid gap-2">
+          <Label htmlFor="data-source-mode">Dataset</Label>
+          <Select value={source === "inline" ? "inline" : "module"} onValueChange={handleSourceChange}>
+            <SelectTrigger id="data-source-mode">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="module">{schema.label}</SelectItem>
+              <SelectItem value="inline">Your data</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {source === "inline" && !inline ? (
         <div className="grid gap-2">

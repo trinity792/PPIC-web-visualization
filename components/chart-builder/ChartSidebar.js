@@ -444,7 +444,9 @@ function AppearanceSection() {
 // The eight top-level sections, top to bottom. `key` entries only render when
 // the current chart type lists them in its `sidebarSections`; `controlId`
 // gates each section by the active settings tier (settingsTiers.js).
-const TOP_SECTIONS = [
+// Exported so the step-wizard (components/chart-builder/wizard) can render a
+// filtered subset of the same sections instead of re-authoring them.
+export const TOP_SECTIONS = [
   { value: "data-sources", label: "Data Sources", Component: DataSourcesSection, controlId: "dataSources" },
   { value: "presets", label: "Presets", Component: PresetSection, controlId: "presets" },
   { value: "graph-type", label: "Graph Type", Component: GraphTypeSection, controlId: "graphType" },
@@ -456,12 +458,54 @@ const TOP_SECTIONS = [
 ];
 
 /**
+ * Which TOP_SECTIONS are visible for the current chart type + settings tier.
+ * Shared by both the single-screen sidebar and the step wizard so section
+ * gating lives in exactly one place. Pass `only` to restrict to specific
+ * section values (order preserved from TOP_SECTIONS).
+ */
+export function visibleSectionsFor(config, { only } = {}) {
+  const chartSections = getChartType(config.chartType)?.sidebarSections || [];
+  return TOP_SECTIONS.filter(
+    (section) =>
+      (!only || only.includes(section.value)) &&
+      (!section.key || chartSections.includes(section.key)) &&
+      isVisible(section.controlId, config.tier),
+  );
+}
+
+/**
+ * The tier/chart-type-gated section accordion, without the resizable Sidebar
+ * shell. Reused by the step wizard's Edit step (which supplies its own layout).
+ * `only` restricts to a subset of section values.
+ */
+export function SidebarSections({ only }) {
+  const { config } = useChartConfig();
+  const sections = visibleSectionsFor(config, { only });
+
+  return (
+    <Accordion
+      type="multiple"
+      // Keyed on tier so sections revealed by a tier switch mount expanded.
+      key={config.tier}
+      defaultValue={sections.map((section) => section.value)}
+      className="grid gap-1"
+    >
+      {sections.map(({ value, label, Component }) => (
+        <Section key={value} value={value} label={label}>
+          <Component />
+        </Section>
+      ))}
+    </Accordion>
+  );
+}
+
+/**
  * ======================================================================
  * Saved View Actions
  * ======================================================================
  */
 
-function FooterActions({ scale = 1 }) {
+export function FooterActions({ scale = 1 }) {
   const { config, dispatch, schema } = useChartConfig();
   const [mode, setMode] = useState("export");
   const [json, setJson] = useState(() => serialize(config));
@@ -744,7 +788,7 @@ function ResizeHandle({ scale, onScaleChange }) {
 }
 
 export default function ChartSidebar({ scale = 1, onScaleChange }) {
-  const { config, schema } = useChartConfig();
+  const { schema } = useChartConfig();
   const { isMobile } = useSidebar();
 
   // Phase 1 (stretch): font stays at base size, the panel fills its width so
@@ -779,13 +823,6 @@ export default function ChartSidebar({ scale = 1, onScaleChange }) {
     };
   }, []);
 
-  const chartSections = getChartType(config.chartType)?.sidebarSections || [];
-  const visibleSections = TOP_SECTIONS.filter(
-    (section) =>
-      (!section.key || chartSections.includes(section.key)) &&
-      isVisible(section.controlId, config.tier),
-  );
-
   const body = (
     <>
       <SidebarHeader className="p-4 pb-2">
@@ -799,20 +836,7 @@ export default function ChartSidebar({ scale = 1, onScaleChange }) {
         <ScrollArea className="h-full px-4">
           <div className="grid gap-2 pb-4">
             <ValidationNotice />
-            <Accordion
-              type="multiple"
-              // Keyed on the tier so sections revealed by a tier switch mount
-              // expanded (defaultValue is only read on mount).
-              key={config.tier}
-              defaultValue={visibleSections.map((section) => section.value)}
-              className="grid gap-1"
-            >
-              {visibleSections.map(({ value, label, Component }) => (
-                <Section key={value} value={value} label={label}>
-                  <Component />
-                </Section>
-              ))}
-            </Accordion>
+            <SidebarSections />
           </div>
         </ScrollArea>
       </SidebarContent>

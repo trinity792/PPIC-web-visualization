@@ -65,6 +65,9 @@ export default function Navbar() {
           </form>
           <div className="flex flex-wrap items-center gap-x-8 gap-y-2 font-body text-sm">
             <NavDropdown label="Modules" items={MODULE_LINKS} />
+            <Link href="/visualization-tool" className="hover:underline">
+              Visualization Tool
+            </Link>
             <Link href="/documents" className="hover:underline">
               Documents
             </Link>
