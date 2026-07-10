@@ -516,7 +516,7 @@ function AppearanceSection() {
       ) : null}
       {/* Range / dot-plot value-axis + per-point number toggles, each gated by
           its settings tier (showValueAxis: moderate, showPointLabels: advanced). */}
-      {["dumbbell", "dotPlot"].includes(config.chartType) &&
+      {["dumbbell", "dotPlot", "forest"].includes(config.chartType) &&
       isVisible("showValueAxis", config.tier) ? (
         <div className="flex items-center justify-between gap-3">
           <Label htmlFor="appearance-value-axis">Show values on plot</Label>
@@ -529,7 +529,7 @@ function AppearanceSection() {
           />
         </div>
       ) : null}
-      {["dumbbell", "dotPlot"].includes(config.chartType) &&
+      {["dumbbell", "dotPlot", "forest"].includes(config.chartType) &&
       isVisible("showPointLabels", config.tier) ? (
         <div className="flex items-center justify-between gap-3">
           <Label htmlFor="appearance-point-labels">Show point values</Label>
@@ -573,6 +573,74 @@ function AppearanceSection() {
               </div>
             );
           })}
+        </div>
+      ) : null}
+      {/* Forest plot: how the CI ends and the estimate marker render, plus the
+          line of no effect. */}
+      {config.chartType === "forest" && isVisible("endpointStyle", config.tier) ? (
+        <div className="grid gap-2">
+          <Label htmlFor="appearance-endpoint-style">Interval ends</Label>
+          <Select
+            value={config.appearance.endpointStyle || "caps"}
+            onValueChange={(value) =>
+              dispatch({ type: "SET_APPEARANCE", key: "endpointStyle", value })
+            }
+          >
+            <SelectTrigger id="appearance-endpoint-style">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="caps">Vertical bars</SelectItem>
+              <SelectItem value="dots">Dots</SelectItem>
+              <SelectItem value="diamonds">Diamonds</SelectItem>
+              <SelectItem value="none">None</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
+      {config.chartType === "forest" && isVisible("pointStyle", config.tier) ? (
+        <div className="grid gap-2">
+          <Label htmlFor="appearance-point-style">Estimate marker</Label>
+          <Select
+            value={config.appearance.pointStyle || "square"}
+            onValueChange={(value) =>
+              dispatch({ type: "SET_APPEARANCE", key: "pointStyle", value })
+            }
+          >
+            <SelectTrigger id="appearance-point-style">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="square">Square</SelectItem>
+              <SelectItem value="diamond">Diamond</SelectItem>
+              <SelectItem value="dot">Dot</SelectItem>
+              <SelectItem value="none">None</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
+      {config.chartType === "forest" && isVisible("noEffectValue", config.tier) ? (
+        <div className="grid gap-2">
+          <Label htmlFor="appearance-no-effect">Line of no effect</Label>
+          <Input
+            id="appearance-no-effect"
+            type="number"
+            inputMode="decimal"
+            placeholder="e.g. 0 or 1 (blank to hide)"
+            value={
+              config.appearance.noEffectValue == null
+                ? ""
+                : String(config.appearance.noEffectValue)
+            }
+            onChange={(event) => {
+              const raw = event.target.value.trim();
+              dispatch({
+                type: "SET_APPEARANCE",
+                key: "noEffectValue",
+                value: raw === "" ? null : Number(raw),
+              });
+            }}
+          />
         </div>
       ) : null}
       <div className="flex items-center justify-between gap-3">

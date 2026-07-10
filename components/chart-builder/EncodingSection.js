@@ -58,6 +58,17 @@ export function roleLabel(role, chartType) {
     const dotLabels = { y: "Category (rows)", x: "Series (dots)", color: "Value" };
     if (dotLabels[role]) return dotLabels[role];
   }
+  // Forest plot reads as study / CI bounds / estimate / weight.
+  if (chartType === "forest") {
+    const forestLabels = {
+      category: "Study",
+      start: "CI lower bound",
+      end: "CI upper bound",
+      point: "Estimate",
+      size: "Study weight",
+    };
+    if (forestLabels[role]) return forestLabels[role];
+  }
   const labels = {
     x: "X axis",
     y: "Y axis",

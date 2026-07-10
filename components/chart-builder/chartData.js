@@ -21,6 +21,8 @@ const QUERY_SHAPES = Object.freeze({
   bar: "category",
   dumbbell: "twoPeriod",
   slope: "twoPeriod",
+  // Forest plot shares the two-endpoint (CI low/high) two-period shape.
+  forest: "twoPeriod",
   scatter: "pairs",
   bubble: "pairs",
   heatmap: "matrix",
@@ -360,7 +362,7 @@ export function seriesNamesOf(chartType, result) {
   if (chartType === "scatter" || chartType === "bubble") {
     return [...new Set(records.map((item) => item.group || item.color).filter(Boolean))];
   }
-  if (chartType === "dumbbell" || chartType === "slope") {
+  if (chartType === "dumbbell" || chartType === "slope" || chartType === "forest") {
     return [...new Set(records.map((item) => item.category || item.location).filter(Boolean))];
   }
   return [];

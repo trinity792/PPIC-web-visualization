@@ -6,6 +6,8 @@
  * supervisor sign-off is recorded.
  */
 
+/* global process */ // Node test file: `process.cwd()` roots the doc paths (silences eslint no-undef).
+
 import fs from "node:fs";
 import path from "node:path";
 

@@ -32,7 +32,7 @@ const FAMILIES = [
   { label: "Bar", ids: ["bar"] },
   { label: "Pie", ids: ["pie"] },
   { label: "Map", ids: ["choroplethMap", "symbolMap"] },
-  { label: "Range", ids: ["dumbbell", "dotPlot", "slope"] },
+  { label: "Range", ids: ["dumbbell", "dotPlot", "slope", "forest"] },
   { label: "Distribution", ids: ["scatter", "bubble", "heatmap"] },
   { label: "Table", ids: ["dataTable"] },
 ];

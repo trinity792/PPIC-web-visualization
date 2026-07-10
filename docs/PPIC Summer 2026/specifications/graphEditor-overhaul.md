@@ -1,6 +1,6 @@
 ---
 Topic: Technical
-Content Type: as-built reference guide
+Content Type: reference guide
 pinned: false
 description: "As-built guide for the graph-editor overhaul: a Datawrapper-class chart editor with a GUI ⇄ code-editor toggle, user-supplied data, palette control, tiered settings, image/data export, and an expanded chart-type catalog — built by extending the existing chart-builder with variants rather than replacing it."
 Date Published: July 6, 2026
@@ -942,18 +942,21 @@ Because the `byod` schema has no field catalog, the pasted table's **columns** a
 
 `ExportMenu` gained an **Embed code** dialog: it serializes the config into a `?embed=1&view=<serialized>` URL (`/visualization-tool` for byod, `/<module>` otherwise) and hands back an `<iframe>` snippet (with a "URL too long — export image/JSON instead" guard at 16 kB, since large inline data won't fit in a link). Both page routes read `searchParams`; when `embed === "1"` the wizard renders `EmbeddedPreview` (preview only) and `EmbedChromeHider` adds `body.chart-embed-mode` (nav/chrome hidden via `globals.css`).
 
-### 11.5 The View Data step + "View original data" toggle
+### 11.5 The View Data step + three-way "Data view" selector
 
-`ViewDataStep.js` shows the tabular data behind the chart via `DataTableView`, reusing the already-loaded `PreviewContext` result (no second fetch; loading state for large module datasets). A **"View original data" toggle (on by default)** switches between:
+`ViewDataStep.js` shows the tabular data behind the chart via `DataTableView`. A **"Data view" radio (defaults to _Source data_)** picks how wide the table is:
 
-- **original** — the data as it *entered* the tool: for byod the full imported table (every pasted column, original headers); for a module the widest source-like table `originalTable()` can rebuild from the API response (flat records → union of keys; a line fetch's grouped series → a `Location × Period` table with `Subset`/`Source` context columns);
-- **chart** — `displayTable()`, the exact narrowed rows/columns the chart renders.
+- **Chart data** — `displayTable()`, the exact narrowed rows/columns the chart renders. Instant: reuses the already-loaded `PreviewContext` result, no fetch.
+- **Source data (current filters)** — every column of the cleaned source, kept to the chart's current geography / source / date window;
+- **Entire dataset** — the whole cleaned file, every row and column, ignoring the chart's filters.
 
-Both live in [`lib/export/exportTable.js`](../../../lib/export/exportTable.js) (`originalTable` returns `null` when no wider source exists, and the step falls back to the chart table with an explanatory note).
+**Why the two source modes need a dedicated fetch.** Each chart view (`line`/`category`/`twoPeriod`/…) narrows the CSV to the *bound roles server-side*, so the preview result carries only Location + Period + the one plotted measure — reconstructing from it can never surface the file's other ~15 columns. The two source modes therefore hit a new module API view, **`GET <apiPath>?view=table`** (`&full=1` for the entire dataset), added to all five module routes. Server-side `queryFullTable()` (each `lib/data/<module>.js`, over the shared [`buildFullTable`](../../../lib/data/query_shapes.js)) returns un-narrowed `{records}`; **stratification (age/sex/race, permit type) is intentionally _not_ applied** so those columns become visible. Building Permits' variant is monthly (`filterMonthlyRows` + `subsetRows`), and its `full` mode returns the raw file (no derived regions/rest-of-US). The client (`useModuleTable`) fetches once per URL, caches by URL, and feeds the records back through `originalTable()` (records → union-of-keys, CSV column order preserved, numeric/text inferred) — [`lib/export/exportTable.js`](../../../lib/export/exportTable.js). Bring-your-own-data has no server table, so its source modes show the full pasted/uploaded table directly.
 
-### 11.6 Range / dot-plot chart family
+### 11.6 Range / dot-plot / forest chart family
 
 The old **Dumbbell** is relabeled **Range** (id stays `dumbbell` so saved views/deep links survive) and gains an optional **`point`** center dot — e.g. a point estimate inside a low/high confidence interval — plus `showValueAxis` / `showPointLabels` appearance toggles. A sibling **`dotPlot`** id (preset `MULTI_SERIES_DOTS`) plots several series as coloured dots per category on a shared value axis joined by a light range band; it reuses the **matrix** data path (two dimensions + one measure, like a heatmap: `y` = category rows, `x` = series, `color` = value). `toPlotly` grew `dotPlotSpec` + a `toMatrix` helper and the Range center-dot; per-series value labels are controlled by `appearance.pointLabelSeries` (advanced "Show values for" switches — e.g. label only the "Women" series). Both are wired through `chartData`/`toSeries` (QUERY_SHAPES: `dotPlot → matrix`) and `exportTable`.
+
+A third sibling, the **`forest`** plot (preset `FOREST_PLOT`, added 2026-07-10), is a meta-analysis Range variant: `category` = study, `start`/`end` = the CI's lower/upper bound (distinct columns — not mirrored like a two-period dumbbell), optional `point` = the study estimate (falls back to the CI midpoint) and optional `size` = the study **weight** (bigger marker = more precise). It reuses the **twoPeriod** data path (with `point` + `size` now carried through `buildTwoPeriodShape`) and renders through `twoPeriodSpec(spec, { forest: true })`: a thin CI whisker per study, style-controlled endpoint ends, a style-controlled estimate marker, a **line of no effect**, and studies ordered top-to-bottom. New `appearance` controls (all moderate tier): **`endpointStyle`** — how the interval ends appear (`caps` vertical bars \| `dots` \| `diamonds` \| `none`); **`pointStyle`** — the estimate marker (`square` \| `diamond` \| `dot` \| `none`); **`noEffectValue`** — x of the reference line (0 for differences, 1 for ratios; blank hides it). BYOD auto-maps CI columns onto its roles (synonyms for lower/upper/estimate/weight + `study`/`author`/`trial` for the label).
 
 ### 11.7 Official PPIC palette + typography
 
@@ -961,7 +964,7 @@ The old **Dumbbell** is relabeled **Range** (id stays `dumbbell` so saved views/
 
 ### 11.8 Verification & open follow-ups
 
-Verified by `npm run test` (Vitest) + `npx eslint` clean; `originalTable`, the Range/dot-plot builders, per-series labels, and inline auto-mapping have unit tests. **No browser click-through** — the interactive surfaces still want an eyeball: multi-chart grid layouts, the embed iframe rendering on a host page, the View Data toggle collapsing to the mapped columns, and the dot-plot per-series label switches.
+Verified by `npm run test` (Vitest) + `npx eslint` clean; `originalTable`, the Range/dot-plot builders, per-series labels, and inline auto-mapping have unit tests. **No browser click-through** — the interactive surfaces still want an eyeball: multi-chart grid layouts, the embed iframe rendering on a host page, the View Data selector's _Source data_ / _Entire dataset_ modes fetching the full CSV (all columns) for a module, and the dot-plot per-series label switches.
 
 > [!note] Doc `Status` is now a controlled vocabulary
 > The `graphEditorPhase7Docs` test used to assert this file's `Status` read as "finalized/complete/shipped/signed off"; that assertion was **removed** (2026-07-10). Per project convention the `Status` front-matter field takes only **Updating** (a living document that can still change), **Finalized** (done, no further changes expected), or **Archive** (no longer relevant/referenced) — any nuance beyond that word belongs in a body callout, not the field.

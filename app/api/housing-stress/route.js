@@ -13,6 +13,7 @@ import {
   BASES,
   THRESHOLDS,
   queryCategoryValues,
+  queryFullTable,
   queryGeoValues,
   queryLineSeries,
   queryMatrix,
@@ -21,7 +22,7 @@ import {
 } from "@/lib/data/housing_stress";
 import { integerParam, invalid, listParam } from "@/lib/data/apiParams";
 
-const VIEWS = ["line", "category", "twoPeriod", "matrix", "geo"];
+const VIEWS = ["line", "category", "twoPeriod", "matrix", "geo", "table"];
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
@@ -38,6 +39,7 @@ export async function GET(request) {
   const basis = searchParams.get("basis");
   const threshold = integerParam(searchParams, "threshold");
   const parameter = searchParams.get("parameter");
+  const full = searchParams.get("full") === "1";
 
   if (!VIEWS.includes(view)) {
     return invalid(
@@ -81,6 +83,10 @@ export async function GET(request) {
   const echo = { view, subset, raceEthnicity, tenure, measure };
 
   try {
+    if (view === "table") {
+      const result = await queryFullTable({ subset, locations, startYear, endYear, full });
+      return Response.json({ view, ...result });
+    }
     if (view === "category") {
       const result = await queryCategoryValues({ ...common, period, topN, sort });
       return Response.json({ ...echo, ...result });

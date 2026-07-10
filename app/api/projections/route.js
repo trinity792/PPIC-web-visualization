@@ -13,13 +13,14 @@ import {
   AVAILABLE_SUBSETS,
   queryCategoryValues,
   queryGeoValues,
+  queryFullTable,
   queryLineSeries,
   queryMatrix,
   queryTwoPeriod,
 } from "@/lib/data/demographic_projections";
 import { integerParam, invalid, listParam } from "@/lib/data/apiParams";
 
-const VIEWS = ["line", "category", "twoPeriod", "matrix", "geo"];
+const VIEWS = ["line", "category", "twoPeriod", "matrix", "geo", "table"];
 const CENSUS_SOURCE = "Census cc-est";
 const DOF_SOURCE = "DoF P-3";
 
@@ -38,6 +39,7 @@ export async function GET(request) {
   const ageGrouping = searchParams.get("ageGrouping");
   const sex = searchParams.get("sex");
   const raceEthnicity = searchParams.get("raceEthnicity");
+  const full = searchParams.get("full") === "1";
 
   if (!VIEWS.includes(view)) {
     return invalid(
@@ -88,6 +90,10 @@ export async function GET(request) {
   const echo = { view, subset, source, ageGroup, ageGrouping, sex, raceEthnicity };
 
   try {
+    if (view === "table") {
+      const result = await queryFullTable({ subset, source, locations, startYear, endYear, full });
+      return Response.json({ view, ...result });
+    }
     if (view === "category") {
       const result = await queryCategoryValues({ ...common, period, topN, sort });
       return Response.json({ ...echo, ...result });

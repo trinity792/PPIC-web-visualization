@@ -1,1 +1,1 @@
-Live site is hosted on [Vercel](https://ppic-web-visualization-git-main-ppic.vercel.app/) (temp)
+Live site is hosted on [Vercel](https://ppic-web-visualization.vercel.app/) (temp)

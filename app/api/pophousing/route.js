@@ -12,12 +12,13 @@ import {
   queryGeoValues,
   queryLineSeries,
   queryMatrix,
+  queryFullTable,
   queryMeasurePairs,
   queryTwoPeriod,
 } from "@/lib/data/pop_housing";
 import { integerParam, invalid, listParam } from "@/lib/data/apiParams";
 
-const VIEWS = ["line", "category", "twoPeriod", "pairs", "matrix", "geo"];
+const VIEWS = ["line", "category", "twoPeriod", "pairs", "matrix", "geo", "table"];
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
@@ -33,6 +34,7 @@ export async function GET(request) {
   const period = integerParam(searchParams, "period");
   const topN = integerParam(searchParams, "topN");
   const sort = searchParams.get("sort") || "value";
+  const full = searchParams.get("full") === "1";
 
   if (!VIEWS.includes(view)) {
     return invalid(
@@ -45,6 +47,19 @@ export async function GET(request) {
       `Invalid or missing 'subset'. Expected one of: ${AVAILABLE_SUBSETS.join(", ")}`,
       "pop_housing API: subset validation",
     );
+  }
+  // The full-table view carries no measure/parameter, so it must resolve before
+  // the parameter validation below.
+  if (view === "table") {
+    try {
+      const result = await queryFullTable({ subset, locations, startYear, endYear, full });
+      return Response.json({ view, ...result });
+    } catch (error) {
+      return Response.json(
+        { error: error.message, source: "pop_housing API: table query" },
+        { status: 500 },
+      );
+    }
   }
   if (view === "pairs") {
     if (!AVAILABLE_MEASURES.includes(xMeasure) || !AVAILABLE_MEASURES.includes(yMeasure)) {

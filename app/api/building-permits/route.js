@@ -11,13 +11,14 @@
 import {
   AVAILABLE_PARAMETERS,
   AVAILABLE_SUBSETS,
+  queryFullTable,
   queryGeoValues,
   queryLineSeries,
   queryTwoPeriod,
 } from "@/lib/data/building_permits";
 import { integerParam, invalid, listParam } from "@/lib/data/apiParams";
 
-const VIEWS = ["line", "twoPeriod", "geoValues"];
+const VIEWS = ["line", "twoPeriod", "geoValues", "table"];
 const MONTH_PATTERN = /^\d{4}-\d{2}$/;
 
 function monthParam(searchParams, key) {
@@ -40,6 +41,7 @@ export async function GET(request) {
   const endYear = integerParam(searchParams, "endYear");
   const aggregated = searchParams.get("aggregated") === "true";
   const indexed = searchParams.get("indexed") === "true";
+  const full = searchParams.get("full") === "1";
 
   if (!VIEWS.includes(view)) {
     return invalid(`Invalid 'view'. Expected one of: ${VIEWS.join(", ")}`, "building-permits API: view validation");
@@ -74,6 +76,10 @@ export async function GET(request) {
   const echo = { view, subset, permitType, aggregated, indexed };
 
   try {
+    if (view === "table") {
+      const result = await queryFullTable({ ...common, full });
+      return Response.json({ view, ...result });
+    }
     if (view === "twoPeriod") {
       const result = await queryTwoPeriod(common);
       return Response.json({ ...echo, ...result });

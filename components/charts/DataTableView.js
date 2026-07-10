@@ -27,7 +27,6 @@ import { ChevronDown, ChevronsUpDown, ChevronUp } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -115,9 +114,19 @@ export default function DataTableView({ table, appearance = {} }) {
           className="max-w-xs"
         />
       ) : null}
-      <div className="min-h-0 flex-1 overflow-auto">
-        <Table>
-          <TableHeader>
+      {/*
+        Single scroll container for BOTH axes: the raw <table> (not the Table
+        primitive, whose own overflow-x wrapper would put the horizontal
+        scrollbar below all rows). The table is sized `w-max min-w-full` so wide
+        (whitespace-nowrap) content overflows this box — triggering horizontal
+        scroll — while a narrow table still fills it. `max-h-[70svh]` keeps the
+        box (and therefore its bottom-pinned horizontal scrollbar) on screen even
+        when the surrounding card grows tall, instead of scrolling the page; rows
+        scroll internally under the sticky header.
+      */}
+      <div className="min-h-0 min-w-0 max-h-[70svh] flex-1 overflow-auto rounded-md border">
+        <table className="w-max min-w-full caption-bottom text-sm">
+          <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow>
               {columns.map((column, index) => (
                 <TableHead
@@ -169,7 +178,7 @@ export default function DataTableView({ table, appearance = {} }) {
               </TableRow>
             )}
           </TableBody>
-        </Table>
+        </table>
       </div>
       {pageCount > 1 ? (
         <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">

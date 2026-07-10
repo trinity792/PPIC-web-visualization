@@ -4,14 +4,14 @@ Content Type: Notes
 pinned: false
 description: "Notes for me to stay on track"
 Date Published: July 4, 2026
-Last Updated: 07/10/2026 - 11:35 AM
+Last Updated: 07/10/2026 - 3:21 PM
 Status: Updating
 ---
 # To Do Notes
 ## To Dos Today (7/10)
 - Graph Editor Clean Ups
-  - [ ] View original data checks & fixes
-  - [ ] Add a Forest Plot variant of the Range plot base
+  - [x] View original data checks & fixes
+  - [x] Add a Forest Plot variant of the Range plot base
   - [x] Implement ability for Multi charts side by side (or grid layout)
     - User should be able to click an "add a chart" button where the user can add another chart in a 2x1, 1x2, or 2x2 grid using the data they've already implemented. Only one chart can be edited at a time. User should click a toggle to determine which chart/graph they are editing and the editor sidebar should update. 
   - [x] Undo/redo buttons
@@ -84,6 +84,7 @@ Note: not in order
 - [ ] Update UI kit fonts and graphs
 - [ ] Documents: Wire in Footnote YAML field
 - [ ] Footnotes on the graph clip the x axis labels. They should be rendered as callouts below the x axis title
+- [ ] Test & Fix graph export options
 ### Information Gaps
 - Internal server hardware capabilities
 - Open ports to host visualizations, traefik or other reverse proxy setup viability (is there someone who can maintain it?)
