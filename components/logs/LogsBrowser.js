@@ -76,36 +76,7 @@ export default function LogsBrowser({ entries, modules, severities }) {
   const hasMore = visibleCount < results.length;
 
   return (
-    <div className="min-h-screen w-full" style={{ background: "var(--background)" }}>
-      {/* Hero band */}
-      <section
-        className="w-full border-b"
-        style={{ background: "var(--ppic-surface)", borderColor: "var(--ppic-border)" }}
-      >
-        <div className="page-container px-6 py-14 text-center">
-          <h1
-            style={{
-              fontFamily: "var(--font-serif)",
-              fontSize: 44,
-              fontWeight: 400,
-              lineHeight: 1.15,
-              color: "var(--ppic-ink, #0d0d0d)",
-            }}
-          >
-            Pipeline Logs
-          </h1>
-          <p
-            className="mx-auto mt-3 max-w-xl"
-            style={{ color: "var(--ppic-neutral-400)", fontFamily: "var(--font-sans)" }}
-          >
-            Every data pipeline run, newest first. See what succeeded, what fell back to saved
-            data, and what failed.
-          </p>
-        </div>
-      </section>
-
-      {/* Content */}
-      <main className="page-container flex flex-col gap-10 px-6 py-10 md:flex-row">
+    <main className="page-container flex flex-col gap-10 px-6 py-10 md:flex-row">
         <LogFilterSidebar
           modules={modules}
           module={module}
@@ -173,7 +144,6 @@ export default function LogsBrowser({ entries, modules, severities }) {
             </div>
           ) : null}
         </section>
-      </main>
-    </div>
+    </main>
   );
 }

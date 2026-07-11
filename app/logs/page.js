@@ -1,28 +1,44 @@
 /**
- * app/logs/page.js — Pipeline Logs page (server component).
+ * app/logs/page.js — Logs page (server component).
  *
- * Reads the run records written by the Python pipelines (logs/*.jsonl) and renders
- * them as a filterable feed of run cards. Filter options are derived from the
- * records, so new pipelines appear without code changes.
+ * Loads two feeds and hands them to the tabbed LogsTabs shell:
+ *   - Pipeline Logs — run records written by the Python pipelines (logs/*.jsonl).
+ *   - Changelog — curated changes derived from commit history (data/changelog.json).
+ * Filter options for both feeds are derived from their records, so new pipelines
+ * and changelog entries appear without code changes.
  *
  * Data sources:
  *   - lib/logs/logs.js (reads logs/*.jsonl)
+ *   - lib/changelog/changelog.js (reads data/changelog.json)
  */
 
 import React from "react";
 
-import LogsBrowser from "@/components/logs/LogsBrowser";
+import LogsTabs from "@/components/logs/LogsTabs";
+import {
+  getChangelogAreas,
+  getChangelogEntries,
+  getChangelogIntensities,
+} from "@/lib/changelog/changelog";
 import { getLogEntries, getLogModules, getLogSeverities } from "@/lib/logs/logs";
 
 export const metadata = {
   title: "Logs · PPIC Data Explorer",
-  description: "Pipeline run logs: successes, recovered fallbacks, and failures across every data module.",
+  description:
+    "Pipeline run logs and a changelog of changes to the tool, across every data module.",
 };
 
 export default function LogsPage() {
-  const entries = getLogEntries();
-  const modules = getLogModules();
-  const severities = getLogSeverities();
+  const logProps = {
+    entries: getLogEntries(),
+    modules: getLogModules(),
+    severities: getLogSeverities(),
+  };
+  const changelogProps = {
+    entries: getChangelogEntries(),
+    areas: getChangelogAreas(),
+    intensities: getChangelogIntensities(),
+  };
 
-  return <LogsBrowser entries={entries} modules={modules} severities={severities} />;
+  return <LogsTabs logProps={logProps} changelogProps={changelogProps} />;
 }
