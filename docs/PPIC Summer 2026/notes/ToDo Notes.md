@@ -21,7 +21,7 @@ Status: Updating
   - [x] Implement chart embeds
   - [x] Commit changes
 ## To Dos Monday (7/13)
-- Module Issues Fixed
+- Module Issue Fixes & Audits
   - [ ] Pop Housing
   - [ ] Components of Change
   - [ ] Age, Race, Sex Projections
@@ -84,7 +84,8 @@ Note: not in order
 - [ ] Update UI kit fonts and graphs
 - [ ] Documents: Wire in Footnote YAML field
 - [ ] Footnotes on the graph clip the x axis labels. They should be rendered as callouts below the x axis title
-- [ ] Test & Fix graph export options
+- [ ] Test & Fix graph export visualitations
+- [ ] Tab feature on charts/graphs
 ### Information Gaps
 - Internal server hardware capabilities
 - Open ports to host visualizations, traefik or other reverse proxy setup viability (is there someone who can maintain it?)

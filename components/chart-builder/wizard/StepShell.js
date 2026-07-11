@@ -95,7 +95,7 @@ export default function StepShell({
   }
 
   return (
-    <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+    <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-start">
       <div
         className="relative w-full shrink-0 lg:w-[var(--sb-w)]"
         style={{ "--sb-w": `${width}px` }}

@@ -135,8 +135,12 @@ function WizardInner({ steps }) {
   }
 
   return (
-    <div className="grid gap-4">
-      <div className="rounded-lg border bg-background p-3 shadow-xs">
+    // grid-cols-1 (minmax(0,1fr)), not a bare `grid` (auto = max-content): a wide
+    // table in a step must NOT stretch the track — otherwise the step chevrons and
+    // the whole page grow to the CSV width. min-w-0 lets the items shrink to the
+    // track so the table's own overflow-auto box owns the horizontal scroll.
+    <div className="grid min-w-0 grid-cols-1 gap-4">
+      <div className="min-w-0 rounded-lg border bg-background p-3 shadow-xs">
         <h1 className="mb-3 text-center font-heading text-lg font-semibold text-muted-foreground">
           {schema.label}
         </h1>
