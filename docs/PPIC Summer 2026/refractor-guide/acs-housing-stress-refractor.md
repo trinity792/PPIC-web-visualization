@@ -4,7 +4,7 @@ Content Type: refractor guide
 pinned: false
 description: "As-built guide to the refactored ACS Housing Stress (cost-burden) V3 pipeline: a non-technical overview of what it produces and how the five phases run, followed by a per-function programmer reference with legacy lineage. Covers the single ACS 1-year B25140 source, PUMA-based county/region aggregation, and the tenure/cost-burden math."
 Date Published: June 30, 2026
-Last Updated: 07/04/2026 - 09:20 AM
+Last Updated: 07/11/2026 - 10:45 AM
 Status: Finalized
 ---
 
@@ -285,34 +285,144 @@ Four curated built-in views are registered in `lib/visualization/categoryRegistr
 
 ## Flagged Issues and Fragilities
 
-> [!warning] These were found while documenting the code and are recorded here per the standing instruction not to modify code. None were changed.
+These were noted while documenting the module and then re-examined in a dedicated reliability, robustness, and efficiency audit (2026-07-11, against the code as it stands today). Per the task, they are recorded here rather than fixed: each entry states the problem and a detailed resolution plan, and calls out any decision that is yours to make. The section is in two parts — **Part A** revisits the issues flagged during the original documentation pass (one of which the code has since resolved), and **Part B** records new findings from the audit.
 
-> [!danger] The manual and last-saved fallback tiers return the wrong shape for the build step
-> `acquire_with_fallback` returns a raw payload that Phase 3 (`build_all_levels`) treats as a **dict of iteration frames** (`state_frames` / `ca_frames`), iterating `.items()` and running each value through the estimate-column transforms. But the **manual** tier returns `pd.read_csv(manual_path)` - a single contract-shaped DataFrame - and the **last-saved** tier returns already-cleaned historical rows. Iterating a DataFrame's `.items()` yields `(column_name, Series)` pairs, so the builder would call the column transforms on a `Series` and raise `AttributeError`. In other words, when live acquisition fails and the pipeline falls back to a manual file or last-saved rows, Phase 3 **crashes** rather than producing a degraded dataset - the `source_failed` / `used_manual` flags are set and returned, but the lower two fallback tiers never actually yield a runnable build. (The tiers pass their isolated unit tests; the gap is at the acquisition-to-build seam, which the mocked orchestrator tests don't exercise. This is the same class of seam bug the memory notes were fixed for the live path.)
+> [!info] Status note on the technical-reference body
+> The technical-reference body does not carry a separate "logging is stubbed" passage (unlike the Population & Housing and Components guides), so no body correction was needed here. The original flagged "Logging is stubbed" note has been resolved and replaced by A8; the vintage-resolution docstrings that imply logging are now accurate.
 
-> [!warning] The contract holds only the newest vintage per run, with no backfill path
-> The pipeline resolves and fetches a single latest vintage each run and merges it into saved history; deep history accumulates only by running repeatedly over time. The legacy 2012-2023 CSV had the old (wrong-schema) columns and was moved aside during migration, so a fresh V3 build starts from near-empty history and produces a **single-year** dataset, not the "2012 through latest" series the contract describes. Bootstrapping the historical years into the V3 schema is a separate, un-done migration. Anyone regenerating the file from scratch should expect one year until the pipeline has been run across multiple vintages (or a backfill is written).
+### Part A — Previously Flagged Issues
 
-> [!warning] A transient network hang silently resolves an older vintage
-> `resolve_latest_vintage` advances past both `ACSTableUnavailableError` and a transient `HTTPDownloadError` (timeout / connection failure). This is deliberate - the Census host hangs rather than 404s for some not-yet-published years - but it means a transient timeout on the base table for a vintage that *is* published causes the pipeline to resolve and build the previous year's data without erroring. It trades the legacy bare-`except` for a narrower one, but the "silently serve an older vintage" failure mode survives for network faults.
+#### A1. The manual and last-saved fallback tiers return the wrong shape for the build step
 
-> [!warning] The vintage lookback window is only 3 years
-> `max_year_lookback = 3` probes the current year and the two prior (minus excluded years). If the newest published ACS 1-year vintage is more than about two years behind the calendar year - a real possibility when Census is late, and made worse by the transient-hang behavior above consuming probe slots - `resolve_latest_vintage` raises "No vintage found" and the whole pipeline fails at Phase 2 rather than resolving the genuinely-latest available year.
+**Problem.** `acquire_with_fallback` returns a payload that Phase 3 (`build_all_levels` → `build_state_rows`/`build_region_rows`/`build_county_rows`) treats as a **dict of iteration frames**, iterating `.items()` and running each value through the estimate-column transforms. But the **manual** tier returns `pd.read_csv(manual_path)` — a single contract-shaped DataFrame — and the **last-saved** tier returns `_saved_rows_for_levels(...)`, already-cleaned historical rows. Iterating a DataFrame's `.items()` yields `(column_name, Series)` pairs, so the builder calls `strip_table_prefix` on a `Series` and raises `AttributeError`. When live acquisition fails and the pipeline falls back, Phase 3 **crashes** rather than degrading — the `source_failed`/`used_manual` flags are set but the lower two tiers never yield a runnable build. The tiers pass their isolated unit tests; the gap is at the acquisition-to-build seam, which the mocked orchestrator tests don't exercise. This is the highest-severity issue in the module: the entire fallback cascade is decorative.
 
-> [!note] Final-stage non-negative check on the count columns never runs
-> `validate_housing_stress_dataset` iterates `validation_config.get("number_columns", [])` for its negative-value check, but the `final_validation_config` in `schemas.py` supplies the count columns under the key `nonnegative_columns` (not `number_columns`). So the final-stage negative-count check is a silent no-op. (The cleaning-stage `validate_cleaning_output` does check them under `nonnegative_columns` - but that function is unused; see below.) The share-range check is unaffected because both sides agree on `share_columns`.
+**Resolution plan.**
+- Decide the contract of each tier and make the build path branch on it. The cleanest shape: `acquire_with_fallback` returns a discriminated payload — `(kind, data, source_failed, used_manual)` where `kind ∈ {"iteration_frames", "contract_rows"}`. The orchestrator then either runs `build_all_levels` (live/iteration frames) or **skips the build entirely** and feeds the already-cleaned contract rows straight into Phase 4's merge (manual/last-saved), since those rows are already in output schema.
+- Concretely, mirror the Projections/Components pattern: when `source_failed` (last-saved) or the manual tier fired, bypass Phase 3 and pass the contract-shaped frame directly to `combine_with_historical` (reducing to base strata first if the saved rows carry aggregates — Housing Stress has no marginal rollups, so this is simpler than Projections).
+- The manual file's documented shape must match: either it is raw iteration data (then feed it through the build) or contract rows (then bypass). Pick one and enforce it with a shape check that raises a clear error instead of an opaque `AttributeError`.
+- Add an integration test that drives the orchestrator with live acquisition forced to fail and asserts a degraded-but-valid dataset (or a clean, explicit skip), not a crash.
 
-> [!note] `validate_cleaning_output` is defined and tested but never wired
-> The orchestrator imports only `validate_stratification_completeness` (Phase 4) and `validate_housing_stress_dataset` (Phase 5); `validate_cleaning_output` has no caller in the running pipeline. This mirrors the "tested but unused" validators flagged in [[projections-refactor-flagged-issues]] and [[pophousing-refactor-flagged-issues]].
+> [!question] Decision for you (A1)
+> What should the manual CSV contain — **raw ACS iteration data** (fed through the build, closest to what live returns) or **finished contract rows** (bypass the build, simplest to hand-author)? And when live fails with history present, should the run **degrade to last-saved silently** or **fail loudly** so the stale vintage is obvious? My recommendation: manual = contract rows + bypass build, and degrade-to-last-saved with a `source_failed` flag that the run record surfaces (see A8/B4).
 
-> [!note] Self-perpetuating history
-> `config/paths.py` sets `historical_data_path == current_data_path` (both `HousingStress_Current.csv`); the pipeline reads the contract as its own baseline and writes back to it, with no immutable canonical source. Same pattern as [[projections-refactor-flagged-issues]], [[components-of-change-refactor-flagged-issues]], [[pophousing-refactor-flagged-issues]], and [[building-permits-migration]].
+#### A2. The contract holds only the newest vintage per run, with no backfill path
 
-> [!note] Logging is stubbed
-> `scripts/shared/logging/*` bodies are all `pass` ("Not yet implemented") and the orchestrator does no logging, though the vintage-resolution docstrings speak of "logging" each skipped year. Shared with the other modules.
+**Problem.** The pipeline resolves and fetches a single latest vintage each run and merges it into saved history; deep history accumulates only by running repeatedly over time. The legacy 2012-2023 CSV had the old (wrong-schema) columns and was moved aside during migration, so a fresh V3 build starts from near-empty history and produces a **single-year** dataset, not the "2012 through latest" series the contract describes. Bootstrapping the historical years into the V3 schema is a separate, un-done migration.
 
-> [!note] Text-based fragilities in PUMA handling and change detection
-> `extract_puma_id` detects PUMA rows by `NAME.str.contains("PUMA")`, and `aggregate_pumas_to_geography` hard-codes the crosswalk column names (`pumace`, `region`, `cntynm`); a change in ACS `NAME` text or in a crosswalk header would silently drop rows or fail the merge. Separately, `detect_new_data` relies on `DataFrame.equals` across a CSV round-trip, so a dtype or float-precision drift between the in-memory build and the parsed history could report spurious "new data" - harmless, because `archive_and_save` independently no-ops on identical bytes, but it makes the flag less trustworthy than it looks.
+**Resolution plan.**
+- Write a one-time backfill driver that loops `resolve`/`build` across every ACS 1-year vintage from `earliest_year` (2012) to latest (skipping 2020), running each through the existing `build_all_levels` + `combine_with_historical` path, and seeds the contract CSV. This reuses the live code path with the year pinned rather than resolved, so no new cleaning logic is needed.
+- Because each vintage's `.dat` files are still on the Census server, the backfill is a bounded batch job — but note it will amplify B1 (no caching) into a large number of redundant downloads unless caching is added first.
+- Document the backfill as the deep-history seed and pair it with A7 (immutable history path) so the seeded years aren't at risk of being overwritten by a single bad current run.
+
+> [!question] Decision for you (A2)
+> Do you want deep history **backfilled once and committed** as a seed (fast subsequent runs, but a manual refresh) or **rebuilt on demand** by a driver that walks all vintages each time (always current, but slow and download-heavy)? Recommendation: backfill-and-commit once, then let the normal per-run merge accrue new vintages.
+
+#### A3. A transient network hang silently resolves an older vintage
+
+**Problem.** `resolve_latest_vintage` advances past both `ACSTableUnavailableError` **and** a transient `HTTPDownloadError` (timeout / connection failure). This is deliberate — the Census host hangs rather than 404s for some not-yet-published years — but it means a transient timeout on the base table for a vintage that *is* published causes the pipeline to resolve and build the **previous** year's data without erroring. It narrows the legacy bare-`except`, but the "silently serve an older vintage" failure mode survives for network faults.
+
+**Resolution plan.**
+- Add a bounded retry (e.g. 2-3 attempts with backoff) on the base-table probe before treating a `HTTPDownloadError` as "not published." A genuine not-yet-published hang will keep failing; a transient blip will recover, so the pipeline stops mistaking a network fault for an absent vintage.
+- Distinguish the two outcomes in the result/run record: when the resolved year is *older* than the calendar-year expectation, surface it (a `resolved_year_is_stale` flag) so a silently-old vintage is visible rather than invisible.
+- Keep the `ValueError`-propagates-on-malformed behavior (that part is correct).
+
+#### A4. The vintage lookback window is only 3 years
+
+**Problem.** `max_year_lookback = 3` probes the current year and the two prior (minus excluded years). If the newest published ACS 1-year vintage is more than ~two years behind the calendar year — realistic when Census is late, and made worse by A3 consuming probe slots on hangs — `resolve_latest_vintage` raises and the whole pipeline fails at Phase 2 instead of resolving the genuinely-latest available year. Note the 2020 exclusion also consumes a slot: from calendar 2026 the window (2026, 2025, 2024) is fine, but a window straddling 2020 loses a probe to the skip.
+
+**Resolution plan.**
+- Widen `max_year_lookback` to a safer window (e.g. 4-5) so a late Census release still resolves, and make the excluded-year skip *not* count against the lookback budget (skip without consuming a slot).
+- Better: make it adaptive — probe backward until the first success or a hard floor of `earliest_year` (2012), rather than a fixed small count. Combined with A3's retry, this makes resolution robust to both lateness and transient faults.
+- Add a test with a Census that's two years behind plus a 2020 in the window, asserting resolution still succeeds.
+
+#### A5. Final-stage non-negative check on the count columns never runs
+
+**Problem.** `validate_housing_stress_dataset` iterates `validation_config.get("number_columns", [])` for its negative-value check, but `final_validation_config` in `schemas.py` supplies the count columns under the key `nonnegative_columns` (not `number_columns`). So the final-stage negative-count check is a silent no-op. The cleaning-stage `validate_cleaning_output` reads the right key (`nonnegative_columns`) — but that function is unused (A6). So **no** stage in the live pipeline actually checks the count columns for negatives.
+
+**Resolution plan.**
+- One-line fix: change the reader to `validation_config.get("nonnegative_columns", [])` (or rename the config key to `number_columns` — but aligning on `nonnegative_columns` matches the cleaning config and the shared convention). Add a test with a crafted negative count that must fail final validation.
+- While here, confirm the share-range check truly runs (both sides agree on `share_columns` — it does) so the fix is scoped to the count columns only.
+
+#### A6. `validate_cleaning_output` is defined and tested but never wired
+
+**Problem.** The orchestrator imports only `validate_stratification_completeness` (Phase 4) and `validate_housing_stress_dataset` (Phase 5); `validate_cleaning_output` has no caller. Same "tested but unused" pattern flagged in the Projections and Population & Housing guides.
+
+**Resolution plan.**
+- Wire it into Phase 3 right after `build_all_levels` (it's the natural per-vintage post-build gate, and it's the only place the count-column non-negative check currently reads the *correct* key), or delete it. Recommendation: **wire it** — it catches a malformed build before the merge and closes the A5 gap at the cleaning stage as a bonus. If wired, keep A5's final-stage fix too (defense in depth on the merged frame, which includes retained history the cleaning validator never saw).
+
+#### A7. Self-perpetuating history
+
+**Problem.** `config/paths.py` sets `historical_data_path == current_data_path` (both `HousingStress_Current.csv`); the pipeline reads the contract as its own baseline and writes back to it, with no immutable canonical source. Same pattern as the sibling modules. The completeness gate (Phase 4) is the only structural guard, and it validates only the *incoming* vintage, not the retained history — so a corrupt historical year that was written by a prior bad run is never re-checked.
+
+**Resolution plan.**
+- Give history its own immutable, seeded path (produced by the A2 backfill), read-only to the live pipeline, so a bad current write can't poison the baseline. This is especially valuable here because the completeness gate doesn't re-validate retained years.
+- Pair with B2 (atomic write) so a partial write can't become the next run's history.
+- Harden `load_canonical_dataset` — it already returns an empty contract-shaped frame when the file is absent (good; the module cold-starts), so the only change needed is the separate path plus the seed.
+
+#### A8. Logging — RESOLVED since the original flag
+
+**Update.** No longer an open issue. The shared logging layer (`pipeline_logging.py`, `dataframe_logging.py`, `run_records.py`) is fully implemented and this orchestrator uses it: `build_housing_stress_dataset(config=None, logger=None)` threads a logger, Phase 5 calls `log_data_quality_check`, and the `__main__` entry runs through `execute_pipeline_run`, appending one JSONL run record per run.
+
+**Residual cleanup (small).**
+- Coverage is thin (only the Phase 5 quality check). Add step logs at vintage resolution (which year was probed/skipped/resolved — the docstrings already speak of this), acquisition (which fallback tier fired), and merge.
+- Run-record fallback-flag gap (see B4): the summary returns `source_failed` (which matches `run_records`' `FALLBACK_FLAG_PATTERN`) but `used_manual` does **not** match the pattern, so a manual-fallback run isn't marked `recovered`. Rename the key to `source_used_manual` (or similar) so a manual run is flagged.
+- The guide body carries no separate "stubbed logging" passage, so no body correction was needed; the only logging work left is the coverage gaps above.
+
+#### A9. Text-based fragilities in PUMA handling and change detection
+
+**Problem.** Two independent brittleness points:
+- `extract_puma_id` detects PUMA rows by `NAME.str.contains("PUMA")`, and `aggregate_pumas_to_geography` hard-codes crosswalk column names (`pumace`, and the geo column `region`/`cntynm` via `crosswalk[["pumace", crosswalk_geo_column]]`). A change in ACS `NAME` text silently drops rows; a renamed crosswalk header raises `KeyError` and fails the county/region build (→ Phase 3 crash).
+- `detect_new_data` relies on `DataFrame.equals` across a CSV round-trip, so a dtype or float-precision drift between the in-memory build and the parsed history reports spurious "new data." Harmless because `archive_and_save` independently no-ops on identical text, but it makes the flag untrustworthy for any consumer (and always triggers the archive-compare work).
+
+**Resolution plan.**
+- PUMA detection: prefer the structural signal (SUMLEV or the `GEO_ID` PUMA prefix `795...`/`7950000US`) over the `NAME` substring; validate the parsed `PUMA_ID` count against the expected number of California PUMAs and warn on a large drop.
+- Crosswalk columns: validate the crosswalk header on load (assert `pumace` and the geo column exist, with a clear error naming the file) rather than letting `[[...]]` raise an opaque `KeyError`; consider a small rename map so a header change is a one-line config edit.
+- `detect_new_data`: normalize dtypes before comparing (mirror the Components module's `_normalize_numeric_dtypes` fix), or compare on the serialized CSV text directly (which is what `archive_and_save` already does) so the flag and the write decision use one definition of "changed."
+
+### Part B — Additional Audit Findings
+
+#### B1. No caching despite a configured cache window — national files are re-downloaded 2-3× per run (efficiency)
+
+**Problem.** `sources.py` advertises `cache_max_age_days = 30`, but **nothing honors it**: `download_national_table` fetches the `.dat` and `Geos` files fresh every call, with no on-disk cache check. Worse, the same national files are pulled repeatedly within a single run:
+- `resolve_latest_vintage` downloads the base `b25140` national table (for CA) to probe the vintage.
+- `_download_states` then downloads **all 9** iteration national `.dat` files (and their geo files) and keeps the state-summary rows.
+- `download_all_iterations("CA", ...)` downloads **all 9 again** (via `get_acs_table` → `download_national_table`) and filters to CA.
+
+So each of the 9 national tables is downloaded at least twice per run (state scope + CA scope), plus the base table a third time during resolution — roughly 19 full national-file fetches (× 2 counting the paired geo files) for data that could be fetched once and filtered in memory. ACS national `.dat` files are not tiny, so this is real wall-clock and bandwidth cost, and it makes the A2 backfill (looping every vintage) far more expensive than it needs to be.
+
+**Resolution plan.**
+- Honor `cache_max_age_days`: have `download_national_table` write each fetched `.dat`/`Geos` pair to `download_directory` and return the cached copy when it's within the window (the pattern Population & Housing and Projections already use). This alone removes the cross-run and within-run redundancy.
+- Fetch each iteration's national table **once per run** and derive both scopes from it: `_download_states` keeps the `0400000US` rows and the CA build keeps the PUMA rows from the *same* download. Restructure Phase 2 so the 9 national tables are downloaded once and both the state and CA frames are sliced from them, instead of two independent download passes.
+- Fold the vintage-resolution probe into the cache too, so the base table fetched to resolve the year is reused rather than re-downloaded.
+- Add a test asserting the number of `fetch_response` calls per run is ~9 (one per iteration), not ~19.
+
+#### B2. The contract file is written non-atomically (robustness)
+
+**Problem.** `archive_and_save` writes with `current_path.write_text(new_csv)` — a direct in-place overwrite, no `.tmp` + `replace`. Population & Housing and Components both write atomically precisely so a crash mid-write can't corrupt the output; this module (like Projections) dropped that. Because the contract file is also the history baseline (A7), a process killed mid-write leaves a truncated CSV that becomes the next run's history — and `load_canonical_dataset` will happily `read_csv` a truncated file into a short frame, silently losing rows. The prior good copy is archived first (good), but nothing auto-restores it.
+
+**Resolution plan.**
+- Restore atomic writes: write to `current_path.with_suffix(current_path.suffix + ".tmp")`, then `os.replace(tmp, current_path)`. Ordering: archive old → write tmp → atomic replace.
+- Add a test that simulates a failed write and asserts the original file is intact.
+- This is a small change that closes the sharpest interaction with the self-perpetuating history (A7).
+
+#### B3. The region-id→name mapping is order-coupled across two independent sources (latent correctness)
+
+**Problem.** `_region_id_to_name` builds `{1: first_region, 2: second_region, ...}` from `enumerate(geography["regions_mapping"], start=1)` — i.e. the **iteration order** of the shared geography's `regions_mapping` dict. The region crosswalk (`puma_regions_xwalk_2020.csv`) independently encodes region ids 1-9 as numbers. Nothing enforces that the crosswalk's numeric id N corresponds to the Nth region in `regions_mapping`. If the shared `regions_mapping` is ever reordered (a plausible edit, since it's shared across three modules and its order is not obviously load-bearing), every California region row is silently relabeled to the wrong region — counties still aggregate correctly, but the region *names* are wrong, and the error is invisible (all ids still map to *some* valid region).
+
+**Resolution plan.**
+- Break the order coupling: store the region-id→name mapping explicitly (a small dict keyed by the crosswalk's actual numeric ids) rather than deriving it from dict iteration order. Source it from the crosswalk itself if the crosswalk carries region names, or from an explicit config map that documents "crosswalk id 1 = Superior California," etc.
+- If the enumeration approach is kept, add an assertion/test pinning the expected order of `regions_mapping` so a reorder fails CI loudly instead of silently mislabeling.
+- Cross-reference the shared-geography owner: this is the kind of ordering assumption that should be documented at the `california_geography.py` source so the other modules don't inherit a hidden constraint.
+
+#### B4. Parallel iteration maps and string-sniffed error classification (maintainability / robustness — minor)
+
+**Problem.** Two smaller items:
+- The 9-iteration table→label mapping is declared **twice**: `_TABLE_ITERATIONS` in `sources.py` (raw labels) and `_RACE_ITERATION_MAP` in `schemas.py` (canonical labels), with `_RACE_RECONCILIATION_MAP` bridging them. Editing the iteration set in one file but not the other drifts them, and the base-table-first ordering (load-bearing for the `index == 0` "is base table" check in `_download_states`/`download_all_iterations`) is an implicit invariant of the `sources.py` dict order.
+- `_is_missing_file_error` classifies a 404 by substring-matching `"404"`/`"Not Found"` in the `HTTPDownloadError` message. If the shared downloader's message format changes, a real 404 could be misread as a transient fault (and vice versa), altering the vintage-resolution and iteration-skip behavior.
+
+**Resolution plan.**
+- Give the iteration mapping a single owner (one dict, imported by both `sources.py` and `schemas.py`) and assert the base table is first (or key the "is base" test on the table id `"b25140"` rather than positional index 0, removing the ordering dependency).
+- Have the shared `HTTPDownloadError` carry a structured `status_code` attribute so `_is_missing_file_error` can test `error.status_code == 404` instead of sniffing the message. (This is a shared-layer improvement that benefits every module's downloader.)
 
 ---
 
@@ -333,17 +443,33 @@ Four curated built-in views are registered in `lib/visualization/categoryRegistr
 | `combine_with_historical()` | `merging/historical_merge.py` |
 | geographic-level tag + column order + archive/save | `output/finalize_dataset.py` |
 | `visualize_line/bar()` | dropped; replaced by the React frontend (`housingStress.js`, `housing_stress.js`, `api/housing-stress/route.js`) |
+| `print`-based progress | `shared/logging/` (`pipeline_logging.py` + `dataframe_logging.py` + `run_records.py`, fully implemented and wired via `execute_pipeline_run` — see A8) |
 
 ---
 
 ## Open Items
 
-- [ ] Fix the acquisition-to-build seam so the manual and last-saved fallback tiers yield a payload `build_all_levels` can consume (or have the orchestrator branch on `source_failed` and skip the build), so a live-acquisition failure degrades gracefully instead of crashing Phase 3.
-- [ ] Decide on a backfill path for the 2012-onward history (bootstrap the legacy years into the V3 schema) so a from-scratch build isn't single-year.
-- [ ] Reconsider advancing the vintage probe on transient `HTTPDownloadError`, or add a retry, so a network hang doesn't silently resolve an older vintage.
-- [ ] Widen or make `max_year_lookback` adaptive so a late Census release doesn't fail Phase 2.
-- [ ] Fix the `number_columns` vs. `nonnegative_columns` key mismatch so the final-stage non-negative check on the count columns actually runs.
-- [ ] Either wire `validate_cleaning_output` into the pipeline or remove it.
-- [ ] Decide whether to introduce an immutable canonical source instead of `historical_data_path == current_data_path`.
-- [ ] Implement or remove the stubbed shared logging.
-- [ ] Consider name-based (not text-substring / hard-coded-header) PUMA and crosswalk handling.
+Each item links to the fuller problem statement and plan in "Flagged Issues and Fragilities." Ordered roughly by priority.
+
+**Reliability / robustness**
+- [ ] **(A1)** Fix the acquisition-to-build seam so a manual or last-saved fallback yields a payload the pipeline can consume — branch on the tier and bypass the build for contract-shaped rows — so a live-acquisition failure degrades instead of crashing Phase 3. *Decision pending: manual = raw vs. contract rows; degrade-silently vs. fail-loud.*
+- [ ] **(B2)** Restore atomic contract writes (`.tmp` + `os.replace`) so a mid-write crash can't corrupt the file that doubles as history.
+- [ ] **(A3 + A4)** Add a retry on the base-table probe and widen/adapt `max_year_lookback` (and don't spend a probe slot on the excluded 2020) so a transient hang doesn't resolve an older vintage and a late Census release doesn't fail Phase 2.
+- [ ] **(A5)** Fix the `number_columns` → `nonnegative_columns` key mismatch so the final-stage non-negative check on the count columns actually runs.
+- [ ] **(A9)** Replace text-substring PUMA detection and hard-coded crosswalk headers with structural signals + header validation; normalize dtypes (or compare serialized text) in `detect_new_data`.
+- [ ] **(B3)** Break the region-id→name order coupling — store an explicit id→name map (or pin `regions_mapping` order with a test) so a shared-geography reorder can't silently mislabel regions.
+
+**Data completeness / history**
+- [ ] **(A2)** Write a backfill driver for 2012-onward history so a from-scratch build isn't single-year. *Decision pending: backfill-and-commit vs. rebuild-on-demand.*
+- [ ] **(A7)** Introduce an immutable, seeded history path distinct from the live output (pair with A2 + B2).
+
+**Efficiency**
+- [ ] **(B1)** Honor `cache_max_age_days` and download each iteration's national table once per run (slice both the state and CA scopes from it) instead of re-fetching every national `.dat` 2-3×.
+
+**Housekeeping**
+- [ ] **(A6)** Wire `validate_cleaning_output` into Phase 3 or remove it.
+- [ ] **(B4)** Give the 9-iteration map a single owner (assert base-table-first or key on `"b25140"`), and give `HTTPDownloadError` a structured `status_code` so `_is_missing_file_error` stops sniffing the message.
+- [x] Logging body/notes reconciled (the guide had no separate "stubbed logging" body passage; the original flagged note is resolved — see A8). Still open: fill the resolution/acquisition/merge structured-logging coverage gaps.
+
+**Resolved since the original pass**
+- [x] **(A8)** ~~Implement or remove the stubbed shared logging~~ — done: `pipeline_logging.py`, `dataframe_logging.py`, and `run_records.py` are fully implemented and wired via `execute_pipeline_run` (with the small `used_manual` fallback-flag gap noted under A8/B4).

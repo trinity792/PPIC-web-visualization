@@ -4,7 +4,7 @@ Content Type: refractor guide
 pinned: false
 description: "As-built guide to the refactored Building Permits V3 pipeline: a non-technical overview of what it produces and how the five phases run, followed by a per-function programmer reference with legacy lineage. Covers the single Census BPS monthly source, the metro/state grain, the seed-from-snapshot deep history, and the derived values pushed to the frontend."
 Date Published: June 30, 2026
-Last Updated: 07/04/2026 - 09:20 AM
+Last Updated: 07/11/2026 - 10:45 AM
 Status: Finalized
 ---
 
@@ -247,25 +247,111 @@ The Python pipeline stops at the contract CSV; all charting and every derived va
 
 ## Flagged Issues and Fragilities
 
-> [!warning] These were found while documenting the code and are recorded here per the standing instruction not to modify code. None were changed.
+These were noted while documenting the module and then re-examined in a dedicated reliability, robustness, and efficiency audit (2026-07-11, against the code as it stands today). Per the task, they are recorded here rather than fixed: each entry states the problem and a detailed resolution plan, and calls out any decision that is yours to make. The section is in two parts — **Part A** revisits the issues flagged during the original documentation pass (one of which the code has since resolved), and **Part B** records new findings from the audit.
 
-> [!warning] A from-scratch run produces only the rolling window; the deep history depends entirely on the seed
-> The live `cbsamonthly` / `statemonthly` endpoints host only ~2 years of files. On a cold start the orchestrator enumerates months back to `earliest_month` (2010-01), but every not-yet-hosted month 404s and is **skipped**, so a cold run yields only the recent rolling window - not the 2010-onward series. The 197-month dataset exists only because `BuildingPermits_06-16-25.csv` was seeded into the contract path first. Final validation's contiguity check runs across the **present** range, so a recent-only series passes validation and the missing deep history is silent. This is the operational reality captured in [[building-permits-migration]]; it is a genuine gotcha for anyone regenerating the file.
+> [!info] Status note on the technical-reference body
+> The original flagged "Logging is stubbed" note has been resolved and replaced by A6; logging is implemented and this orchestrator is the best-instrumented of the five (it logs both a Phase 2 processing step and the Phase 5 quality check). The guide body carries no separate "stubbed logging" passage, so no body correction was needed — the only remaining logging item is routing the `acquire_months` skipped-month `print` through the logger.
 
-> [!warning] The seeded history is the sole, irreplaceable system of record for pre-2024, and the pipeline reads and writes the same file
-> `config/paths.py` sets `historical_data_path == current_data_path` (both `BuildingPermits_Current.csv`), so the pipeline reads the contract as its own baseline and writes back to it, with no immutable canonical source. Combined with the rolling-window source, **losing `BuildingPermits_Current.csv` means losing 2010-2023 permanently** unless the legacy seed snapshot is retained separately - the deep history is not rebuildable from the live source. Same self-perpetuating pattern as [[projections-refactor-flagged-issues]], [[components-of-change-refactor-flagged-issues]], [[pophousing-refactor-flagged-issues]], and [[housing-stress-refactor-flagged-issues]], but here the consequence is sharper because history cannot be re-derived.
+### Part A — Previously Flagged Issues
 
-> [!note] `validate_cleaning_output` is defined and tested but never wired
-> The orchestrator imports only `validate_building_permits_dataset`; `validate_cleaning_output` has no caller in the running pipeline (the cleaners don't call it, and Phase 3 doesn't either). So the per-frame Date-format, null, integer, and known-location checks never run on live data. Same "tested but unused" smell flagged in [[housing-stress-refactor-flagged-issues]] and [[projections-refactor-flagged-issues]].
+#### A1. A from-scratch run produces only the rolling window; the deep history depends entirely on the seed
 
-> [!note] Month resolution has no fallback, though acquisition does
-> `resolve_latest_month` advances only on `BPSMonthUnavailableError`; a transient non-404 `HTTPDownloadError` (timeout / connection) or a parse `ValueError` on the newest month **propagates and fails Phase 2 outright**. Meanwhile `acquire_months` *does* fall back to saved rows on a generic exception. The asymmetry means a transient network blip during the latest-month probe aborts the whole run rather than degrading. (This is arguably safer than silently serving stale data - contrast [[housing-stress-refactor-flagged-issues]] issue 3, where the opposite choice was made - but it is worth knowing the run is brittle to transient faults at exactly one step.)
+**Problem.** The live `cbsamonthly`/`statemonthly` endpoints host only a ~2-year rolling window of files. On a cold start the orchestrator enumerates months back to `earliest_month` (2010-01) via `_month_before(earliest_month)`, but every not-yet-hosted month 404s and is **skipped**, so a cold run yields only the recent rolling window — not the 2010-onward series. The 197-month dataset exists only because `BuildingPermits_06-16-25.csv` was seeded into the contract path first. Final validation's contiguity check runs across the **present** range (`present_months[0]` … `present_months[-1]`), so a recent-only series passes validation and the missing deep history is silent.
 
-> [!note] Cleaner casts assume clean numeric cells
-> `clean_metro_permits` and `clean_state_permits` cast the five measures with `.astype(int)` after only a `dropna(how="all")`; a single blank or non-numeric measure cell in an otherwise-populated row would raise rather than being coerced or reported. Loud failure is defensible, but it makes the cleaners brittle to a partially-populated BPS row.
+**Resolution plan.**
+- This is inherent to the source (the deep history genuinely cannot be re-fetched month-by-month), so the "fix" is operational, not a code change to the enumeration: treat the seed as the deep-history system of record (A2) and make the pipeline's dependence on it explicit and enforced.
+- Cross-check/augment against the Census **annual** BPS files, which *do* reach back to 2010 (see the Open Items). An annual reconstruction won't reproduce monthly grain, but it gives an independent way to validate the seeded monthly totals roll up correctly — turning "the seed is trusted blindly" into "the seed is verified against an independent source."
+- Add a validation guard that distinguishes "legitimately recent-only (cold start, no seed)" from "unexpectedly lost the deep history": if history was previously present and the new series suddenly starts much later, fail loudly rather than silently accepting a truncated series. Today the contiguity check across the present range cannot catch a wholesale loss of the early months.
 
-> [!note] Logging is stubbed; skipped months use `print`
-> `scripts/shared/logging/*` bodies are all `pass` ("Not yet implemented"), and `acquire_months` reports skipped months via `print` rather than the (stubbed) logger. Shared with the other modules. Separately, `detect_new_data` relies on `DataFrame.equals` across a CSV round-trip, so a dtype or precision drift could report spurious "new data" - harmless, because `archive_and_save` independently no-ops on identical text, but it makes the flag less trustworthy than it looks.
+#### A2. The seeded history is the sole, irreplaceable system of record for pre-2024, and the pipeline reads and writes the same file
+
+**Problem.** `config/paths.py` sets `historical_data_path == current_data_path` (both `BuildingPermits_Current.csv`), so the pipeline reads the contract as its own baseline and writes back to it, with no immutable canonical source. Combined with the rolling-window source (A1), **losing or corrupting `BuildingPermits_Current.csv` means losing 2010-2023 permanently** unless the legacy seed snapshot is retained separately — the deep history is not rebuildable from the live source. This is the same self-perpetuating pattern as the sibling modules, but here the consequence is the sharpest of all five: the other modules can, in principle, re-derive their history from a live source or a re-runnable Phase 0 build; this one cannot.
+
+**Resolution plan.**
+- Treat the pre-2024 seed as a **durable, read-only artifact** stored separately from the live output: commit `BuildingPermits_06-16-25.csv` (or a normalized V3 copy) into the repo/data tree as the immutable deep-history seed, and point `historical_data_path` at a baseline composed of (seed + accrued live months) rather than at the live output itself.
+- At minimum, guarantee the seed is preserved outside the write path so a bad `Current.csv` write can never destroy it. The current archive-on-change behavior helps (it copies the old file before overwrite), but archives are timestamped-and-pruned, not a guaranteed permanent record of the irreplaceable base.
+- Pair with B1 (atomic write) — given irreplaceability, a non-atomic overwrite of this specific file is the single highest-consequence robustness gap in the whole module set.
+
+> [!question] Decision for you (A2)
+> How should the irreplaceable deep history be safeguarded: **(a)** commit the seed snapshot as a permanent read-only artifact and rebuild the baseline as seed+live each run, or **(b)** keep the single-file model but add belt-and-suspenders (atomic writes + a protected, never-pruned archive of the seed)? I strongly recommend (a) — the deep history should not live only in a mutable working file plus rotating archives.
+
+#### A3. `validate_cleaning_output` is defined and tested but never wired
+
+**Problem.** The orchestrator imports only `validate_building_permits_dataset`; `validate_cleaning_output` has no caller in the running pipeline (the cleaners don't call it, and Phase 3 doesn't either). So its per-frame `YYYY-MM` Date-format, null-key, non-negative-integer, and known-location checks never run on live data. Same "tested but unused" smell flagged in the Housing Stress and Projections guides.
+
+**Resolution plan.**
+- Wire it into Phase 3 after `_clean_monthly_frames` (per scope) so a malformed monthly frame is caught before the merge, or delete it. Recommendation: **wire it** — the final validator does not check the `YYYY-MM` format or non-integer measures on the *incoming* rows (only non-negativity), so this validator closes a real gap at the point the raw spreadsheet is freshly parsed. It also catches an unknown location before it reaches `validate_metro_names` (which raises rather than returning messages).
+
+#### A4. Month resolution has no fallback, though acquisition does
+
+**Problem.** `resolve_latest_month` advances only on `BPSMonthUnavailableError`; a transient non-404 `HTTPDownloadError` (timeout / connection) or a parse `ValueError` on the newest month **propagates and fails Phase 2 outright**. Meanwhile `acquire_months` *does* fall back to saved rows on a generic exception. The asymmetry means a transient network blip during the latest-month probe aborts the whole run rather than degrading.
+
+**Resolution plan.**
+- Decide the intended posture and make it consistent. Two defensible options:
+  - **Fail-fast is fine, but only on genuine faults:** add a bounded retry (2-3 attempts with backoff) on the probe's downloads so a transient blip recovers before the run aborts. A real outage still fails Phase 2, which is arguably correct (better than silently serving stale data — the opposite of the Housing Stress choice).
+  - **Degrade like acquisition:** if the latest-month probe can't complete, fall back to "no new months this run" (build nothing, keep history) with a `source_failed`-style flag, matching `acquire_months`' graceful degrade.
+- My recommendation: retry-then-fail-fast (keep the strictness, remove the brittleness to a single transient blip), and surface the failure clearly rather than degrading silently — the run record already carries `source_failed` for the acquisition path.
+
+> [!question] Decision for you (A4)
+> When the latest-month probe hits a transient fault, should the run **fail loudly** (current behavior, minus the single-blip brittleness once a retry is added) or **degrade to no-new-data** like `acquire_months`? I lean fail-loud-with-retry, since a wrong "latest month" silently caps the series; confirm your preference.
+
+#### A5. Cleaner casts assume clean numeric cells
+
+**Problem.** `clean_metro_permits` and `clean_state_permits` cast the five measures with `.astype(int)` after only a `dropna(how="all")`; a single blank or non-numeric measure cell in an otherwise-populated row raises rather than being coerced or reported. Loud failure is defensible, but it makes the cleaners brittle to a partially-populated BPS row, and the resulting error (`ValueError: invalid literal for int()`) is opaque about *which* row/month failed.
+
+**Resolution plan.**
+- Coerce explicitly and report: `pd.to_numeric(col, errors="coerce")`, then either fail with a clear message naming the offending `(Date, Location, column)` or apply a documented policy (e.g. treat a blank as 0 only where BPS semantics justify it, otherwise raise). Prefer an explicit, located error over the bare `.astype(int)` traceback.
+- Tie into A3: `validate_cleaning_output` already checks non-integer measures — wiring it (A3) gives a clean, message-returning check that complements a more informative cast.
+
+#### A6. Logging — RESOLVED since the original flag (skipped-month `print` remains)
+
+**Update.** The "logging is stubbed" half of the original note is no longer true. The shared logging layer is fully implemented, and this orchestrator uses it more completely than the others: Phase 2 calls `log_processing_step` (acquired-month count + `source_failed`), Phase 5 calls `log_data_quality_check`, and the `__main__` entry runs through `execute_pipeline_run`, appending a JSONL run record (with `source_failed` matching the fallback-flag pattern, so a degraded run is recorded as `recovered`).
+
+**Residual cleanup (small).**
+- `acquire_months` still reports skipped (unpublished) months via `print(...)` rather than the logger. Since the skip is the *normal* cold-start path (hundreds of 404s), route it through `log_processing_step`/`log_dataframe_info` (or accept a `logger` argument) so the notice lands in the structured record instead of stdout.
+- The guide body carries no separate "stubbed logging" passage, so no body correction was needed; the only remaining logging item is the skipped-month `print` above.
+
+#### A7. `detect_new_data` relies on `DataFrame.equals` across a CSV round-trip
+
+**Problem.** `detect_new_data` sorts both frames by all columns and uses `DataFrame.equals`. The merged frame carries in-memory dtypes (measures as `int`, freshly built) while `historical_df` came from `pd.read_csv` (dtypes inferred from the file); a dtype or precision drift reports spurious "new data." Harmless because `archive_and_save` independently no-ops on identical text, but it makes the flag untrustworthy for any consumer and always triggers the archive-compare work.
+
+**Resolution plan.**
+- Normalize dtypes before comparing (cast both frames through the same `prepare_output`-style coercion), or — simpler and authoritative — compare on the serialized CSV text, which is exactly what `archive_and_save` already uses as the real write gate. Making `detect_new_data` and the write decision share one definition of "changed" removes the discrepancy and lets the flag be trusted.
+
+### Part B — Additional Audit Findings
+
+#### B1. The irreplaceable contract file is written non-atomically (robustness — highest consequence of the five modules)
+
+**Problem.** `archive_and_save` writes with `current_path.write_text(new_csv)` — a direct in-place overwrite, no `.tmp` + `replace`. Population & Housing and Components write atomically precisely to prevent a crash mid-write from corrupting the output; this module (like Projections and Housing Stress) dropped that. Here the stakes are uniquely high: the file being overwritten is the **only** copy of the irreplaceable 2010-2023 deep history (A1/A2). A process killed partway through writing the 14,691-row CSV leaves a truncated file, and `load_canonical_dataset` will `read_csv` it into a silently short frame on the next run — permanently losing deep history that cannot be re-fetched. The archive copies the old file first, so a *recent* archive exists, but archives are timestamped and subject to pruning, so this is not a guaranteed permanent safeguard of the base.
+
+**Resolution plan.**
+- Restore atomic writes: write to `current_path.with_suffix(current_path.suffix + ".tmp")`, then `os.replace(tmp, current_path)` (atomic on one filesystem). Ordering: archive old → write tmp → atomic replace.
+- Combine with A2's immutable seed so that even a catastrophic loss of `Current.csv` is recoverable from the committed deep-history artifact.
+- Add a test simulating a failed write and asserting the original file is intact.
+- Of all the non-atomic-write findings across the five modules, this is the one to fix first: it is the only one where a single bad write destroys data that cannot be regenerated.
+
+#### B2. The CBSA-code rename and micropolitan filter are coupled to how `xlrd` types the numeric cells (latent robustness)
+
+**Problem.** `clean_metro_permits` renames metros by looking up `row["CBSA"]` in `_CBSA_CODE_RENAMES` (keys are Python ints `12540`, `41860`, `44700`) and drops micropolitan areas via `work["Metro /Micro Code"] != schema_config["micro_metro_code"]` (an int `5`). Both comparisons depend on the CBSA/code cells being read as **ints**. `xlrd` commonly reads numeric `.xls` cells as **floats** (e.g. `41860.0`, `5.0`), in which case `dict.get(41860.0, ...)` misses the int key and `!= 5` compares float-to-int. If the code cells come back as floats, the SF/Bakersfield/Stockton code-based renames silently no-op — leaving, for SF, the current `"San Francisco-Oakland-Fremont"` label, which is *not* in `_METRO_DISPLAY_RENAMES` (keyed on the older `"-Berkeley"` string) and therefore *not* mapped to `"San Francisco"` — so `validate_metro_names` would then raise. The module works today, which means the cells currently read as ints (or as text), but that is an implicit dependency on the parse dtype, not an enforced contract.
+
+**Resolution plan.**
+- Coerce the code columns to a canonical type before comparison: `work["CBSA"] = pd.to_numeric(work["CBSA"]).astype("Int64")` (and likewise the micro/metro code), so the int-keyed lookups and the `!= 5` filter are dtype-stable regardless of how `xlrd` typed the cell.
+- Alternatively, key `_CBSA_CODE_RENAMES` and `_MICRO_METRO_CODE` on strings and stringify the cell, whichever is cleaner — the point is to remove the reliance on the parser's incidental numeric type.
+- Add a test that feeds the cleaner a CBSA-code column typed as float and asserts the SF/Bakersfield/Stockton renames still fire.
+
+#### B3. Minor: resolution re-downloads the latest month, and 404-detection sniffs the error message
+
+**Problem.** Two smaller items:
+- `resolve_latest_month` downloads (and discards) the CBSA and state `.xls` for the probed month to test availability; `acquire_months` then downloads the same latest month again. There is no caching, so the latest month's two files are fetched twice per run. This is small (two files, not the whole series) — unlike the Housing Stress caching gap — but it's avoidable.
+- `_is_missing_file_error` classifies a 404 by substring-matching `"404"`/`"Not Found"` in the `HTTPDownloadError` message. If the shared downloader's message format changes, a real 404 could be misread as a transient fault (→ `resolve_latest_month` would then propagate and fail Phase 2 per A4, or `acquire_months` would fall back instead of skipping). This is the same shared-layer brittleness noted in the Housing Stress audit.
+
+**Resolution plan.**
+- Have the resolution probe return the fetched frames (or cache them keyed by month) so the resolved latest month isn't re-downloaded in `acquire_months`.
+- Give the shared `HTTPDownloadError` a structured `status_code` attribute so `_is_missing_file_error` can test `error.status_code == 404` instead of sniffing the message — a shared-layer fix that benefits every module's downloader (and would let `resolve_latest_month`/`acquire_months` reliably distinguish 404 from transient faults, which A4 depends on).
+
+#### B4. Positive: the fallback path degrades cleanly — preserve this property
+
+**Not a defect — a strength to protect.** Unlike Housing Stress (whose fallback tiers crash the build with an `AttributeError`), this module's fallback degrades gracefully: when `acquire_months` hits a non-404 error it returns the saved rows as a *non-dict*, and `_clean_monthly_frames` detects the non-dict and returns an empty typed frame, so Phase 3 produces empty metro/state frames, `combine_with_historical` retains all history unchanged, and `detect_new_data` reports no change — the run finishes on existing history with `source_failed=True`. The `_clean_monthly_frames` non-dict guard is the mechanism. Any refactor of the acquisition/build seam (e.g. while addressing A4) should keep this clean-degrade behavior and add a regression test that a forced live failure yields the unchanged historical dataset, not a crash and not an empty output.
 
 ---
 
@@ -292,10 +378,25 @@ The Python pipeline stops at the contract CSV; all charting and every derived va
 
 ## Open Items
 
-- [ ] Decide whether to retain the legacy seed snapshot as a durable system of record, and/or pull the Census **annual** BPS files to reconstruct or cross-check the deep 2010-2023 history independently (currently it lives only in `Current.csv` and its archives).
-- [ ] Consider an immutable canonical source instead of `historical_data_path == current_data_path`, given that pre-2024 history is not re-derivable.
-- [ ] Either wire `validate_cleaning_output` into the pipeline or remove it.
-- [ ] Decide whether `resolve_latest_month` should tolerate a transient fault (retry / step back) instead of failing Phase 2.
-- [ ] Coerce or explicitly report non-numeric measure cells in the cleaners rather than letting `.astype(int)` raise.
-- [ ] Implement or remove the stubbed shared logging (and route the skipped-month notice through it instead of `print`).
+Each item links to the fuller problem statement and plan in "Flagged Issues and Fragilities." Ordered roughly by priority; A2 + B1 (protecting the irreplaceable deep history) are the crux and belong together.
+
+**Data integrity (irreplaceable history)**
+- [ ] **(A2 + B1)** Protect the pre-2024 deep history: commit the seed snapshot as an immutable read-only artifact, compose the baseline as seed+live, and restore atomic writes so a bad `Current.csv` write can't destroy the only copy of 2010-2023. *Decision pending: immutable seed + rebuilt baseline vs. single-file model with atomic-write + protected archive.*
+- [ ] **(A1)** Cross-check the seeded monthly history against the Census **annual** BPS files (which reach back to 2010), and add a guard that fails loudly if a previously-present deep history suddenly truncates instead of silently accepting a recent-only series.
+
+**Reliability / robustness**
+- [ ] **(A4)** Add a bounded retry to `resolve_latest_month` (and decide fail-loud vs. degrade-to-no-new-data) so a transient blip on the latest-month probe doesn't abort Phase 2. *Decision pending.*
+- [ ] **(B2)** Coerce the CBSA/micro code columns to a canonical dtype before the code-based rename and micropolitan filter, so the renames don't silently no-op when `xlrd` reads the codes as floats.
+- [ ] **(A5)** Coerce or explicitly report non-numeric measure cells (`pd.to_numeric` + a located error) instead of letting `.astype(int)` raise an opaque traceback.
+- [ ] **(A7)** Make `detect_new_data` share one definition of "changed" with the write gate (normalize dtypes, or compare serialized CSV text).
+- [ ] **(B3)** Reuse the resolution probe's downloads in `acquire_months`, and give `HTTPDownloadError` a structured `status_code` so 404-vs-transient classification stops sniffing the message.
+
+**Housekeeping**
+- [ ] **(A3)** Wire `validate_cleaning_output` into Phase 3 or remove it.
+- [ ] **(A6 / B4)** Route the skipped-month notice through the logger instead of `print`, and keep a regression test proving the fallback path degrades to unchanged history (not a crash) — a property this module has and Housing Stress lacks. (The stale "logging is stubbed" note is already resolved — see A6.)
+
+**Migration**
 - [ ] Step 7 (remaining): the module-specific presets and the monthly-axis integration with the year-centric shared slider (`query_shapes.js` / the temporal control granularity).
+
+**Resolved since the original pass**
+- [x] **(A6)** ~~Implement or remove the stubbed shared logging~~ — done: fully implemented and wired via `execute_pipeline_run`, and this orchestrator is the best-instrumented of the five (Phase 2 `log_processing_step` + Phase 5 `log_data_quality_check`). Only the `acquire_months` skipped-month `print` remains to route through the logger.
