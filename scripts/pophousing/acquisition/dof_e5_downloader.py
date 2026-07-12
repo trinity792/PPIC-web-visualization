@@ -30,7 +30,8 @@ from scripts.shared.downloads.http_downloads import HTTPDownloadError, download_
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-E5_FILENAME_PATTERN = r"E-5-\d{4}_Geo_InternetVersion\.xlsx"
+# Accept both the hyphen and underscore forms DoF has used (E-5-2025_… / E-5_2026_…).
+E5_FILENAME_PATTERN = r"E-5[-_]\d{4}_Geo_InternetVersion\.xlsx"
 
 
 class E5DiscoveryError(RuntimeError):
@@ -131,26 +132,35 @@ def download_e5_data(url, download_directory, cache_max_age_days, headers=None, 
     return _read_e5_workbook(workbook_path)
 
 
-def get_most_recent_e5_file(download_directory, filename_pattern, fallback_max_age_days):
-    """Read the newest valid fallback E-5 workbook within the age limit. Test file: scripts/unit_tests/pophousing/acquisition/test_dof_e5_downloader.py"""
+def get_most_recent_e5_file(
+    download_directory, filename_pattern, fallback_max_age_days, archive_directory=None
+):
+    """Read the newest valid fallback E-5 workbook from the cache or archive within the age limit. Test file: scripts/unit_tests/pophousing/acquisition/test_dof_e5_downloader.py"""
     if fallback_max_age_days < 0:
         raise ValueError("fallback_max_age_days must be non-negative")
 
     download_directory = Path(download_directory)
-    if not download_directory.exists():
-        return None
-    if not download_directory.is_dir():
+    if download_directory.exists() and not download_directory.is_dir():
         raise NotADirectoryError(download_directory)
 
-    candidate_paths = sorted(
-        (
+    # Retention archives workbooks older than the cache window out of the download
+    # directory, so the fallback must also look in the archive to reach a still-usable
+    # older workbook during a DoF outage (refactor guide B1).
+    search_directories = [download_directory]
+    if archive_directory is not None:
+        search_directories.append(Path(archive_directory))
+
+    candidate_paths = []
+    for directory in search_directories:
+        if not directory.exists():
+            continue
+        candidate_paths.extend(
             file_path
-            for file_path in download_directory.iterdir()
-            if file_path.is_file() and re.fullmatch(filename_pattern, file_path.name, re.IGNORECASE)
-        ),
-        key=lambda file_path: file_path.stat().st_mtime,
-        reverse=True,
-    )
+            for file_path in directory.iterdir()
+            if file_path.is_file()
+            and re.fullmatch(filename_pattern, file_path.name, re.IGNORECASE)
+        )
+    candidate_paths.sort(key=lambda file_path: file_path.stat().st_mtime, reverse=True)
     current_timestamp = time.time()
     for workbook_path in candidate_paths:
         age_days = max(0, (current_timestamp - workbook_path.stat().st_mtime) / 86_400)

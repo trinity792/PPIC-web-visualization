@@ -21,6 +21,7 @@ from lib.pophousing_config import (
     CURRENT_DATA_PATH,
     DELETION_LOG_DIR,
     DOWNLOAD_DIR,
+    HISTORICAL_BASELINE_METADATA_PATH,
     HISTORICAL_DATA_PATH,
     ROOT_DIR,
 )
@@ -39,7 +40,10 @@ def get_paths():
         "download_directory": Path(DOWNLOAD_DIR),
         "archive_directory": Path(ARCHIVE_DATA_PATH),
         "current_data_path": Path(CURRENT_DATA_PATH),
+        # Immutable pre-2020 E-8 baseline; read-only for the main pipeline,
+        # written only by the Phase 0 builder (see refactor guide, A1/A2).
         "historical_data_path": Path(HISTORICAL_DATA_PATH),
+        "historical_baseline_metadata_path": Path(HISTORICAL_BASELINE_METADATA_PATH),
         "deletion_log_directory": Path(DELETION_LOG_DIR),
         "logs_directory": Path(DELETION_LOG_DIR).parent,
     }

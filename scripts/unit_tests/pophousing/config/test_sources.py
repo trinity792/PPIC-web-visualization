@@ -29,12 +29,14 @@ def test_get_source_settings_e5_filename_pattern():
     assert matches is not None
 
 
-def test_get_source_settings_retention_consistency():
-    # Act
+def test_get_source_settings_fallback_window_exceeds_cache():
+    # The fallback window must be strictly wider than the cache/retention window,
+    # or a workbook archived out of the cache is unreachable as a fallback (B1).
     settings = get_source_settings()
 
     # Assert
-    assert settings["e5_cache_max_age_days"] == settings["e5_fallback_max_age_days"] == 60
+    assert settings["e5_cache_max_age_days"] == 90
+    assert settings["e5_fallback_max_age_days"] > settings["e5_cache_max_age_days"]
 
 
 def test_get_source_settings_request_configuration():

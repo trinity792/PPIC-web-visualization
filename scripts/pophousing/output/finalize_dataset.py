@@ -26,12 +26,13 @@ Output Preparation
 """
 
 
-def prepare_housing_output(housing_df, source_name, output_columns, sort_columns):
-    """Prepare canonical, sorted housing output without mutating the input. Test file: scripts/unit_tests/pophousing/output/test_finalize_dataset.py"""
+def prepare_housing_output(housing_df, output_columns, sort_columns):
+    """Prepare canonical, sorted housing output, preserving per-row Source provenance. Test file: scripts/unit_tests/pophousing/output/test_finalize_dataset.py"""
+    # Source is a required output column and is NOT overwritten here: the per-row
+    # E-5 / E-8 / Aggregated provenance assigned by earlier phases flows through
+    # to the output instead of being flattened to a single literal (refactor guide B3).
     missing_columns = [
-        column
-        for column in output_columns
-        if column not in housing_df.columns and column != "Source"
+        column for column in output_columns if column not in housing_df.columns
     ]
     if missing_columns:
         raise ValueError(
@@ -46,7 +47,6 @@ def prepare_housing_output(housing_df, source_name, output_columns, sort_columns
         )
 
     result = housing_df.copy()
-    result["Source"] = source_name
     numeric_years = pd.to_numeric(result["Year"], errors="coerce")
     invalid_years = numeric_years.isna() | numeric_years.mod(1).ne(0)
     if invalid_years.any():

@@ -74,6 +74,19 @@ def validate_final_housing_dataset(housing_df, validation_config):
                 "Missing geographic levels: " + ", ".join(missing_levels)
             )
 
+    source_column = validation_config.get("source_column", "Source")
+    valid_sources = set(validation_config.get("valid_sources", []))
+    if valid_sources and source_column in housing_df.columns:
+        if housing_df[source_column].isna().any():
+            messages.append("Found null Source values")
+        observed_sources = set(housing_df[source_column].dropna())
+        invalid_sources = sorted(observed_sources - valid_sources)
+        if invalid_sources:
+            messages.append(
+                "Invalid Source values: "
+                + ", ".join(str(source) for source in invalid_sources)
+            )
+
     if location_column in housing_df.columns and level_column in housing_df.columns:
         state_name = validation_config.get("state_name", "California")
         state_level = validation_config.get("state_level", "State")

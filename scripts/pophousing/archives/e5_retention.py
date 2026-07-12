@@ -34,7 +34,7 @@ def cleanup_old_e5_files(
     download_directory,
     archive_directory,
     max_age_days,
-    filename_pattern=r"E-5-\d{4}_Geo_InternetVersion\.xlsx",
+    filename_pattern=r"E-5[-_]\d{4}_Geo_InternetVersion\.xlsx",
     warning_days=(15, 10, 5, 1),
     deletion_log_directory=None,
 ):

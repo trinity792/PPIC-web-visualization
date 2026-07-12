@@ -345,6 +345,52 @@ def test_get_most_recent_e5_file_returns_dataframe(monkeypatch, tmp_path):
     assert isinstance(result, pd.DataFrame)
 
 
+def test_get_most_recent_e5_file_searches_archive(monkeypatch, tmp_path, set_file_age):
+    # Arrange: the only workbook lives in the archive (retention moved it there).
+    download_dir = tmp_path / "downloads"
+    archive_dir = tmp_path / "archive"
+    download_dir.mkdir()
+    archive_dir.mkdir()
+    archived = archive_dir / "E-5-2024_Geo_InternetVersion.xlsx"
+    archived.touch()
+    set_file_age(archived, 120)  # older than the cache window, within fallback
+    mock_read = Mock(return_value=pd.DataFrame({"Year": [2024]}))
+    monkeypatch.setattr(dof_e5_downloader, "_read_e5_workbook", mock_read)
+
+    # Act
+    result = dof_e5_downloader.get_most_recent_e5_file(
+        download_dir, get_source_settings()["e5_filename_pattern"], 400, archive_directory=archive_dir
+    )
+
+    # Assert
+    assert isinstance(result, pd.DataFrame)
+    assert mock_read.call_args.args[0] == archived
+
+
+def test_get_most_recent_e5_file_prefers_newest_across_dirs(monkeypatch, tmp_path, set_file_age):
+    # Arrange: a fresh cache workbook and an older archived one.
+    download_dir = tmp_path / "downloads"
+    archive_dir = tmp_path / "archive"
+    download_dir.mkdir()
+    archive_dir.mkdir()
+    cached = download_dir / "E-5-2025_Geo_InternetVersion.xlsx"
+    archived = archive_dir / "E-5-2024_Geo_InternetVersion.xlsx"
+    cached.touch()
+    archived.touch()
+    set_file_age(cached, 5)
+    set_file_age(archived, 120)
+    mock_read = Mock(return_value=pd.DataFrame())
+    monkeypatch.setattr(dof_e5_downloader, "_read_e5_workbook", mock_read)
+
+    # Act
+    dof_e5_downloader.get_most_recent_e5_file(
+        download_dir, get_source_settings()["e5_filename_pattern"], 400, archive_directory=archive_dir
+    )
+
+    # Assert
+    assert mock_read.call_args.args[0] == cached
+
+
 def test_read_e5_workbook_data_sheet(monkeypatch, tmp_path):
     # Arrange
     workbook_path = tmp_path / "E-5-2025_Geo_InternetVersion.xlsx"

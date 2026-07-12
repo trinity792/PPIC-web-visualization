@@ -41,9 +41,9 @@ def test_find_decimal_rates_ignores_old_years():
     assert _find_mask(dataframe).tolist() == [False]
 
 
-@pytest.mark.parametrize("rate", [0.0, 0.01, 1.0, 5.0])
+@pytest.mark.parametrize("rate", [0.0, 1.0, 5.0])
 def test_find_decimal_rates_boundary_values(rate):
-    # A rate of exactly 1.0 is treated as an already valid percentage.
+    # 0.0 has no positive rate to judge; 1.0 and 5.0 read as valid percentages.
     dataframe = pd.DataFrame(
         {"Year": [2022], "Vacancy Rate (%)": [rate], "Geographic Level": ["City"]}
     )
@@ -57,6 +57,46 @@ def test_find_decimal_rates_numeric_strings():
     )
 
     assert _find_mask(dataframe).tolist() == [True]
+
+
+def test_find_decimal_rates_preserves_genuine_sub1_in_percentage_vintage():
+    # A real 0.4% vacancy inside an otherwise percent-encoded year must survive:
+    # the vintage median is well above 1, so nothing in it is rescaled (B5).
+    dataframe = pd.DataFrame(
+        {
+            "Year": [2022, 2022, 2022, 2022],
+            "Vacancy Rate (%)": [0.4, 5.0, 7.5, 6.0],
+            "Geographic Level": ["City", "City", "City", "County"],
+        }
+    )
+
+    assert _find_mask(dataframe).tolist() == [False, False, False, False]
+
+
+def test_find_decimal_rates_flags_whole_fraction_vintage():
+    # Every rate in the year sits in the 0-1 band, so the vintage is fraction-encoded.
+    dataframe = pd.DataFrame(
+        {
+            "Year": [2022, 2022, 2022],
+            "Vacancy Rate (%)": [0.05, 0.07, 0.03],
+            "Geographic Level": ["City", "City", "County"],
+        }
+    )
+
+    assert _find_mask(dataframe).tolist() == [True, True, True]
+
+
+def test_find_decimal_rates_vintages_decided_independently():
+    # 2021 is fraction-encoded; 2022 is percent-encoded. Only 2021 is flagged.
+    dataframe = pd.DataFrame(
+        {
+            "Year": [2021, 2021, 2022, 2022],
+            "Vacancy Rate (%)": [0.05, 0.06, 5.0, 0.4],
+            "Geographic Level": ["City", "City", "City", "City"],
+        }
+    )
+
+    assert _find_mask(dataframe).tolist() == [True, True, False, False]
 
 
 def test_normalize_decimal_rates_multiplies():

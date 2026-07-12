@@ -61,19 +61,32 @@ def deduplicate_geographic_rows(housing_df, location_col, year_col, level_col, p
     )
 
 
-def _aggregate_additive_columns(dataframe, group_col, excluded_columns):
-    """Sum numeric additive columns by a grouping column. Test file: scripts/unit_tests/pophousing/aggregation/test_aggregation_utils.py"""
-    if dataframe.empty:
-        return pd.DataFrame(columns=[group_col])
-
-    numeric_data = {group_col: dataframe[group_col]}
+def detect_additive_columns(dataframe, group_col, excluded_columns):
+    """Return columns that are safely additive (every non-null value is numeric). Test file: scripts/unit_tests/pophousing/aggregation/test_aggregation_utils.py"""
+    additive_columns = []
     for column in dataframe.columns:
         if column == group_col or column in excluded_columns:
             continue
         converted_values = pd.to_numeric(dataframe[column], errors="coerce")
         original_non_null = dataframe[column].notna()
         if converted_values[original_non_null].notna().all():
-            numeric_data[column] = converted_values
+            additive_columns.append(column)
+    return additive_columns
+
+
+def _aggregate_additive_columns(dataframe, group_col, excluded_columns, additive_columns=None):
+    """Sum numeric additive columns by a grouping column. Test file: scripts/unit_tests/pophousing/aggregation/test_aggregation_utils.py"""
+    if dataframe.empty:
+        return pd.DataFrame(columns=[group_col])
+
+    # Detection is data-dependent but stable across a frame's subsets, so callers
+    # aggregating many groups can detect once and pass the list in (refactor guide B7).
+    if additive_columns is None:
+        additive_columns = detect_additive_columns(dataframe, group_col, excluded_columns)
+
+    numeric_data = {group_col: dataframe[group_col]}
+    for column in additive_columns:
+        numeric_data[column] = pd.to_numeric(dataframe[column], errors="coerce")
 
     numeric_dataframe = pd.DataFrame(numeric_data, index=dataframe.index)
     additive_columns = [

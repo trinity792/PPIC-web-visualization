@@ -44,8 +44,11 @@ def _configure_success(monkeypatch, tmp_path):
         "archive_directory": tmp_path / "archive",
         "current_data_path": tmp_path / "current.csv",
         "historical_data_path": tmp_path / "historical.csv",
+        "historical_baseline_metadata_path": tmp_path / "historical.meta.json",
         "deletion_log_directory": tmp_path / "logs",
     }
+    # The committed baseline must exist for the cold-start guard to pass.
+    paths["historical_data_path"].write_text("Year\n2020\n")
 
     def patch_call(name, result):
         def function(*args, **kwargs):
@@ -73,6 +76,7 @@ def _configure_success(monkeypatch, tmp_path):
         lambda: {
             "output_columns": frames["finalized"].columns.tolist(),
             "final_validation": {},
+            "historical_validation": {},
         },
     )
     monkeypatch.setattr(
@@ -98,7 +102,6 @@ def _configure_success(monkeypatch, tmp_path):
     )
     patch_call("normalize_decimal_fraction_rates", frames["normalized"])
     patch_call("validate_normalized_housing_rates", (True, []))
-    patch_call("assign_missing_geographic_levels", frames["leveled"])
     patch_call("standardize_location_column", frames["standardized"])
     patch_call("standardize_san_francisco_classification", frames["sf"])
     patch_call("prepare_housing_output", frames["finalized"])
@@ -128,7 +131,6 @@ def test_pipeline_calls_phases_in_order(monkeypatch, tmp_path):
         "find_decimal_fraction_rates",
         "normalize_decimal_fraction_rates",
         "validate_normalized_housing_rates",
-        "assign_missing_geographic_levels",
         "standardize_location_column",
         "standardize_san_francisco_classification",
         "prepare_housing_output",
@@ -166,9 +168,21 @@ def test_pipeline_passes_phase5_output_to_phase6(monkeypatch, tmp_path):
 
     pipeline.main()
 
-    assert calls["assign_missing_geographic_levels"][0][0][0] is frames[
-        "normalized"
-    ]
+    assert calls["standardize_location_column"][0][0][0] is frames["normalized"]
+
+
+def test_pipeline_phase6_unlabeled_row_raises(monkeypatch, tmp_path):
+    _, calls, frames, _ = _configure_success(monkeypatch, tmp_path)
+    unlabeled = frames["normalized"].copy()
+    unlabeled["Geographic Level"] = [None]
+    monkeypatch.setattr(
+        pipeline, "normalize_decimal_fraction_rates", lambda *args, **kwargs: unlabeled
+    )
+
+    with pytest.raises(RuntimeError, match="Phase 6.*without a geographic level"):
+        pipeline.main()
+
+    assert "standardize_location_column" not in calls
 
 
 def test_pipeline_phase1_validation_failure_stops(monkeypatch, tmp_path):
@@ -180,6 +194,16 @@ def test_pipeline_phase1_validation_failure_stops(monkeypatch, tmp_path):
     )
 
     with pytest.raises(RuntimeError, match="Phase 1.*bad history"):
+        pipeline.main()
+
+    assert "get_e5_file_url" not in calls
+
+
+def test_pipeline_cold_start_missing_baseline_raises(monkeypatch, tmp_path):
+    _, calls, _, paths = _configure_success(monkeypatch, tmp_path)
+    paths["historical_data_path"].unlink()
+
+    with pytest.raises(RuntimeError, match="Phase 1.*baseline not found"):
         pipeline.main()
 
     assert "get_e5_file_url" not in calls
@@ -201,6 +225,84 @@ def test_pipeline_phase2_download_failure_tries_fallback(monkeypatch, tmp_path):
     pipeline.main()
 
     assert calls["clean_e5_data"][0][0][0] is frames["raw"]
+
+
+def test_pipeline_phase2_corrupt_fresh_download_falls_back(monkeypatch, tmp_path):
+    _, calls, frames, _ = _configure_success(monkeypatch, tmp_path)
+
+    def corrupt_download(*args, **kwargs):
+        raise ValueError("corrupt workbook")
+
+    monkeypatch.setattr(pipeline, "download_e5_data", corrupt_download)
+    monkeypatch.setattr(
+        pipeline, "get_most_recent_e5_file", lambda *args, **kwargs: frames["raw"]
+    )
+
+    result = pipeline.main()
+
+    # Fell back to cache instead of aborting, and flagged the degraded run.
+    assert calls["clean_e5_data"][0][0][0] is frames["raw"]
+    assert result["e5_download_failed"] is True
+
+
+def test_pipeline_phase2_missing_openpyxl_aborts(monkeypatch, tmp_path):
+    _, calls, _, _ = _configure_success(monkeypatch, tmp_path)
+
+    def missing_dependency(*args, **kwargs):
+        raise RuntimeError("Reading E-5 .xlsx files requires the openpyxl package")
+
+    monkeypatch.setattr(pipeline, "download_e5_data", missing_dependency)
+
+    # A missing dependency is a hard failure, not a silent fallback to stale data.
+    with pytest.raises(RuntimeError, match="Phase 2.*openpyxl"):
+        pipeline.main()
+
+    assert "get_most_recent_e5_file" not in calls
+
+
+def test_pipeline_phase2_discovery_failure_flags_recovery(monkeypatch, tmp_path):
+    _, _, frames, _ = _configure_success(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        pipeline,
+        "get_e5_file_url",
+        lambda *args: (_ for _ in ()).throw(E5DiscoveryError("not found")),
+    )
+    monkeypatch.setattr(
+        pipeline, "get_most_recent_e5_file", lambda *args, **kwargs: frames["raw"]
+    )
+
+    result = pipeline.main()
+
+    assert result["e5_discovery_failed"] is True
+
+
+def test_pipeline_phase2_fallback_searches_archive(monkeypatch, tmp_path):
+    _, _, frames, paths = _configure_success(monkeypatch, tmp_path)
+
+    def fail_download(*args, **kwargs):
+        raise HTTPDownloadError("network unavailable")
+
+    captured = {}
+
+    def capture_fallback(*args, **kwargs):
+        captured.update(kwargs)
+        return frames["raw"]
+
+    monkeypatch.setattr(pipeline, "download_e5_data", fail_download)
+    monkeypatch.setattr(pipeline, "get_most_recent_e5_file", capture_fallback)
+
+    pipeline.main()
+
+    # The fallback is handed the archive directory so archived-out workbooks are reachable.
+    assert captured["archive_directory"] == paths["archive_directory"]
+
+
+def test_pipeline_clean_run_has_no_recovery_flags(monkeypatch, tmp_path):
+    _, _, _, _ = _configure_success(monkeypatch, tmp_path)
+
+    result = pipeline.main()
+
+    assert not any(key.endswith("_failed") for key in result)
 
 
 def test_pipeline_phase2_total_failure_stops(monkeypatch, tmp_path):

@@ -3,25 +3,8 @@ import pandas as pd
 from scripts.pophousing.cleaning.hierarchical_location_cleaning import (
     build_county_context_column,
     forward_fill_locations_with_context,
-    has_meaningful_housing_data,
     identify_county_headers,
 )
-
-
-def test_has_meaningful_housing_data_positive_value():
-    row = pd.Series({"population": "1,000", "housing": 0})
-
-    result = has_meaningful_housing_data(row, ["population", "housing"])
-
-    assert result is True
-
-
-def test_has_meaningful_housing_data_zero_and_invalid_values():
-    row = pd.Series({"population": "unknown", "housing": 0})
-
-    result = has_meaningful_housing_data(row, ["population", "housing"])
-
-    assert result is False
 
 
 def test_identify_county_headers_followed_by_county_total():

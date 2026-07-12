@@ -16,32 +16,32 @@ from scripts.pophousing.config.geography import get_geography_config
 
 
 def test_classify_ambiguous_location_explicit_totals():
-    row = pd.Series(dtype="object")
+    config = get_geography_config()
 
-    assert classify_ambiguous_location("County Total", "Alameda", 1, row, None, None) == "County"
-    assert classify_ambiguous_location("State Total", None, 1, row, None, None) == "State"
+    assert classify_ambiguous_location("County Total", "Alameda", 1, config) == "County"
+    assert classify_ambiguous_location("State Total", None, 1, config) == "State"
 
 
 def test_classify_ambiguous_location_town():
-    row = pd.Series(dtype="object")
+    config = get_geography_config()
 
-    result = classify_ambiguous_location("Atherton", "San Mateo", 7_000, row, None, None)
+    result = classify_ambiguous_location("Atherton", "San Mateo", 7_000, config)
 
     assert result == "Town"
 
 
-def test_classify_ambiguous_location_county_structure():
-    dataframe = pd.DataFrame({"Location": ["Alameda", "County Total", "Oakland"]})
+def test_classify_ambiguous_location_san_joaquin_county_by_threshold():
+    config = get_geography_config()
 
-    result = classify_ambiguous_location("Alameda", "Alameda", 0, dataframe.iloc[0], dataframe, 0)
-
-    assert result == "County"
+    # San Joaquin resolves to County only above the population threshold.
+    assert classify_ambiguous_location("San Joaquin", "San Joaquin", 500_000, config) == "County"
+    assert classify_ambiguous_location("San Joaquin", "San Joaquin", 4_000, config) == "City"
 
 
 def test_classify_ambiguous_location_city_default():
-    row = pd.Series(dtype="object")
+    config = get_geography_config()
 
-    result = classify_ambiguous_location("Alameda", "Alameda", 80_000, row, None, None)
+    result = classify_ambiguous_location("Alameda", "Alameda", 80_000, config)
 
     assert result == "City"
 
@@ -95,6 +95,46 @@ def test_assign_missing_geographic_levels_preserves_existing():
     )
 
     assert result["Geographic Level"].tolist() == ["State", "City"]
+
+
+def test_assign_missing_geographic_levels_vectorized_matches_per_row():
+    # Parity guard for the vectorized fast path (B6): the result must equal a
+    # straight per-row application of assign_geographic_level_with_context.
+    config = get_geography_config()
+    dataframe = pd.DataFrame(
+        {
+            "Location": [
+                "State Total",
+                "Bay Area",
+                "County Total",
+                "Atherton",
+                "San Joaquin",
+                "San Joaquin",
+                "Oakland",
+            ],
+            "County": [None, None, None, "San Mateo", "San Joaquin", "San Joaquin", "Alameda"],
+            "Total Population": [39_000_000, 7_800_000, 1_600_000, 7_000, 500_000, 4_000, 440_000],
+            "Geographic Level": [None] * 7,
+        }
+    )
+
+    result = assign_missing_geographic_levels(
+        dataframe,
+        assign_geographic_level_with_context,
+        "Location",
+        "County",
+        "Total Population",
+        "Geographic Level",
+    )
+
+    expected = [
+        assign_geographic_level_with_context(
+            row["Location"], row["County"], row["Total Population"], row, config
+        )
+        for _, row in dataframe.iterrows()
+    ]
+    assert result["Geographic Level"].tolist() == expected
+    assert expected == ["State", "Region", "County", "Town", "County", "City", "City"]
 
 
 def test_apply_town_overrides():
@@ -153,3 +193,25 @@ def test_standardize_san_francisco_classification_is_idempotent():
     result = standardize_san_francisco_classification(dataframe, "Location", "Geographic Level")
 
     assert len(result) == 2
+
+
+def test_standardize_san_francisco_collapses_boundary_year_multisource():
+    # Boundary year: an E-8 City row and an E-5 County row for the same year must
+    # collapse to exactly one City and one County (both from the preferred source),
+    # not expand into four rows with duplicate keys.
+    dataframe = pd.DataFrame(
+        {
+            "Location": ["San Francisco", "San Francisco"],
+            "Geographic Level": ["City", "County"],
+            "Year": [2020, 2020],
+            "Total Population": [873_965, 873_965],
+            "Source": ["E-8", "E-5"],
+        }
+    )
+
+    result = standardize_san_francisco_classification(dataframe, "Location", "Geographic Level")
+
+    assert len(result) == 2
+    assert set(result["Geographic Level"]) == {"City", "County"}
+    # The authoritative modern source (E-5) wins for the boundary year.
+    assert set(result["Source"]) == {"E-5"}

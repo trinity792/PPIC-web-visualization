@@ -79,6 +79,8 @@ def get_schema_config():
         "duplicate_key_columns": ["Location", "Geographic Level", "Year"],
         "valid_levels": ["City", "County", "Region", "State", "Town"],
         "required_levels": ["City", "County", "Region", "State", "Town"],
+        "source_column": "Source",
+        "valid_sources": ["E-5", "E-8", "Aggregated"],
         "location_column": "Location",
         "level_column": "Geographic Level",
         "year_column": "Year",
@@ -114,9 +116,15 @@ def get_schema_config():
         "maximum_year": None,
         "numeric_columns": list(numeric_columns),
         "zero_fill_columns": list(numeric_columns),
+        # DoF subtotal/residual rows that are not places. Older vintages used
+        # "Balance of <County>"; the 2020-2026 E-5 relabeled the per-county
+        # subtotals as bare "Incorporated" (incorporated-cities subtotal) and
+        # "Unincorporated" (unincorporated balance). All are dropped; "County
+        # Total"/"State Total" are protected by summary_keep_values.
         "summary_patterns": [
             r"^Balance of ",
-            r"^Incorporated ",
+            r"^Incorporated\b",
+            r"^Unincorporated\b",
         ],
         "summary_keep_values": ["County Total", "State Total"],
         "header_patterns": [
@@ -146,6 +154,32 @@ def get_schema_config():
                 if column
                 not in {"Location", "Geographic Level", "Year"}
             ],
+        },
+        # Acceptance gate for the immutable pre-2020 E-8 baseline (A1). Shared by
+        # the main pipeline's Phase 1 and the Phase 0 builder so both hold the
+        # baseline to one contract.
+        "historical_validation": {
+            "required_columns": [
+                "Location",
+                "Geographic Level",
+                "Year",
+                "Total Population",
+                "Total Housing Units",
+                "Single Family Units",
+            ],
+            "year_column": "Year",
+            "expected_years": range(1991, 2021),
+            "level_column": "Geographic Level",
+            "expected_levels": ["State", "County", "City"],
+            "location_column": "Location",
+            "state_name": "California",
+            "state_level": "State",
+            "minimum_state_records": 25,
+            "population_column": "Total Population",
+            "minimum_population_year": 2015,
+            "minimum_state_population": 30_000_000,
+            "maximum_state_population": 50_000_000,
+            "duplicate_key_columns": ["Location", "Geographic Level", "Year"],
         },
         "final_validation": final_validation,
     }

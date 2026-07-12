@@ -28,7 +28,7 @@ Location Standardization
 """
 
 
-def standardize_location_column(housing_df, location_col, geo_col, only_levels):
+def standardize_location_column(housing_df, location_col, geo_col, only_levels, geography_config=None):
     """Standardize location names for selected geographic levels. Test file: scripts/unit_tests/pophousing/cleaning/test_location_standardization.py"""
     missing_columns = [
         column for column in (location_col, geo_col) if column not in housing_df.columns
@@ -36,7 +36,8 @@ def standardize_location_column(housing_df, location_col, geo_col, only_levels):
     if missing_columns:
         raise KeyError(f"Missing columns: {', '.join(missing_columns)}")
 
-    config = get_geography_config()
+    # Accept a prebuilt config so callers that already hold one avoid rebuilding it (A6).
+    config = geography_config if geography_config is not None else get_geography_config()
     city_mappings = config["city_name_mappings"]
     historical_mappings = config["historical_name_standardization"]
     protected_city_names = config["proper_names_ending_in_city"]

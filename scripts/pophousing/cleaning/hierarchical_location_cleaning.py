@@ -27,16 +27,6 @@ Hierarchical Location Cleaning
 """
 
 
-def has_meaningful_housing_data(housing_row, value_columns):
-    """Report whether a row has any positive housing values. Test file: scripts/unit_tests/pophousing/cleaning/test_hierarchical_location_cleaning.py"""
-    values = pd.Series([housing_row.get(column) for column in value_columns])
-    numeric_values = pd.to_numeric(
-        values.astype("string").str.replace(",", "", regex=False),
-        errors="coerce",
-    )
-    return bool(numeric_values.fillna(0).gt(0).any())
-
-
 def identify_county_headers(housing_df, county_names, location_col):
     """Identify county header rows followed by a county total. Test file: scripts/unit_tests/pophousing/cleaning/test_hierarchical_location_cleaning.py"""
     if location_col not in housing_df.columns:

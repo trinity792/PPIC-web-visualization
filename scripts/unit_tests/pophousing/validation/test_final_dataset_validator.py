@@ -20,7 +20,7 @@ def _row(location, level, year, population=100):
             "Total Housing Units": 50,
             "Vacancy Rate (%)": 5.0,
             "Persons Per Household": 2.5,
-            "Source": "DoF",
+            "Source": "E-5",
         }
     )
     return row
@@ -63,6 +63,32 @@ def test_validate_final_missing_required_column():
     is_valid, messages = validate_final_housing_dataset(dataframe, _config())
 
     assert is_valid is False and any("Vacant Units" in message for message in messages)
+
+
+def test_validate_final_accepts_known_sources():
+    dataframe = _valid_dataframe()
+    dataframe.loc[dataframe["Geographic Level"].eq("Region"), "Source"] = "Aggregated"
+    dataframe.loc[dataframe["Geographic Level"].eq("County"), "Source"] = "E-8"
+
+    assert validate_final_housing_dataset(dataframe, _config()) == (True, [])
+
+
+def test_validate_final_rejects_unknown_source():
+    dataframe = _valid_dataframe()
+    dataframe.loc[0, "Source"] = "DoF"
+
+    is_valid, messages = validate_final_housing_dataset(dataframe, _config())
+
+    assert is_valid is False and any("Invalid Source" in message for message in messages)
+
+
+def test_validate_final_rejects_null_source():
+    dataframe = _valid_dataframe()
+    dataframe.loc[0, "Source"] = None
+
+    is_valid, messages = validate_final_housing_dataset(dataframe, _config())
+
+    assert is_valid is False and any("null Source" in message for message in messages)
 
 
 def test_validate_final_duplicate_keys():

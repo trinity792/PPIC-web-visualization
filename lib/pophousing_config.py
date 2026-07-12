@@ -25,7 +25,22 @@ CURRENT_DATA_PATH = str(
     / "housing-population"
     / "PopHousing_Current.csv"
 )
-HISTORICAL_DATA_PATH = CURRENT_DATA_PATH
+# Deep pre-2020 history lives in its own immutable, committed artifact — NOT the
+# pipeline's own output. The Phase 0 builder writes this file; the main pipeline
+# only reads it. Decoupling it from CURRENT_DATA_PATH removes the self-
+# perpetuating-history drift channel (see refactor guide, Flagged Issue A1).
+HISTORICAL_BASELINE_PATH = str(
+    _project_paths["cleaned_data_directory"]
+    / "housing-population"
+    / "PopHousing_Historical_E8.csv"
+)
+# Sidecar recording the baseline's coverage/build provenance for freshness checks.
+HISTORICAL_BASELINE_METADATA_PATH = str(
+    _project_paths["cleaned_data_directory"]
+    / "housing-population"
+    / "PopHousing_Historical_E8.meta.json"
+)
+HISTORICAL_DATA_PATH = HISTORICAL_BASELINE_PATH
 ARCHIVE_DATA_PATH = str(
     _project_paths["archive_directory"] / "housing-population"
 )
@@ -151,22 +166,25 @@ CITY_INCORPORATION_DATES = {
 }
 
 # --- E-5 File Management Settings ---
-# Maximum age in days before re-downloading E-5 file
-# DoF releases E-5 data annually in May, so 90 days ensures we get fresh data
-# while avoiding unnecessary downloads throughout the year
-E5_CACHE_MAX_AGE_DAYS = 60
+# Maximum age in days before re-downloading E-5 file, and before retention
+# archives a cached workbook. DoF releases E-5 annually (~May), so 90 days keeps
+# the active cache clean without re-downloading unnecessarily through the year.
+E5_CACHE_MAX_AGE_DAYS = 90
 
-# Maximum age in days for fallback E-5 files (when web scraping fails)
-# Allow up to 6 months for fallback since E-5 data is updated annually
-E5_FALLBACK_MAX_AGE_DAYS = 60
+# Maximum age in days for fallback E-5 files (when web scraping fails). Set well
+# beyond the cache/retention window so a workbook archived out of the active
+# cache is still reachable as a fallback during a DoF outage; get_most_recent_e5_file
+# searches both the download and archive directories. See refactor guide B1.
+E5_FALLBACK_MAX_AGE_DAYS = 400
 
-# Pattern for E-5 files to help with cleanup
-E5_FILE_PATTERN = r'E-5-\d{4}_Geo_InternetVersion\.xlsx'
+# Pattern for E-5 files to help with cleanup. DoF has published both hyphen and
+# underscore forms of the name (E-5-2025_… and E-5_2026_…), so accept either.
+E5_FILE_PATTERN = r'E-5[-_]\d{4}_Geo_InternetVersion\.xlsx'
 E5_HEADER_PATTERN = (
     r"E-5 Population and Housing Estimates for Cities, Counties, and the State"
 )
 E5_LANDING_PAGE_PATTERN = r"20\d{2}\s*(?:-|\u2013)\s*20\d{2}"
-E5_WORKBOOK_LINK_PATTERN = r"E-5-\d{4}_Geo_InternetVersion\.xlsx(?:\?.*)?$"
+E5_WORKBOOK_LINK_PATTERN = r"E-5[-_]\d{4}_Geo_InternetVersion\.xlsx(?:\?.*)?$"
 
 ALL_TOWNS: List[str] = [
     'Apple Valley',

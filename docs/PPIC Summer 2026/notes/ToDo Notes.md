@@ -62,6 +62,7 @@ Note: not in order
 - [ ] Add live tests
 - [x] Setup logging
 - [ ] Setup automatic updates and error handling
+- [ ] Analyze all of the ways the module datasets have changed over time to widen the parameters for acquisition phase and make pipeline more robust to formatting changes
 ### Documentation
 - [x] Add all front end documentation to `projectSpec.md`
   - [x] what pulls from globals.css & constants.js

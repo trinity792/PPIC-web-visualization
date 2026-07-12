@@ -131,6 +131,7 @@ def clean_e5_data(raw_e5_df, schema_config, geography_config):
         "_temp_county",
         "Total Population",
         "Geographic Level",
+        geography_config,
     )
     housing_df = apply_town_overrides(
         housing_df,
@@ -148,6 +149,7 @@ def clean_e5_data(raw_e5_df, schema_config, geography_config):
         "Location",
         "Geographic Level",
         ("City", "Town"),
+        geography_config,
     )
     housing_df = remove_balance_rows(housing_df, "Location")
     housing_df = drop_helper_columns(housing_df, ["County", "_temp_county"])

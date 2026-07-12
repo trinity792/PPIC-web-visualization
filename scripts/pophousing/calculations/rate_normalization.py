@@ -25,7 +25,7 @@ Rate Normalization
 
 
 def find_decimal_fraction_rates(housing_df, year_col, rate_col, level_col, min_year):
-    """Identify recent non-state rates stored as decimal fractions. Test file: scripts/unit_tests/pophousing/calculations/test_rate_normalization.py"""
+    """Identify rates in fraction-encoded vintages via a per-year distribution test. Test file: scripts/unit_tests/pophousing/calculations/test_rate_normalization.py"""
     required_columns = [year_col, rate_col, level_col]
     missing_columns = [
         column for column in required_columns if column not in housing_df.columns
@@ -35,12 +35,21 @@ def find_decimal_fraction_rates(housing_df, year_col, rate_col, level_col, min_y
 
     years = pd.to_numeric(housing_df[year_col], errors="coerce")
     rates = pd.to_numeric(housing_df[rate_col], errors="coerce")
-    return (
-        years.ge(min_year)
-        & rates.gt(0.01)
-        & rates.lt(1.0)
-        & housing_df[level_col].ne("State")
-    ).fillna(False)
+    eligible = years.ge(min_year) & housing_df[level_col].ne("State") & rates.notna()
+
+    # Decide per vintage (year), not per row: a genuine sub-1% rate sits in the
+    # same 0-1 band as a fraction-encoded one, so a per-row band would silently
+    # rescale a real 0.4% to 40%. A vintage is fraction-encoded only if the
+    # *median* of its rates is below 1.0 (all its rates live in the 0-1 band).
+    # Within such a vintage, only rows still below 1.0 are scaled, so an already
+    # percent-scaled outlier is never multiplied again (refactor guide B5).
+    mask = pd.Series(False, index=housing_df.index)
+    for year in years[eligible].dropna().unique():
+        year_mask = eligible & years.eq(year)
+        positive_rates = rates[year_mask & rates.gt(0)]
+        if not positive_rates.empty and positive_rates.median() < 1.0:
+            mask |= year_mask & rates.lt(1.0)
+    return mask
 
 
 def normalize_decimal_fraction_rates(housing_df, rate_col, mask):

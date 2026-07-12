@@ -20,6 +20,7 @@ import pandas as pd
 from scripts.pophousing.aggregation.aggregation_utils import (
     _aggregate_additive_columns,
     deduplicate_geographic_rows,
+    detect_additive_columns,
     remove_existing_geographic_level,
 )
 from scripts.pophousing.calculations.housing_metrics import recalculate_housing_rates
@@ -55,6 +56,9 @@ def build_regional_rows(housing_df, regions_mapping, location_col, level_col, ye
         "Source",
         *_RATE_COLUMNS,
     }
+    # The additive-column set is identical across regions for a given frame, so
+    # detect it once on the deduplicated county rows and reuse it (refactor guide B7).
+    additive_columns = detect_additive_columns(county_rows, year_col, excluded_columns)
     regional_frames = []
     for region_name, county_names in regions_mapping.items():
         region_counties = county_rows.loc[
@@ -63,7 +67,7 @@ def build_regional_rows(housing_df, regions_mapping, location_col, level_col, ye
         if region_counties.empty:
             continue
         aggregated = _aggregate_additive_columns(
-            region_counties, year_col, excluded_columns
+            region_counties, year_col, excluded_columns, additive_columns
         )
         region_rows = aggregated.reindex(columns=housing_df.columns)
         region_rows[location_col] = region_name

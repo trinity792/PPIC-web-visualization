@@ -11,9 +11,9 @@ from scripts.pophousing.output.finalize_dataset import (
 def _output_dataframe():
     columns = get_schema_config()["output_columns"]
     rows = []
-    for location, level, year in (
-        ("Oakland", "City", 2021),
-        ("Alameda", "County", 2020),
+    for location, level, year, source in (
+        ("Oakland", "City", 2021, "E-5"),
+        ("Alameda", "County", 2020, "E-8"),
     ):
         row = {column: 0 for column in columns}
         row.update(
@@ -21,7 +21,7 @@ def _output_dataframe():
                 "Location": location,
                 "Geographic Level": level,
                 "Year": year,
-                "Source": "E-5",
+                "Source": source,
             }
         )
         rows.append(row)
@@ -31,16 +31,24 @@ def _output_dataframe():
 def _prepare(dataframe):
     return prepare_housing_output(
         dataframe,
-        source_name="DoF",
         output_columns=get_schema_config()["output_columns"],
         sort_columns=["Geographic Level", "Location", "Year"],
     )
 
 
-def test_prepare_output_sets_source():
+def test_prepare_output_preserves_source_provenance():
     result = _prepare(_output_dataframe())
 
-    assert set(result["Source"]) == {"DoF"}
+    # Per-row provenance flows through instead of being flattened to one literal (B3).
+    by_location = dict(zip(result["Location"], result["Source"]))
+    assert by_location == {"Oakland": "E-5", "Alameda": "E-8"}
+
+
+def test_prepare_output_requires_source_column():
+    dataframe = _output_dataframe().drop(columns=["Source"])
+
+    with pytest.raises(ValueError, match="missing output columns.*Source"):
+        _prepare(dataframe)
 
 
 def test_prepare_output_column_order():
