@@ -1,5 +1,18 @@
 [
   {
+    "id": "c80692e",
+    "commit": "c80692e",
+    "timestamp": "2026-07-11T22:07:09-07:00",
+    "date": "2026-07-11",
+    "title": "Resolved Population & Housing refactor issues; validated the pipeline live",
+    "description": "Implemented every flagged reliability, robustness, and efficiency fix for the Population & Housing pipeline — an immutable historical E-8 baseline with a Phase 0 builder and cold-start guard, hardened E-5 acquisition fallback, real per-row Source provenance, a per-vintage vacancy-rate correction, and a vectorized geographic classifier — then ran it end to end against the live 2020-2026 DoF E-5, fixing DoF's renamed workbook and its new per-county subtotal labels along the way.",
+    "area": "Backend scripts",
+    "intensity": "high",
+    "audited": true,
+    "contributor": "Trinity Jones",
+    "module": "Population & Housing"
+  },
+  {
     "id": "f0ba3b5",
     "commit": "f0ba3b5",
     "timestamp": "2026-07-11T10:48:53-07:00",

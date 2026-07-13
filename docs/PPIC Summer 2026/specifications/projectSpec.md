@@ -4,7 +4,7 @@ Content Type: project specification
 pinned: true
 description: "The single source of truth for the web-data-visualization project's specification, architecture, and API reference. A living document for programmers and researchers that uses PopHousing as the reference implementation future data modules should mirror."
 Date Published: June 23, 2026
-Last Updated: 07/06/2026 - 12:30 PM
+Last Updated: 07/11/2026 - 11:45 PM
 Status: Updating
 ---
 
@@ -685,9 +685,12 @@ A deliberately minimal CSV parser (`split(",")`) avoids a dependency, justified 
 | `subset` | yes | Geographic grouping (`Regions`, `Counties`, `Cities`, `Towns`, `State`). |
 | `parameter` | most views | Metric column (valid measure). For `pairs`, use `xMeasure` / `yMeasure` (+ optional `sizeMeasure`) instead. |
 | `locations` | no | Comma-separated location filter. |
+| `sources` | no | Comma-separated provenance filter (`E-5`, `E-8`, `Aggregated`); omitted means all. Backs the sidebar's Source multi-select. |
 | `startYear` / `endYear` | no | Integer year bounds (range views). |
 | `period` | no | Single year (`category` / `pairs` / `geo`). |
 | `topN` / `sort` | no | Ranking controls (`category` view). |
+
+The Source column now carries **real per-row provenance** (`E-5` modern, `E-8` history, `Aggregated` rollups), so the schema exposes a `provenanceFilter` flag that renders a Source **multi-select** (default all) in the chart sidebar, threaded to the `sources` param above via the shared `filterRows` helper. A separate **`POST /api/pophousing/update`** route (schema flag `refreshable`) backs an "Update data" button that triggers a background pipeline refresh — see *Current-State Notes & Caveats (PopHousing)*.
 
 Errors carry a `source` string (`"pop_housing API: <stage>"`) identifying the failed stage. Success returns `{ view, parameter, subset, …shape }` — `series` for line, `records` for category/pairs/geo, `matrix` for heatmap — with the observed period / `yearRange`.
 
@@ -701,12 +704,21 @@ PopHousing's performance choices — the patterns below carry over to any module
 
 | Concern | Approach |
 |---|---|
-| **Re-downloading / re-scraping DOF** | 60-day cache: a fresh local E-5 workbook is read directly with no HTTP request. A network failure falls back to the newest valid local file rather than failing the run. |
+| **Re-downloading / re-scraping DOF** | 90-day cache: a fresh local E-5 workbook is read directly with no HTTP request. A network failure (or a corrupt fresh download) falls back to the newest valid workbook within a wider 400-day window, searching **both** the download cache and the archive so a retention-archived file is still reachable. |
 | **CSV read on every request** | `lib/data/pop_housing.js` parses the CSV once per server process and caches the parsed rows in module scope (`cachedRows`). |
 | **CSV parser cost / dependencies** | A minimal `split(",")` parser avoids pulling in a CSV library, valid because the cleaned schema has no quoted or comma-bearing fields. |
 | **Plotly bundle / SSR** | `react-plotly.js` is loaded via `next/dynamic` with `ssr: false`, keeping it out of the server bundle and avoiding `window`/`document` errors. |
 | **Vectorized transforms** | Phase 3/5 transformations are vectorized pandas operations wherever possible. |
 | **The one hotspot** | `forward_fill_locations_with_context` is an intentional row-by-row loop (the hierarchical layout requires sequential context). It is the place to look first for pipeline slowdowns; keep new per-row work out of it. |
+
+---
+
+## Current-State Notes & Caveats (PopHousing)
+
+The module is complete, its tests pass, and it has run end-to-end against the live 2020-2026 DoF E-5 (output: 19,692 rows, 1991-2026, 0 duplicate keys, real `E-5`/`E-8`/`Aggregated` provenance). Two things about *today's* state are worth recording:
+
+- **Statewide totals are aggregated, not read from DoF's own row.** The E-5 "State Total" row sits at the top of the workbook, above the first county, so `trim_to_first_data_row` (anchored on "Alameda") drops it. Modern California State rows (2021+) are therefore built by summing counties and carry the `Aggregated` source; the 2020 boundary State row comes from the E-8 baseline (`E-8`). The aggregated 2026 statewide population (~39.6M) is plausible and county sums closely track the state total, but DoF's published statewide E-5 figure is not used directly. Changing this would mean not trimming (or separately capturing) the top statewide block before the Alameda anchor.
+- **The "Update data" button runs a server-side process.** `POST /api/pophousing/update` spawns the full Python pipeline via the project venv (async, detached, guarded by a single-process lock) and returns `202`; the run's outcome surfaces on `/logs`. The command is fixed and takes no request input, so there is no injection surface — but it does execute a server-side process, so in a shared deployment this route should sit behind auth. The Python binary is overridable via `PIPELINE_PYTHON_BIN` / `PIPELINE_VENV`; the default path is assembled from parts on purpose so the bundler does not trace the venv's python symlink (which points out of the project root) and fail `next build`.
 
 ---
 

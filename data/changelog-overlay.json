@@ -1,10 +1,18 @@
 {
   "__doc__": "Curated overlay for the Changelog tab. Keyed by short commit hash. Each entry supplies the human-judged fields git cannot infer, and may override the git-derived title/description. Run `node scripts/changelog/build-changelog.mjs` to merge this with `git log` into data/changelog.json (the file the app reads). intensity: low | moderate | high. area: free text. audited: whether Trinity has manually reviewed the change. Only commits listed here appear in the changelog.",
+  "c80692e": {
+    "title": "Resolved Population & Housing refactor issues; validated the pipeline live",
+    "area": "Backend scripts",
+    "intensity": "high",
+    "audited": true,
+    "module": "Population & Housing",
+    "description": "Implemented every flagged reliability, robustness, and efficiency fix for the Population & Housing pipeline — an immutable historical E-8 baseline with a Phase 0 builder and cold-start guard, hardened E-5 acquisition fallback, real per-row Source provenance, a per-vintage vacancy-rate correction, and a vectorized geographic classifier — then ran it end to end against the live 2020-2026 DoF E-5, fixing DoF's renamed workbook and its new per-county subtotal labels along the way."
+  },
   "f0ba3b5": {
     "title": "Rewrote refactor guides as as-built docs",
     "area": "Documentation",
     "intensity": "low",
-    "audited": false,
+    "audited": true,
     "module": null,
     "description": "Turned the module 'refractor' planning docs into two-part as-built guides (non-technical overview plus per-function programmer reference with legacy lineage)."
   },
@@ -12,7 +20,7 @@
     "title": "Graph editor & viz tool cleanups",
     "area": "Front-end components",
     "intensity": "moderate",
-    "audited": false,
+    "audited": true,
     "module": null,
     "description": "Polish pass across the graph editor and standalone visualization tool: layout tweaks, control refinements, and small fixes carried over from the UI overhaul."
   },
@@ -20,7 +28,7 @@
     "title": "Added 'view original data' to the module visualization tool",
     "area": "Standalone viz tool",
     "intensity": "moderate",
-    "audited": false,
+    "audited": true,
     "module": null,
     "description": "New View Data step lets users inspect the underlying source rows behind a module chart before building a visualization."
   },
@@ -28,7 +36,7 @@
     "title": "Graph editor UI overhaul",
     "area": "Front-end components",
     "intensity": "high",
-    "audited": false,
+    "audited": true,
     "module": null,
     "description": "Major restructuring of the graph editor interface, including multi-chart support, undo/redo, and the Range/dot-plot chart family."
   },
@@ -36,7 +44,7 @@
     "title": "Updated UI Kit to the official PPIC spec",
     "area": "UI Kit",
     "intensity": "moderate",
-    "audited": false,
+    "audited": true,
     "module": null,
     "description": "Brought the living UI Kit in line with the official PPIC color and typography specification."
   },
@@ -44,7 +52,7 @@
     "title": "Implemented graph editor phases",
     "area": "Front-end components",
     "intensity": "high",
-    "audited": false,
+    "audited": true,
     "module": null,
     "description": "Landed the phased graph-editor overhaul (step-wizard flow, encodings, presets) and synced the project spec."
   },
@@ -52,7 +60,7 @@
     "title": "Added pipeline logging + front-end Logs page",
     "area": "Backend scripts & front-end",
     "intensity": "high",
-    "audited": false,
+    "audited": true,
     "module": null,
     "description": "Introduced structured run-record logging in the Python pipelines and the /logs page that surfaces successes, recovered fallbacks, and failures."
   },
@@ -60,7 +68,7 @@
     "title": "Deleted unused components",
     "area": "Front-end components",
     "intensity": "low",
-    "audited": false,
+    "audited": true,
     "module": null,
     "description": "Removed dead component files and refreshed the project spec accordingly."
   },
@@ -68,7 +76,7 @@
     "title": "Added document status fields; updated UI Kit colors",
     "area": "Front-end components",
     "intensity": "moderate",
-    "audited": false,
+    "audited": true,
     "module": null,
     "description": "Added Status fields to documents, reworked UI Kit color tokens and their rendering."
   },
@@ -76,7 +84,7 @@
     "title": "Fixed the demographic projections pipeline",
     "area": "Backend scripts",
     "intensity": "moderate",
-    "audited": false,
+    "audited": true,
     "module": "Age-Sex-Race Projections",
     "description": "Tested and repaired the live Projections pipeline (DoF/Census scrapers, fallback re-aggregation, encoding and rename fixes)."
   },
@@ -84,7 +92,7 @@
     "title": "Completed Building Permits refactor",
     "area": "Backend scripts",
     "intensity": "high",
-    "audited": false,
+    "audited": true,
     "module": "Building Permits",
     "description": "Finished the Building Permits V3 refactor (backend, frontend, and CSV), pending validation."
   },
@@ -92,7 +100,7 @@
     "title": "Added document viewer + markdown rendering",
     "area": "Front-end components",
     "intensity": "high",
-    "audited": false,
+    "audited": true,
     "module": null,
     "description": "New in-app document viewer with markdown rendering for the docs library."
   },
@@ -100,7 +108,7 @@
     "title": "Completed ACS Housing Stress refactor",
     "area": "Backend scripts",
     "intensity": "high",
-    "audited": false,
+    "audited": true,
     "module": "ACS Housing Stress",
     "description": "Finished the ACS Housing Stress V3 refactor; tested ACS and Components of Change pipelines and fixed pytest."
   },
@@ -108,7 +116,7 @@
     "title": "Implemented demographic projections module",
     "area": "Backend scripts",
     "intensity": "high",
-    "audited": false,
+    "audited": true,
     "module": "Age-Sex-Race Projections",
     "description": "Initial implementation of the demographic projections module, pending validation."
   },
@@ -116,7 +124,7 @@
     "title": "Added report-a-bug button",
     "area": "Front-end components",
     "intensity": "low",
-    "audited": false,
+    "audited": true,
     "module": null,
     "description": "Added a feedback entry point so users can report bugs from within the tool."
   }

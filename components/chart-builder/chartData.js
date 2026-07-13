@@ -91,6 +91,11 @@ function buildSearchParams(config, schema, overrides = {}) {
   const source = overrides.source || config.filters.source;
   if (source) params.set("source", source);
 
+  // Provenance multi-select (Population & Housing): a comma list of Source labels;
+  // omitted entirely when all are selected, which the API reads as "all" (B3).
+  const sources = overrides.sources || config.filters.sources;
+  if (sources?.length) params.set("sources", sources.join(","));
+
   // Module-specific stratification filters (e.g. Age Group, Sex, Race/Ethnicity).
   for (const dimension of schema.filterDimensions || []) {
     const value = overrides[dimension.param] ?? config.filters[dimension.column];

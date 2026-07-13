@@ -27,6 +27,7 @@ import EditorActivityLog from "@/components/chart-builder/EditorActivityLog";
 import EncodingSection from "@/components/chart-builder/EncodingSection";
 import LabelEditor from "@/components/chart-builder/LabelEditor";
 import PalettePicker from "@/components/chart-builder/PalettePicker";
+import UpdateDataButton from "@/components/chart-builder/UpdateDataButton";
 import ValidationNotice from "@/components/chart-builder/ValidationNotice";
 import {
   Accordion,
@@ -35,6 +36,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogClose,
@@ -184,7 +186,11 @@ function DataSourcesSection() {
       <DataSourcePanel />
       {!isInline ? (
         <>
-          {sources.length <= 1 ? (
+          {schema.provenanceFilter ? (
+            // Provenance filter (Population & Housing): a multi-select over the
+            // Source labels, defaulting to all (B3).
+            <ProvenanceFilter />
+          ) : sources.length <= 1 ? (
             // Single-dataset module: show the dataset/source name (e.g. "DoF"), not
             // the module name. The lone source lives on the Source field's values.
             <p className="text-sm font-medium">
@@ -214,8 +220,63 @@ function DataSourcesSection() {
           )}
 
           <StratificationFilters />
+
+          {schema.refreshable ? (
+            <UpdateDataButton endpoint={`${schema.apiPath}/update`} />
+          ) : null}
         </>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * Provenance multi-select for modules whose Source column carries real per-row
+ * provenance (Population & Housing: E-5 / E-8 / Aggregated). Defaults to all
+ * sources; an empty selection is stored as `[]`, which the API reads as "all".
+ */
+function ProvenanceFilter() {
+  const { config, dispatch, schema } = useChartConfig();
+  const values = schema.fields?.Source?.values || [];
+  const selected = config.filters.sources;
+  // No explicit selection (or the full set) means "all sources".
+  const showAll = !selected || selected.length === 0;
+  const isChecked = (value) => showAll || selected.includes(value);
+
+  function toggle(value) {
+    const base = showAll ? values : selected;
+    const next = base.includes(value)
+      ? base.filter((source) => source !== value)
+      : [...base, value];
+    // A full selection is equivalent to "all", so collapse it back to [].
+    dispatch({
+      type: "SET_FILTER",
+      key: "sources",
+      value: next.length === values.length ? [] : next,
+    });
+  }
+
+  return (
+    <div className="grid gap-2">
+      <Label>Source</Label>
+      <div className="grid gap-1.5">
+        {values.map((value) => (
+          <label
+            key={value}
+            className="flex items-center gap-2 text-sm cursor-pointer"
+          >
+            <Checkbox
+              checked={isChecked(value)}
+              onCheckedChange={() => toggle(value)}
+              aria-label={value}
+            />
+            <span>{value}</span>
+          </label>
+        ))}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Data provenance per row; all sources shown by default.
+      </p>
     </div>
   );
 }

@@ -7,6 +7,7 @@
 
 import {
   AVAILABLE_MEASURES,
+  AVAILABLE_SOURCES,
   AVAILABLE_SUBSETS,
   queryCategoryValues,
   queryGeoValues,
@@ -29,6 +30,7 @@ export async function GET(request) {
   const yMeasure = searchParams.get("yMeasure");
   const sizeMeasure = searchParams.get("sizeMeasure");
   const locations = listParam(searchParams, "locations");
+  const sources = listParam(searchParams, "sources");
   const startYear = integerParam(searchParams, "startYear");
   const endYear = integerParam(searchParams, "endYear");
   const period = integerParam(searchParams, "period");
@@ -48,11 +50,17 @@ export async function GET(request) {
       "pop_housing API: subset validation",
     );
   }
+  if (sources && sources.some((source) => !AVAILABLE_SOURCES.includes(source))) {
+    return invalid(
+      `Invalid 'sources'. Expected any of: ${AVAILABLE_SOURCES.join(", ")}`,
+      "pop_housing API: sources validation",
+    );
+  }
   // The full-table view carries no measure/parameter, so it must resolve before
   // the parameter validation below.
   if (view === "table") {
     try {
-      const result = await queryFullTable({ subset, locations, startYear, endYear, full });
+      const result = await queryFullTable({ subset, locations, sources, startYear, endYear, full });
       return Response.json({ view, ...result });
     } catch (error) {
       return Response.json(
@@ -96,6 +104,7 @@ export async function GET(request) {
         topN,
         sort,
         locations,
+        sources,
       });
       return Response.json({ view, parameter, subset, ...result });
     }
@@ -106,6 +115,7 @@ export async function GET(request) {
         startYear,
         endYear,
         locations,
+        sources,
       });
       return Response.json({ view, parameter, subset, ...result });
     }
@@ -117,6 +127,7 @@ export async function GET(request) {
         subset,
         period,
         locations,
+        sources,
       });
       return Response.json({
         view,
@@ -134,11 +145,12 @@ export async function GET(request) {
         startYear,
         endYear,
         locations,
+        sources,
       });
       return Response.json({ view, parameter, subset, ...result });
     }
     if (view === "geo") {
-      const result = await queryGeoValues({ parameter, subset, period });
+      const result = await queryGeoValues({ parameter, subset, period, sources });
       return Response.json({ view, parameter, subset, ...result });
     }
 
@@ -146,6 +158,7 @@ export async function GET(request) {
       parameter,
       subset,
       locations,
+      sources,
       startYear,
       endYear,
     });
