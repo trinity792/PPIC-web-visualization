@@ -37,8 +37,14 @@ class CensusComponentsDiscoveryError(RuntimeError):
 # ── Discovery and Download ────────────────────────────────────────────────────
 
 
-def get_census_components_url(source_settings, max_lookback_years=None):
-    """Walk backward from the configured year until a Census components CSV responds. Test file: scripts/unit_tests/components_of_change/acquisition/test_census_components_downloader.py"""
+def _build_census_url(template, year):
+    """Format a Census components URL, deriving the vintage decade from the year."""
+    decade = (year // 10) * 10
+    return template.format(decade=decade, year=year)
+
+
+def discover_census_components(source_settings, max_lookback_years=None):
+    """Return the newest available Census components URL and its fetched response. Test file: scripts/unit_tests/components_of_change/acquisition/test_census_components_downloader.py"""
     initial_year = source_settings.get("census_initial_year", date.today().year)
     lookback_years = max_lookback_years or source_settings["max_lookback_years"]
     headers = source_settings["requests_headers"]
@@ -48,20 +54,29 @@ def get_census_components_url(source_settings, max_lookback_years=None):
     last_error = None
     for offset in range(lookback_years):
         year = initial_year - offset
-        url = template.format(year=year)
+        url = _build_census_url(template, year)
         try:
-            fetch_response(url, headers, timeout)
-            return url
+            # The successful probe already pulled the CSV body; hand it back so the
+            # downloader reads from it instead of fetching the same file again (B5).
+            response = fetch_response(url, headers, timeout)
+            return url, response
         except HTTPDownloadError as error:
             last_error = error
     raise CensusComponentsDiscoveryError(f"Could not discover Census components CSV within {lookback_years} years") from last_error
 
 
-def download_census_components(url, source_settings=None):
+def get_census_components_url(source_settings, max_lookback_years=None):
+    """Walk backward from the configured year until a Census components CSV responds. Test file: scripts/unit_tests/components_of_change/acquisition/test_census_components_downloader.py"""
+    url, _response = discover_census_components(source_settings, max_lookback_years)
+    return url
+
+
+def download_census_components(url, source_settings=None, response=None):
     """Load a Census components CSV from a URL or local path. Test file: scripts/unit_tests/components_of_change/acquisition/test_census_components_downloader.py"""
     read_kwargs = {"engine": "python", "encoding": "latin1"}
     if isinstance(url, str) and url.lower().startswith(("http://", "https://")):
-        settings = source_settings or get_source_settings()
-        response = fetch_response(url, settings["requests_headers"], settings["request_timeout_seconds"])
+        if response is None:
+            settings = source_settings or get_source_settings()
+            response = fetch_response(url, settings["requests_headers"], settings["request_timeout_seconds"])
         return pd.read_csv(BytesIO(response.content), **read_kwargs)
     return pd.read_csv(url, **read_kwargs)

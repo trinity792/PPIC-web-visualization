@@ -453,6 +453,20 @@ body {
   margin: 1.5em 0;
 }
 
+.ppic-markdown .ppic-document-footnote {
+  margin-top: 2rem;
+}
+
+.ppic-markdown .ppic-document-footnote hr {
+  margin: 1.5em 0 0.75em;
+}
+
+.ppic-markdown .ppic-document-footnote p {
+  margin: 0;
+  color: var(--ppic-neutral-200);
+  font-style: italic;
+}
+
 /* Tables */
 .ppic-markdown table {
   width: 100%;

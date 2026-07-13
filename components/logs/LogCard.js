@@ -7,8 +7,10 @@
  *   - "nontechnical": a researcher-facing card modeled on the Documents landing
  *     DocumentCard — the severity icon fills the left thumbnail tile, with the
  *     status chip + copy button top-right, a plain-English summary, and
- *     When / Phase / Cause / Impact / Result rows. The raw traceback is tucked
- *     behind a "Show technical details" disclosure.
+ *     When / Phase / Cause / Impact / Result rows. Every card (success, recovered,
+ *     or failed) carries a "Show technical details" disclosure that reveals the
+ *     complete record: the error block when present, plus Result / Flags and the
+ *     full raw record.
  *   - "technical": the raw JSON record shown in a code block.
  * Both modes expose a copy button for the raw record.
  *
@@ -54,27 +56,67 @@ function DetailRow({ label, children }) {
   );
 }
 
+const MONO_PRE_CLASS =
+  "max-h-72 overflow-auto rounded-lg border border-ppic-border bg-ppic-neutral-50 p-3 text-xs leading-relaxed text-ppic-neutral-700";
+
+function KeyValueBlock({ title, data }) {
+  if (!data || typeof data !== "object") return null;
+  const entries = Object.entries(data).filter(([, value]) => value != null);
+  if (!entries.length) return null;
+  return (
+    <div className="space-y-1">
+      <div className="text-xs font-medium text-ppic-neutral-500">{title}</div>
+      <dl className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-0.5 text-xs text-ppic-neutral-700">
+        {entries.map(([key, value]) => (
+          <React.Fragment key={key}>
+            <dt className="font-medium text-ppic-neutral-500">{key}</dt>
+            <dd className="min-w-0 break-words">
+              {typeof value === "object" ? JSON.stringify(value) : String(value)}
+            </dd>
+          </React.Fragment>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
+// Shows every field available on the record — for success and recovered runs as
+// well as failures — so the toggle is a complete technical view, not error-only.
 function TechnicalDetails({ entry }) {
   const error = entry.error;
-  if (!error) return null;
-  const location = [error.file, error.function, error.line]
-    .filter((part) => part != null)
-    .join(" · ");
+  const location = error
+    ? [error.file, error.function, error.line].filter((part) => part != null).join(" · ")
+    : null;
+  const rawRecord = JSON.stringify(entry, null, 2);
   return (
-    <div className="mt-3 space-y-2">
-      {location ? (
-        <div className="text-xs text-ppic-neutral-500">
-          {error.type} in {location}
+    <div className="mt-3 space-y-3">
+      {error ? (
+        <div className="space-y-2">
+          {location ? (
+            <div className="text-xs text-ppic-neutral-500">
+              {error.type} in {location}
+            </div>
+          ) : null}
+          {error.message ? (
+            <div className="text-xs text-ppic-neutral-700">{error.message}</div>
+          ) : null}
+          {error.traceback ? (
+            <pre className={MONO_PRE_CLASS} style={{ fontFamily: "var(--font-mono, ui-monospace, monospace)" }}>
+              {error.traceback}
+            </pre>
+          ) : null}
         </div>
       ) : null}
-      {error.traceback ? (
-        <pre
-          className="max-h-72 overflow-auto rounded-lg border border-ppic-border bg-ppic-neutral-50 p-3 text-xs leading-relaxed text-ppic-neutral-700"
-          style={{ fontFamily: "var(--font-mono, ui-monospace, monospace)" }}
-        >
-          {error.traceback}
+
+      <KeyValueBlock title="Result" data={entry.result} />
+      <KeyValueBlock title="Flags" data={entry.flags} />
+
+      <div className="space-y-1">
+        <div className="text-xs font-medium text-ppic-neutral-500">Raw record</div>
+        <pre className={MONO_PRE_CLASS} style={{ fontFamily: "var(--font-mono, ui-monospace, monospace)" }}>
+          {rawRecord}
         </pre>
-      ) : null}
+      </div>
     </div>
   );
 }
@@ -159,20 +201,18 @@ export default function LogCard({ entry, mode }) {
           <DetailRow label="Result">{result}</DetailRow>
         </div>
 
-        {entry.error ? (
-          <Collapsible open={open} onOpenChange={setOpen} className="mt-3">
-            <CollapsibleTrigger className="inline-flex items-center gap-1 text-sm font-medium text-ppic-brand hover:underline">
-              <ChevronRight
-                className={`size-4 transition-transform ${open ? "rotate-90" : ""}`}
-                aria-hidden="true"
-              />
-              Show technical details
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <TechnicalDetails entry={entry} />
-            </CollapsibleContent>
-          </Collapsible>
-        ) : null}
+        <Collapsible open={open} onOpenChange={setOpen} className="mt-3">
+          <CollapsibleTrigger className="inline-flex items-center gap-1 text-sm font-medium text-ppic-brand hover:underline">
+            <ChevronRight
+              className={`size-4 transition-transform ${open ? "rotate-90" : ""}`}
+              aria-hidden="true"
+            />
+            {open ? "Hide technical details" : "Show technical details"}
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <TechnicalDetails entry={entry} />
+          </CollapsibleContent>
+        </Collapsible>
       </div>
     </div>
   );

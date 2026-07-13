@@ -33,7 +33,9 @@ def get_source_settings():
     current_year = date.today().year
     return {
         "dof_estimates_url": "https://dof.ca.gov/forecasting/demographics/estimates/",
-        "census_components_url_template": "https://www2.census.gov/programs-surveys/popest/datasets/2020-{year}/counties/totals/co-est{year}-alldata.csv",
+        # {decade} is derived per-candidate-year by the downloader so the URL keeps
+        # working across the 2030 vintage rollover without a code change (guide B4).
+        "census_components_url_template": "https://www2.census.gov/programs-surveys/popest/datasets/{decade}-{year}/counties/totals/co-est{year}-alldata.csv",
         "census_initial_year": current_year,
         "max_lookback_years": 10,
         "requests_headers": dict(http_settings["headers"]),

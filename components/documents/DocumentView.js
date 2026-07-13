@@ -96,7 +96,12 @@ export default function DocumentView({ doc, toc, linkMap, assetMap }) {
       <div className="page-container gap-10 px-6 py-10 lg:grid lg:grid-cols-[220px_1fr]">
         <DocTableOfContents toc={toc} />
         <main className="min-w-0">
-          <MarkdownArticle content={doc.content} linkMap={linkMap} assetMap={assetMap} />
+          <MarkdownArticle
+            content={doc.content}
+            footnote={doc.footnote}
+            linkMap={linkMap}
+            assetMap={assetMap}
+          />
         </main>
       </div>
     </div>

@@ -137,6 +137,15 @@ def test_repair_truncated_county_names_does_not_mutate_input():
     assert frame.loc[0, "Location"] == "Los"
 
 
+def test_repair_truncated_county_names_unexpected_san_count_raises():
+    # Arrange: only one bare "San" stub instead of the expected two — a layout shift.
+    frame = pd.DataFrame({"Location": ["San", "Santa", "Santa"]})
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="truncated 'San' county rows"):
+        e6_cleaner.repair_truncated_county_names(frame)
+
+
 """
 ========================================================================================================================
 forward_fill_locations_by_year_block
@@ -180,6 +189,38 @@ def test_forward_fill_locations_no_valid_years_raises():
         e6_cleaner.forward_fill_locations_by_year_block(frame, "Location", "Year")
 
 
+def test_forward_fill_locations_handles_uneven_block_lengths():
+    # Arrange: Alameda has three years, Yuba only two — the old fixed-span fill would
+    # over-run Alameda into Yuba's block.
+    frame = pd.DataFrame(
+        {
+            "Location": ["Alameda", np.nan, np.nan, "Yuba", np.nan],
+            "Year": [2019, 2020, 2021, 2020, 2021],
+        }
+    )
+
+    # Act
+    result = e6_cleaner.forward_fill_locations_by_year_block(frame, "Location", "Year")
+
+    # Assert: each block keeps its own name; no over-run.
+    assert result["Location"].tolist() == ["Alameda", "Alameda", "Alameda", "Yuba", "Yuba"]
+
+
+def test_forward_fill_locations_overlapping_blocks_raises():
+    # Arrange: a missing name row would merge two blocks under one location, producing
+    # a duplicate (location, year).
+    frame = pd.DataFrame(
+        {
+            "Location": ["Alameda", np.nan, np.nan],
+            "Year": [2020, 2021, 2020],
+        }
+    )
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="year blocks overlap"):
+        e6_cleaner.forward_fill_locations_by_year_block(frame, "Location", "Year")
+
+
 """
 ========================================================================================================================
 clean_e6 (orchestration)
@@ -218,6 +259,38 @@ def test_clean_e6_comprehensive_end_to_end():
     # Counties present plus their rebuilt regional aggregates.
     assert {"Alameda", "Yuba"}.issubset(set(result["Location"]))
     assert {"Bay Area", "Far North"}.issubset(set(result["Location"]))
+
+
+def test_clean_e6_keeps_county_year_with_one_missing_component():
+    # Arrange: blank out Alameda 2021's Births only; the row must survive with Births
+    # null rather than being dropped wholesale (guide B2).
+    raw = _full_raw_e6()
+    raw.iloc[4, 5] = np.nan  # Alameda 2021, Births column
+    columns_config = get_columns_config()
+    geography_config = get_components_geography()
+
+    # Act
+    result = e6_cleaner.clean_e6(raw, columns_config, geography_config)
+
+    # Assert
+    alameda = result.loc[result["Location"].eq("Alameda")]
+    assert not alameda.empty
+    assert alameda["Births"].isna().all()
+
+
+def test_clean_e6_drops_earliest_year_per_location():
+    # Arrange: Yuba starts a year earlier than the others; only its own earliest year
+    # should be dropped, not every location's, and not Yuba's later years (guide A7).
+    raw = _full_raw_e6()
+    columns_config = get_columns_config()
+    geography_config = get_components_geography()
+
+    # Act
+    result = e6_cleaner.clean_e6(raw, columns_config, geography_config)
+
+    # Assert: the shared earliest year (2020) is gone, 2021 remains for every county.
+    assert 2020 not in set(result["Year"])
+    assert {"Alameda", "Yuba"}.issubset(set(result.loc[result["Year"].eq(2021), "Location"]))
 
 
 def test_clean_e6_missing_yuba_terminator_raises():

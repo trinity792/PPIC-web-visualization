@@ -5,6 +5,7 @@ import pandas as pd
 from scripts.shared.logging.pipeline_logging import (
     close_logging,
     get_logger,
+    log_message,
     log_processing_step,
     setup_logging,
 )
@@ -68,9 +69,26 @@ def test_log_processing_step_writes_shape_delta(tmp_path):
     assert "rows_dropped=0" in contents
 
 
+def test_log_message_writes_message_and_details(tmp_path):
+    # Arrange
+    logger = setup_logging("messages", tmp_path)
+
+    # Act
+    log_message(logger, "Phase 2 acquisition complete", dof_failed=False, census_failed=True)
+    close_logging(logger)
+
+    # Assert: plain message, no dangling shape arrow.
+    contents = (tmp_path / "messages_pipeline.log").read_text(encoding="utf-8")
+    assert "Phase 2 acquisition complete" in contents
+    assert "census_failed=True" in contents
+    assert "?" not in contents
+    assert "->" not in contents
+
+
 def test_logging_helpers_tolerate_none_logger():
     # Act / Assert — no exception when logging is disabled
     log_processing_step(None, "Phase 1", None, None)
+    log_message(None, "no-op message")
     close_logging(None)
 
 

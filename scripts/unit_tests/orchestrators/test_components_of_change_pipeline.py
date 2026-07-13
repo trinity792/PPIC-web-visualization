@@ -80,7 +80,7 @@ def _configure_success(monkeypatch, tmp_path):
     patch_call("get_e6_file_url", "https://example.com/e6.xlsx")
     patch_call("get_e6_file_url_positional", "https://example.com/e6.xlsx")
     patch_call("download_e6_workbook", frames["dof_raw"])
-    patch_call("get_census_components_url", "https://example.com/census.csv")
+    patch_call("discover_census_components", ("https://example.com/census.csv", None))
     patch_call("download_census_components", frames["census_raw"])
     patch_call("clean_e6", frames["dof_clean"])
     patch_call("clean_census_components", frames["census_clean"])
@@ -90,7 +90,7 @@ def _configure_success(monkeypatch, tmp_path):
     patch_call("prepare_components_output", frames["finalized"])
     patch_call("archive_and_save", paths["current_data_path"])
     monkeypatch.setattr(pipeline, "detect_new_source_data", lambda *args, **kwargs: False)
-    monkeypatch.setattr(pipeline, "validate_components_dataset", lambda *args, **kwargs: (True, []))
+    monkeypatch.setattr(pipeline, "validate_components_dataset", lambda *args, **kwargs: (True, [], []))
     return call_log, frames
 
 
@@ -125,7 +125,7 @@ def test_components_pipeline_saves_when_new_data_exists(monkeypatch, tmp_path):
 
 def test_components_pipeline_validation_failure_stops_before_save(monkeypatch, tmp_path):
     call_log, _ = _configure_success(monkeypatch, tmp_path)
-    monkeypatch.setattr(pipeline, "validate_components_dataset", lambda *args, **kwargs: (False, ["bad data"]))
+    monkeypatch.setattr(pipeline, "validate_components_dataset", lambda *args, **kwargs: (False, ["bad data"], []))
 
     with pytest.raises(RuntimeError, match="Phase 5.*bad data"):
         pipeline.build_components_dataset()

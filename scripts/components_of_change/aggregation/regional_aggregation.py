@@ -19,7 +19,7 @@ import pandas as pd
 
 from scripts.components_of_change.calculations.demographic_rates import add_crude_rates
 from scripts.components_of_change.config.columns import get_columns_config
-from scripts.pophousing.aggregation.aggregation_utils import _aggregate_additive_columns
+from scripts.shared.data_cleaning.aggregation import aggregate_additive_columns
 
 """
 ========================================================================================================================
@@ -28,14 +28,15 @@ Regional Aggregation
 """
 
 
-def build_regional_rows(dataframe, regions_mapping, location_col="Location", year_col="Year"):
+def build_regional_rows(dataframe, regions_mapping, columns_config=None, location_col="Location", year_col="Year"):
     """Aggregate county records into configured regional rows. Test file: scripts/unit_tests/components_of_change/aggregation/test_regional_aggregation.py"""
     required_columns = [location_col, year_col]
     missing_columns = [column for column in required_columns if column not in dataframe.columns]
     if missing_columns:
         raise KeyError(f"missing columns: {', '.join(missing_columns)}")
 
-    columns_config = get_columns_config()
+    if columns_config is None:
+        columns_config = get_columns_config()
     excluded_columns = {
         location_col,
         year_col,
@@ -52,7 +53,7 @@ def build_regional_rows(dataframe, regions_mapping, location_col="Location", yea
             region_counties = region_counties.loc[region_counties["Geographic Level"].isin(["County", pd.NA]) | region_counties["Geographic Level"].isna()]
         if region_counties.empty:
             continue
-        aggregated = _aggregate_additive_columns(region_counties, year_col, excluded_columns)
+        aggregated = aggregate_additive_columns(region_counties, year_col, excluded_columns)
         region_rows = aggregated.reindex(columns=dataframe.columns)
         region_rows[location_col] = region_name
         if "Geographic Level" in region_rows.columns:
@@ -67,14 +68,15 @@ def build_regional_rows(dataframe, regions_mapping, location_col="Location", yea
     return pd.concat(regional_frames, ignore_index=True).loc[:, dataframe.columns]
 
 
-def add_regional_data(dataframe, regions_mapping):
+def add_regional_data(dataframe, regions_mapping, columns_config=None):
     """Replace regional rows with recalculated regional Components aggregates. Test file: scripts/unit_tests/components_of_change/aggregation/test_regional_aggregation.py"""
-    columns_config = get_columns_config()
+    if columns_config is None:
+        columns_config = get_columns_config()
     if "Location" not in dataframe.columns:
         raise KeyError("missing column: Location")
 
     result = dataframe.loc[~dataframe["Location"].isin(regions_mapping)].copy().reset_index(drop=True)
-    regional_rows = build_regional_rows(result, regions_mapping)
+    regional_rows = build_regional_rows(result, regions_mapping, columns_config)
     if regional_rows.empty:
         return result
     combined = pd.concat([result, regional_rows], ignore_index=True)

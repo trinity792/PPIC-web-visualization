@@ -28,6 +28,9 @@ _STATE_TO_ABBREVIATION = {
     "Colorado": "CO",
     "Connecticut": "CT",
     "Delaware": "DE",
+    # District of Columbia and Puerto Rico are carried as national rows alongside
+    # the fifty states so "all states" comparisons include them (refactor guide B7).
+    "District of Columbia": "DC",
     "Florida": "FL",
     "Georgia": "GA",
     "Hawaii": "HI",
@@ -58,6 +61,7 @@ _STATE_TO_ABBREVIATION = {
     "Oklahoma": "OK",
     "Oregon": "OR",
     "Pennsylvania": "PA",
+    "Puerto Rico": "PR",
     "Rhode Island": "RI",
     "South Carolina": "SC",
     "South Dakota": "SD",

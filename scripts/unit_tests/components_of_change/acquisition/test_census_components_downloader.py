@@ -97,11 +97,60 @@ def test_get_census_components_url_override_limits_attempts(monkeypatch):
     assert mock_fetch.call_count == 2
 
 
+def test_get_census_components_url_derives_decade_folder(monkeypatch):
+    # Arrange: a 2031 candidate must build a 2030-decade folder, not a hardcoded 2020.
+    captured = {}
+
+    def _capture(url, *args, **kwargs):
+        captured["url"] = url
+        return SimpleNamespace(content=b"")
+
+    monkeypatch.setattr(census_components_downloader, "fetch_response", Mock(side_effect=_capture))
+
+    # Act
+    url = census_components_downloader.get_census_components_url(_settings(census_initial_year=2031))
+
+    # Assert
+    assert "datasets/2030-2031/" in url
+    assert "co-est2031-alldata.csv" in captured["url"]
+
+
+def test_discover_returns_response_for_reuse(monkeypatch):
+    # Arrange
+    response = SimpleNamespace(content=b"STNAME\nCalifornia\n")
+    monkeypatch.setattr(census_components_downloader, "fetch_response", Mock(return_value=response))
+
+    # Act
+    url, discovered_response = census_components_downloader.discover_census_components(
+        _settings(census_initial_year=2024)
+    )
+
+    # Assert
+    assert "co-est2024-alldata.csv" in url
+    assert discovered_response is response
+
+
 """
 ========================================================================================================================
 download_census_components
 ========================================================================================================================
 """
+
+
+def test_download_reuses_discovery_response_without_second_fetch(monkeypatch):
+    # Arrange: passing the discovery response must avoid a second GET of the same file.
+    mock_fetch = Mock()
+    monkeypatch.setattr(census_components_downloader, "fetch_response", mock_fetch)
+    monkeypatch.setattr(census_components_downloader.pd, "read_csv", Mock(return_value=pd.DataFrame()))
+    response = SimpleNamespace(content=b"STNAME\nCalifornia\n")
+
+    # Act
+    census_components_downloader.download_census_components(
+        "https://example.com/data.csv", _settings(), response=response
+    )
+
+    # Assert
+    mock_fetch.assert_not_called()
 
 
 def test_download_census_components_reads_local_csv(tmp_path):

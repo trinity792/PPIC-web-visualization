@@ -6,6 +6,7 @@ description: Comparative guide to AI tools (Perplexity, NotebookLM, Claude, Chat
 Date Published: June 30, 2026
 Last Updated: 07/02/2026 - 12:04 PM
 Status: Finalized
+Footnote: Written by Trinity Jones and used GPT 5.5 for grammatical fixes
 ---
 # Introduction
 ## Executive Summary

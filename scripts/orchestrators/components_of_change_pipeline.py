@@ -19,11 +19,12 @@ Test Folders:
     - scripts/unit_tests/orchestrators/
 """
 
+from datetime import date
 from typing import NoReturn
 
 import pandas as pd
 
-from scripts.components_of_change.acquisition.census_components_downloader import download_census_components, get_census_components_url
+from scripts.components_of_change.acquisition.census_components_downloader import discover_census_components, download_census_components
 from scripts.components_of_change.acquisition.dof_e6_downloader import download_e6_workbook, get_e6_file_url, get_e6_file_url_positional
 from scripts.components_of_change.acquisition.source_fallback import acquire_with_fallback
 from scripts.components_of_change.cleaning.census_cleaner import clean_census_components
@@ -32,10 +33,11 @@ from scripts.components_of_change.config.columns import get_columns_config
 from scripts.components_of_change.config.geography import get_components_geography
 from scripts.components_of_change.config.paths import get_paths
 from scripts.components_of_change.config.sources import get_source_settings
-from scripts.components_of_change.merging.historical_merge import combine_source_with_historical, detect_new_source_data, load_canonical_dataset, merge_dof_and_census
+from scripts.components_of_change.merging.historical_merge import combine_history_sources, combine_source_with_historical, detect_new_source_data, load_canonical_dataset, load_historical_baseline, merge_dof_and_census
 from scripts.components_of_change.output.finalize_dataset import archive_and_save, assign_geographic_level, prepare_components_output
 from scripts.components_of_change.validation.dataset_validator import validate_components_dataset
-from scripts.shared.logging.dataframe_logging import log_data_quality_check
+from scripts.shared.logging.dataframe_logging import log_data_quality_check, log_dataframe_info
+from scripts.shared.logging.pipeline_logging import log_message, log_processing_step
 from scripts.shared.logging.run_records import execute_pipeline_run
 
 """
@@ -59,8 +61,21 @@ def _raise_phase_error(phase_name, error) -> NoReturn:
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
+def _acquire_live_census(source_settings):
+    """Return a callable that discovers and downloads the live Census file with one fetch (B5)."""
+
+    def _acquire():
+        url, response = discover_census_components(source_settings)
+        return download_census_components(url, source_settings, response=response)
+
+    return _acquire
+
+
 def _load_saved_source(paths, source):
     historical = load_canonical_dataset(paths["current_data_path"])
+    if "Source" not in historical.columns:
+        # Cold start with no saved output: no last-saved rows to fall back to.
+        return historical.copy()
     if "Geographic Level" in historical.columns:
         historical = historical.drop(columns=["Geographic Level"])
     return historical.loc[historical["Source"].eq(source)].copy()
@@ -96,7 +111,12 @@ def build_components_dataset(config=None, logger=None):
         source_settings = (config or {}).get("source_settings") or get_source_settings()
         columns_config = (config or {}).get("columns_config") or get_columns_config()
         geography_config = (config or {}).get("geography_config") or get_components_geography()
-        historical_df = load_canonical_dataset(paths["current_data_path"])
+        # Change-detection baseline and last-saved fallback come from the current
+        # output; the immutable seed only supplements deep history (guide A1).
+        current_df = load_canonical_dataset(paths["current_data_path"])
+        baseline_df = load_historical_baseline(paths.get("historical_data_path"))
+        historical_df = combine_history_sources(baseline_df, current_df)
+        log_dataframe_info(logger, historical_df, "Loaded saved Components history")
     except Exception as error:
         _raise_phase_error("Phase 1", error)
 
@@ -110,11 +130,12 @@ def build_components_dataset(config=None, logger=None):
             lambda: _load_saved_source(paths, "DoF"),
         )
         census_raw, census_failed, census_used_manual = acquire_with_fallback(
-            [lambda: download_census_components(get_census_components_url(source_settings), source_settings)],
+            [_acquire_live_census(source_settings)],
             paths.get("manual_census_path"),
             lambda: _load_saved_source(paths, "Census"),
             manual_read_kwargs={"engine": "python", "encoding": "latin1"},
         )
+        log_message(logger, "Phase 2 acquisition complete", dof_used_manual=dof_used_manual, dof_failed=dof_failed, census_used_manual=census_used_manual, census_failed=census_failed)
     except Exception as error:
         _raise_phase_error("Phase 2", error)
 
@@ -142,6 +163,7 @@ def build_components_dataset(config=None, logger=None):
             paths.get("manual_census_path"),
             {"engine": "python", "encoding": "latin1"},
         )
+        log_message(logger, "Phase 3 cleaning complete", dof_rows=len(dof_df), census_rows=len(census_df))
     except Exception as error:
         _raise_phase_error("Phase 3", error)
 
@@ -149,16 +171,27 @@ def build_components_dataset(config=None, logger=None):
         dof_full = combine_source_with_historical(dof_df, historical_df, "DoF", "Year")
         census_full = combine_source_with_historical(census_df, historical_df, "Census", "Year")
         merged_df = merge_dof_and_census(dof_full, census_full)
-        new_dof_data_found = False if dof_failed else detect_new_source_data(dof_full, historical_df, "DoF", source_settings["dof_boundary_year"])
-        new_census_data_found = False if census_failed else detect_new_source_data(census_full, historical_df, "Census", source_settings["census_boundary_year"])
+        # Novelty is measured against the current output (current_df), not the seed
+        # union, so a run whose live pull matches the last output does not re-save.
+        new_dof_data_found = False if dof_failed else detect_new_source_data(dof_full, current_df, "DoF", source_settings["dof_boundary_year"])
+        new_census_data_found = False if census_failed else detect_new_source_data(census_full, current_df, "Census", source_settings["census_boundary_year"])
+        log_processing_step(logger, "Phase 4 merge", (len(dof_full) + len(census_full), len(merged_df.columns)), (len(merged_df), len(merged_df.columns)), new_dof=new_dof_data_found, new_census=new_census_data_found)
     except Exception as error:
         _raise_phase_error("Phase 4", error)
 
     try:
         finalized_df = assign_geographic_level(merged_df, geography_config)
         finalized_df = prepare_components_output(finalized_df, columns_config["output_columns"])
-        data_is_valid, validation_messages = validate_components_dataset(finalized_df, columns_config)
+        data_is_valid, validation_messages, validation_warnings = validate_components_dataset(
+            finalized_df,
+            columns_config,
+            geography_config,
+            maximum_year=date.today().year,
+        )
         log_data_quality_check(logger, "Components dataset validation", data_is_valid)
+        for warning_message in validation_warnings:
+            # Soft anomalies are recorded but do not block the save (guide B1).
+            log_data_quality_check(logger, f"Components soft check: {warning_message}", False)
         if not data_is_valid:
             raise ValueError("Components data validation failed: " + "; ".join(validation_messages))
         output_path = None

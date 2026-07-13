@@ -92,3 +92,13 @@ def log_processing_step(logger, step_name, start_shape, end_shape, **details):
         detail_text = ", ".join(f"{key}={value}" for key, value in details.items())
         message = f"{message} ({detail_text})"
     logger.info(message)
+
+
+def log_message(logger, message, **details):
+    """Log a plain progress message (with optional detail fields), no-op when logger is None. Test file: scripts/unit_tests/shared/logging/test_pipeline_logging.py"""
+    if logger is None:
+        return
+    if details:
+        detail_text = ", ".join(f"{key}={value}" for key, value in details.items())
+        message = f"{message} ({detail_text})"
+    logger.info(message)

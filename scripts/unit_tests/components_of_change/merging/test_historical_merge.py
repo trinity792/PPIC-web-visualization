@@ -1,7 +1,15 @@
 import numpy as np
 import pandas as pd
+import pytest
 
-from scripts.components_of_change.merging.historical_merge import combine_source_with_historical, detect_new_source_data, merge_dof_and_census
+from scripts.components_of_change.merging.historical_merge import (
+    combine_history_sources,
+    combine_source_with_historical,
+    detect_new_source_data,
+    load_canonical_dataset,
+    load_historical_baseline,
+    merge_dof_and_census,
+)
 
 
 def _row(location, year, source, population):
@@ -63,6 +71,58 @@ def test_detect_new_source_data_treats_na_and_nan_as_equal():
 
     assert new["Percent Change in Population"].isna().all()
     assert detect_new_source_data(new, historical, "DoF", 1990) is False
+
+
+def test_combine_source_with_historical_deduplicates_saved_history():
+    # Arrange: the saved CSV carries a legacy duplicate (Alameda 2020) that would
+    # otherwise wedge the merge's uniqueness guard forever (guide B8).
+    historical = pd.DataFrame(
+        [_row("Alameda", 2020, "DoF", 100), _row("Alameda", 2020, "DoF", 999)]
+    )
+    new = pd.DataFrame([_row("Alameda", 2021, "DoF", 120)]).drop(columns=["Geographic Level"])
+
+    result = combine_source_with_historical(new, historical, "DoF", "Year")
+
+    assert list(result["Year"]) == [2020, 2021]
+    assert (result["Year"] == 2020).sum() == 1
+
+
+def test_combine_source_with_historical_handles_empty_history():
+    # Arrange: cold start — no saved history at all.
+    new = pd.DataFrame([_row("Alameda", 2021, "DoF", 120)]).drop(columns=["Geographic Level"])
+
+    result = combine_source_with_historical(new, pd.DataFrame(), "DoF", "Year")
+
+    assert result["Year"].tolist() == [2021]
+    assert (result["Source"] == "DoF").all()
+
+
+def test_load_canonical_dataset_missing_file_returns_empty(tmp_path):
+    # Arrange / Act: a missing canonical CSV must not crash Phase 1, and must warn
+    # loudly (guide A1).
+    with pytest.warns(UserWarning, match="proceeding on live data only"):
+        result = load_canonical_dataset(tmp_path / "does_not_exist.csv")
+
+    # Assert
+    assert result.empty
+
+
+def test_load_historical_baseline_absent_returns_empty(tmp_path):
+    assert load_historical_baseline(None).empty
+    assert load_historical_baseline(tmp_path / "missing.csv").empty
+
+
+def test_combine_history_sources_prefers_current_over_seed():
+    # Arrange: the seed supplies a deep year the current output lacks; the current
+    # output wins where both cover the same key.
+    seed = pd.DataFrame([_row("Alameda", 1991, "DoF", 50), _row("Alameda", 2020, "DoF", 111)])
+    current = pd.DataFrame([_row("Alameda", 2020, "DoF", 222), _row("Alameda", 2021, "DoF", 260)])
+
+    result = combine_history_sources(seed, current)
+
+    assert set(result["Year"]) == {1991, 2020, 2021}
+    kept_2020 = result.loc[result["Year"].eq(2020), "Total Population"].iloc[0]
+    assert kept_2020 == 222  # current output preferred over seed
 
 
 def test_merge_dof_and_census_rejects_duplicates():

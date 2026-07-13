@@ -25,7 +25,7 @@ from zoneinfo import ZoneInfo
 
 from scripts.shared.logging.pipeline_logging import (
     close_logging,
-    log_processing_step,
+    log_message,
     setup_logging,
 )
 
@@ -176,7 +176,7 @@ def execute_pipeline_run(module_meta, run_fn, logs_dir):
         close_logging(logger)
         raise
 
-    log_processing_step(logger, f"{module_label} pipeline finished", None, None)
+    log_message(logger, f"{module_label} pipeline finished")
     record = build_run_record(
         module_id, module_label, phase_total, summary=summary, started_at=started_at
     )

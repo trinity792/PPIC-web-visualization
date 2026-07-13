@@ -45,6 +45,9 @@ def normalize_e6_columns(raw_e6_df, column_names):
 def repair_truncated_county_names(e6_df, repair_mapping=None):
     """Repair known E-6 truncated county names. Test file: scripts/unit_tests/components_of_change/cleaning/test_e6_cleaner.py"""
     result = e6_df.copy()
+    # Note: the trailing space in "San " is the discriminator DoF's export uses for
+    # San Bernardino versus the bare "San" stubs (San Francisco / San Joaquin), so
+    # the keys are matched exactly rather than whitespace-normalized.
     basic_mapping = {
         "Contra ": "Contra Costa",
         "Los": "Los Angeles",
@@ -55,13 +58,25 @@ def repair_truncated_county_names(e6_df, repair_mapping=None):
         basic_mapping.update(repair_mapping)
     result["Location"] = result["Location"].replace(basic_mapping)
 
-    san_indexes = result.index[result["Location"].eq("San")].tolist()
-    for index, county_name in zip(san_indexes, ["San Francisco", "San Joaquin"]):
-        result.at[index, "Location"] = county_name
-
-    santa_indexes = result.index[result["Location"].eq("Santa")].tolist()
-    for index, county_name in zip(santa_indexes, ["Santa Barbara", "Santa Clara"]):
-        result.at[index, "Location"] = county_name
+    # The remaining bare stubs are assigned by position, valid only because DoF
+    # lists counties alphabetically within each year block. Verify the expected
+    # count of each stub before assigning so a layout, ordering, or count shift in
+    # the E-6 export fails loudly instead of silently mislabeling a county (guide
+    # A2). A failed repair drops the DoF pull to the fallback cascade rather than
+    # writing mislabeled rows.
+    positional_repairs = (
+        ("San", ["San Francisco", "San Joaquin"]),
+        ("Santa", ["Santa Barbara", "Santa Clara"]),
+    )
+    for stub, expected_names in positional_repairs:
+        stub_indexes = result.index[result["Location"].eq(stub)].tolist()
+        if stub_indexes and len(stub_indexes) != len(expected_names):
+            raise ValueError(
+                f"Expected {len(expected_names)} truncated '{stub}' county rows in E-6 data, "
+                f"found {len(stub_indexes)} — E-6 layout may have changed"
+            )
+        for index, county_name in zip(stub_indexes, expected_names):
+            result.at[index, "Location"] = county_name
     return result
 
 
@@ -73,14 +88,19 @@ def forward_fill_locations_by_year_block(e6_df, location_col, year_col):
     valid_years = result[year_col].dropna()
     if valid_years.empty:
         raise ValueError("E-6 dataframe does not contain valid years")
-    year_diff = int(valid_years.max() - valid_years.min())
-    seen_locations = set()
-    for row_index in range(len(result)):
-        location_value = result.loc[row_index, location_col]
-        if pd.notna(location_value) and location_value not in seen_locations:
-            for fill_index in range(row_index + 1, min(row_index + 1 + year_diff, len(result))):
-                result.loc[fill_index, location_col] = location_value
-            seen_locations.add(location_value)
+    # Each county name appears once at the top of its year block; the rows beneath it
+    # carry a blank location. Forward-fill bounded by the next non-null name rather
+    # than by a fixed year span, so a location with a shorter or longer series is
+    # handled correctly instead of over-running into the next block (guide B3).
+    result[location_col] = result[location_col].ffill()
+    # A missing/blank name row would merge two blocks under one location, producing a
+    # duplicate (location, year). Footnote rows have no valid year, so restricting the
+    # check to rows with a numeric year keeps it loud but footnote-safe.
+    year_labeled = result.loc[result[year_col].notna()]
+    duplicated = year_labeled.duplicated(subset=[location_col, year_col], keep=False)
+    if duplicated.any():
+        offending = sorted(year_labeled.loc[duplicated, location_col].dropna().unique())
+        raise ValueError(f"E-6 year blocks overlap for locations: {', '.join(map(str, offending))}")
     return result
 
 
@@ -89,15 +109,23 @@ def clean_e6(raw_e6_df, columns_config, geography_config):
     result = normalize_e6_columns(raw_e6_df, columns_config["canonical_columns"])
     result = repair_truncated_county_names(result)
     result = forward_fill_locations_by_year_block(result, "Location", "Year")
-    result = result.loc[result["Year"].ne(result["Year"].min())].copy()
+    # Drop each location's own earliest year (its percent change has no prior year to
+    # difference against); computing the minimum per location keeps this correct even
+    # if DoF ever ships a location with a different start year (guide A7). The dropped
+    # year is a rolling-window edge supplied by saved history downstream.
+    earliest_year_by_location = result.groupby("Location")["Year"].transform("min")
+    result = result.loc[result["Year"].ne(earliest_year_by_location)].copy()
     yuba_indexes = result.index[result["Location"].eq("Yuba")]
     if yuba_indexes.empty:
         raise ValueError("Could not find final Yuba row in E-6 data")
-    result = result.loc[: yuba_indexes[-1]].dropna().reset_index(drop=True)
+    # Scope the drop to the columns that define a real row so a county-year with a
+    # single blank component survives with that field null, rather than the whole row
+    # being discarded (guide B2). Trailing footnote rows lack a Location or Year.
+    result = result.loc[: yuba_indexes[-1]].dropna(subset=["Location", "Year"]).reset_index(drop=True)
     result = coerce_numeric_columns(result, columns_config["numeric_columns"])
     result["Year"] = pd.to_numeric(result["Year"], errors="raise").astype(int)
     result = add_crude_rates(result, "Total Population", columns_config["crude_rate_component_map"])
     result["Source"] = "DoF"
     result["Location"] = result["Location"].replace({geography_config["state_name"]: geography_config["california_abbreviation"]})
-    result = add_regional_data(result, geography_config["regions_mapping"])
+    result = add_regional_data(result, geography_config["regions_mapping"], columns_config)
     return result.reset_index(drop=True)

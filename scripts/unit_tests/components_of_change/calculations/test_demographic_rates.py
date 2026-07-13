@@ -12,6 +12,18 @@ def test_add_crude_rates_uses_population_denominator():
     assert result.loc[0, "Crude Death Rate"] == 8
 
 
+def test_add_crude_rates_guards_zero_population():
+    # Arrange: a zero-population aggregate row must yield 0, not inf (guide B6).
+    dataframe = pd.DataFrame({"Total Population": [0], "Births": [12], "Deaths": [8]})
+
+    # Act
+    result = add_crude_rates(dataframe, "Total Population", {"Crude Birth Rate": "Births"})
+
+    # Assert
+    assert result.loc[0, "Crude Birth Rate"] == 0
+    assert result["Crude Birth Rate"].map(lambda value: value == float("inf")).sum() == 0
+
+
 def test_recalculate_population_change_groups_by_location_and_sorts_years():
     dataframe = pd.DataFrame({"Location": ["A", "A", "B", "B"], "Year": [2021, 2020, 2020, 2021], "Total Population": [110, 100, 50, 75]})
 

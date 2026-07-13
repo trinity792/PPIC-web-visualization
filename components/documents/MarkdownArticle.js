@@ -10,6 +10,7 @@
  *
  * Props:
  *   content  {string} — raw Markdown body
+ *   footnote {string} — optional metadata footnote rendered after the body
  *   linkMap  {Object} — filename→slug (for [[wikilinks]])
  *   assetMap {Object} — filename→docs-relative path (for ![[embeds]])
  *
@@ -45,7 +46,8 @@ import remarkLineParagraphs from "@/lib/docs/markdown/remarkLineParagraphs";
 import remarkIndentNesting from "@/lib/docs/markdown/remarkIndentNesting";
 import { DOC_SVG_DEFAULT_SIZE } from "@/lib/constants";
 
-export default function MarkdownArticle({ content, linkMap, assetMap }) {
+export default function MarkdownArticle({ content, footnote, linkMap, assetMap }) {
+  const footnoteText = String(footnote || "").trim();
   const remarkPlugins = [
     remarkGfm,
     // Matches Obsidian: a sub-bullet indented at all under its parent nests,
@@ -122,6 +124,12 @@ export default function MarkdownArticle({ content, linkMap, assetMap }) {
       >
         {content}
       </ReactMarkdown>
+      {footnoteText ? (
+        <footer className="ppic-document-footnote">
+          <hr aria-hidden="true" />
+          <p>{footnoteText}</p>
+        </footer>
+      ) : null}
     </article>
   );
 }

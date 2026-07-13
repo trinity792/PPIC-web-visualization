@@ -36,7 +36,11 @@ def get_paths():
     return {
         "project_root": Path(project_paths["project_root"]),
         "current_data_path": current_data_path,
-        "historical_data_path": current_data_path,
+        # Immutable deep-history seed, distinct from the current output and read-only
+        # to the pipeline, so pre-live-pull years stop being re-derived from the last
+        # run's own output each cycle (guide A1). Absent on a fresh checkout; the
+        # pipeline then proceeds on live data + current output alone.
+        "historical_data_path": component_cleaned_dir / "ComponentsOfChange_Historical.csv",
         "download_directory": component_raw_dir,
         "archive_directory": component_archive_dir,
         "logs_directory": Path(project_paths["logs_directory"]),

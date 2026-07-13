@@ -14,6 +14,7 @@ Test Folders:
     - scripts/unit_tests/components_of_change/calculations/
 """
 
+import numpy as np
 import pandas as pd
 
 """
@@ -34,7 +35,10 @@ def add_crude_rates(dataframe, population_col, components_map):
     population = pd.to_numeric(result[population_col], errors="coerce")
     for rate_column, component_column in components_map.items():
         component_values = pd.to_numeric(result[component_column], errors="coerce")
-        result[rate_column] = component_values.div(population).mul(1000)
+        # Guard the denominator so a zero (or missing) population yields 0 rather than
+        # inf/-inf, which would pass the validator and blow out a chart scale (B6).
+        rate = np.where(population > 0, component_values.div(population).mul(1000), 0.0)
+        result[rate_column] = pd.Series(rate, index=result.index)
     return result
 
 

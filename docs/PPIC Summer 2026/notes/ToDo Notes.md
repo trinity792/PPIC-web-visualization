@@ -22,28 +22,33 @@ Status: Updating
   - [x] Commit changes
 ## To Dos Monday (7/13)
 - Module Issue Fixes & Audits
-  - [ ] Pop Housing
+  - [x] Pop Housing
   - [ ] Components of Change
   - [ ] Age, Race, Sex Projections
   - [ ] ACS Housing Stress
   - [ ] Building Permits
 - [ ] Add footnote rendering to docs viewer front end.
 ## To Dos Tuesday (7/14)
-- Plan Automations
-- Set up automations
+- [ ] Plan Automations
+- [ ] Set up automations
+## To Dos Wednesday (7/15)
+- [ ] Presentation slides draft start
+- [ ] Plan RHNA Progress Report Module
 
 ## Structured ToDos
 - [x] Improve graph editor UI/UX
+- [ ] Add a last updated footer to website, should include date and time in PT.
+- [ ] Additionally, each pipeline log card should have a show technical details toggle that displays **all** information available even if it is a success or recovered.
 - Add a couple of features:
   - [x] For horizontal dot plots -> toggles for which variables/columns to show especially for regession models (lower, upper, middle bounds). 
   - [ ] Especially: more line ends (arrows, none, '|', etc.)
-  - [ ] Undo/redo buttons
+  - [x] Undo/redo buttons
   - [x] Tabs/buttons
-  - [ ] Two charts side by side
+  - [x] Two charts side by side
   - [ ] Full control over axis labeling
   - [ ] Excel like csv editor features (especially grouping & sorting)
   - [x] Transpose over the data(?)
-  - [ ] add a Forest Plot
+  - [x] add a Forest Plot
 - Tweaks to Viz Tool UI/UX:
   - [x] Alter the view data section to have a "view original data" toggle enabled by default. When it is disabled it shows what data in the chart is.
   - [ ] Add all official styling to visualization tool (color groups, typography, Key / legend structure, etc.)
