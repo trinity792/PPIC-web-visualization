@@ -4,7 +4,7 @@ Content Type: project specification
 pinned: true
 description: "The single source of truth for the web-data-visualization project's specification, architecture, and API reference. A living document for programmers and researchers that uses PopHousing as the reference implementation future data modules should mirror."
 Date Published: June 23, 2026
-Last Updated: 07/11/2026 - 11:45 PM
+Last Updated: 07/13/2026
 Status: Updating
 Footnote: Document generated and updated by Claude Opus 4.8 on command. Outlined and verified by Trinity Jones.
 ---
@@ -12,7 +12,7 @@ Footnote: Document generated and updated by Claude Opus 4.8 on command. Outlined
 
 # Project Specification, Architecture & API Reference
 Web **Visualizations** Project
-Last Updated: July 6th, 2026
+Last Updated: July 13th, 2026
 
 ---
 
@@ -58,7 +58,7 @@ A **module** is one dataset's full vertical slice: its ETL pipeline under `scrip
 | Module | Source | Status |
 |---|---|---|
 | **Population & Housing** (PopHousing) | CA Dept. of Finance E-5 (modern) + E-8 (historical) estimates | **Active** — first module migrated. End-to-end complete, including the E-8 historical build and cross-module run logging (structured JSONL + per-run `.log`, surfaced on `/logs`). |
-| **Components of Change** | CA Dept. of Finance E-6 + U.S. Census county population component estimates | **Active** — second module migrated, built by mirroring PopHousing. Full pipeline, data contract, API route, and charts complete, with a **verified end-to-end run** against the live DoF E-6 + Census sources (4,018 rows, 1991–2025). |
+| **Components of Change** | CA Dept. of Finance E-6 + U.S. Census county population component estimates | **Active** — second module migrated, built by mirroring PopHousing. Full pipeline, data contract, API route, and charts complete, with a **verified end-to-end run** against the live DoF E-6 + Census sources (4,023 rows, 1991–2025, now including the District of Columbia; Puerto Rico is inert for this Census file). A 2026-07-13 as-built pass resolved every flagged issue (immutable deep-history seed, block-hard/warn-soft validator, decade-proof Census URL, shared additive helper, DC/PR) with tests. |
 | **Age, Sex & Race Projections** (Demographic Projections) | CA Dept. of Finance **P-3** projections + U.S. Census **cc-est** estimates | **Active** — third module migrated, built **test-first** against the shared architecture. Full Python pipeline, data contract, API route, and chart wiring are complete, with a **verified dual-source end-to-end run** against live DoF P-3 + Census cc-est (**1,718,208 rows**: DoF County/Region/State 2020–2070 + Census US State 2020–2025), idempotent on re-run and free of duplicate keys. A 2026-07-03 reliability audit repaired the live source scrapers (both filenames had moved), a fallback-reaggregation crash, and two Census-cleaning gaps. See *The Demographic Projections Module → Verification*. |
 | **ACS Housing Stress** | U.S. Census Bureau **ACS 1-year** table-based Summary File, table **B25140** (housing cost burden) | **Active** — fourth module migrated, built **test-first** (136 mirrored tests pass). Full Python pipeline, data contract, API route, module schema, and built-in chart views are complete, with a **verified end-to-end run** against live ACS. It contains the **latest vintage only** (2024, 4,525 rows) — the pipeline fetches one vintage per run and accumulates history over time; the legacy 2012–2023 series was set aside pending a schema migration. See *The ACS Housing Stress Module* for caveats. |
 | **Building Permits** | U.S. Census Bureau **Building Permits Survey** monthly CBSA + state `.xls` releases | **Active** — fifth module migrated, built **test-first** (95 mirrored tests pass) and the first **monthly** module. Full Python pipeline, data contract, API route, module schema, data-access layer, and a JS geography mirror are complete, with a **verified end-to-end run** against live Census BPS. The contract holds **197 months, 2010-01 → 2026-05, 14,691 rows** — deep history (pre-2024) was seeded from the legacy accumulated snapshot because the source only hosts a rolling ~2-year window; the live pipeline maintains it forward. As of 2026-07-07 it renders the live graph editor with module-owned presets (graph-editor overhaul). See *The Building Permits Module* for caveats. |
@@ -66,19 +66,17 @@ A **module** is one dataset's full vertical slice: its ETL pipeline under `scrip
 
 The rest of this document documents the **project-wide architecture and conventions** (which apply to every module), then **The PopHousing Module** as the concrete reference implementation, followed by **Components of Change**, **Demographic Projections**, **ACS Housing Stress**, and **Building Permits** as four further worked examples — each showing how the shared shape absorbs a new wrinkle (a dual-source contract, extra stratification dimensions, PUMA approximations, and a monthly axis, respectively).
 
-> [!flag] Frontend Updates
-> still need to add the document viewer and markdown renderer functionality to the projectSpec.
 ---
 ## Module Audit Status
 
 Migration builds the module; **auditing hardens it.** This table tracks, per module, how far each has progressed through the five review passes and final sign-off. It is orthogonal to the *Modules* status above: a module can be **Active** (migrated, live-verified) yet still **un-audited** for robustness or efficiency. Status uses the shared design-system **status chips** — <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#084D7C;"></span>Verified</span> = audited, complete &amp; signed off, <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#E36A18;"></span>In Progress</span> = underway, <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#9BA3A8;"></span>Not Started</span> = not yet begun.
 
-*Status as of 2026-07-07. (The pipeline-audit chips below are unchanged since 2026-07-04; the graph-editor overhaul shipped and was signed off 2026-07-07 — see the note beneath the table.)*
+*Status as of 2026-07-13. PopHousing and Components of Change were hardened to **Verified** across every audit column except **Efficiency** (no dedicated performance pass is logged for either yet), following their as-built flagged-issue resolutions (PopHousing 2026-07-11, Components 2026-07-13) and the project lead's sign-off against the rendered site. The other three modules' chips are unchanged. See the note beneath the table.*
 
 | Module                       | Reliability                                                                                                                                                                                                                                                   | Robustness                                                                                                                                                                                                                                                    | Efficiency                                                                                                                                                                                                                                                    | Live functionality                                                                                                                                                                                                                                           | Offline functionality                                                                                                                                                                                                                                        | Manually verified                                                                                                                                                                                                                                             |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Population &amp; Housing** | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#9BA3A8;"></span>Not Started</span> | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#9BA3A8;"></span>Not Started</span> | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#9BA3A8;"></span>Not Started</span> | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#9BA3A8;"></span>Not Started</span> | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#084D7C;"></span>Verified</span> | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#9BA3A8;"></span>Not Started</span> |
-| **Components of Change**     | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#9BA3A8;"></span>Not Started</span> | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#9BA3A8;"></span>Not Started</span> | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#9BA3A8;"></span>Not Started</span> | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#084D7C;"></span>Verified</span> | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#084D7C;"></span>Verified</span> | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#9BA3A8;"></span>Not Started</span> |
+| **Population &amp; Housing** | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#084D7C;"></span>Verified</span> | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#084D7C;"></span>Verified</span> | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#9BA3A8;"></span>Not Started</span> | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#084D7C;"></span>Verified</span> | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#084D7C;"></span>Verified</span> | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#084D7C;"></span>Verified</span> |
+| **Components of Change** | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#084D7C;"></span>Verified</span> | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#084D7C;"></span>Verified</span> | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#9BA3A8;"></span>Not Started</span> | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#084D7C;"></span>Verified</span> | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#084D7C;"></span>Verified</span> | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#084D7C;"></span>Verified</span> |
 | **Demographic Projections**  | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#9BA3A8;"></span>Not Started</span> | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#9BA3A8;"></span>Not Started</span> | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#9BA3A8;"></span>Not Started</span> | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#084D7C;"></span>Verified</span> | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#084D7C;"></span>Verified</span> | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#9BA3A8;"></span>Not Started</span> |
 | **ACS Housing Stress**       | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#9BA3A8;"></span>Not Started</span> | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#9BA3A8;"></span>Not Started</span> | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#9BA3A8;"></span>Not Started</span> | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#084D7C;"></span>Verified</span> | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#084D7C;"></span>Verified</span> | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#9BA3A8;"></span>Not Started</span> |
 | **Building Permits**         | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#9BA3A8;"></span>Not Started</span> | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#9BA3A8;"></span>Not Started</span> | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#9BA3A8;"></span>Not Started</span> | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#084D7C;"></span>Verified</span> ¹ | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#084D7C;"></span>Verified</span> | <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:9999px;background:#edeff0;font-size:12px;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:9999px;background:#9BA3A8;"></span>Not Started</span> |
@@ -120,7 +118,8 @@ web-data-visualization/
 ├── app/                          ← Next.js App Router
 │   ├── page.js  layout.js  globals.css   ← landing (category dashboards) + shell + design tokens
 │   ├── [module]/page.js                  ← detailed module page = the chart editor   (per module)
-│   ├── logs/page.js                      ← /logs (pipeline run-log feed; reads logs/*.jsonl)
+│   ├── visualization-tool/page.js        ← standalone Visualization Tool (bring-your-own-data wizard)
+│   ├── logs/page.js                      ← /logs (tabbed: Pipeline Logs feed reads logs/*.jsonl + Changelog reads data/changelog.json)
 │   └── api/
 │       ├── pophousing/route.js           ← GET /api/pophousing             (PopHousing)
 │       ├── components-of-change/route.js ← GET /api/components-of-change    (Components)
@@ -132,8 +131,8 @@ web-data-visualization/
 │   ├── Navbar.js                 ← shared site shell (Modules dropdown + top-level links)
 │   ├── ui/                       ← shadcn/Radix primitives (button, select, slider, dialog, table, …) + cn util; also nav-dropdown (hover menu) + under-construction placeholder
 │   ├── charts/                   ← PlotlyChart wrapper, ChartPreview, legacy line sections
-│   ├── chart-builder/            ← the dynamic chart editor (sidebar, config store, saved views, layers)
-│   ├── logs/                     ← /logs feed: LogsBrowser, LogFilterSidebar, LogCard, SeverityChip, CopyButton
+│   ├── chart-builder/            ← the dynamic chart editor (sidebar, config store, saved views, layers) + wizard/ (Import → View Data → Chart Type → Edit → Export step shell)
+│   ├── logs/                     ← /logs: LogsTabs shell + Pipeline Logs (LogsBrowser, LogFilterSidebar, LogCard, SeverityChip) + Changelog (ChangelogBrowser, ChangelogCard, ChangelogFilterSidebar, IntensityChip) + CopyButton
 │   └── landing/                  ← dashboard shell, chart tiles, stat cards, region table, dashboards/<category>
 ├── lib/
 │   ├── config.py                 ← shared project paths + generic HTTP defaults
@@ -151,7 +150,7 @@ web-data-visualization/
 │   ├── logs/logs.js                     ← server-only loader over logs/*.jsonl run records
 │   ├── logs/presentation.js             ← CLIENT-SAFE plain-language layer (phase names, cause, impact, timestamps)
 │   └── visualization/                   ← CLIENT-SAFE chart catalog + registries (no node:fs)
-│       ├── moduleSchemas/{pophousing,componentsOfChange,demographicProjections,housingStress,buildingPermits}.js  ← per-module field catalog
+│       ├── moduleSchemas/{pophousing,componentsOfChange,demographicProjections,housingStress,buildingPermits,byod}.js  ← per-module field catalog (byod = bring-your-own-data)
 │       ├── fieldTypes.js  formatters.js  transformRegistry.js  toPlotly.js
 │       ├── chartRegistry.js  presetRegistry.js  validation.js
 │       └── categoryRegistry.js          ← landing categories + built-in dashboard views
@@ -310,7 +309,7 @@ The entry point is [`scripts/orchestrators/pophousing_pipeline.py`](../../../scr
 
 | Phase | Name                      | What happens                                                                                                                                                                                                       | Primary modules                                                                         |
 | ----- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
-| **1** | Setup & Validation        | Resolve paths/config; archive E-5 workbooks older than 60 days (writing deletion warnings at 15/10/5/1 days); validate the existing historical dataset.                                                            | `config/*`, `archives/e5_retention`, `validation/historical_data_validator`             |
+| **1** | Setup & Validation        | Resolve paths/config; archive E-5 workbooks older than 90 days (writing deletion warnings at 15/10/5/1 days); confirm the immutable E-8 baseline exists (abort with a "run the Phase 0 builder" message if not) and validate it.                                                            | `config/*`, `archives/e5_retention`, `validation/historical_data_validator`             |
 | **2** | Data Acquisition          | Scrape the DOF site for the current E-5 workbook URL; download it (with a 60-day cache); fall back to the most recent local workbook if the network fails.                                                         | `acquisition/dof_e5_downloader`, `shared/downloads/http_downloads`                      |
 | **3** | Clean the Raw E-5 Data    | Normalize the raw Excel layout into the canonical schema: assign columns, trim header rows, forward-fill the hierarchical county/city structure, filter, coerce types, derive housing columns, classify geography. | `cleaning/*`, `calculations/housing_metrics`, `shared/data_cleaning/*`                  |
 | **4** | Merge Historical + Modern | Load historical (≤2020) data, concatenate with cleaned modern (E-5) data, resolve overlapping records by source priority (`E-5` over `E-8`).                                                                       | `merging/historical_modern_merge`                                                       |
@@ -322,8 +321,8 @@ The entry point is [`scripts/orchestrators/pophousing_pipeline.py`](../../../scr
 The acquisition step is deliberately defensive because the DOF website is the single most fragile external dependency:
 
 1. Try to discover the current E-5 URL by scraping (`get_e5_file_url`). On `E5DiscoveryError`, set the URL to `None` instead of crashing.
-2. If a URL was found, download it (`download_e5_data`). The download is **cache-aware**: a local workbook younger than `e5_cache_max_age_days` (60) is read directly with no HTTP request. On `HTTPDownloadError`, fall back.
-3. If no fresh download is available, `get_most_recent_e5_file` scans the download directory for the newest workbook within `e5_fallback_max_age_days` (60) and loads that.
+2. If a URL was found, download it (`download_e5_data`). The download is **cache-aware**: a local workbook younger than `e5_cache_max_age_days` (90) is read directly with no HTTP request. On `HTTPDownloadError`, fall back.
+3. If no fresh download is available, `get_most_recent_e5_file` scans the download cache **and the archive** for the newest workbook within `e5_fallback_max_age_days` (400) and loads that.
 4. Only if *all three* fail does the phase raise `RuntimeError("No current E-5 workbook could be acquired")`.
 
 ### The hierarchical-cleaning problem (Phase 3)
@@ -397,6 +396,9 @@ Two small, widely-reused DataFrame transforms.
 | `forward_fill_columns(dataframe, columns)` | Scoped pandas forward-fill: fills nulls from the preceding row in the named columns only; leading nulls stay null. |
 | `assign_values_from_mapping(dataframe, source_col, target_col, value_mapping)` | Write `target_col` from a dict lookup of `source_col`; non-matching rows are left unchanged; creates `target_col` if absent. |
 
+#### [`shared/data_cleaning/aggregation.py`](../../../scripts/shared/data_cleaning/aggregation.py) — *Shared mechanism*
+Additive-column rollup, promoted out of the PopHousing tree so any module can group-sum without reaching into a sibling's internals. `detect_additive_columns(dataframe, group_col, excluded_columns)` finds the columns whose every non-null value is numeric; `aggregate_additive_columns(dataframe, group_col, excluded_columns, additive_columns=None)` sums those by key (rates are recomputed separately, never summed). Both PopHousing's region/state aggregators and Components of Change's regional aggregator import it here; the old private `_aggregate_additive_columns` name survives as a re-export alias.
+
 #### [`shared/validation/dataframe_validators.py`](../../../scripts/shared/validation/dataframe_validators.py) — *Shared mechanism*
 Generic data-quality checks. Each **returns structured results** (lists, counts, DataFrames, booleans) rather than printing or raising — the caller decides what is fatal. Domain validators compose these with domain-specific rules.
 
@@ -421,10 +423,10 @@ Each pipeline config module exposes one `get_*()` function returning a plain dic
 > [`lib/config.py`](../../../lib/config.py) is project-wide and must not contain dataset-specific rules. Population & Housing configuration derives from [`lib/pophousing_config.py`](../../../lib/pophousing_config.py), which owns regions, counties, towns, E-5 column names, and city-name mappings. Read the module-specific config before changing domain data; modifying either root config is an "ask first" action.
 
 #### [`config/paths.py`](../../../scripts/pophousing/config/paths.py) — *Config*
-`get_paths()` — every filesystem path as a `pathlib.Path`, resolved relative to the repo root: download dir, archive dir, current/historical data paths, deletion-log dir. *(Currently `historical_data_path` and `current_data_path` are the same file — see Configuration Reference.)*
+`get_paths()` — every filesystem path as a `pathlib.Path`, resolved relative to the repo root: download dir, archive dir, current/historical data paths, the historical-baseline metadata sidecar, deletion-log dir. *(`historical_data_path` now points at the immutable `PopHousing_Historical_E8.csv` baseline, **separate** from `current_data_path` — see Configuration Reference.)*
 
 #### [`config/sources.py`](../../../scripts/pophousing/config/sources.py) — *Config*
-`get_source_settings()` — the DOF base URL, request headers (a Chrome User-Agent to avoid blocking), timeout, E-5 cache/fallback ages (60 days), and every regex pattern used to scrape and match E-5 pages and filenames.
+`get_source_settings()` — the DOF base URL, request headers (a Chrome User-Agent to avoid blocking), timeout, E-5 cache / fallback ages (90 days / 400 days), and every regex pattern used to scrape and match E-5 pages and filenames.
 
 #### [`config/schemas.py`](../../../scripts/pophousing/config/schemas.py) — *Config*
 `get_schema_config()` — E-5 column names, the raw→pipeline rename map, the numeric/output/required column lists, the anchor row (`Alameda`), summary/header patterns, and the **cleaning** and **final** validation configs consumed by the validators.
@@ -471,9 +473,8 @@ The most intricate logic in the pipeline. The raw sheet is hierarchical — a co
 
 | Function | Responsibility |
 |---|---|
-| `has_meaningful_housing_data(housing_row, value_columns)` | Row check: any nonzero, non-null value column? |
 | `identify_county_headers(housing_df, county_names, location_col)` | Tag county-header rows using known county names (won't misread a city that shares a county's name). |
-| `forward_fill_locations_with_context(housing_df, location_col, county_col)` | The core row-by-row loop that fills location names within each county block and stops at county boundaries. **The main performance hotspot.** |
+| `forward_fill_locations_with_context(housing_df, location_col, county_col)` | Vectorized `ffill` that fills blank location labels within each county block — replaced the legacy ~100-line row-by-row loop. (The former `has_meaningful_housing_data` row-check was removed as dead parity code, subsumed by the vectorized `drop_empty_rows_without_data`.) |
 | `build_county_context_column(housing_df, location_col, county_col, temp_col)` | Record each row's parent county in `_temp_county` for later County-Total resolution; `State Total` gets none. |
 
 #### [`cleaning/geographic_classification.py`](../../../scripts/pophousing/cleaning/geographic_classification.py) — *Domain worker*
@@ -539,7 +540,7 @@ Reusable building blocks shared by the region and state rollups.
 |---|---|
 | `remove_existing_geographic_level(df, level_col, level_name)` | Strip a level before rebuilding it (avoids double-counting). |
 | `deduplicate_geographic_rows(df, location_col, year_col, level_col, preferred_level)` | Dedupe county inputs before aggregating. |
-| `_aggregate_additive_columns(df, group_col, excluded_columns)` | Sum additive columns by group (rates are recomputed separately, not summed). |
+| `aggregate_additive_columns(df, group_col, excluded_columns)` | Sum additive columns by group (rates are recomputed separately, not summed). **Re-exported from the shared [`data_cleaning/aggregation.py`](../../../scripts/shared/data_cleaning/aggregation.py)**; the private `_aggregate_additive_columns` name is kept as an alias. |
 
 #### [`aggregation/regional_aggregation.py`](../../../scripts/pophousing/aggregation/regional_aggregation.py) — *Domain worker*
 | Function | Responsibility |
@@ -563,7 +564,7 @@ The E-5-specific retention policy layered over the shared `file_retention` mecha
 
 | Function | Responsibility |
 |---|---|
-| `cleanup_old_e5_files(download_directory, archive_directory, max_age_days, filename_pattern, warning_days, deletion_log_directory)` | Archive workbooks past `max_age_days` (60); returns archived + warning path lists for visibility. |
+| `cleanup_old_e5_files(download_directory, archive_directory, max_age_days, filename_pattern, warning_days, deletion_log_directory)` | Archive workbooks past `max_age_days` (configured at 90, the cache age); returns archived + warning path lists for visibility. |
 | `write_deletion_warnings(file_paths, warning_days, deletion_log_directory, max_age_days=60)` | Write warning files at 15/10/5/1 days before deletion, with the projected date inside; idempotent per threshold. |
 
 ---
@@ -598,10 +599,12 @@ Each composes the shared validators with domain rules and returns `(is_valid, me
 
 ### `scripts/pophousing/historical/` — the E-8 build path
 
-Implemented: these turn raw E-8 workbooks into the historical dataset Phase 4 consumes, reusing the same cleaning/classification/metric helpers as the E-5 path (no duplicate logic). `build_historical_housing_dataset(file_configs)` is the entry point; per-era cleaners flatten each decade's layout, `standardize_e8_data` drops census-date rows and bounds years, and boundary-year resolution + missing-county recovery reconcile the decade seams.
+Implemented and **wired as a separate Phase 0 build** (run manually, not on every pipeline run): these turn raw E-8 workbooks into the immutable historical baseline (`PopHousing_Historical_E8.csv`) that the six live phases read read-only, reusing the same cleaning/classification/metric helpers as the E-5 path (no duplicate logic). `historical/build_baseline.py` is the Phase 0 driver and the **only writer** of the baseline: it maps `HISTORICAL_FILE_CONFIG` into `build_historical_housing_dataset(file_configs)`, validates against the shared `historical_validation` gate, and writes the baseline plus a coverage sidecar atomically. Per-era cleaners flatten each decade's layout, `standardize_e8_data` drops census-date rows and bounds years, and boundary-year resolution + missing-county recovery reconcile the decade seams.
 
-| Script | Intended responsibility |
+| Script | Responsibility |
 |---|---|
+| [`historical/build_baseline.py`](../../../scripts/pophousing/historical/build_baseline.py) | **Phase 0 driver / sole writer of the baseline.** `--from-current` seeds it from the current output's ≤2020 rows (the one-time migration onto the split layout); the default rebuilds from the E-8 decade workbooks (`--download` to fetch first). Validates against `historical_validation` before an atomic write and refreshes the sidecar. |
+| [`historical/baseline_metadata.py`](../../../scripts/pophousing/historical/baseline_metadata.py) | Reads/writes/freshness-checks the baseline's JSON sidecar; `check_baseline_freshness` gives Phase 1 a network-free warning when a newly configured E-8 era outruns the committed baseline. |
 | [`historical/e8_format_detection.py`](../../../scripts/pophousing/historical/e8_format_detection.py) | `detect_e8_file_format(raw_e8_df)` — identify which decade format a workbook uses. |
 | [`historical/e8_schema_normalizer.py`](../../../scripts/pophousing/historical/e8_schema_normalizer.py) | `normalize_e8_columns(raw_e8_df, format_config)` — map each format's columns to the pipeline schema. |
 | [`historical/e8_era_cleaners.py`](../../../scripts/pophousing/historical/e8_era_cleaners.py) | `clean_1990_2000` / `clean_2000_2010` / `clean_2010_2020` — per-decade cleaning branches. |
@@ -625,16 +628,17 @@ All of the module's tunable behavior lives in its `config/` functions, not scatt
 |---|---|---|
 | DOF base URL | `https://dof.ca.gov/forecasting/demographics/estimates/` | `sources.py` |
 | Request timeout | 60 s | `sources.py` |
-| E-5 cache / fallback age | 60 days each | `sources.py` |
+| E-5 cache / fallback age | 90 days / 400 days | `sources.py` |
+| Historical baseline path | `PopHousing_Historical_E8.csv` (immutable, Phase 0-written) | `paths.py` |
 | E-5 filename pattern | `E-5-\d{4}_Geo_InternetVersion\.xlsx` | `sources.py` |
-| Retention max age / warnings | 60 days / 15,10,5,1 days | orchestrator + `e5_retention` |
+| Retention max age / warnings | 90 days / 15,10,5,1 days | orchestrator + `e5_retention` |
 | Modern data lower bound | Year ≥ 2020 | `schemas.py` |
 | Historical data upper bound | Year ≤ 2020 | orchestrator |
 | Valid geographic levels | City, County, Region, State, Town | `schemas.py`, `geography.py` |
 | Source priority on overlap | `E-5` over `E-8` | orchestrator |
 
-> [!flag] Current wiring note
-> `paths.get_paths()` currently points both `historical_data_path` and `current_data_path` at the same file (`PopHousing_Current.csv`), so Phase 4 reads historical rows from the current output. The `historical/` E-8 build is now implemented as a standalone entry point (`build_historical_housing_dataset`) returning the canonical historical dataset, but it is **not yet wired into the main pipeline** to populate a separate historical source. Revisit this wiring (and split the two paths) when promoting the E-8 build into the orchestrated run.
+> [!success] Historical baseline split & wired (2026-07-11)
+> `paths.get_paths()` now points `historical_data_path` at the immutable **`PopHousing_Historical_E8.csv`** baseline, **decoupled from** `current_data_path`. The E-8 build is wired as a standalone **Phase 0 driver** (`historical/build_baseline.py`) — the sole writer of the baseline — which maps `HISTORICAL_FILE_CONFIG` into `build_historical_housing_dataset`, validates against the shared `historical_validation` gate, and writes the baseline plus a coverage sidecar atomically. The main pipeline reads the baseline **read-only** and cold-starts with an actionable "run the Phase 0 builder" error if it is absent, so a run can no longer re-derive (and slowly corrupt) its own pre-2020 history. See the `historical/` reference above and the runbook [`pophousing-standup.md`](../runbooks/pophousing-standup.md).
 
 ---
 
@@ -710,7 +714,7 @@ PopHousing's performance choices — the patterns below carry over to any module
 | **CSV parser cost / dependencies** | A minimal `split(",")` parser avoids pulling in a CSV library, valid because the cleaned schema has no quoted or comma-bearing fields. |
 | **Plotly bundle / SSR** | `react-plotly.js` is loaded via `next/dynamic` with `ssr: false`, keeping it out of the server bundle and avoiding `window`/`document` errors. |
 | **Vectorized transforms** | Phase 3/5 transformations are vectorized pandas operations wherever possible. |
-| **The one hotspot** | `forward_fill_locations_with_context` is an intentional row-by-row loop (the hierarchical layout requires sequential context). It is the place to look first for pipeline slowdowns; keep new per-row work out of it. |
+| **Former hotspots, now vectorized** | The old row-by-row forward-fill is now a vectorized `ffill`, and `assign_missing_geographic_levels` classifies the unambiguous State/Region/County/Town/default cascade with boolean masks — reserving per-row `classifier_fn` work only for the small set of genuinely ambiguous names (a parity test pins the vectorized result to a straight per-row application). The geography config is built once and threaded through, not rebuilt per row. |
 
 ---
 
@@ -718,6 +722,7 @@ PopHousing's performance choices — the patterns below carry over to any module
 
 The module is complete, its tests pass, and it has run end-to-end against the live 2020-2026 DoF E-5 (output: 19,692 rows, 1991-2026, 0 duplicate keys, real `E-5`/`E-8`/`Aggregated` provenance). Two things about *today's* state are worth recording:
 
+- **Deep history is an immutable, committed artifact.** Pre-2020 rows come from `PopHousing_Historical_E8.csv`, written only by the manual Phase 0 builder and read read-only by the pipeline; it is rebuilt only when DoF publishes a new E-8 decade (prompted by the Phase 1 freshness warning). A cold start with no baseline aborts with an actionable "run the Phase 0 builder" message rather than silently re-deriving (and slowly corrupting) its own history.
 - **Statewide totals are aggregated, not read from DoF's own row.** The E-5 "State Total" row sits at the top of the workbook, above the first county, so `trim_to_first_data_row` (anchored on "Alameda") drops it. Modern California State rows (2021+) are therefore built by summing counties and carry the `Aggregated` source; the 2020 boundary State row comes from the E-8 baseline (`E-8`). The aggregated 2026 statewide population (~39.6M) is plausible and county sums closely track the state total, but DoF's published statewide E-5 figure is not used directly. Changing this would mean not trimming (or separately capturing) the top statewide block before the Alameda anchor.
 - **The "Update data" button runs a server-side process.** `POST /api/pophousing/update` spawns the full Python pipeline via the project venv (async, detached, guarded by a single-process lock) and returns `202`; the run's outcome surfaces on `/logs`. The command is fixed and takes no request input, so there is no injection surface — but it does execute a server-side process, so in a shared deployment this route should sit behind auth. The Python binary is overridable via `PIPELINE_PYTHON_BIN` / `PIPELINE_VENV`; the default path is assembled from parts on purpose so the bundler does not trace the venv's python symlink (which points out of the project root) and fail `next build`.
 
@@ -743,11 +748,11 @@ The entry point is [`scripts/orchestrators/components_of_change_pipeline.py`](..
 
 | Phase | Name | What happens | Primary modules |
 |---|---|---|---|
-| **1** | Setup & Load | Resolve config; load the existing canonical CSV as the historical + fallback source. | `config/*`, `merging/historical_merge` |
+| **1** | Setup & Load | Resolve config; load the current output (the change-detection baseline + last-saved fallback) and **union it with the immutable deep-history seed** (`ComponentsOfChange_Historical.csv`); a missing seed or output is tolerated with a loud warning so a cold start proceeds on live data. | `config/*`, `merging/historical_merge` |
 | **2** | Acquisition (resilient) | Acquire each source through `acquire_with_fallback`: live discovery/download → manual raw CSV → last-saved rows for that source. The DoF step has two URL-discovery strategies — primary follows the current `/E-6` landing-page slug, fallback picks the most recent E-6 link by year — since the DOF site structure is the module's #1 fragility point. | `acquisition/*`, `shared/downloads/http_downloads` |
 | **3** | Cleaning | `clean_e6` and `clean_census_components` normalize each source to the canonical schema; on failure they fall back to manual/saved rows so one broken source never fails the run. | `cleaning/*`, `calculations/demographic_rates` |
 | **4** | Merge & Change Detection | Combine each cleaned source with its historical rows, merge DoF + Census, and flag whether genuinely new source years arrived. | `merging/historical_merge`, `aggregation/regional_aggregation` |
-| **5** | Finalize, Validate & Save | Assign geographic level, enforce output column order, validate, and **archive + save only when new source data was detected** (otherwise the run is read-only). | `output/finalize_dataset`, `validation/dataset_validator` |
+| **5** | Finalize, Validate & Save | Assign geographic level, enforce output column order, run the **block-hard / warn-soft** validator (hard failures abort the write; soft anomalies are logged and do not block), and **archive + save only when new source data was detected** (otherwise the run is read-only). | `output/finalize_dataset`, `validation/dataset_validator` |
 
 ### Acquisition & cleaning resilience (Phases 2–3)
 
@@ -765,14 +770,14 @@ Same layering as PopHousing: `scripts/shared/` mechanisms (documented above) →
 | Script | Public functions |
 |---|---|
 | `dof_e6_downloader.py` | `get_e6_file_url` (follows the current `/E-6` landing-page slug to the workbook), `get_e6_file_url_positional` (fallback: the most recent E-6 link by year), `download_e6_workbook` |
-| `census_components_downloader.py` | `get_census_components_url` (walks back through recent years), `download_census_components(url, source_settings=None)` (fetches URLs through the shared HTTP layer; reads local paths directly) |
+| `census_components_downloader.py` | `discover_census_components` (walks recent years back, deriving each candidate's vintage-decade folder `{decade}-{year}` so the URL survives the 2030 vintage rollover, and returns `(url, response)` so the file is fetched once), `get_census_components_url` (thin URL-only wrapper), `download_census_components(url, source_settings=None, response=None)` (reuses the discovery response through the shared HTTP layer; reads local paths directly) |
 | `source_fallback.py` | `acquire_with_fallback` — generic *live → manual → saved* ladder used by both sources |
 
 #### `cleaning/` — normalizing each source to the canonical schema
 | Script | Public functions |
 |---|---|
-| `e6_cleaner.py` | `normalize_e6_columns`, `repair_truncated_county_names`, `forward_fill_locations_by_year_block`, `clean_e6` (orchestrator) |
-| `census_cleaner.py` | `map_state_abbreviations`, `reshape_census_wide_to_long`, `clean_census_components` (orchestrator) |
+| `e6_cleaner.py` | `normalize_e6_columns`, `repair_truncated_county_names` (fail-loud: asserts the stub count matches the expected county names rather than silently mislabeling), `forward_fill_locations_by_year_block`, `clean_e6` (orchestrator; drops each location's *own* earliest baseline year, not a single global minimum) |
+| `census_cleaner.py` | `map_state_abbreviations`, `reshape_census_wide_to_long` (selects value columns by the name pattern `[A-Za-z]+\d{4}` and asserts no duplicate `(CTYNAME, Year, Statistic)`), `clean_census_components` (orchestrator; the national-totals filter also requires `SUMLEV == 40` so DC's like-named state and county rows don't collide) |
 
 #### `calculations/` · `aggregation/` — derived metrics and regions
 | Script | Public functions |
@@ -783,13 +788,13 @@ Same layering as PopHousing: `scripts/shared/` mechanisms (documented above) →
 #### `merging/` — combining sources and detecting change
 | Script | Public functions |
 |---|---|
-| `historical_merge.py` | `load_canonical_dataset`, `combine_source_with_historical`, `detect_new_source_data` (drives the incremental save; normalizes numeric columns to numpy floats first so a freshly-cleaned `Float64`/`pd.NA` frame and the reloaded CSV's `float64`/`np.nan` don't read as a change), `merge_dof_and_census` |
+| `historical_merge.py` | `load_canonical_dataset` (returns an empty frame + loud `UserWarning` when the CSV is absent, so a cold start proceeds on live data), `load_historical_baseline` (reads the immutable deep-history seed), `combine_history_sources` (unions seed + current output, de-duped on `(Location, Year, Source)` preferring the current output), `combine_source_with_historical`, `detect_new_source_data` (drives the incremental save; normalizes numeric columns to numpy floats first so a freshly-cleaned `Float64`/`pd.NA` frame and the reloaded CSV's `float64`/`np.nan` don't read as a change), `merge_dof_and_census` |
 
 #### `output/` · `validation/` — contract and gates
 | Script | Public functions |
 |---|---|
 | `output/finalize_dataset.py` | `assign_geographic_level`, `prepare_components_output`, `write_components_output`, `archive_and_save` |
-| `validation/dataset_validator.py` | `validate_components_dataset` — the final gate before save |
+| `validation/dataset_validator.py` | `validate_components_dataset` — the final gate before save; returns `(is_valid, hard_messages, soft_messages)`, **blocking on hard checks** (required columns, non-empty, duplicate keys, both `DoF`+`Census` sources present, required levels present/valid) and **only warning on soft** ones (negative populations, non-finite crude rates, out-of-window years) |
 | `validation/input_validators.py` | `validate_parameters` / `validate_locations` / `validate_source` / `validate_subset` / `validate_metric_of_change` / `validate_year_bounds`, plus `expand_locations`, `locations_for_subset` (shared by the notebook/API surfaces) |
 
 #### `visualizations.py` — notebook-facing charts
@@ -802,7 +807,7 @@ Thin line / bar / choropleth wrappers over the new cross-module [`scripts/shared
 | Setting | Value | Source |
 |---|---|---|
 | DoF estimates URL | `https://dof.ca.gov/forecasting/demographics/estimates/` | `sources.py` |
-| Census CSV template | `…/2020-{year}/counties/totals/co-est{year}-alldata.csv` | `sources.py` |
+| Census CSV template | `…/{decade}-{year}/counties/totals/co-est{year}-alldata.csv` (decade derived per candidate year) | `sources.py` |
 | Census lookback | start at current year, up to `max_lookback_years` (10) back | `sources.py` |
 | E-6 worksheet index | 1 (second sheet) | `sources.py` |
 | DoF / Census boundary years | 1990 / 2010 | `sources.py` |
@@ -812,8 +817,8 @@ Thin line / bar / choropleth wrappers over the new cross-module [`scripts/shared
 
 Components sources its California county/region names from the shared [`california_geography`](../../../scripts/shared/geography/california_geography.py) provider — the same single source of truth PopHousing uses — so the geography no longer crosses the module boundary.
 
-> [!flag] Remaining cross-module import
-> One boundary crossing still exists outside geography: [`components_of_change/aggregation/regional_aggregation.py`](../../../scripts/components_of_change/aggregation/regional_aggregation.py) imports the private `_aggregate_additive_columns` helper from `pophousing.aggregation.aggregation_utils`. That additive-sum helper is the natural next thing to promote into `scripts/shared/` (it carries no domain knowledge); it was left in place here because the requested change was scoped to geography.
+> [!success] Cross-module import removed (2026-07-13)
+> The additive-sum helper the regional aggregator depends on was promoted into [`scripts/shared/data_cleaning/aggregation.py`](../../../scripts/shared/data_cleaning/aggregation.py) as the public `aggregate_additive_columns`. Components and both PopHousing aggregators now import it from shared, so no module reaches into a sibling's private internals; combined with the already-shared geography reference, the boundary is one-way with no sideways reach. The columns config is also threaded in from the caller now, not rebuilt inside the aggregation loop.
 
 ---
 
@@ -823,7 +828,7 @@ The pipeline's output — `data/data-cleaned/components-of-change/ComponentsOfCh
 
 **Grain:** one row per `(Location, Year, Source)` — both `DoF` and `Census` rows can coexist for the same place and year.
 
-**Geographic levels:** `County` (CA), `Region` (9 custom CA regions), `State` (California **and** every U.S. state, by two-letter abbreviation, from Census). National `States` data is Census-only.
+**Geographic levels:** `County` (CA), `Region` (9 custom CA regions), `State` (California **and** every U.S. state by two-letter abbreviation, plus the **District of Columbia** (`DC`), from Census). National `States` data is Census-only. Puerto Rico (`PR`) is in the abbreviation map but inert for this source — the `co-est*-alldata` file covers the fifty states and DC but not PR.
 
 **Year coverage:** 1991–present (currently through 2025).
 
@@ -853,6 +858,17 @@ Owns reading, parsing, and filtering of the CSV (`node:fs`, never imported into 
 `GET /api/components-of-change` — the same `view`-based dispatcher as PopHousing, plus `source` validation (defaulting to `DoF`) and the rule that the `States` subset is **Census-only**. Errors carry a `source` string (`"components_of_change API: …"`).
 
 The module reuses the entire UI layer below unchanged; its schema simply advertises `sources: ["DoF", "Census"]`, which makes the editor render a **Source** selector and gate silent source comparison (guardrail #6).
+
+---
+
+## Current-State Notes & Caveats (Components of Change)
+
+A 2026-07-13 as-built pass resolved every flagged issue (guide items A1–A7, B1–B8) with tests; the full suite is green and `ruff` is clean on the touched modules. Worth recording about *today's* state:
+
+- **Verified live end-to-end.** The pipeline runs clean against the live DoF E-6 + Census sources — `ComponentsOfChange_Current.csv` holds **4,023 rows** across `DoF` and `Census`, 1991–2025, with no duplicate keys. Adding the District of Columbia surfaced a collision (DC's single county shares the name `District of Columbia`); the national-totals filter now also requires `SUMLEV == 40`, so DC appears once (2021–2025 populated on the live pull). Puerto Rico is inert for this Census file.
+- **Deep history is an immutable, seeded artifact.** Pre-live-pull years live in `ComponentsOfChange_Historical.csv`, read-only to the pipeline and unioned with the current output each run (current output preferred). On a fresh checkout without the seed the run proceeds on live + current data with a loud warning rather than aborting. Change detection still measures novelty against the current output only, so a run whose live pull matches the last output does not re-save.
+- **The pre-save validator is now a real gate.** It blocks the write on hard corruption (missing columns, empty frame, duplicate keys, a missing source, an absent geographic level) and only warns on soft anomalies (negative populations, non-finite rates, out-of-window years) — matched to the fact that the output is also the change-detection history.
+- **Operational, not structural, remains:** the historical seed is refreshed only when it needs to absorb newer deep history.
 
 ---
 
@@ -1555,7 +1571,7 @@ The **geo** view is the one that reaches across modules: `queryGeoValues` builds
 | Masthead / nav | `components/Navbar.js` | Brand bar; Tailwind tokens + `lib/constants.js` palette. The five data modules live under a **Modules** dropdown (`MODULE_LINKS` in `Navbar.js`); `Documents`, `Logs`, and `UI Kit` are top-level links. |
 | Modules dropdown | `components/ui/nav-dropdown.js` | Reusable hover-activated menu (`NavDropdown`). Opens on hover/focus, bridges the trigger→menu gap with padding (not margin) so a diagonal move can't drop it, closes ~100 ms after the pointer leaves, on item click, on blur, or on Escape. Each item links to `/[module]` (the detailed graph editor). |
 | Under-construction placeholder | `components/ui/under-construction.js` | Reusable `UnderConstruction` (title / message / icon props) for not-yet-built routes; renders on the shared `--ppic-surface`. Used by `app/[module]/page.js` for any schema flagged `underConstruction` (no data module is flagged as of 2026-07-07). |
-| Logs feed | `app/logs/page.js` → `components/logs/{LogsBrowser,LogFilterSidebar,LogCard,SeverityChip,CopyButton}.js` | The `/logs` page. Reuses the **Documents landing layout** — a hero band, a left `LogFilterSidebar` (module / type / date-range dropdowns, mirroring `DocumentFilterSidebar`), and a results section with a `Sort by` control. Each run is a `LogCard` styled as a **DocumentCard variant**: the severity icon fills the left thumbnail tile (`AlertTriangle`/`CheckCircle2`/`ShieldAlert`, tinted amber/green/blue), with a `SeverityChip` (colored-dot status chip) + copy button top-right. A sidebar **Technical details** `Switch` (the UI Kit's "Appearance" toggle, **off by default**) flips every card between the plain-language view and the raw JSON record; a **Show more** button pages 15 at a time. `BackToTopButton` is extended to render on `/logs`. |
+| Logs feed | `app/logs/page.js` → `components/logs/{LogsTabs,LogsBrowser,LogFilterSidebar,LogCard,SeverityChip,ChangelogBrowser,ChangelogCard,ChangelogFilterSidebar,IntensityChip,CopyButton}.js` | The `/logs` page, a **tabbed shell** (`LogsTabs`) over two feeds: **Pipeline Logs** (run records) and **Changelog** (curated changes from commit history via `lib/changelog/`). Each reuses the **Documents landing layout** — a hero band, a left filter sidebar (module / type / date-range dropdowns, mirroring `DocumentFilterSidebar`), and a results section with a `Sort by` control and a **Show more** button that pages 15 at a time. A Pipeline Logs run is a `LogCard` styled as a **DocumentCard variant**: the severity icon fills the left thumbnail tile (`AlertTriangle`/`CheckCircle2`/`ShieldAlert`, tinted amber/green/blue), with a `SeverityChip` + copy button top-right. A sidebar **Technical details** `Switch` (**off by default**) flips every card to the raw JSON record; independently, **every card carries its own "Show technical details" disclosure** that reveals the complete record — the error block (when present) plus rendered Result / Flags and the full raw record — on success and recovered runs as well as failures. `BackToTopButton` is extended to render on `/logs`. |
 | Plotly wrapper | `charts/PlotlyChart.js` | `react-plotly.js` via `next/dynamic({ ssr: false })`; mobile mode-bar off. |
 | Data fetching | `chart-builder/chartData.js` | Picks the `view` per chart type, fans out trace-layer requests in parallel, caches geometry client-side, returns `{ response, series, geometry }`. |
 | Design system | `components/ui/*` + `app/globals.css` tokens | shadcn/Radix primitives; PPIC brand ramps + shadcn tokens drive the Tailwind v4 utilities. |
@@ -1686,7 +1702,7 @@ Validators **return structured results rather than printing**; only the orchestr
 
 ## Testing
 
-*Project-wide standard; the current suite covers all five modules — PopHousing, Components of Change, Demographic Projections, ACS Housing Stress, and Building Permits (967 tests passing).*
+*Project-wide standard; the current suite covers all five modules — PopHousing, Components of Change, Demographic Projections, ACS Housing Stress, and Building Permits (1,054 backend tests passing), alongside the frontend Vitest suite.*
 
 The pytest suite lives in `scripts/unit_tests/`, **mirroring the source tree** (each source file → a `test_{module}.py` in the same relative position). Full requirements are in [`PopHouse-Unit-Tests-Guide.md`](PopHouse-Unit-Tests-Guide.md). Highlights:
 
@@ -1704,9 +1720,9 @@ The pytest suite lives in `scripts/unit_tests/`, **mirroring the source tree** (
 
 **Project:** all **five** modules (PopHousing, Components of Change, Demographic Projections, ACS Housing Stress, Building Permits) are active and run end-to-end — the **five original V1 legacy datasets are fully migrated** (see *Modules*). The cross-module `scripts/shared/` layer is exercised by all five. Remaining work is enhancement, not net-new module migration.
 
-**Within PopHousing:** the **E-5 modern path and E-8 historical build are both implemented** end-to-end (acquisition → cleaning → merge → enrichment → validation → output), and the **frontend read path is complete**. The E-8 build (`pophousing/historical/*`, `acquisition/dof_historical_downloader.py`) reuses the canonical E-5 cleaning/classification/metric helpers rather than duplicating them, with mirrored unit tests.
+**Within PopHousing:** the **E-5 modern path and E-8 historical build are both implemented** end-to-end (acquisition → cleaning → merge → enrichment → validation → output), and the **frontend read path is complete**. The E-8 build is now wired as a standalone **Phase 0 driver** (`historical/build_baseline.py`) that writes an immutable `PopHousing_Historical_E8.csv` baseline — decoupled from the current output, with a coverage sidecar driving a Phase 1 freshness warning — reusing the canonical E-5 cleaning/classification/metric helpers rather than duplicating them, with mirrored unit tests. A 2026-07-11 as-built pass resolved every backend flagged issue with tests (baseline split + Phase 0 driver, real per-row `E-5`/`E-8`/`Aggregated` provenance, per-vintage vacancy fix, vectorized classifier), and the module ran clean against the live 2020-2026 E-5 (**19,692 rows, 1991-2026, 0 duplicate keys**). The Source provenance multi-select and "Update data" button are built and verified.
 
-**Within Components of Change:** the full pipeline, dual-source acquisition with fallback, data contract, API route, and charts are complete.
+**Within Components of Change:** the full pipeline, dual-source acquisition with fallback, data contract, API route, and charts are complete, with a **verified live end-to-end run** (DoF E-6 + Census, **4,023 rows, 1991-2025**, 0 duplicate keys, now including DC). A 2026-07-13 as-built pass resolved every flagged issue with tests — an immutable deep-history seed with cold-start tolerance, a block-hard/warn-soft pre-save validator, decade-proof + single-fetch Census discovery, the additive-sum helper promoted to `scripts/shared/`, a divide-by-zero rate guard, and DC/Puerto Rico in the national layer. See *Current-State Notes & Caveats (Components of Change)*.
 
 **Within Demographic Projections:** the full Python pipeline (config → acquisition → cleaning → merge → aggregation → validation → output), orchestrator, data contract, API route, module schema, data-access layer, and the module-specific stratification filter controls are complete, with a **verified dual-source end-to-end run** (live DoF P-3 + Census cc-est, 1,718,208 rows, idempotent, zero duplicate keys — see *Verification (Demographic Projections)*). A 2026-07-03 reliability audit fixed four live-only defects (both source scrapers, a fallback-reaggregation crash, and two Census-cleaning gaps). The doc's bespoke chart-shape presets (age pyramid, projection-vs-estimate, overlay comparison) are deferred pending per-module preset support — see *Current-State Notes & Caveats (Demographic Projections)*.
 
@@ -1714,7 +1730,7 @@ The pytest suite lives in `scripts/unit_tests/`, **mirroring the source tree** (
 
 **Within Building Permits:** the full Python pipeline (config → acquisition → cleaning → geography tagging → merge → validation → output), orchestrator, data contract, API route, module schema, month-aware data-access layer, and the JS geography mirror are complete, with 95 mirrored tests passing and a **verified end-to-end run** against live Census BPS. The contract holds **197 months (2010-01 → 2026-05, 14,691 rows)** — deep history was seeded from the legacy accumulated snapshot because the source hosts only a rolling ~2-year window; the live pipeline maintains it forward. The graph-editor overhaul (2026-07-07) shipped its module-owned presets and lifted it out of `underConstruction`; a monthly range control and the category/bar shared-view remain non-blocking follow-ups — see *Current-State Notes & Caveats (Building Permits)*.
 
-Cross-module **run logging is now implemented** (`shared/logging/pipeline_logging.py`, `dataframe_logging.py`, `run_records.py`): all five orchestrators set up a file + console logger, log each phase, and write one structured JSONL record per run to `logs/pipeline-runs.jsonl`. The `/logs` page (`app/logs/page.js` → `components/logs/`) reads those records via `lib/logs/logs.js` and renders them, Documents-landing-style, as a sidebar-filtered feed of **DocumentCard-variant run cards** — severity icon as the thumbnail tile, status chip + copy button top-right — with plain-language cause & impact derived on the client (`lib/logs/presentation.js`), a sidebar **Technical details** switch (off by default) that reveals the raw record, collapsible tracebacks, and 15-at-a-time "Show more" paging. The live `logs/pipeline-runs.jsonl` is git-ignored; a committed `logs/sample-runs.jsonl` fixture keeps the page populated in the repo. No scaffolded-but-`TODO` surface remains project-wide; further work is enhancement.
+Cross-module **run logging is now implemented** (`shared/logging/pipeline_logging.py`, `dataframe_logging.py`, `run_records.py`): all five orchestrators set up a file + console logger, log each phase, and write one structured JSONL record per run to `logs/pipeline-runs.jsonl`. The `/logs` page (`app/logs/page.js` → `components/logs/`) is a **tabbed shell** (`LogsTabs`): a **Pipeline Logs** tab that reads those records via `lib/logs/logs.js` and renders them, Documents-landing-style, as a sidebar-filtered feed of **DocumentCard-variant run cards** — severity icon as the thumbnail tile, status chip + copy button top-right — with plain-language cause & impact derived on the client (`lib/logs/presentation.js`), a sidebar **Technical details** switch (off by default) plus a **per-card "Show technical details" disclosure that surfaces the complete record (error block, Result, Flags, raw JSON) on every card — success and recovered runs included** — and 15-at-a-time "Show more" paging; and a **Changelog** tab (`ChangelogBrowser`, curated changes derived from commit history through `lib/changelog/` over `data/changelog.json` + `data/changelog-overlay.json`, rebuilt by `scripts/changelog/build-changelog.mjs`). The live `logs/pipeline-runs.jsonl` is git-ignored; a committed `logs/sample-runs.jsonl` fixture keeps the page populated in the repo. No scaffolded-but-`TODO` surface remains project-wide; further work is enhancement.
 
 ---
 
