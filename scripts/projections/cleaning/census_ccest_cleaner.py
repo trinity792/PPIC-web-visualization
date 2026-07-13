@@ -28,11 +28,12 @@ Test Folders:
 
 import pandas as pd
 
+from scripts.shared.logging.pipeline_logging import log_message
+
 # ── Constants ─────────────────────────────────────────────────────────────────
 
 _IDENTIFIER_COLUMNS = ["SUMLEV", "STATE", "COUNTY", "STNAME", "CTYNAME", "YEAR", "AGEGRP"]
 _COUNTY_SUMMARY_LEVEL = 50
-_BASE_YEAR_CODE = 1
 _TOTAL_AGE_CODE = 0
 # Census wide totals share the MALE/FEMALE suffix but are not race strata.
 _TOTAL_COLUMN_PREFIXES = {"TOT"}
@@ -92,16 +93,28 @@ def rename_ccest_columns(df, schema_config):
     return df.rename(columns=rename_map)
 
 
-def reshape_ccest_to_long(df, schema_config):
-    """Reshape the official wide cc-est data to the canonical long format. Test file: scripts/unit_tests/projections/cleaning/test_census_ccest_cleaner.py"""
+def reshape_ccest_to_long(df, schema_config, logger=None):
+    """Reshape the official wide cc-est data to the canonical long format. Test file: scripts/unit_tests/projections/cleaning/test_census_ccest_cleaner.py
+
+    Value-level drift is tolerated (B2). The Census YEAR code decodes by a stable
+    arithmetic law (calendar = base + code), so a new vintage ingests
+    automatically (A2 derive-and-accept); YEAR=base (the April-2020 base) is a
+    semantic exclusion, and any code decoding outside the sane range, an unknown
+    AGEGRP code, or an unrecognized race-column prefix is dropped with a logged
+    note rather than discarding the whole file. A genuine loss of a whole state is
+    still caught downstream by the strict completeness gate (fail-closed).
+    """
     race_map = schema_config["census_race_code_map"]
     sex_map = schema_config["sex_label_map"]
-    year_map = schema_config["census_year_code_map"]
+    year_base = schema_config["census_year_base"]
+    base_year_code = schema_config["census_base_year_code"]
+    sane_min, sane_max = schema_config["census_year_sane_range"]
     age_map = schema_config["census_age_group_code_map"]
     id_columns = ["Location", "Year", "Age Group"]
 
     value_columns = []
     column_race_sex = {}
+    skipped_prefixes = set()
     for column in df.columns:
         if column in id_columns or "_" not in column:
             continue
@@ -111,11 +124,16 @@ def reshape_ccest_to_long(df, schema_config):
         if prefix in _TOTAL_COLUMN_PREFIXES:
             continue
         if prefix not in race_map:
-            raise ValueError(f"Unmapped cc-est race column prefix: {prefix} (column {column})")
+            skipped_prefixes.add(prefix)
+            continue
         value_columns.append(column)
         column_race_sex[column] = (race_map[prefix], sex_map[suffix])
+    if skipped_prefixes:
+        log_message(logger, "Skipped unrecognized cc-est race column prefix(es)", prefixes=sorted(skipped_prefixes))
 
-    work = df[(df["Year"] != _BASE_YEAR_CODE) & (df["Age Group"] != _TOTAL_AGE_CODE)]
+    # Exclude the April-2020 base year and the AGEGRP=0 all-ages total; both are
+    # semantic exclusions, not decode gaps.
+    work = df[(df["Year"] != base_year_code) & (df["Age Group"] != _TOTAL_AGE_CODE)]
     melted = work.melt(
         id_vars=id_columns,
         value_vars=value_columns,
@@ -125,24 +143,29 @@ def reshape_ccest_to_long(df, schema_config):
     melted["Race/Ethnicity"] = melted["_race_sex"].map(lambda column: column_race_sex[column][0])
     melted["Sex"] = melted["_race_sex"].map(lambda column: column_race_sex[column][1])
 
-    unknown_years = sorted(set(melted["Year"]) - set(year_map))
-    if unknown_years:
-        raise ValueError(f"Unknown cc-est YEAR code(s): {unknown_years}")
+    # Derive calendar year arithmetically, then quarantine any code whose decoded
+    # year falls outside the sane window (B2 drop-and-log).
+    melted["Year"] = year_base + melted["Year"]
+    out_of_range = sorted(set(melted.loc[(melted["Year"] < sane_min) | (melted["Year"] > sane_max), "Year"]))
+    if out_of_range:
+        log_message(logger, "Dropped cc-est rows with out-of-range decoded year(s)", years=out_of_range)
+        melted = melted[(melted["Year"] >= sane_min) & (melted["Year"] <= sane_max)]
+
     unknown_ages = sorted(set(melted["Age Group"]) - set(age_map))
     if unknown_ages:
-        raise ValueError(f"Unknown cc-est AGEGRP code(s): {unknown_ages}")
+        log_message(logger, "Dropped cc-est rows with unknown AGEGRP code(s)", codes=unknown_ages)
+        melted = melted[melted["Age Group"].isin(age_map)]
 
-    melted["Year"] = melted["Year"].map(year_map)
     melted["Age Group"] = melted["Age Group"].map(age_map)
     return melted[["Location", "Year", "Age Group", "Sex", "Race/Ethnicity", "Population"]].reset_index(drop=True)
 
 
-def clean_census_estimates(csv_path, schema_config):
+def clean_census_estimates(csv_path, schema_config, logger=None):
     """Full cc-est cleaner entry point: parse, aggregate to states, rename, reshape, and tag. Test file: scripts/unit_tests/projections/cleaning/test_census_ccest_cleaner.py"""
     parsed = parse_ccest_csv(csv_path, schema_config)
     aggregated = aggregate_ccest_counties_to_states(parsed, schema_config)
     renamed = rename_ccest_columns(aggregated, schema_config)
-    reshaped = reshape_ccest_to_long(renamed, schema_config)
+    reshaped = reshape_ccest_to_long(renamed, schema_config, logger)
 
     reshaped["Geographic Level"] = "US State"
     return reshaped[_CLEANING_OUTPUT_COLUMNS].reset_index(drop=True)

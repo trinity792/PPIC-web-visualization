@@ -1,4 +1,16 @@
-from scripts.projections.config.schemas import get_schema_config
+from scripts.projections.config.schemas import (
+    _AGE_BIN_EDGES,
+    _CANONICAL_AGE_GROUPS,
+    _age_labels_from_edges,
+    get_schema_config,
+)
+
+
+def test_age_bin_edges_reconstruct_canonical_labels():
+    # B4: the bin edges and the canonical labels are the single source of truth
+    # and must reconstruct each other exactly, or the two age-label construction
+    # routes silently drift and break the completeness gate downstream.
+    assert _age_labels_from_edges(_AGE_BIN_EDGES) == _CANONICAL_AGE_GROUPS
 
 CCEST_RAW_COLUMNS = [
     "SUMLEV",
@@ -107,14 +119,17 @@ def test_get_schema_config_has_required_keys_and_output_contract():
         "sex_column",
         "race_column",
         "p3_raw_columns",
-        "p3_year_range",
+        "p3_year_sane_bounds",
+        "p3_max_year_span",
         "p3_age_range",
         "fips_to_county_map",
         "p3_race7_code_map",
         "ccest_raw_columns",
         "census_race_code_map",
         "census_rename_map",
-        "census_year_code_map",
+        "census_year_base",
+        "census_base_year_code",
+        "census_year_sane_range",
         "census_age_group_code_map",
         "census_state_names",
         "completeness_group_columns",
@@ -192,8 +207,10 @@ def test_get_schema_config_defines_p3_semantic_ranges():
     # Act
     config = get_schema_config()
 
-    # Assert
-    assert tuple(config["p3_year_range"]) == (2020, 2070)
+    # Assert: the horizon is bounded by soft sanity limits + a max span rather
+    # than a hard-coded 2020-2070 window, so a shifted vintage still ingests (A3).
+    assert tuple(config["p3_year_sane_bounds"]) == (2015, 2100)
+    assert config["p3_max_year_span"] == 60
     assert tuple(config["p3_age_range"]) == (0, 110)
 
 
@@ -216,14 +233,16 @@ def test_get_schema_config_defines_ccest_raw_schema_and_code_maps():
 
     # Assert
     assert config["ccest_raw_columns"] == CCEST_RAW_COLUMNS
-    assert config["census_year_code_map"] == {
-        2: 2020,
-        3: 2021,
-        4: 2022,
-        5: 2023,
-        6: 2024,
-        7: 2025,
-    }
+    # The YEAR code decodes arithmetically (calendar = base + code) rather than
+    # from a capped table, so a new vintage ingests automatically (A2). Codes 2-7
+    # still decode to 2020-2025; code 8 decodes to 2026.
+    assert config["census_year_base"] == 2018
+    assert config["census_base_year_code"] == 1
+    assert config["census_year_base"] + 2 == 2020
+    assert config["census_year_base"] + 8 == 2026
+    sane_min, sane_max = config["census_year_sane_range"]
+    assert sane_min == 2020
+    assert sane_max >= 2026
     assert config["census_age_group_code_map"] == {
         code: label
         for code, label in enumerate(config["canonical_age_groups"], start=1)

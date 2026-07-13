@@ -15,6 +15,8 @@ Test Folders:
     - scripts/unit_tests/projections/config/
 """
 
+from datetime import datetime
+
 """
 ========================================================================================================================
 Reference Constants
@@ -91,6 +93,35 @@ _CANONICAL_AGE_GROUPS = [
 # collapse into the open-ended "85+" bin.
 _AGE_BIN_EDGES = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85]
 
+
+def _age_labels_from_edges(bin_edges):
+    """Reconstruct 5-year group labels from bin edges; the final edge is open-ended ("85+")."""
+    labels = []
+    for index, edge in enumerate(bin_edges):
+        if index == len(bin_edges) - 1:
+            labels.append(f"{edge}+")
+        else:
+            labels.append(f"{edge}-{bin_edges[index + 1] - 1}")
+    return labels
+
+
+# Parity guard (B4): the canonical age-group labels are the single source of
+# truth, and the bin edges must reconstruct exactly those labels. Any future edit
+# that breaks parity between the two age-label construction routes fails at import
+# (and in CI) rather than silently mismatching the completeness gate downstream.
+assert _age_labels_from_edges(_AGE_BIN_EDGES) == _CANONICAL_AGE_GROUPS, (
+    "Age-group bin edges and canonical labels have drifted apart: "
+    f"{_age_labels_from_edges(_AGE_BIN_EDGES)} != {_CANONICAL_AGE_GROUPS}"
+)
+
+# Soft sanity window for P-3 projection years. Rather than pin the horizon to a
+# single vintage (the legacy hard-coded 2020-2070), the cleaner accepts any range
+# inside these bounds and spanning no more than _P3_MAX_YEAR_SPAN years, so a new
+# P-3 vintage with a shifted horizon (e.g. Baseline 2028 -> 2025-2075) ingests
+# automatically while a garbage year (9999) still fails (A3).
+_P3_YEAR_SANE_BOUNDS = (2015, 2100)
+_P3_MAX_YEAR_SPAN = 60
+
 # Base race/ethnicity strata (excludes the "All" aggregate).
 _CANONICAL_RACE_GROUPS = ["White", "Black", "Asian", "NHPI", "AIAN", "Multiracial", "Hispanic"]
 
@@ -119,9 +150,16 @@ _CENSUS_RACE_CODE_MAP = {
     "H": "Hispanic",
 }
 
-# Census cc-est YEAR codes 2-7 map to calendar years 2020-2025 (YEAR=1 is the
-# April 2020 estimates base and is excluded).
-_CENSUS_YEAR_CODE_MAP = {code: 2018 + code for code in range(2, 8)}
+# Census cc-est YEAR codes decode by a stable arithmetic law: calendar year =
+# base + code (code 2 -> 2020, code 3 -> 2021, ...). YEAR=1 is the April-2020
+# estimates base and is excluded. The decode is derived rather than tabulated so
+# a new vintage (e.g. code 8 -> 2026) ingests automatically instead of raising;
+# see get_schema_config's census_year_* keys and the A2 resolution.
+_CENSUS_YEAR_BASE = 2018
+
+# The YEAR code that denotes the April-2020 estimates base (a semantic exclusion,
+# not a decode gap).
+_CENSUS_BASE_YEAR_CODE = 1
 
 _OUTPUT_COLUMNS = [
     "Geographic Level",
@@ -189,10 +227,15 @@ def get_schema_config():
         ],
         "expected_levels": ["County", "Region", "State", "US State"],
         "population_column": "Population",
-        "year_range": (2020, 2070),
+        # Default to the wide soft sanity window; the orchestrator narrows this to
+        # the range actually observed across the two sources so the final gate
+        # tracks the ingested vintage instead of a frozen horizon (A3).
+        "year_range": _P3_YEAR_SANE_BOUNDS,
         "min_rows": 1,
         "max_rows": None,
     }
+
+    current_year = datetime.now().year
 
     return {
         "output_columns": list(_OUTPUT_COLUMNS),
@@ -206,7 +249,11 @@ def get_schema_config():
         "sex_column": "Sex",
         "race_column": "Race/Ethnicity",
         "p3_raw_columns": list(P3_RAW_COLUMNS),
-        "p3_year_range": (2020, 2070),
+        # Soft sanity bounds + max span for the observed P-3 horizon (A3). The
+        # cleaner validates the actually-observed (min, max) years fall inside
+        # these bounds instead of asserting a fixed 2020-2070 window.
+        "p3_year_sane_bounds": _P3_YEAR_SANE_BOUNDS,
+        "p3_max_year_span": _P3_MAX_YEAR_SPAN,
         "p3_age_range": (0, 110),
         "fips_to_county_map": _build_fips_to_county_map(),
         "p3_race7_code_map": dict(_P3_RACE7_CODE_MAP),
@@ -219,7 +266,13 @@ def get_schema_config():
             "YEAR": "Year",
             "AGEGRP": "Age Group",
         },
-        "census_year_code_map": dict(_CENSUS_YEAR_CODE_MAP),
+        # Census YEAR is decoded arithmetically (calendar = base + code) with a
+        # sane-range guard, so any future vintage ingests without a code-map edit
+        # (A2 derive-and-accept). Codes whose decoded year falls outside the sane
+        # range are quarantined by the cleaner (B2), not fatal.
+        "census_year_base": _CENSUS_YEAR_BASE,
+        "census_base_year_code": _CENSUS_BASE_YEAR_CODE,
+        "census_year_sane_range": (2020, current_year + 1),
         "census_age_group_code_map": {
             code: label for code, label in enumerate(_CANONICAL_AGE_GROUPS, start=1)
         },

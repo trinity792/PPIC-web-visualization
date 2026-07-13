@@ -36,7 +36,11 @@ def get_paths():
     return {
         "project_root": Path(project_paths["project_root"]),
         "current_data_path": current_data_path,
-        "historical_data_path": current_data_path,
+        # Immutable deep-history seed, distinct from the live output and read-only
+        # to the pipeline, so pre-existing years stop being re-derived solely from
+        # the last run's own output each cycle (A5). Absent on a fresh checkout;
+        # the pipeline then cold-starts on live data + current output alone (B5).
+        "historical_data_path": cleaned_directory / "DemographicProjections_Historical.csv",
         "download_directory": raw_directory,
         "archive_directory": archive_directory,
         "logs_directory": Path(project_paths["logs_directory"]),

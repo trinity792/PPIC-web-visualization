@@ -131,14 +131,9 @@ def _schema_config(state_names=("California",)):
             "NHTOM": "Multiracial",
             "H": "Hispanic",
         },
-        "census_year_code_map": {
-            2: 2020,
-            3: 2021,
-            4: 2022,
-            5: 2023,
-            6: 2024,
-            7: 2025,
-        },
+        "census_year_base": 2018,
+        "census_base_year_code": 1,
+        "census_year_sane_range": (2020, 2027),
         "census_age_group_code_map": {
             code: label
             for code, label in enumerate(CANONICAL_AGE_GROUPS, start=1)
@@ -412,20 +407,28 @@ def test_clean_census_estimates_produces_canonical_rows(tmp_path):
     assert result["Population"].sum() == 22
 
 
-def test_reshape_ccest_to_long_reports_unmapped_race_code():
+def test_reshape_ccest_to_long_skips_unrecognized_race_prefix():
+    # Value-level drift (B2): an unrecognized race-column prefix is a new column
+    # we don't understand; skip it with a log rather than discard the whole file.
+    # The known race columns still form the complete matrix.
     # Arrange
     source = pd.DataFrame(
         {
             "Location": ["California"],
             "Year": [7],
             "Age Group": [1],
-            "UNKNOWN_MALE": [10],
+            "NHWA_MALE": [10],
+            "NHWA_FEMALE": [12],
+            "UNKNOWN_MALE": [99],
         }
     )
 
-    # Act / Assert
-    with pytest.raises(ValueError, match="UNKNOWN"):
-        reshape_ccest_to_long(source, _schema_config())
+    # Act
+    result = reshape_ccest_to_long(source, _schema_config())
+
+    # Assert: the unknown prefix contributes no rows; White stays intact.
+    assert set(result["Race/Ethnicity"]) == {"White"}
+    assert result["Population"].sum() == 22
 
 
 def test_parse_ccest_csv_accepts_header_only_file(tmp_path):
@@ -526,10 +529,32 @@ def test_clean_census_estimates_excludes_base_year_and_total_age_rows(
     assert result["Population"].sum() == 22
 
 
-def test_reshape_ccest_to_long_reports_unknown_year_code():
+def test_reshape_ccest_to_long_decodes_new_vintage_year_code():
+    # A2 derive-and-accept: a new vintage's YEAR code (8) decodes arithmetically
+    # to 2026 and ingests, instead of raising and freezing the national series.
     # Arrange
     source = pd.DataFrame([_renamed_row(year_code=8)])
 
-    # Act / Assert
-    with pytest.raises(ValueError, match=r"8|YEAR"):
-        reshape_ccest_to_long(source, _schema_config())
+    # Act
+    result = reshape_ccest_to_long(source, _schema_config())
+
+    # Assert
+    assert set(result["Year"]) == {2026}
+
+
+def test_reshape_ccest_to_long_drops_out_of_sane_range_year_code():
+    # B2 drop-and-log: a code decoding outside the sane window is quarantined,
+    # not fatal; here code 900 -> 2918 is dropped, leaving the valid rows.
+    # Arrange
+    source = pd.DataFrame(
+        [
+            _renamed_row(year_code=7),
+            _renamed_row(year_code=900),
+        ]
+    )
+
+    # Act
+    result = reshape_ccest_to_long(source, _schema_config())
+
+    # Assert
+    assert set(result["Year"]) == {2025}

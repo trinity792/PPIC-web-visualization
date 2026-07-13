@@ -23,7 +23,7 @@ Status: Updating
 ## To Dos Monday (7/13)
 - Module Issue Fixes & Audits
   - [x] Pop Housing
-  - [ ] Components of Change
+  - [x] Components of Change
   - [ ] Age, Race, Sex Projections
   - [ ] ACS Housing Stress
   - [ ] Building Permits

@@ -41,9 +41,13 @@ def validate_cleaning_output(df, schema_config):
     if missing:
         messages.append(f"Missing required columns: {missing}")
 
-    null_counts = validate_null_counts(df, config.get("key_columns", []))
+    # cleaning_validation_config defines "critical_columns" (not "key_columns");
+    # reading the wrong key made this a permanent no-op (A4). Fall back to the old
+    # name for compatibility, but prefer the one the config actually defines.
+    null_check_columns = config.get("critical_columns", config.get("key_columns", []))
+    null_counts = validate_null_counts(df, null_check_columns)
     if null_counts:
-        messages.append(f"Null values in key columns: {null_counts}")
+        messages.append(f"Null values in critical columns: {null_counts}")
 
     population_column = config["population_column"]
     if population_column in df.columns:

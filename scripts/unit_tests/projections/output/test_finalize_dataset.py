@@ -238,3 +238,45 @@ def test_archive_and_save_does_not_modify_dataframe(tmp_path):
 
     # Assert
     pd.testing.assert_frame_equal(source, original)
+
+
+def test_archive_and_save_leaves_no_temp_file(tmp_path):
+    # B1: the atomic write stages to a sibling .tmp then os.replace()s it; no
+    # temp file may remain after a successful write.
+    # Arrange
+    current_path = tmp_path / "DemographicProjections_Current.csv"
+    source = pd.DataFrame([_output_row("Alameda", 2025)])
+
+    # Act
+    archive_and_save(source, current_path, tmp_path / "archive")
+
+    # Assert
+    assert list(tmp_path.glob("*.tmp")) == []
+
+
+def test_archive_and_save_keeps_original_intact_on_write_failure(tmp_path, monkeypatch):
+    # B1: a crash mid-write must not corrupt the contract file (which doubles as
+    # the next run's history). The prior good copy stays intact and no temp
+    # fragment is left behind.
+    # Arrange
+    import scripts.projections.output.finalize_dataset as finalize
+
+    current_path = tmp_path / "DemographicProjections_Current.csv"
+    archive_directory = tmp_path / "archive"
+    old = pd.DataFrame([_output_row("Alameda", 2024)])
+    new = pd.DataFrame([_output_row("Alameda", 2025)])
+    old.to_csv(current_path, index=False)
+    original_bytes = current_path.read_bytes()
+
+    def _boom(src, dst):
+        raise OSError("simulated crash during replace")
+
+    monkeypatch.setattr(finalize.os, "replace", _boom)
+
+    # Act / Assert
+    with pytest.raises(OSError, match="simulated crash"):
+        archive_and_save(new, current_path, archive_directory)
+
+    # The original file is untouched and no .tmp fragment survives.
+    assert current_path.read_bytes() == original_bytes
+    assert list(tmp_path.glob("*.tmp")) == []

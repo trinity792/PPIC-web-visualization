@@ -40,12 +40,29 @@ def test_map_fips_to_county_maps_codes_and_renames_column():
     assert source.columns.tolist() == ["fips", "year"]
 
 
-def test_map_fips_to_county_reports_every_unmapped_code():
+def test_map_fips_to_county_drops_unmapped_non_county_rows():
+    # Value-level drift (A7/B2): unknown FIPS codes (e.g. a state-summary row a
+    # future P-3 vintage might add) are dropped, not fatal, as long as every
+    # expected county still remains.
     # Arrange
     source = pd.DataFrame({"fips": [6001, 9997, 9999]})
 
+    # Act
+    result = map_fips_to_county(source, "fips", {6001: "Alameda"})
+
+    # Assert
+    assert result["Location"].tolist() == ["Alameda"]
+    assert "fips" not in result.columns
+
+
+def test_map_fips_to_county_fails_when_expected_county_missing():
+    # Structural breach (B2 fail-closed): if a genuine county FIPS is lost, the
+    # cleaner must fail loudly rather than silently ship a short frame.
+    # Arrange
+    source = pd.DataFrame({"fips": [9999]})
+
     # Act / Assert
-    with pytest.raises(ValueError, match=r"9997.*9999|9999.*9997"):
+    with pytest.raises(ValueError, match="6001"):
         map_fips_to_county(source, "fips", {6001: "Alameda"})
 
 
@@ -198,7 +215,8 @@ Entry Point
 def _schema_config():
     return {
         "p3_raw_columns": ["fips", "year", "sex", "race7", "agerc", "perwt"],
-        "p3_year_range": (2020, 2070),
+        "p3_year_sane_bounds": (2015, 2100),
+        "p3_max_year_span": 60,
         "p3_age_range": (0, 110),
         "fips_to_county_map": {6001: "Alameda"},
         "p3_race7_code_map": {
@@ -283,6 +301,30 @@ def test_clean_p3_projections_produces_expected_rows(tmp_path):
     assert set(result["Location"]) == {"Alameda"}
     assert set(result["Sex"]) == {"Female"}
     assert set(result["Race/Ethnicity"]) == {"Asian"}
+
+
+def test_clean_p3_projections_accepts_shifted_vintage_horizon(tmp_path):
+    # A3: a future vintage with a shifted horizon (e.g. 2025-2075) ingests
+    # because the cleaner validates the observed range against soft sanity bounds
+    # + a max span, not a hard-coded 2020-2070 window.
+    # Arrange
+    csv_path = tmp_path / "P-3_fixture.csv"
+    pd.DataFrame(
+        {
+            "fips": [6001, 6001],
+            "year": [2025, 2075],
+            "sex": ["FEMALE", "FEMALE"],
+            "race7": [4, 4],
+            "agerc": [0, 0],
+            "perwt": [10, 20],
+        }
+    ).to_csv(csv_path, index=False)
+
+    # Act
+    result = clean_p3_projections(csv_path, _schema_config())
+
+    # Assert
+    assert set(result["Year"]) == {2025, 2075}
 
 
 def test_clean_p3_projections_accepts_and_drops_unrelated_extra_columns(tmp_path):
@@ -482,7 +524,9 @@ def test_bin_single_year_ages_preserves_integer_population_dtype():
     assert pd.api.types.is_integer_dtype(result["perwt"])
 
 
-def test_clean_p3_projections_rejects_unmapped_fips(tmp_path):
+def test_clean_p3_projections_drops_non_county_fips_but_fails_on_missing_county(tmp_path):
+    # A file of only non-county FIPS drops those rows and then fails the
+    # structural "all expected counties present" guard (A7/B2 fail-closed).
     # Arrange
     csv_path = tmp_path / "P-3_fixture.csv"
     pd.DataFrame(
@@ -497,7 +541,7 @@ def test_clean_p3_projections_rejects_unmapped_fips(tmp_path):
     ).to_csv(csv_path, index=False)
 
     # Act / Assert
-    with pytest.raises(ValueError, match="9999"):
+    with pytest.raises(ValueError, match="6001"):
         clean_p3_projections(csv_path, _schema_config())
 
 
@@ -541,7 +585,7 @@ def test_clean_p3_projections_reports_missing_required_column(tmp_path):
 @pytest.mark.parametrize(
     ("column", "invalid_value", "message"),
     [
-        ("year", 2019, "year"),
+        ("year", 9999, "year|sane|bounds|range"),
         ("agerc", 111, "agerc|age"),
         ("perwt", -1, "perwt|population"),
         ("perwt", 1.5, "perwt|population|integer"),

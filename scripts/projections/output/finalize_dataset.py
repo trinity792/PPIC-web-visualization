@@ -17,6 +17,7 @@ Test Folders:
 """
 
 import hashlib
+import os
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -103,7 +104,17 @@ def archive_and_save(df, current_path, archive_directory):
         shutil.copy2(current_path, archive_path)
 
     current_path.parent.mkdir(parents=True, exist_ok=True)
-    current_path.write_bytes(new_bytes)
+    # Write atomically (B1): stage to a sibling temp file, then os.replace() it
+    # into place. os.replace is atomic on the same filesystem, so a crash
+    # mid-write can never leave a truncated contract file — which also doubles as
+    # the next run's history. Ordering: archive old -> write tmp -> atomic replace.
+    tmp_path = current_path.with_suffix(current_path.suffix + ".tmp")
+    try:
+        tmp_path.write_bytes(new_bytes)
+        os.replace(tmp_path, current_path)
+    finally:
+        if tmp_path.exists():
+            tmp_path.unlink()
     return current_path
 
 

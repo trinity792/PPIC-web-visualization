@@ -39,6 +39,7 @@ def _frame(source="DoF P-3", population=100):
 def _configure_success(monkeypatch, tmp_path, changes=(True, True)):
     paths = {
         "current_data_path": tmp_path / "current.csv",
+        "historical_data_path": tmp_path / "historical.csv",
         "archive_directory": tmp_path / "archive",
         "manual_dof_path": tmp_path / "manual-dof.csv",
         "manual_census_path": tmp_path / "manual-census.csv",
@@ -192,6 +193,25 @@ def test_load_saved_source_filters_source_and_preserves_geographic_level(
     assert set(result["Geographic Level"]) == {"County"}
 
 
+def _cleaning_schema():
+    """Minimal schema satisfying the post-clean validator now wired into the fallback (A4)."""
+    return {
+        "cleaning_validation_config": {
+            "required_columns": [
+                "Geographic Level", "Location", "Year", "Age Group", "Sex", "Race/Ethnicity", "Population",
+            ],
+            "critical_columns": [
+                "Geographic Level", "Location", "Year", "Age Group", "Sex", "Race/Ethnicity",
+            ],
+            "population_column": "Population",
+        },
+        "race_column": "Race/Ethnicity",
+        "age_group_column": "Age Group",
+        "canonical_race_groups": ["White", "Black", "Asian", "NHPI", "AIAN", "Multiracial", "Hispanic"],
+        "canonical_age_groups": ["0-4", "5-9", "85+"],
+    }
+
+
 def test_clean_with_fallback_returns_cleaned_live_data(tmp_path):
     # Arrange
     cleaned = _frame().drop(columns=["Source"])
@@ -201,7 +221,7 @@ def test_clean_with_fallback_returns_cleaned_live_data(tmp_path):
     result, cleaning_failed, used_manual = pipeline._clean_with_fallback(
         pd.DataFrame({"raw": [1]}),
         cleaner,
-        {},
+        _cleaning_schema(),
         "DoF P-3",
         {"current_data_path": tmp_path / "current.csv"},
         False,
@@ -253,7 +273,7 @@ def test_clean_with_fallback_uses_manual_file_after_live_cleaning_failure(
     result, cleaning_failed, used_manual = pipeline._clean_with_fallback(
         pd.DataFrame({"raw": ["live"]}),
         cleaner,
-        {},
+        _cleaning_schema(),
         "DoF P-3",
         {"current_data_path": tmp_path / "current.csv"},
         False,
@@ -433,7 +453,7 @@ def test_reduce_to_base_strata_drops_marginal_and_derived_rows():
     )
 
     # Act
-    result = pipeline._reduce_to_base_strata(enriched, _base_strata_schema())
+    result = pipeline.reduce_to_base_strata(enriched, _base_strata_schema())
 
     # Assert — only the two base rows survive.
     assert len(result) == 2
@@ -443,5 +463,5 @@ def test_reduce_to_base_strata_drops_marginal_and_derived_rows():
 
 def test_reduce_to_base_strata_passes_through_empty_frame():
     empty = pd.DataFrame(columns=CONTRACT_COLUMNS)
-    result = pipeline._reduce_to_base_strata(empty, _base_strata_schema())
+    result = pipeline.reduce_to_base_strata(empty, _base_strata_schema())
     assert result.empty

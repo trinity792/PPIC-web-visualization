@@ -25,6 +25,7 @@ from collections import Counter
 import pandas as pd
 
 from scripts.projections.cleaning.race_ethnicity_mapping import map_race_ethnicity
+from scripts.shared.logging.pipeline_logging import log_message
 
 _CLEANING_OUTPUT_COLUMNS = [
     "Geographic Level",
@@ -43,18 +44,31 @@ Column Mapping
 """
 
 
-def map_fips_to_county(df, fips_column, fips_to_county_map):
-    """Replace numeric FIPS codes with county names and rename the column to Location. Test file: scripts/unit_tests/projections/cleaning/test_dof_p3_cleaner.py"""
-    codes = pd.to_numeric(df[fips_column], errors="coerce").astype("Int64")
-    unmapped = sorted(
-        {int(code) for code in codes.dropna().unique() if int(code) not in fips_to_county_map}
-    )
-    if unmapped:
-        raise ValueError(f"Unmapped FIPS code(s): {unmapped}")
+def map_fips_to_county(df, fips_column, fips_to_county_map, logger=None):
+    """Replace numeric FIPS codes with county names and rename the column to Location. Test file: scripts/unit_tests/projections/cleaning/test_dof_p3_cleaner.py
 
+    Value-level drift is tolerated (B2/A7): a FIPS code the map doesn't know
+    (a state-summary or non-county row a future P-3 vintage might add) is dropped
+    with a logged note rather than discarding the whole file. The structural
+    invariant is enforced instead — every expected county FIPS must remain after
+    the drop, or a genuine loss of counties fails loudly.
+    """
     result = df.copy()
-    result["Location"] = [fips_to_county_map[int(code)] for code in codes]
-    return result.drop(columns=[fips_column])
+    result[fips_column] = pd.to_numeric(result[fips_column], errors="coerce").astype("Int64")
+
+    extra = sorted(
+        {int(code) for code in result[fips_column].dropna().unique() if int(code) not in fips_to_county_map}
+    )
+    if extra:
+        log_message(logger, "Dropped P-3 rows with non-county FIPS code(s)", codes=extra)
+        result = result[result[fips_column].isin(fips_to_county_map)]
+
+    missing_counties = sorted(code for code in fips_to_county_map if code not in set(result[fips_column].dropna()))
+    if missing_counties:
+        raise ValueError(f"P-3 data is missing required county FIPS code(s): {missing_counties}")
+
+    result["Location"] = [fips_to_county_map[int(code)] for code in result[fips_column]]
+    return result.drop(columns=[fips_column]).reset_index(drop=True)
 
 
 def standardize_sex_labels(df, sex_column, label_map):
@@ -81,9 +95,16 @@ Age Binning
 """
 
 
-def bin_single_year_ages(df, age_column, population_column, bin_edges, groupby_columns):
-    """Bin single-year ages (0-110) into 5-year groups and sum population within each bin. Test file: scripts/unit_tests/projections/cleaning/test_dof_p3_cleaner.py"""
-    labels = _labels_from_bin_edges(bin_edges)
+def bin_single_year_ages(df, age_column, population_column, bin_edges, groupby_columns, labels=None):
+    """Bin single-year ages (0-110) into 5-year groups and sum population within each bin. Test file: scripts/unit_tests/projections/cleaning/test_dof_p3_cleaner.py
+
+    `labels` is the canonical age-group label list (the single source of truth,
+    B4). When omitted it is reconstructed from the edges, but the hot path passes
+    the canonical labels directly so the P-3 output can never drift from the
+    canonical set the completeness gate checks against.
+    """
+    if labels is None:
+        labels = _labels_from_bin_edges(bin_edges)
     bins = [*bin_edges, float("inf")]
 
     result = df.copy()
@@ -120,7 +141,7 @@ Entry Point
 """
 
 
-def clean_p3_projections(csv_path, schema_config):
+def clean_p3_projections(csv_path, schema_config, logger=None):
     """Full P-3 cleaner entry point: validate mandatory columns, map FIPS/race/sex, bin ages, and validate the result. Test file: scripts/unit_tests/projections/cleaning/test_dof_p3_cleaner.py"""
     raw_columns = schema_config["p3_raw_columns"]
     _validate_p3_header(csv_path, raw_columns)
@@ -130,7 +151,7 @@ def clean_p3_projections(csv_path, schema_config):
     df = pd.read_csv(csv_path, usecols=raw_columns)
     _validate_p3_values(df, schema_config)
 
-    df = map_fips_to_county(df, "fips", schema_config["fips_to_county_map"])
+    df = map_fips_to_county(df, "fips", schema_config["fips_to_county_map"], logger)
     df = map_race_ethnicity(df, "race7", schema_config["p3_race7_code_map"])
     df = standardize_sex_labels(df, "sex", schema_config["sex_label_map"])
     df = df.rename(columns={"year": "Year"})
@@ -142,6 +163,7 @@ def clean_p3_projections(csv_path, schema_config):
         "perwt",
         schema_config["age_bin_edges"],
         ["Location", "Year", "Sex", "Race/Ethnicity"],
+        labels=schema_config["canonical_age_groups"],
     )
     binned = binned.rename(columns={"perwt": "Population"})
     binned["Geographic Level"] = "County"
@@ -173,10 +195,21 @@ def _validate_p3_values(df, schema_config):
     if null_columns:
         raise ValueError(f"P-3 mandatory column(s) contain null/missing values: {null_columns}")
 
-    year_min, year_max = schema_config["p3_year_range"]
+    # Validate the *observed* horizon against soft sanity bounds rather than a
+    # hard-coded 2020-2070 window, so a new P-3 vintage with a shifted horizon
+    # ingests automatically while a garbage year still fails (A3).
+    bound_min, bound_max = schema_config["p3_year_sane_bounds"]
+    max_span = schema_config["p3_max_year_span"]
     years = pd.to_numeric(df["year"], errors="coerce")
-    if ((years < year_min) | (years > year_max)).any():
-        raise ValueError(f"P-3 year values must be within {year_min}-{year_max}")
+    observed_min, observed_max = int(years.min()), int(years.max())
+    if observed_min < bound_min or observed_max > bound_max:
+        raise ValueError(
+            f"P-3 observed year range {observed_min}-{observed_max} is outside the sane bounds {bound_min}-{bound_max}"
+        )
+    if observed_max - observed_min > max_span:
+        raise ValueError(
+            f"P-3 observed year span {observed_max - observed_min} exceeds the maximum allowed span {max_span}"
+        )
 
     age_min, age_max = schema_config["p3_age_range"]
     ages = pd.to_numeric(df["agerc"], errors="coerce")

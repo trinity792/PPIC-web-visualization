@@ -31,7 +31,9 @@ CONTRACT_COLUMNS = [
 def _schema_config():
     cleaning_validation = {
         "required_columns": CLEANING_COLUMNS,
-        "key_columns": [
+        # Production defines "critical_columns" (not "key_columns"); the validator
+        # now reads that key so the null check actually runs (A4).
+        "critical_columns": [
             "Geographic Level",
             "Location",
             "Year",
@@ -79,6 +81,21 @@ def _cleaning_frame():
         ],
         columns=CLEANING_COLUMNS,
     )
+
+
+def test_validate_cleaning_output_flags_null_in_critical_column():
+    # A4: previously the null check read a missing "key_columns" key and was a
+    # permanent no-op. It now reads "critical_columns" and must flag the null.
+    # Arrange
+    frame = _cleaning_frame()
+    frame.loc[0, "Location"] = None
+
+    # Act
+    is_valid, messages = validate_cleaning_output(frame, _schema_config())
+
+    # Assert
+    assert is_valid is False
+    assert any("critical" in message.lower() or "Location" in message for message in messages)
 
 
 def _final_validation_config(**overrides):
