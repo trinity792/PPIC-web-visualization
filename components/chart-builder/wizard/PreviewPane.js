@@ -98,6 +98,7 @@ function ChartSlot({ preview, layout, multi, onGraphDiv }) {
               <AlertTitle>This chart doesn’t fit your data</AlertTitle>
               <AlertDescription>
                 <p>{notice.message}</p>
+                {notice.suggestion ? <p>{notice.suggestion}</p> : null}
               </AlertDescription>
             </Alert>
           ) : (

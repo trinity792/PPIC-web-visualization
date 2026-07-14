@@ -8,32 +8,24 @@ Last Updated: 07/10/2026 - 3:21 PM
 Status: Updating
 ---
 # To Do Notes
-## To Dos Today (7/10)
-- Graph Editor Clean Ups
-  - [x] View original data checks & fixes
-  - [x] Add a Forest Plot variant of the Range plot base
-  - [x] Implement ability for Multi charts side by side (or grid layout)
-    - User should be able to click an "add a chart" button where the user can add another chart in a 2x1, 1x2, or 2x2 grid using the data they've already implemented. Only one chart can be edited at a time. User should click a toggle to determine which chart/graph they are editing and the editor sidebar should update. 
-  - [x] Undo/redo buttons
-  - [x] Review the UI Kit page on the website and Add all official styling to visualization tool (color groups, typography, Key / legend structure, etc.). Note: only modifying the charts/graphs not the rest of the website UI. User should be able to choose coloring, styles, font sizes, etc.
-  - [x] Module/Visualization Tool: Chart Type section gap between Base Chart Name and box for the chart needs to be increased.
-  - [x] "Date Range" not needed for datasets w/o dates.
-  - [x] Implement chart embeds
-  - [x] Commit changes
-## To Dos Monday (7/13)
-- Module Issue Fixes & Audits
-  - [x] Pop Housing
-  - [x] Components of Change
-  - [x] Age, Race, Sex Projections
-  - [x] ACS Housing Stress
-  - [ ] Building Permits
-- [x] Add footnote rendering to docs viewer front end.
-## To Dos Tuesday (7/14)
-- [ ] Plan Automations
-- [ ] Set up automations
+## To Dos Thursday (7/16)
+- [ ] Implement RHNA Module
+- [ ] Implement Zillow Module
 ## To Dos Wednesday (7/15)
 - [ ] Presentation slides draft start
+- Module Information:
 - [ ] Plan RHNA Progress Report Module
+- [ ] Plan Zillow Data Module
+- [ ] Plan Parcel Data Module
+- Viz Tool:
+  - [ ] Fix modules csv so that year column is rendered without commas
+  - [ ] Sidebar length incorrect on pophousing module
+  - [ ] Add top/bottom N lines to show
+## To Dos Tuesday (7/14)
+- [x] Plan Automations
+- [x] Project Meeting
+
+---
 
 ## Structured ToDos
 - [x] Improve graph editor UI/UX
@@ -58,10 +50,14 @@ Status: Updating
 - [x] Write `processes.md`
 - [ ] Setup automatic data updates for existing modules
 - [ ] Add RHNA Progress Report Module. [Link](https://data.ca.gov/dataset/rhna-progress-report)
+- [ ] Parcel / Terner
+- [ ] Zillow Data
 
 ---
 ## Unstructured ToDos
 Note: not in order
+
+
 ### Backend
 - [ ] Manually verify all modules -> based on flags on each refractor guide
 - [ ] Add live tests
@@ -111,3 +107,29 @@ Note: not in order
 - [ ] Climate/Water stats
 - [ ] Document edit mode that allows pushing to git
 - [ ] Map geojson library
+
+---
+
+Archived ToDos
+## To Dos Today (7/10)
+- Graph Editor Clean Ups
+  - [x] View original data checks & fixes
+  - [x] Add a Forest Plot variant of the Range plot base
+  - [x] Implement ability for Multi charts side by side (or grid layout)
+    - User should be able to click an "add a chart" button where the user can add another chart in a 2x1, 1x2, or 2x2 grid using the data they've already implemented. Only one chart can be edited at a time. User should click a toggle to determine which chart/graph they are editing and the editor sidebar should update. 
+  - [x] Undo/redo buttons
+  - [x] Review the UI Kit page on the website and Add all official styling to visualization tool (color groups, typography, Key / legend structure, etc.). Note: only modifying the charts/graphs not the rest of the website UI. User should be able to choose coloring, styles, font sizes, etc.
+  - [x] Module/Visualization Tool: Chart Type section gap between Base Chart Name and box for the chart needs to be increased.
+  - [x] "Date Range" not needed for datasets w/o dates.
+  - [x] Implement chart embeds
+  - [x] Commit changes
+## To Dos Monday (7/13)
+- Module Issue Fixes & Audits
+  - [x] Pop Housing
+  - [x] Components of Change
+  - [x] Age, Race, Sex Projections
+  - [x] ACS Housing Stress
+- [x] Add footnote rendering to docs viewer front end.
+## To Dos Tuesday (7/14)
+- [x] Plan Automations
+- [x] Project Meeting
