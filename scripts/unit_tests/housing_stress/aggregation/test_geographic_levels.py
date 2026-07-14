@@ -1,6 +1,7 @@
 from unittest.mock import Mock
 
 import pandas as pd
+
 from scripts.housing_stress.aggregation import geographic_levels
 from scripts.housing_stress.aggregation.geographic_levels import (
     build_all_levels,
@@ -8,7 +9,6 @@ from scripts.housing_stress.aggregation.geographic_levels import (
     build_region_rows,
     build_state_rows,
 )
-
 from scripts.shared.geography.california_geography import (
     get_california_geography,
 )
@@ -104,6 +104,17 @@ def _schema_config():
         "tenure_formulas": TENURE_FORMULAS,
         "race_iteration_map": race_iteration_map,
         "race_reconciliation_map": reconciliation,
+        "region_id_to_name": {
+            1: "Far North",
+            2: "Bay Area",
+            3: "San Diego (Regional)",
+            4: "Inland Empire",
+            5: "Sacramento (Regional)",
+            6: "North San Joaquin Valley",
+            7: "South San Joaquin Valley",
+            8: "Central Coast",
+            9: "Los Angeles (Regional)",
+        },
         "state_abbreviations": STATE_ABBREVIATIONS,
         "excluded_state_areas": {"DC", "PR"},
     }

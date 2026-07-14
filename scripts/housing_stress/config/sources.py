@@ -18,6 +18,7 @@ Test Folders:
 """
 
 from lib.config import get_default_http_settings
+from scripts.housing_stress.config.table_iterations import BASE_TABLE_ID, table_iterations
 
 """
 ========================================================================================================================
@@ -26,21 +27,11 @@ Reference Constants
 """
 
 # The 9 B25140 table iterations consumed by the pipeline, mapped to the raw race
-# labels the legacy module used. Order is preserved (base table first). Iteration
-# "a" ("White alone", which includes Hispanic White) is deliberately omitted in
-# favor of "h" ("White alone, not Hispanic") so White and Hispanic do not
-# double-count. Raw labels are reconciled to canonical values during cleaning.
-_TABLE_ITERATIONS = {
-    "b25140": "All",
-    "b25140b": "Black",
-    "b25140c": "American Indian/Alaskan Native",
-    "b25140d": "Asian",
-    "b25140e": "Native Hawaiian/Pacific Islander",
-    "b25140f": "Other",
-    "b25140g": "Multiracial",
-    "b25140h": "White",
-    "b25140i": "Hispanic",
-}
+# labels the legacy module used, sourced from the single owner in
+# table_iterations.py so sources.py and schemas.py can never drift apart. Order is
+# preserved (base table first); raw labels are reconciled to canonical values
+# during cleaning.
+_TABLE_ITERATIONS = table_iterations()
 
 # Geography lookup columns joined to the estimate data on GEO_ID.
 _EXPECTED_GEO_COLUMNS = ["GEO_ID", "NAME", "STUSAB"]
@@ -76,8 +67,14 @@ def get_source_settings():
         # ACS 1-year estimates begin in 2012; 2020 has no standard 1-year release.
         "earliest_year": 2012,
         "excluded_years": {2020},
-        # Probe backward from the current calendar year to find the newest vintage.
-        "max_year_lookback": 3,
+        # Probe backward until the newest vintage resolves or the earliest year is
+        # reached; excluded years do not consume a probe. The bound guards against
+        # a wholesale outage rather than a merely-late release.
+        "max_year_lookback": 6,
+        # Retries on the base-table probe before a transient network fault is
+        # treated as "not published" (so a blip does not resolve an older vintage).
+        "probe_retry_attempts": 3,
+        "base_table_id": BASE_TABLE_ID,
         "table_iterations": dict(_TABLE_ITERATIONS),
         "expected_geo_columns": list(_EXPECTED_GEO_COLUMNS),
         "expected_estimate_columns": list(_EXPECTED_ESTIMATE_COLUMNS),

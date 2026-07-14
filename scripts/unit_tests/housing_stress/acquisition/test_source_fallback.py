@@ -2,6 +2,7 @@ from unittest.mock import Mock
 
 import pandas as pd
 import pytest
+
 from scripts.housing_stress.acquisition import source_fallback
 from scripts.housing_stress.acquisition.acs_sf_downloader import (
     ACSTableUnavailableError,
@@ -122,6 +123,34 @@ def test_resolve_latest_vintage_does_not_mask_parse_error(monkeypatch):
     mock_get_table.assert_called_once()
 
 
+def test_resolve_latest_vintage_retries_transient_fault_before_advancing(monkeypatch):
+    # A transient blip on a genuinely-published newest vintage must recover on retry
+    # rather than silently resolving the prior year.
+    from scripts.shared.downloads.http_downloads import HTTPDownloadError
+
+    mock_get_table = Mock(
+        side_effect=[
+            HTTPDownloadError("timed out"),
+            pd.DataFrame(),  # recovers on the second attempt for the same year
+        ]
+    )
+    monkeypatch.setattr(source_fallback, "datetime", FrozenDateTime)
+    monkeypatch.setattr(source_fallback, "get_acs_table", mock_get_table)
+
+    result = source_fallback.resolve_latest_vintage(
+        "CA",
+        _settings(),
+        {"User-Agent": "test"},
+        30,
+        5,
+        frozenset(),
+        probe_retry_attempts=3,
+    )
+
+    assert result == 2024
+    assert [call.args[1] for call in mock_get_table.call_args_list] == [2024, 2024]
+
+
 def test_resolve_latest_vintage_raises_when_window_exhausted(monkeypatch):
     mock_get_table = Mock(side_effect=ACSTableUnavailableError("not published"))
 
@@ -135,86 +164,58 @@ def test_resolve_latest_vintage_raises_when_window_exhausted(monkeypatch):
     ]
 
 
-def test_acquire_with_fallback_prefers_live_payload(tmp_path):
+def test_acquire_with_fallback_prefers_live_payload():
     live_download = Mock(return_value=LIVE_PAYLOAD)
     saved_rows = Mock(return_value=SAVED_DF)
 
-    raw, source_failed, used_manual = source_fallback.acquire_with_fallback(
+    result = source_fallback.acquire_with_fallback(
         live_download,
-        tmp_path / "manual.csv",
+        Mock(side_effect=AssertionError("manual must not be read on live success")),
         saved_rows,
     )
 
-    assert raw is LIVE_PAYLOAD
-    assert (source_failed, used_manual) == (False, False)
+    assert result.kind == source_fallback.ITERATION_FRAMES
+    assert result.data is LIVE_PAYLOAD
+    assert (result.source_failed, result.used_manual) == (False, False)
     saved_rows.assert_not_called()
 
 
-def test_acquire_with_fallback_uses_manual_csv_after_live_failure(tmp_path):
-    manual_path = tmp_path / "manual.csv"
-    MANUAL_DF.to_csv(manual_path, index=False)
+def test_acquire_with_fallback_uses_manual_rows_after_live_failure():
     saved_rows = Mock(return_value=SAVED_DF)
 
-    raw, source_failed, used_manual = source_fallback.acquire_with_fallback(
+    result = source_fallback.acquire_with_fallback(
         Mock(side_effect=RuntimeError("network unavailable")),
-        manual_path,
+        Mock(return_value=MANUAL_DF),
         saved_rows,
     )
 
-    pd.testing.assert_frame_equal(raw, MANUAL_DF)
-    assert (source_failed, used_manual) == (False, True)
+    assert result.kind == source_fallback.CONTRACT_ROWS
+    pd.testing.assert_frame_equal(result.data, MANUAL_DF)
+    assert (result.source_failed, result.used_manual) == (False, True)
     saved_rows.assert_not_called()
 
 
-def test_acquire_with_fallback_uses_saved_rows_when_manual_missing(tmp_path):
+def test_acquire_with_fallback_uses_saved_rows_when_manual_absent():
     saved_rows = Mock(return_value=SAVED_DF)
 
-    raw, source_failed, used_manual = source_fallback.acquire_with_fallback(
+    result = source_fallback.acquire_with_fallback(
         Mock(side_effect=RuntimeError("network unavailable")),
-        tmp_path / "missing.csv",
+        Mock(return_value=None),
         saved_rows,
     )
 
-    pd.testing.assert_frame_equal(raw, SAVED_DF)
-    assert (source_failed, used_manual) == (True, False)
+    assert result.kind == source_fallback.CONTRACT_ROWS
+    pd.testing.assert_frame_equal(result.data, SAVED_DF)
+    assert (result.source_failed, result.used_manual) == (True, False)
     saved_rows.assert_called_once()
 
 
-def test_acquire_with_fallback_uses_saved_rows_when_manual_is_malformed(tmp_path):
-    manual_path = tmp_path / "manual.csv"
-    manual_path.write_text('Source\n"unterminated', encoding="utf-8")
-    saved_rows = Mock(return_value=SAVED_DF)
-
-    raw, source_failed, used_manual = source_fallback.acquire_with_fallback(
-        Mock(side_effect=RuntimeError("network unavailable")),
-        manual_path,
-        saved_rows,
-    )
-
-    pd.testing.assert_frame_equal(raw, SAVED_DF)
-    assert (source_failed, used_manual) == (True, False)
-
-
-def test_acquire_with_fallback_does_not_read_manual_after_live_success(tmp_path):
-    manual_path = tmp_path / "manual.csv"
-    MANUAL_DF.to_csv(manual_path, index=False)
-
-    raw, source_failed, used_manual = source_fallback.acquire_with_fallback(
-        Mock(return_value=LIVE_PAYLOAD),
-        manual_path,
-        Mock(side_effect=AssertionError("saved rows must not be loaded")),
-    )
-
-    assert raw is LIVE_PAYLOAD
-    assert (source_failed, used_manual) == (False, False)
-
-
-def test_acquire_with_fallback_propagates_saved_rows_failure(tmp_path):
+def test_acquire_with_fallback_propagates_saved_rows_failure():
     saved_rows = Mock(side_effect=RuntimeError("saved rows unavailable"))
 
     with pytest.raises(RuntimeError, match="saved rows unavailable"):
         source_fallback.acquire_with_fallback(
             Mock(side_effect=RuntimeError("network unavailable")),
-            tmp_path / "missing.csv",
+            Mock(return_value=None),
             saved_rows,
         )

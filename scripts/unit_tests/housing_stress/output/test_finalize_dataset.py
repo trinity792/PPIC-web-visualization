@@ -1,5 +1,6 @@
 import pandas as pd
 import pytest
+
 from scripts.housing_stress.output.finalize_dataset import (
     archive_and_save,
     prepare_output,

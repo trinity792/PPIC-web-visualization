@@ -16,6 +16,12 @@ Test Folders:
     - scripts/unit_tests/housing_stress/config/
 """
 
+from scripts.housing_stress.config.table_iterations import (
+    race_iteration_map,
+    race_reconciliation_map,
+)
+from scripts.shared.geography.california_geography import get_california_geography
+
 """
 ========================================================================================================================
 Reference Constants
@@ -91,31 +97,11 @@ _CANONICAL_RACE_GROUPS = [
     "Other",
 ]
 
-# B25140 table iteration id -> canonical race label. Iteration "a" is unused.
-_RACE_ITERATION_MAP = {
-    "b25140": "All",
-    "b25140b": "Black",
-    "b25140c": "AIAN",
-    "b25140d": "Asian",
-    "b25140e": "NHPI",
-    "b25140f": "Other",
-    "b25140g": "Multiracial",
-    "b25140h": "White",
-    "b25140i": "Hispanic",
-}
-
-# Raw legacy iteration labels (as tagged during acquisition) -> canonical labels.
-_RACE_RECONCILIATION_MAP = {
-    "All": "All",
-    "Black": "Black",
-    "American Indian/Alaskan Native": "AIAN",
-    "Asian": "Asian",
-    "Native Hawaiian/Pacific Islander": "NHPI",
-    "Other": "Other",
-    "Multiracial": "Multiracial",
-    "White": "White",
-    "Hispanic": "Hispanic",
-}
+# B25140 table iteration id -> canonical race label, and the raw acquisition label
+# -> canonical label bridge, both sourced from the single owner in
+# table_iterations.py so this file can never drift from sources.py.
+_RACE_ITERATION_MAP = race_iteration_map()
+_RACE_RECONCILIATION_MAP = race_reconciliation_map()
 
 # The 50 U.S. states. District of Columbia and Puerto Rico are excluded to match
 # the legacy module's scope.
@@ -128,6 +114,29 @@ _STATE_ABBREVIATIONS = [
 ]
 
 _EXCLUDED_STATE_AREAS = {"DC", "PR"}
+
+# Explicit region-id -> region-name map keyed by the numeric ids the PUMA region
+# crosswalk (puma_regions_xwalk_2020.csv) actually uses. Stored as a literal rather
+# than derived from the iteration order of the shared regions_mapping, so a reorder
+# of that shared dict can never silently relabel a California region.
+_REGION_ID_TO_NAME = {
+    1: "Far North",
+    2: "Bay Area",
+    3: "San Diego (Regional)",
+    4: "Inland Empire",
+    5: "Sacramento (Regional)",
+    6: "North San Joaquin Valley",
+    7: "South San Joaquin Valley",
+    8: "Central Coast",
+    9: "Los Angeles (Regional)",
+}
+
+# Fail loudly at import time if the literal ever disagrees with the canonical region
+# set (a rename or a dropped region), so the explicit map stays in step with the
+# shared geography without depending on its ordering.
+assert set(_REGION_ID_TO_NAME.values()) == get_california_geography()["region_names"], (
+    "Housing Stress region-id map is out of step with the shared California region names."
+)
 
 """
 ========================================================================================================================
@@ -186,6 +195,7 @@ def get_schema_config():
         "race_iteration_map": dict(_RACE_ITERATION_MAP),
         "race_reconciliation_map": dict(_RACE_RECONCILIATION_MAP),
         "canonical_race_groups": list(_CANONICAL_RACE_GROUPS),
+        "region_id_to_name": dict(_REGION_ID_TO_NAME),
         "state_abbreviations": list(_STATE_ABBREVIATIONS),
         "excluded_state_areas": set(_EXCLUDED_STATE_AREAS),
         "completeness_group_columns": list(completeness_group_columns),

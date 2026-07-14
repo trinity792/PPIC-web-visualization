@@ -3,11 +3,11 @@ from unittest.mock import Mock
 
 import pandas as pd
 import pytest
+
 from scripts.housing_stress.acquisition import acs_sf_downloader
 from scripts.housing_stress.acquisition.acs_sf_downloader import (
     ACSTableUnavailableError,
 )
-
 from scripts.shared.downloads.http_downloads import HTTPDownloadError
 
 TABLE_ITERATIONS = {
@@ -29,6 +29,8 @@ def _settings():
             "https://example.test/{year}/acsdt1y{year}-{tblid}.dat"
         ),
         "geo_url_pattern": "https://example.test/{year}/Geos{year}1YR.txt",
+        "dataset": "1",
+        "base_table_id": "b25140",
         "table_iterations": dict(TABLE_ITERATIONS),
         "expected_geo_columns": ["GEO_ID", "NAME", "STUSAB"],
     }
@@ -255,3 +257,62 @@ def test_download_all_iterations_missing_base_table_raises(monkeypatch):
         )
 
     mock_get_table.assert_called_once()
+
+
+def test_download_all_national_tables_fetches_each_iteration_once(monkeypatch):
+    # The single-fetch helper downloads all 9 national tables exactly once (18
+    # fetches counting the paired geo files), from which both scopes are sliced.
+    data = b"GEO_ID|B25140_E001\n0400000US06|100\n7950000US0600101|5\n"
+    geos = (
+        b"GEO_ID|NAME|STUSAB\n"
+        b"0400000US06|California|CA\n"
+        b"7950000US0600101|PUMA 00101|CA\n"
+    )
+    mock_fetch = Mock(side_effect=[_response(data), _response(geos)] * 9)
+    monkeypatch.setattr(acs_sf_downloader, "fetch_response", mock_fetch)
+
+    settings = {**_settings(), "cache_max_age_days": 30}
+    frames, missing = acs_sf_downloader.download_all_national_tables(
+        2023,
+        settings,
+        {"User-Agent": "test"},
+        30,
+    )
+
+    assert list(frames) == list(TABLE_ITERATIONS.values())
+    assert missing == []
+    # 9 iterations x 2 files (.dat + Geos) = 18 fetches, not ~19+ across two passes.
+    assert mock_fetch.call_count == 18
+
+
+def test_download_national_table_uses_on_disk_cache(tmp_path, monkeypatch):
+    data = b"GEO_ID|B25140_E001\n0400000US06|100\n"
+    geos = b"GEO_ID|NAME|STUSAB\n0400000US06|California|CA\n"
+    mock_fetch = Mock(side_effect=[_response(data), _response(geos)])
+    monkeypatch.setattr(acs_sf_downloader, "fetch_response", mock_fetch)
+    settings = {**_settings(), "cache_max_age_days": 30}
+
+    first = acs_sf_downloader.download_national_table(
+        "b25140", 2023, "1", settings, {}, 30, cache_dir=tmp_path
+    )
+    # Second call is served entirely from cache — no further network fetches.
+    second = acs_sf_downloader.download_national_table(
+        "b25140", 2023, "1", settings, {}, 30, cache_dir=tmp_path
+    )
+
+    assert mock_fetch.call_count == 2
+    pd.testing.assert_frame_equal(first, second)
+
+
+def test_download_national_table_refetches_when_cache_is_stale(tmp_path, monkeypatch):
+    data = b"GEO_ID|B25140_E001\n0400000US06|100\n"
+    geos = b"GEO_ID|NAME|STUSAB\n0400000US06|California|CA\n"
+    mock_fetch = Mock(side_effect=[_response(data), _response(geos)] * 2)
+    monkeypatch.setattr(acs_sf_downloader, "fetch_response", mock_fetch)
+    settings = {**_settings(), "cache_max_age_days": 0}
+
+    acs_sf_downloader.download_national_table("b25140", 2023, "1", settings, {}, 30, cache_dir=tmp_path)
+    acs_sf_downloader.download_national_table("b25140", 2023, "1", settings, {}, 30, cache_dir=tmp_path)
+
+    # cache_max_age_days == 0 forces a re-fetch every call.
+    assert mock_fetch.call_count == 4

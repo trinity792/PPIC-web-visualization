@@ -76,9 +76,9 @@ def _prepared_estimates(raw_frame):
     return drop_margin_of_error_columns(strip_table_prefix(raw_frame))
 
 
-def _region_id_to_name(geography):
-    """Build the 1-9 region-id to region-name map from the shared geography order."""
-    return {index: name for index, name in enumerate(geography["regions_mapping"], start=1)}
+def _region_id_to_name(schema_config):
+    """Return the explicit region-id to region-name map (keyed by the crosswalk's numeric ids, order-independent)."""
+    return schema_config["region_id_to_name"]
 
 
 """
@@ -122,7 +122,7 @@ def build_region_rows(iteration_frames, year, paths, schema_config, geography):
     """
     location_column = schema_config["location_column"]
     estimate_columns = schema_config["estimate_columns"]
-    region_id_to_name = _region_id_to_name(geography)
+    region_id_to_name = _region_id_to_name(schema_config)
 
     frames = []
     for raw_label, raw_frame in iteration_frames.items():

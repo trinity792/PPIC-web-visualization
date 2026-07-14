@@ -171,7 +171,7 @@ def validate_housing_stress_dataset(df, validation_config):
     if excluded_present:
         messages.append(f"Excluded years are present: {excluded_present}.")
 
-    for column in validation_config.get("number_columns", []):
+    for column in validation_config.get("nonnegative_columns", []):
         violations = validate_numeric_range(df, column, 0, None, None)
         if not violations.empty:
             messages.append(f"Negative values in {column}: {len(violations)} row(s).")

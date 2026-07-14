@@ -1,5 +1,6 @@
 import pandas as pd
 import pytest
+
 from scripts.housing_stress.cleaning.column_normalization import (
     drop_margin_of_error_columns,
     rename_geography_columns,

@@ -27,9 +27,18 @@ HTTP Downloads
 
 
 class HTTPDownloadError(RuntimeError):
-    """Report a normalized HTTP request failure. Test file: scripts/unit_tests/shared/downloads/test_http_downloads.py"""
+    """
+    Report a normalized HTTP request failure.
 
-    pass
+    Carries a structured ``status_code`` (the HTTP status when the failure was a
+    server response, otherwise ``None`` for a timeout/connection fault) so callers
+    can branch on ``error.status_code == 404`` rather than string-matching the
+    message. Test file: scripts/unit_tests/shared/downloads/test_http_downloads.py
+    """
+
+    def __init__(self, message, status_code=None):
+        super().__init__(message)
+        self.status_code = status_code
 
 
 def fetch_response(url, headers, timeout):
@@ -45,7 +54,8 @@ def fetch_response(url, headers, timeout):
     except requests.ConnectionError as error:
         raise HTTPDownloadError(f"HTTP connection failed for {url}") from error
     except requests.HTTPError as error:
-        raise HTTPDownloadError(f"HTTP request failed for {url}: {error}") from error
+        status_code = error.response.status_code if error.response is not None else None
+        raise HTTPDownloadError(f"HTTP request failed for {url}: {error}", status_code=status_code) from error
     except requests.RequestException as error:
         raise HTTPDownloadError(f"HTTP request could not be completed for {url}: {error}") from error
     return response

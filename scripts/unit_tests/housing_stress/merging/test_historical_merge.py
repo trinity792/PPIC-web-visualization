@@ -2,10 +2,13 @@ from unittest.mock import Mock
 
 import pandas as pd
 import pytest
+
 from scripts.housing_stress.merging.historical_merge import (
+    combine_history_sources,
     combine_with_historical,
     detect_new_data,
     load_canonical_dataset,
+    load_historical_baseline,
 )
 
 CONTRACT_COLUMNS = [
@@ -244,3 +247,67 @@ def test_detect_new_data_returns_true_for_changed_value():
     merged = pd.DataFrame([_row(number_30=31)])
 
     assert detect_new_data(merged, historical) is True
+
+
+def test_detect_new_data_ignores_int_vs_float_dtype_drift():
+    # A CSV round-trip can render an int history vs. a float build; that dtype
+    # drift alone must not read as a change (A9).
+    historical = pd.DataFrame([_row(number_30=30)])
+    merged = pd.DataFrame([_row(number_30=30)])
+    merged["Number Over 30%"] = merged["Number Over 30%"].astype(float)
+
+    assert detect_new_data(merged, historical) is False
+
+
+def test_detect_new_data_ignores_float_ulp_noise():
+    # Freshly-computed shares differ from the CSV-round-tripped values by ~1e-16 ULP
+    # noise that never survives serialization; that must not read as a change (A9).
+    historical = pd.DataFrame([_row()])
+    historical["Share Over 30%"] = 0.3342352139053586
+    merged = pd.DataFrame([_row()])
+    merged["Share Over 30%"] = 0.33423521390535865
+
+    assert detect_new_data(merged, historical) is False
+
+
+def test_detect_new_data_still_flags_a_meaningful_share_change():
+    historical = pd.DataFrame([_row()])
+    historical["Share Over 30%"] = 0.30
+    merged = pd.DataFrame([_row()])
+    merged["Share Over 30%"] = 0.31
+
+    assert detect_new_data(merged, historical) is True
+
+
+def test_load_historical_baseline_missing_seed_returns_empty_contract(tmp_path):
+    with pytest.warns(UserWarning, match="history seed not found"):
+        result = load_historical_baseline(tmp_path / "missing_seed.csv")
+
+    assert result.empty
+    assert result.columns.tolist() == CONTRACT_COLUMNS
+
+
+def test_load_historical_baseline_none_path_returns_empty_contract():
+    result = load_historical_baseline(None)
+
+    assert result.empty
+    assert result.columns.tolist() == CONTRACT_COLUMNS
+
+
+def test_combine_history_sources_prefers_current_over_seed():
+    baseline = pd.DataFrame([_row(year=2012, number_30=1), _row(year=2023, number_30=99)])
+    current = pd.DataFrame([_row(year=2023, number_30=30)])
+
+    combined = combine_history_sources(baseline, current)
+
+    # The deep 2012 seed year survives; the overlapping 2023 key takes the current value.
+    assert set(combined["Year"]) == {2012, 2023}
+    row_2023 = combined.loc[combined["Year"] == 2023].iloc[0]
+    assert row_2023["Number Over 30%"] == 30
+
+
+def test_combine_history_sources_empty_inputs_return_empty_contract():
+    combined = combine_history_sources(pd.DataFrame(), pd.DataFrame())
+
+    assert combined.empty
+    assert combined.columns.tolist() == CONTRACT_COLUMNS

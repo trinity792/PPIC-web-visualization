@@ -1,4 +1,5 @@
 import pandas as pd
+
 from scripts.housing_stress.validation.housing_stress_validators import (
     validate_cleaning_output,
     validate_housing_stress_dataset,
@@ -140,7 +141,7 @@ def _final_validation_config(**overrides):
         "excluded_years": {2020},
         "min_rows": 1,
         "max_rows": 100,
-        "number_columns": [
+        "nonnegative_columns": [
             "Number Over 30%",
             "Number Over 50%",
         ],
@@ -312,6 +313,18 @@ def test_validate_housing_stress_dataset_accepts_valid_dataset():
 
     assert is_valid is True
     assert messages == []
+
+
+def test_validate_housing_stress_dataset_reports_negative_count():
+    # A5: the final-stage non-negative check reads the same key the config supplies
+    # (nonnegative_columns), so a negative count now actually fails final validation.
+    source = _final_frame()
+    source.loc[source.index[0], "Number Over 30%"] = -5
+
+    is_valid, messages = validate_housing_stress_dataset(source, _final_validation_config())
+
+    assert is_valid is False
+    assert any("negative" in message.lower() for message in messages)
 
 
 def test_validate_housing_stress_dataset_reports_missing_level():

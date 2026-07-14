@@ -1,5 +1,6 @@
 import pandas as pd
 import pytest
+
 from scripts.housing_stress.geography.puma_aggregation import (
     aggregate_pumas_to_geography,
     extract_puma_id,
@@ -87,6 +88,42 @@ def test_extract_puma_id_rejects_malformed_puma_geo_id():
 
     with pytest.raises(ValueError, match="GEO_ID|PUMA"):
         extract_puma_id(source)
+
+
+def test_extract_puma_id_detects_by_geo_id_not_name_text():
+    # Structural detection: PUMA rows are found by GEO_ID prefix even when the
+    # NAME text no longer contains "PUMA" (a wording change must not drop rows).
+    source = pd.DataFrame(
+        {
+            "NAME": ["Public Use Microdata Area 00101, California", "California"],
+            "E001": [100, 1_000],
+        },
+        index=pd.Index(["7950000US0600101", "0400000US06"], name="GEO_ID"),
+    )
+
+    result = extract_puma_id(source)
+
+    assert result["PUMA_ID"].tolist() == [101]
+
+
+def test_extract_puma_id_raises_when_no_puma_rows_present():
+    source = pd.DataFrame(
+        {"NAME": ["California"], "E001": [1_000]},
+        index=pd.Index(["0400000US06"], name="GEO_ID"),
+    )
+
+    with pytest.raises(ValueError, match="No PUMA rows"):
+        extract_puma_id(source)
+
+
+def test_aggregate_pumas_to_geography_raises_on_missing_crosswalk_header(tmp_path):
+    source = pd.DataFrame({"PUMA_ID": [101], "E001": [100]})
+    # Crosswalk with a renamed geography column: a clear error naming the file,
+    # not an opaque KeyError.
+    crosswalk = _write_crosswalk(tmp_path, {"pumace": [101], "renamed_geo": ["Alameda"]})
+
+    with pytest.raises(ValueError, match="crosswalk.*missing columns|missing columns.*cntynm"):
+        aggregate_pumas_to_geography(source, crosswalk, "cntynm", ["E001"], "Location")
 
 
 def test_extract_puma_id_does_not_mutate_input():

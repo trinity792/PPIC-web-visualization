@@ -24,7 +24,7 @@ Status: Updating
 - Module Issue Fixes & Audits
   - [x] Pop Housing
   - [x] Components of Change
-  - [ ] Age, Race, Sex Projections
+  - [x] Age, Race, Sex Projections
   - [ ] ACS Housing Stress
   - [ ] Building Permits
 - [ ] Add footnote rendering to docs viewer front end.

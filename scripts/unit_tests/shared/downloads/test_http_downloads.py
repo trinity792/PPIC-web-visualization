@@ -63,6 +63,28 @@ def test_fetch_response_http_error(monkeypatch):
         fetch_response("https://example.com", {}, 30)
 
 
+def test_fetch_response_http_error_carries_status_code(monkeypatch):
+    response = _successful_response()
+    http_error = requests.HTTPError("404 Not Found")
+    http_error.response = Mock(status_code=404)
+    response.raise_for_status.side_effect = http_error
+    monkeypatch.setattr(requests, "get", Mock(return_value=response))
+
+    with pytest.raises(HTTPDownloadError) as exc_info:
+        fetch_response("https://example.com", {}, 30)
+
+    assert exc_info.value.status_code == 404
+
+
+def test_fetch_response_timeout_has_no_status_code(monkeypatch):
+    monkeypatch.setattr(requests, "get", Mock(side_effect=requests.Timeout("slow")))
+
+    with pytest.raises(HTTPDownloadError) as exc_info:
+        fetch_response("https://example.com", {}, 30)
+
+    assert exc_info.value.status_code is None
+
+
 def test_fetch_response_connection_error(monkeypatch):
     # Arrange
     monkeypatch.setattr(requests, "get", Mock(side_effect=requests.ConnectionError("offline")))

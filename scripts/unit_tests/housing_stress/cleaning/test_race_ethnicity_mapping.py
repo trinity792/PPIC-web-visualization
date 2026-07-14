@@ -1,5 +1,6 @@
 import pandas as pd
 import pytest
+
 from scripts.housing_stress.cleaning.race_ethnicity_mapping import (
     CANONICAL_RACE_GROUPS,
     RACE_ITERATION_MAP,

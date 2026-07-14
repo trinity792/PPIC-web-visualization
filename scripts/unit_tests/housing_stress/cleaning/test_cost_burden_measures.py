@@ -2,6 +2,7 @@ import math
 
 import pandas as pd
 import pytest
+
 from scripts.housing_stress.cleaning.cost_burden_measures import (
     compute_tenure_measures,
 )

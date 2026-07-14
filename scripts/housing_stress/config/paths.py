@@ -36,7 +36,14 @@ def get_paths():
     return {
         "project_root": Path(project_paths["project_root"]),
         "current_data_path": current_data_path,
-        "historical_data_path": current_data_path,
+        # Immutable deep-history seed, distinct from the live output, produced by
+        # the backfill driver and read-only to the live pipeline so a bad current
+        # write cannot poison the baseline.
+        "historical_data_path": cleaned_directory / "HousingStress_Historical.csv",
+        # The set-aside legacy CSV (old sequence-based ACS Summary File format),
+        # the only source of the pre-2022 years the table-based SF does not carry.
+        # Read-only; the backfill bootstraps 2012-2021 from it.
+        "legacy_seed_path": cleaned_directory / "HousingStress_Current.legacy-2012-2023.csv.bak",
         "download_directory": raw_directory,
         "archive_directory": archive_directory,
         "logs_directory": Path(project_paths["logs_directory"]),

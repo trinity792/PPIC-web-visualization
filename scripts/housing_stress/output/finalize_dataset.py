@@ -16,7 +16,11 @@ Test Folders:
     - scripts/unit_tests/housing_stress/output/
 """
 
+import hashlib
+import os
+import shutil
 from datetime import datetime
+from pathlib import Path
 
 import pandas as pd
 
@@ -25,6 +29,7 @@ _INTEGER_COLUMNS = ["Year"]
 _NUMBER_COLUMNS = ["Number Over 30%", "Number Over 50%"]
 _SHARE_COLUMNS = ["Share Over 30%", "Share Over 50%"]
 _SORT_COLUMNS = ["Year", "Geographic Level", "Location", "Race/Ethnicity", "Tenure"]
+_HASH_CHUNK_BYTES = 1 << 20  # 1 MiB streaming reads for the byte-identity check
 
 
 """
@@ -82,16 +87,39 @@ def archive_and_save(df, current_path, archive_directory):
 
     Test file: scripts/unit_tests/housing_stress/output/test_finalize_dataset.py
     """
-    new_csv = df.to_csv(index=False)
+    current_path = Path(current_path)
+    archive_directory = Path(archive_directory)
+    new_bytes = df.to_csv(index=False).encode("utf-8")
 
-    if current_path.exists():
-        if current_path.read_text() == new_csv:
+    if current_path.is_file():
+        # Compare by streamed hash so a match leaves the existing file byte- and
+        # mtime-identical and never holds a second full-file copy in memory.
+        if _sha256_of_file(current_path) == hashlib.sha256(new_bytes).hexdigest():
             return None
         archive_directory.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.now().strftime("%m-%d-%y")
-        archive_path = archive_directory / f"{current_path.stem}_{timestamp}.csv"
-        archive_path.write_bytes(current_path.read_bytes())
+        archive_path = archive_directory / f"{current_path.stem}_{timestamp}{current_path.suffix}"
+        shutil.copy2(current_path, archive_path)
 
     current_path.parent.mkdir(parents=True, exist_ok=True)
-    current_path.write_text(new_csv)
+    # Write atomically: stage to a sibling temp file, then os.replace() it into
+    # place (atomic on the same filesystem), so a crash mid-write can never leave a
+    # truncated contract file — which also doubles as the next run's history.
+    # Ordering: archive old -> write tmp -> atomic replace.
+    tmp_path = current_path.with_suffix(current_path.suffix + ".tmp")
+    try:
+        tmp_path.write_bytes(new_bytes)
+        os.replace(tmp_path, current_path)
+    finally:
+        if tmp_path.exists():
+            tmp_path.unlink()
     return current_path
+
+
+def _sha256_of_file(path):
+    """Return the SHA-256 hex digest of a file read in fixed-size chunks."""
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(_HASH_CHUNK_BYTES), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
