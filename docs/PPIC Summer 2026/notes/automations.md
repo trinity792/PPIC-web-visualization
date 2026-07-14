@@ -52,7 +52,7 @@ At this stage, the public website would not change yet.
 This could run in GitHub’s cloud, using a GitHub-hosted runner. Or self-hosted GitHub runner, where GitHub starts the workflow, but the actual Python process runs on an organization-controlled server.
 ### Step 3: Review
 A researcher or project owner would see something like:
-> [!info ] 
+> [!info] 
 > A new May 2026 building-permits release was found.
 > 75 rows were added.
 > No locations are missing.

@@ -25,9 +25,9 @@ Status: Updating
   - [x] Pop Housing
   - [x] Components of Change
   - [x] Age, Race, Sex Projections
-  - [ ] ACS Housing Stress
+  - [x] ACS Housing Stress
   - [ ] Building Permits
-- [ ] Add footnote rendering to docs viewer front end.
+- [x] Add footnote rendering to docs viewer front end.
 ## To Dos Tuesday (7/14)
 - [ ] Plan Automations
 - [ ] Set up automations
