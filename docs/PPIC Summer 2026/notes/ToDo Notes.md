@@ -8,9 +8,6 @@ Last Updated: 07/10/2026 - 3:21 PM
 Status: Updating
 ---
 # To Do Notes
-## To Dos Thursday (7/16)
-- [ ] Implement RHNA Module
-- [ ] Implement Zillow Module
 ## To Dos Wednesday (7/15)
 - [ ] Presentation slides draft start
 - Module Information:
@@ -21,9 +18,9 @@ Status: Updating
   - [ ] Fix modules csv so that year column is rendered without commas
   - [ ] Sidebar length incorrect on pophousing module
   - [ ] Add top/bottom N lines to show
-## To Dos Tuesday (7/14)
-- [x] Plan Automations
-- [x] Project Meeting
+## To Dos Thursday (7/16)
+- [ ] Implement RHNA Module
+- [ ] Implement Zillow Module
 
 ---
 
