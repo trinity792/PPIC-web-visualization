@@ -3,7 +3,8 @@ building_permits_pipeline.py — orchestrates acquisition, cleaning, geographic 
 
 Data sources:
     - Census BPS monthly CBSA and state .xls files via the downloader
-    - data/data-cleaned/building-permits/BuildingPermits_Current.csv — saved canonical fallback and historical source
+    - data/data-cleaned/building-permits/BuildingPermits_Current.csv — saved canonical fallback and live output
+    - data/data-cleaned/building-permits/BuildingPermits_Historical.csv — immutable, read-only deep-history seed (pre-2024)
     - scripts/shared/geography/california_geography.py — canonical CBSA metro names and metro→region reference
 
 Outputs:
@@ -12,13 +13,14 @@ Outputs:
     - dict — dataset, change flag, fallback flag, acquired months, output path, and row count
 
 Usage:
-    python scripts/orchestrators/building_permits_pipeline.py
+    python -m scripts.orchestrators.building_permits_pipeline
 
 Test Folders:
     - scripts/unit_tests/orchestrators/
     - scripts/unit_tests/building_permits/
 """
 
+import warnings
 from typing import NoReturn
 
 import pandas as pd
@@ -43,13 +45,16 @@ from scripts.building_permits.geography.geographic_levels import (
 )
 from scripts.building_permits.merging.historical_merge import (
     combine_with_historical,
+    compose_baseline,
     detect_new_data,
     latest_stored_month,
     load_canonical_dataset,
+    load_historical_baseline,
 )
 from scripts.building_permits.output.finalize_dataset import archive_and_save, prepare_output
 from scripts.building_permits.validation.building_permits_validators import (
     validate_building_permits_dataset,
+    validate_cleaning_output,
 )
 from scripts.shared.geography.california_geography import get_california_geography
 from scripts.shared.logging.dataframe_logging import log_data_quality_check
@@ -130,8 +135,20 @@ def build_building_permits_dataset(config=None, logger=None):
         source_settings = get_source_settings()
         schema_config = get_schema_config()
         geography = get_california_geography()
-        historical = load_canonical_dataset(paths["current_data_path"])
         date_column = schema_config["date_column"]
+        # The live output owns 2024-onward; the immutable seed owns the irreplaceable
+        # pre-2024 deep history (guide A1/A2). Compose them (preferring live rows) so the
+        # deep history is always restored from the committed seed even if Current.csv is
+        # ever lost or truncated.
+        current_df = load_canonical_dataset(paths["current_data_path"])
+        baseline_df = load_historical_baseline(paths["historical_data_path"])
+        historical = compose_baseline(baseline_df, current_df)
+        if historical.empty:
+            warnings.warn(
+                "No saved Building Permits output and no deep-history seed found; "
+                "proceeding on live data only (a cold run yields only the rolling window).",
+                stacklevel=2,
+            )
         last_month = latest_stored_month(historical, date_column)
         headers = source_settings["request_headers"]
         timeout = source_settings["timeout"]
@@ -142,7 +159,15 @@ def build_building_permits_dataset(config=None, logger=None):
 
     # Phase 2 — Acquisition
     try:
-        latest_available = resolve_latest_month(source_settings, headers, timeout, source_settings["max_month_lookback"])
+        latest_year, latest_month, prefetched = resolve_latest_month(
+            source_settings,
+            headers,
+            timeout,
+            source_settings["max_month_lookback"],
+            source_settings.get("probe_retry_attempts", 2),
+            logger,
+        )
+        latest_available = (latest_year, latest_month)
         # On a cold start (no saved rows) seed the full history from earliest_month,
         # not just the latest month, so the contract covers the whole 2010-onward series.
         effective_last_month = last_month if last_month is not None else _month_before(source_settings["earliest_month"])
@@ -152,6 +177,8 @@ def build_building_permits_dataset(config=None, logger=None):
             lambda year, month: download_cbsa_month(year, month, source_settings, headers, timeout),
             lambda year, month: download_state_month(year, month, source_settings, headers, timeout),
             lambda: historical,
+            prefetched=prefetched,
+            logger=logger,
         )
         # Report the months actually fetched (unpublished months are skipped upstream).
         acquired_months = list(cbsa_frames) if isinstance(cbsa_frames, dict) else []
@@ -168,6 +195,16 @@ def build_building_permits_dataset(config=None, logger=None):
     try:
         metro_df = _clean_monthly_frames(cbsa_frames, clean_metro_permits, schema_config)
         state_df = _clean_monthly_frames(state_frames, clean_state_permits, schema_config)
+        # Wire the per-frame cleaning validator (guide A3): catch a malformed monthly
+        # frame — bad YYYY-MM, null keys, non-integer measures, or an unknown location —
+        # at the point the raw spreadsheet is freshly parsed, before it reaches the merge.
+        for scope_name, frame in (("metro", metro_df), ("state", state_df)):
+            is_clean, clean_messages = validate_cleaning_output(frame, schema_config)
+            if not is_clean:
+                _raise_phase_error(
+                    "Phase 3 — Clean & Tag",
+                    ValueError(f"{scope_name} cleaning validation failed: {clean_messages}"),
+                )
         validate_metro_names(metro_df, geography)
         tagged = tag_geographic_levels(state_df, metro_df)
     except BuildingPermitsPipelinePhaseError:
@@ -178,7 +215,6 @@ def build_building_permits_dataset(config=None, logger=None):
     # Phase 4 — Merge
     try:
         merged = combine_with_historical(tagged, historical, date_column)
-        new_data = detect_new_data(merged, historical)
     except BuildingPermitsPipelinePhaseError:
         raise
     except Exception as error:
@@ -187,6 +223,25 @@ def build_building_permits_dataset(config=None, logger=None):
     # Phase 5 — Finalize & Save
     try:
         prepared = prepare_output(merged, schema_config)
+        # The change flag shares the write gate's serialized-CSV definition (guide A7):
+        # compare the prepared output against the current file's content, so new_data can
+        # never disagree with whether archive_and_save writes a byte-different file.
+        new_data = detect_new_data(prepared, current_df)
+
+        # Loud deep-history guard (guide A1): every month the immutable seed supplies must
+        # survive into the output. If any pre-2024 month is missing, fail rather than
+        # silently shipping a truncated series (which the contiguity check cannot catch,
+        # since it only spans the present range).
+        if not baseline_df.empty:
+            baseline_months = set(baseline_df[date_column].astype(str))
+            present_months = set(prepared[date_column].astype(str))
+            lost_months = sorted(baseline_months - present_months)
+            if lost_months:
+                _raise_phase_error(
+                    "Phase 5 — Finalize & Save",
+                    ValueError(f"deep-history months missing from output: {lost_months[:5]}"),
+                )
+
         is_valid, messages = validate_building_permits_dataset(prepared, schema_config["final_validation_config"])
         log_data_quality_check(logger, "Building Permits final validation", is_valid)
         if not is_valid:

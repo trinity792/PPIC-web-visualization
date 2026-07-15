@@ -26,6 +26,8 @@ from scripts.building_permits.acquisition.census_bps_downloader import (
     download_cbsa_month,
     download_state_month,
 )
+from scripts.shared.downloads.http_downloads import HTTPDownloadError
+from scripts.shared.logging.pipeline_logging import log_message
 
 """
 ========================================================================================================================
@@ -56,15 +58,60 @@ Month Resolution
 """
 
 
-def resolve_latest_month(source_settings, headers, timeout, max_month_lookback):
+def _probe_month(year, month, source_settings, headers, timeout, retry_attempts, logger=None):
+    """
+    Download one month's CBSA and state files, retrying a transient fault before giving up.
+
+    Returns (cbsa_df, state_df) on success. A BPSMonthUnavailableError (a genuine 404 /
+    "not published") propagates immediately so the caller can advance the probe. A
+    transient HTTPDownloadError (timeout / connection / 5xx, status_code != 404) is
+    retried up to retry_attempts times, then re-raised — a single network blip on the
+    latest-month probe no longer aborts Phase 2, but a real outage still fails loud
+    (guide A4). A parse ValueError is not caught here, so a malformed release fails
+    loud immediately rather than being retried.
+    """
+    attempts = max(1, retry_attempts)
+    for attempt in range(attempts):
+        try:
+            cbsa = download_cbsa_month(year, month, source_settings, headers, timeout)
+            state = download_state_month(year, month, source_settings, headers, timeout)
+            return cbsa, state
+        except BPSMonthUnavailableError:
+            raise
+        except HTTPDownloadError:
+            if attempt == attempts - 1:
+                raise
+            log_message(
+                logger,
+                "Transient fault probing latest BPS month; retrying",
+                month=f"{year}-{month:02d}",
+                attempt=attempt + 1,
+                of=attempts,
+            )
+
+
+def resolve_latest_month(
+    source_settings,
+    headers,
+    timeout,
+    max_month_lookback,
+    probe_retry_attempts=2,
+    logger=None,
+):
     """
     Find the newest published BPS month by probing backward from the current month.
 
     Starts at the current calendar month and steps back up to max_month_lookback
     times, accepting the first month whose CBSA and state files both download and
-    parse. Only a BPSMonthUnavailableError advances the probe; a parse failure
-    (ValueError) propagates so a malformed release is not mistaken for "not yet
+    parse. Only a BPSMonthUnavailableError advances the probe; each probe retries a
+    transient network fault probe_retry_attempts times before failing loud, and a parse
+    failure (ValueError) propagates so a malformed release is not mistaken for "not yet
     published".
+
+    Returns:
+        tuple (year, month, prefetched) — prefetched maps the resolved "YYYY-MM" to its
+        already-downloaded (cbsa_df, state_df), so acquire_months does not re-fetch the
+        month the probe just downloaded (guide B3).
 
     Test file: scripts/unit_tests/building_permits/acquisition/test_source_fallback.py
     """
@@ -74,12 +121,11 @@ def resolve_latest_month(source_settings, headers, timeout, max_month_lookback):
     for _ in range(max_month_lookback):
         probed.append((year, month))
         try:
-            download_cbsa_month(year, month, source_settings, headers, timeout)
-            download_state_month(year, month, source_settings, headers, timeout)
+            cbsa, state = _probe_month(year, month, source_settings, headers, timeout, probe_retry_attempts, logger)
         except BPSMonthUnavailableError:
             year, month = _previous_month(year, month)
             continue
-        return year, month
+        return year, month, {f"{year}-{month:02d}": (cbsa, state)}
 
     raise BPSMonthUnavailableError(f"No published BPS month found within lookback window (probed {probed}).")
 
@@ -115,9 +161,15 @@ Fallback Acquisition
 """
 
 
-def acquire_months(months, download_cbsa_fn, download_state_fn, saved_rows_fn):
+def acquire_months(months, download_cbsa_fn, download_state_fn, saved_rows_fn, prefetched=None, logger=None):
     """
     Download all requested months' CBSA and state frames, with a last-saved fallback.
+
+    Any month already present in prefetched (the frames the latest-month probe downloaded)
+    is reused instead of being fetched a second time (guide B3). Unpublished months are
+    skipped and the notice is routed through the logger rather than stdout (guide A6);
+    any other download error falls back to the last-saved rows and flags source_failed —
+    the clean-degrade path that keeps a live outage from crashing the build (guide B4).
 
     Returns:
         tuple (cbsa_frames, state_frames, source_failed).
@@ -127,14 +179,18 @@ def acquire_months(months, download_cbsa_fn, download_state_fn, saved_rows_fn):
     if not months:
         return {}, {}, False
 
+    prefetched = prefetched or {}
     cbsa_frames = {}
     state_frames = {}
     skipped = []
     for year, month in months:
         key = f"{year}-{month:02d}"
         try:
-            cbsa = download_cbsa_fn(year, month)
-            state = download_state_fn(year, month)
+            if key in prefetched:
+                cbsa, state = prefetched[key]
+            else:
+                cbsa = download_cbsa_fn(year, month)
+                state = download_state_fn(year, month)
         except BPSMonthUnavailableError:
             # Not published at the source (e.g. beyond the hosted rolling window of
             # monthly files); skip the month with a log rather than aborting.
@@ -147,6 +203,12 @@ def acquire_months(months, download_cbsa_fn, download_state_fn, saved_rows_fn):
         state_frames[key] = state
 
     if skipped:
-        print(f"  [acquire_months] skipped {len(skipped)} unpublished month(s): {skipped[0]}..{skipped[-1]}")
+        log_message(
+            logger,
+            "Skipped unpublished BPS month(s)",
+            count=len(skipped),
+            first=skipped[0],
+            last=skipped[-1],
+        )
 
     return cbsa_frames, state_frames, False

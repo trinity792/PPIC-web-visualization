@@ -1,9 +1,12 @@
 import pandas as pd
+
 from scripts.building_permits.merging.historical_merge import (
     combine_with_historical,
+    compose_baseline,
     detect_new_data,
     latest_stored_month,
     load_canonical_dataset,
+    load_historical_baseline,
 )
 
 CONTRACT_COLUMNS = [
@@ -261,3 +264,71 @@ def test_detect_new_data_returns_true_for_added_row():
     )
 
     assert detect_new_data(merged, historical) is True
+
+
+def test_detect_new_data_treats_missing_current_as_new():
+    candidate = pd.DataFrame([_row()])
+
+    assert detect_new_data(candidate, pd.DataFrame(columns=CONTRACT_COLUMNS)) is True
+
+
+def test_detect_new_data_survives_int_vs_csv_dtype_round_trip(tmp_path):
+    # The candidate carries freshly built int measures; the reloaded current file may
+    # infer a different-but-equal numeric dtype. The serialized-CSV comparison must not
+    # report a spurious change (guide A7).
+    candidate = pd.DataFrame([_row(), _row(level="Metro", location="Bakersfield")])
+    path = tmp_path / "BuildingPermits_Current.csv"
+    from scripts.building_permits.output.finalize_dataset import prepare_output
+
+    prepared = prepare_output(candidate, {"output_columns": CONTRACT_COLUMNS})
+    prepared.to_csv(path, index=False)
+    reloaded = pd.read_csv(path)
+
+    assert detect_new_data(prepared, reloaded) is False
+
+
+def test_load_historical_baseline_missing_file_returns_empty_contract(tmp_path):
+    result = load_historical_baseline(tmp_path / "missing.csv")
+
+    assert result.empty
+    assert list(result.columns) == CONTRACT_COLUMNS
+
+
+def test_load_historical_baseline_reads_seed_rows(tmp_path):
+    path = tmp_path / "BuildingPermits_Historical.csv"
+    seed = pd.DataFrame([_row(date="2010-01"), _row(date="2010-02")])
+    seed.to_csv(path, index=False)
+
+    result = load_historical_baseline(path)
+
+    pd.testing.assert_frame_equal(result, seed)
+
+
+def test_compose_baseline_prefers_live_rows_on_overlap():
+    baseline = pd.DataFrame([_row(date="2023-12", total=1), _row(date="2024-01", total=1)])
+    current = pd.DataFrame([_row(date="2024-01", total=999)])
+
+    result = compose_baseline(baseline, current)
+
+    # Seed supplies the deep 2023-12 month; the live 2024-01 row wins the overlap.
+    assert result.loc[result["Date"].eq("2023-12"), "Total"].item() == 1
+    assert result.loc[result["Date"].eq("2024-01"), "Total"].item() == 999
+
+
+def test_compose_baseline_recovers_deep_history_when_current_is_truncated():
+    baseline = pd.DataFrame([_row(date="2010-01"), _row(date="2010-02")])
+    current = pd.DataFrame(columns=CONTRACT_COLUMNS)
+
+    result = compose_baseline(baseline, current)
+
+    assert sorted(result["Date"].unique()) == ["2010-01", "2010-02"]
+
+
+def test_compose_baseline_empty_inputs_returns_empty_contract():
+    result = compose_baseline(
+        pd.DataFrame(columns=CONTRACT_COLUMNS),
+        pd.DataFrame(columns=CONTRACT_COLUMNS),
+    )
+
+    assert result.empty
+    assert list(result.columns) == CONTRACT_COLUMNS

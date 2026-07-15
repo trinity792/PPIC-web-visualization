@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import pytest
+
 from scripts.building_permits.cleaning.state_permits_cleaner import (
     clean_state_permits,
 )

@@ -26,7 +26,14 @@ def test_get_paths_uses_building_permits_directories():
         "building-permits",
         "BuildingPermits_Current.csv",
     )
-    assert paths["historical_data_path"] == paths["current_data_path"]
+    # The immutable deep-history seed is a distinct, read-only artifact — never the
+    # live output — so a bad Current.csv write can't destroy the irreplaceable base.
+    assert paths["historical_data_path"].parts[-3:] == (
+        "data-cleaned",
+        "building-permits",
+        "BuildingPermits_Historical.csv",
+    )
+    assert paths["historical_data_path"] != paths["current_data_path"]
 
 
 def test_get_paths_includes_california_counties_geography():

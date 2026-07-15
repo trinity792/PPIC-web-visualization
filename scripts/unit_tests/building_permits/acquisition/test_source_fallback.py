@@ -2,10 +2,12 @@ from unittest.mock import Mock
 
 import pandas as pd
 import pytest
+
 from scripts.building_permits.acquisition import source_fallback
 from scripts.building_permits.acquisition.census_bps_downloader import (
     BPSMonthUnavailableError,
 )
+from scripts.shared.downloads.http_downloads import HTTPDownloadError
 
 CBSA_DF = pd.DataFrame({"Location": ["Bakersfield"]})
 STATE_DF = pd.DataFrame({"Location": ["California"]})
@@ -62,7 +64,10 @@ def test_resolve_latest_month_accepts_newest_parseable_month(monkeypatch):
 
     result = _resolve(monkeypatch, cbsa_download, state_download)
 
-    assert result == (2026, 5)
+    assert result[:2] == (2026, 5)
+    # The probe's downloads are handed back so acquire_months need not re-fetch them.
+    assert set(result[2]) == {"2026-05"}
+    assert result[2]["2026-05"] == (CBSA_DF, STATE_DF)
     cbsa_download.assert_called_once_with(
         2026,
         5,
@@ -92,7 +97,7 @@ def test_resolve_latest_month_steps_back_when_either_file_is_unavailable(
 
     result = _resolve(monkeypatch, cbsa_download, state_download)
 
-    assert result == (2026, 4)
+    assert result[:2] == (2026, 4)
     assert [call.args[:2] for call in cbsa_download.call_args_list] == [
         (2026, 5),
         (2026, 4),
@@ -151,11 +156,36 @@ def test_resolve_latest_month_steps_across_year_boundary(monkeypatch):
 
     result = source_fallback.resolve_latest_month({}, {}, 30, 2)
 
-    assert result == (2025, 12)
+    assert result[:2] == (2025, 12)
     assert [call.args[:2] for call in cbsa_download.call_args_list] == [
         (2026, 1),
         (2025, 12),
     ]
+
+
+def test_resolve_latest_month_retries_transient_fault_then_succeeds(monkeypatch):
+    # A transient network blip on the newest-month probe must not abort Phase 2; the
+    # bounded retry recovers before failing loud (guide A4).
+    cbsa_download = Mock(side_effect=[HTTPDownloadError("timeout", status_code=None), CBSA_DF])
+    state_download = Mock(return_value=STATE_DF)
+
+    result = _resolve(monkeypatch, cbsa_download, state_download)
+
+    assert result[:2] == (2026, 5)
+    assert cbsa_download.call_count == 2
+
+
+def test_resolve_latest_month_fails_loud_on_persistent_transient_fault(monkeypatch):
+    # A genuine outage (not a 404) still fails the run rather than silently capping the
+    # series at a stale month (guide A4 — fail-loud-with-retry).
+    cbsa_download = Mock(side_effect=HTTPDownloadError("connection refused", status_code=None))
+    state_download = Mock(return_value=STATE_DF)
+
+    with pytest.raises(HTTPDownloadError, match="connection refused"):
+        _resolve(monkeypatch, cbsa_download, state_download)
+
+    # Two attempts on the first probed month (default probe_retry_attempts=2), then loud.
+    assert cbsa_download.call_count == 2
 
 
 def test_months_to_acquire_enumerates_forward_window():
@@ -217,6 +247,29 @@ def test_acquire_months_prefers_live_monthly_frames():
     assert all(frame is STATE_DF for frame in state_frames.values())
     assert source_failed is False
     saved_rows.assert_not_called()
+
+
+def test_acquire_months_reuses_prefetched_month_without_redownloading():
+    # The latest-month probe already downloaded its files; acquire_months must reuse
+    # them rather than fetch the same month a second time (guide B3).
+    cbsa_download = Mock(return_value=CBSA_DF)
+    state_download = Mock(return_value=STATE_DF)
+    prefetched_cbsa = pd.DataFrame({"Location": ["prefetched-cbsa"]})
+    prefetched_state = pd.DataFrame({"Location": ["prefetched-state"]})
+
+    cbsa_frames, state_frames, source_failed = source_fallback.acquire_months(
+        [(2026, 4), (2026, 5)],
+        cbsa_download,
+        state_download,
+        Mock(),
+        prefetched={"2026-05": (prefetched_cbsa, prefetched_state)},
+    )
+
+    assert cbsa_frames["2026-05"] is prefetched_cbsa
+    assert state_frames["2026-05"] is prefetched_state
+    # Only the un-prefetched April month is actually downloaded.
+    assert [call.args[:2] for call in cbsa_download.call_args_list] == [(2026, 4)]
+    assert source_failed is False
 
 
 def test_acquire_months_with_empty_window_does_not_use_fallback():

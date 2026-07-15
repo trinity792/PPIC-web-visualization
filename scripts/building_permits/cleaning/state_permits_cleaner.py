@@ -17,6 +17,8 @@ Test Folders:
 
 import pandas as pd  # noqa: F401  (kept for parity with the module's documented I/O)
 
+from scripts.building_permits.cleaning.measure_coercion import coerce_measures_to_int
+
 
 def clean_state_permits(df, year, month, schema_config):
     """
@@ -41,9 +43,7 @@ def clean_state_permits(df, year, month, schema_config):
     work["Location"] = work["Location"].astype(str).str.strip()
     work = work[work["Location"].isin(schema_config["state_names"])].copy()
 
-    for column in measure_columns:
-        work[column] = work[column].astype(int)
-
     work["Date"] = f"{year}-{month:02d}"
+    work = coerce_measures_to_int(work, measure_columns)
 
     return work[["Location", "Date", *measure_columns]].reset_index(drop=True)

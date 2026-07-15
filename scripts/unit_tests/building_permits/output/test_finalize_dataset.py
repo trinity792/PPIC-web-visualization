@@ -1,5 +1,6 @@
 import pandas as pd
 import pytest
+
 from scripts.building_permits.output.finalize_dataset import (
     archive_and_save,
     prepare_output,
@@ -200,6 +201,38 @@ def test_archive_and_save_uses_building_permits_timestamp_name(tmp_path):
     month, day, year = timestamp.split("-")
     assert len(month) == len(day) == len(year) == 2
     assert month.isdigit() and day.isdigit() and year.isdigit()
+
+
+def test_archive_and_save_leaves_original_intact_when_write_fails(
+    tmp_path,
+    monkeypatch,
+):
+    # The contract file holds the irreplaceable pre-2024 deep history; a crash
+    # partway through writing must never truncate it. The atomic write stages into
+    # a .tmp file, so a failure before the rename leaves the original untouched.
+    current_path = tmp_path / "BuildingPermits_Current.csv"
+    archive_directory = tmp_path / "archive"
+    original = _prepared_frame(date="2026-04", total="90")
+    original.to_csv(current_path, index=False)
+    original_bytes = current_path.read_bytes()
+
+    def _boom(_self, _target):
+        raise OSError("disk full mid-write")
+
+    monkeypatch.setattr(
+        "pathlib.Path.replace",
+        _boom,
+    )
+
+    with pytest.raises(OSError, match="disk full"):
+        archive_and_save(
+            _prepared_frame(date="2026-05", total="100"),
+            current_path,
+            archive_directory,
+        )
+
+    assert current_path.read_bytes() == original_bytes
+    assert not (tmp_path / "BuildingPermits_Current.csv.tmp").exists()
 
 
 def test_archive_and_save_does_not_mutate_dataframe(tmp_path):

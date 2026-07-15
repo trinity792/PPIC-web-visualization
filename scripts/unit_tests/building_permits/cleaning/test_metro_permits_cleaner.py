@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import pytest
+
 from scripts.building_permits.cleaning.metro_permits_cleaner import (
     clean_metro_permits,
 )
@@ -199,6 +200,26 @@ def test_clean_metro_permits_invalid_measure_raises_value_error():
 
     with pytest.raises(ValueError):
         clean_metro_permits(raw, 2026, 5, _schema_config())
+
+
+def test_clean_metro_permits_renames_survive_float_typed_codes():
+    # xlrd often reads numeric .xls cells as floats; the code-based rename and the
+    # micropolitan filter must still fire when CBSA / Metro-Micro codes arrive as
+    # floats (41860.0, 5.0) rather than ints (guide B2).
+    raw = _raw_metro_frame()
+    san_francisco = raw.iloc[[7]].copy()
+    san_francisco.iloc[0, 1] = 41860
+    raw = pd.concat([raw, san_francisco], ignore_index=True)
+    # Force the code columns to float, as a float-typed .xls parse would.
+    raw.iloc[7:, 1] = raw.iloc[7:, 1].astype(float)
+    raw.iloc[7:, 3] = raw.iloc[7:, 3].astype(float)
+
+    result = clean_metro_permits(raw, 2026, 5, _schema_config())
+
+    assert "San Francisco" in set(result["Location"])
+    assert "San Francisco-Oakland-Berkeley" not in set(result["Location"])
+    # The micropolitan row (code 5.0) is still dropped.
+    assert "California Micropolitan Area" not in set(result["Location"])
 
 
 def test_clean_metro_permits_does_not_mutate_input():

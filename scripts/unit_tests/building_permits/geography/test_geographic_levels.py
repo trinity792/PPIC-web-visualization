@@ -1,5 +1,6 @@
 import pandas as pd
 import pytest
+
 from scripts.building_permits.geography.geographic_levels import (
     tag_geographic_levels,
     validate_metro_names,

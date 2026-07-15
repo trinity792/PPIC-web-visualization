@@ -4,11 +4,11 @@ from unittest.mock import Mock
 
 import pandas as pd
 import pytest
+
 from scripts.building_permits.acquisition import census_bps_downloader
 from scripts.building_permits.acquisition.census_bps_downloader import (
     BPSMonthUnavailableError,
 )
-
 from scripts.shared.downloads.http_downloads import HTTPDownloadError
 
 

@@ -15,9 +15,13 @@ Test Folders:
     - scripts/unit_tests/building_permits/cleaning/
 """
 
+import pandas as pd
+
+from scripts.building_permits.cleaning.measure_coercion import coerce_measures_to_int
 
 # Named source columns the cleaner depends on, in addition to the measure columns.
 _REQUIRED_SOURCE_COLUMNS = ["Name", "CBSA", "Metro /Micro Code"]
+_CODE_COLUMNS = ["CBSA", "Metro /Micro Code"]
 
 
 def _locate_header_row(df):
@@ -59,6 +63,14 @@ def clean_metro_permits(df, year, month, schema_config):
     if missing:
         raise ValueError(f"Missing expected column(s) in CBSA spreadsheet: {missing}")
 
+    # Pin the code columns to a canonical nullable-integer dtype before they drive the
+    # micropolitan filter and the code-based rename. xlrd commonly reads numeric .xls
+    # cells as floats (41860.0, 5.0); without this coercion the int-keyed rename lookup
+    # and the `!= 5` filter would silently no-op on a float cell, leaving an unrenamed
+    # metro that then fails validate_metro_names (guide B2).
+    for column in _CODE_COLUMNS:
+        work[column] = pd.to_numeric(work[column], errors="coerce").astype("Int64")
+
     name = work["Name"].astype(str).str.strip()
     split = name.str.split(", ")
     work["Location"] = split.str[0]
@@ -67,16 +79,12 @@ def clean_metro_permits(df, year, month, schema_config):
     work = work[work["State"].str.contains("CA", na=False)]
     work = work[work["Metro /Micro Code"] != schema_config["micro_metro_code"]].copy()
 
-    for column in measure_columns:
-        work[column] = work[column].astype(int)
+    work["Date"] = f"{year}-{month:02d}"
+    work = coerce_measures_to_int(work, measure_columns)
 
     cbsa_code_renames = schema_config["cbsa_code_renames"]
-    work["Location"] = work.apply(
-        lambda row: cbsa_code_renames.get(row["CBSA"], row["Location"]),
-        axis=1,
-    )
+    code_renames = work["CBSA"].map(cbsa_code_renames)
+    work["Location"] = code_renames.where(code_renames.notna(), work["Location"])
     work["Location"] = work["Location"].replace(schema_config["metro_display_renames"])
-
-    work["Date"] = f"{year}-{month:02d}"
 
     return work[["Location", "Date", *measure_columns]].reset_index(drop=True)

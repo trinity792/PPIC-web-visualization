@@ -32,6 +32,7 @@ def test_get_source_settings_defines_month_availability_window():
 
     assert settings["earliest_month"] == "2010-01"
     assert settings["max_month_lookback"] > 0
+    assert settings["probe_retry_attempts"] >= 1
 
 
 def test_get_source_settings_request_and_raw_schema_configuration():

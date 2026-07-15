@@ -35,7 +35,11 @@ def get_paths():
     return {
         "project_root": Path(project_paths["project_root"]),
         "current_data_path": current_data_path,
-        "historical_data_path": current_data_path,
+        # Immutable deep-history seed (2010-01…2023-12), read-only and distinct from the
+        # live output. The Census only hosts a ~2-year rolling window of monthly files, so
+        # the pre-2024 series cannot be re-fetched; this artifact is its system of record
+        # and is never in the pipeline's write path. See the guide's "Deep-history seed".
+        "historical_data_path": cleaned_directory / "BuildingPermits_Historical.csv",
         "download_directory": raw_directory,
         "archive_directory": archive_directory,
         "logs_directory": Path(project_paths["logs_directory"]),

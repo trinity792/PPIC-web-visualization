@@ -33,7 +33,16 @@ class BPSMonthUnavailableError(RuntimeError):
 
 
 def _is_missing_file_error(error):
-    """Return True when an HTTP failure indicates a missing file rather than a transient fault."""
+    """Return True when an HTTP failure indicates a missing file rather than a transient fault.
+
+    Prefers the structured status code carried by HTTPDownloadError (error.status_code == 404)
+    so a "not published" month is distinguished from a transient network fault by the actual
+    HTTP status rather than by sniffing the message text. Falls back to a message match only
+    when no status code is present (e.g. a hand-built error in a test).
+    """
+    status_code = getattr(error, "status_code", None)
+    if status_code is not None:
+        return status_code == 404
     message = str(error)
     return "404" in message or "Not Found" in message
 

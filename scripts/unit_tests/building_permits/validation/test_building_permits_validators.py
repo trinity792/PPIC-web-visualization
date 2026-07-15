@@ -1,4 +1,5 @@
 import pandas as pd
+
 from scripts.building_permits.validation.building_permits_validators import (
     validate_building_permits_dataset,
     validate_cleaning_output,

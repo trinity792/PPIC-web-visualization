@@ -70,7 +70,10 @@ def archive_and_save(df, current_path, archive_directory):
 
     If the existing CSV is content-identical to what would be written, no file is touched.
     Otherwise the existing file is copied to archive_directory with a timestamp and the new
-    data overwrites current_path.
+    data is written **atomically** (to a temp file, then renamed over current_path) so a
+    crash mid-write can never leave a truncated CSV — the highest-consequence robustness
+    guard in this module, since a truncated write would silently destroy the only copy of
+    the irreplaceable pre-2024 deep history on the next load.
 
     Returns:
         pathlib.Path or None — the output path if written, None if skipped.
@@ -89,5 +92,11 @@ def archive_and_save(df, current_path, archive_directory):
         archive_path.write_bytes(current_path.read_bytes())
 
     current_path.parent.mkdir(parents=True, exist_ok=True)
-    current_path.write_text(new_csv)
+    temporary_path = current_path.with_name(f"{current_path.name}.tmp")
+    try:
+        temporary_path.write_text(new_csv)
+        temporary_path.replace(current_path)
+    finally:
+        if temporary_path.exists():
+            temporary_path.unlink()
     return current_path

@@ -70,7 +70,7 @@ def _configure_success(
 ):
     paths = {
         "current_data_path": tmp_path / "BuildingPermits_Current.csv",
-        "historical_data_path": tmp_path / "BuildingPermits_Current.csv",
+        "historical_data_path": tmp_path / "BuildingPermits_Historical.csv",
         "archive_directory": tmp_path / "archive",
         "download_directory": tmp_path / "raw",
     }
@@ -78,6 +78,7 @@ def _configure_success(
         "request_headers": {"User-Agent": "test"},
         "timeout": 30,
         "max_month_lookback": 6,
+        "probe_retry_attempts": 2,
     }
     schema_config = {
         "output_columns": list(CONTRACT_COLUMNS),
@@ -124,7 +125,7 @@ def _configure_success(
     ]
     mocks = {
         "latest_stored_month": Mock(return_value="2026-03"),
-        "resolve_latest_month": Mock(return_value=(2026, 5)),
+        "resolve_latest_month": Mock(return_value=(2026, 5, {})),
         "months_to_acquire": Mock(
             return_value=[(2026, 4), (2026, 5)]
         ),
@@ -133,6 +134,7 @@ def _configure_success(
         ),
         "clean_metro_permits": Mock(side_effect=metro_clean_results),
         "clean_state_permits": Mock(side_effect=state_clean_results),
+        "validate_cleaning_output": Mock(return_value=(True, [])),
         "validate_metro_names": Mock(side_effect=lambda frame, _: frame),
         "tag_geographic_levels": Mock(return_value=tagged),
         "combine_with_historical": Mock(return_value=merged),

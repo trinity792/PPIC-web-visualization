@@ -65,6 +65,9 @@ def get_source_settings():
         "earliest_month": "2010-01",
         # How many months to probe backward from the current month for the newest release.
         "max_month_lookback": 6,
+        # Attempts per latest-month probe before a transient network fault fails loud
+        # (a 404 still advances the probe immediately; see resolve_latest_month, guide A4).
+        "probe_retry_attempts": 2,
         "expected_metro_columns": list(_EXPECTED_METRO_COLUMNS),
         "expected_state_columns": list(_EXPECTED_STATE_COLUMNS),
     }
