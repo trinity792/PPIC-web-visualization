@@ -18,9 +18,15 @@ Status: Updating
   - [ ] Fix modules csv so that year column is rendered without commas
   - [ ] Sidebar length incorrect on pophousing module
   - [ ] Add top/bottom N lines to show
+  - [ ] Fix embeds and export options
 ## To Dos Thursday (7/16)
 - [ ] Implement RHNA Module
 - [ ] Implement Zillow Module
+## To Dos Friday (7/17)
+- AI Comparison Guide Updates:
+  - [ ] Skill files
+  - [ ] Workflows
+  - [ ] VSCode on MoWos
 
 ---
 
