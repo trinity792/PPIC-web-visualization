@@ -23,6 +23,7 @@ import StatCard from "@/components/landing/StatCard";
 import { Card } from "@/components/ui/card";
 
 import {
+  queryDataSources,
   queryRegionTable,
   queryStatewideStats,
 } from "@/lib/data/pop_housing";
@@ -64,15 +65,17 @@ export default function PopulationHousingDashboard({ category }) {
 async function PopulationHousingContent({ category }) {
   let stats;
   let regionTable;
+  let sources;
 
   try {
-    [stats, regionTable] = await Promise.all([
+    [stats, regionTable, sources] = await Promise.all([
       queryStatewideStats([
         "Total Population",
         "Total Housing Units",
         "Persons Per Household",
       ]),
       queryRegionTable(),
+      queryDataSources(),
     ]);
   } catch (error) {
     console.error("PopulationHousingDashboard data load failed:", error);
@@ -92,7 +95,7 @@ async function PopulationHousingContent({ category }) {
   const [populationTrend, householdMap, migrationTrend] = category.previews;
 
   return (
-    <DashboardShell category={category}>
+    <DashboardShell category={category} sources={sources}>
       <div className="grid gap-5 lg:grid-cols-2">
         <ChartTile
           viewId={populationTrend.id}

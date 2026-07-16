@@ -219,7 +219,10 @@ export function createChartConfig(schema, initialConfig = {}) {
   // Accept v1 shapes (including the legacy wire shape that folded
   // transform/chartType/appearance into `filters`) via the spec migration.
   const initial = migrateSpec(initialConfig) || {};
-  const preset = getPreset(initial.preset) || PRESETS["trend-over-time"];
+  // A module may declare a `defaultPreset` (e.g. a snapshot-only module that opens
+  // on the ranking view rather than a trend line); fall back to trend-over-time.
+  const preset =
+    getPreset(initial.preset) || getPreset(schema.defaultPreset) || PRESETS["trend-over-time"];
   const base = {
     version: SPEC_VERSION,
     module: schema.id,

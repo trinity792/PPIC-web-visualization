@@ -21,6 +21,7 @@ import React from "react";
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import { cn } from "@/components/ui/utils";
 import { getChartType } from "@/lib/visualization/chartRegistry";
+import { getModuleSchema } from "@/lib/visualization/moduleRegistry";
 
 import PreviewPane from "@/components/chart-builder/wizard/PreviewPane";
 import StepShell from "@/components/chart-builder/wizard/StepShell";
@@ -63,6 +64,12 @@ function VariantCard({ id, selected, onSelect }) {
 export default function ChartTypeStep() {
   const { config, dispatch } = useChartConfig();
 
+  // A module may restrict the chart types it supports (e.g. a snapshot-only module
+  // that offers ranking bars but not trend lines or maps). Absent the allowlist,
+  // every registered chart type is offered as before.
+  const supported = getModuleSchema(config.module)?.supportedChartTypes;
+  const allowed = supported ? new Set(supported) : null;
+
   function selectType(chartType) {
     dispatch({ type: "SET_CHART_TYPE", chartType });
   }
@@ -71,7 +78,9 @@ export default function ChartTypeStep() {
     <StepShell title="Chart Type" preview={<PreviewPane />}>
       <div className="grid gap-5">
         {FAMILIES.map((family) => {
-          const ids = family.ids.filter((id) => getChartType(id));
+          const ids = family.ids.filter(
+            (id) => getChartType(id) && (!allowed || allowed.has(id)),
+          );
           if (!ids.length) return null;
           return (
             <div key={family.label} className="grid gap-3">

@@ -62,6 +62,24 @@ describe("createChartConfig", () => {
     expect(config.filters.subset).toBe("Regions");
     expect(config.filters.transform).toBeUndefined();
   });
+
+  it("defaults to trend-over-time when the schema declares no defaultPreset", () => {
+    const config = createChartConfig(schema);
+    expect(config.preset).toBe("trend-over-time");
+    expect(config.chartType).toBe("line");
+  });
+
+  it("honors a schema-declared defaultPreset (snapshot-only ranking module)", () => {
+    const config = createChartConfig({ ...schema, defaultPreset: "compare-places" });
+    expect(config.preset).toBe("compare-places");
+    expect(config.chartType).toBe("bar");
+    // An explicit initial preset still wins over the schema default.
+    const explicit = createChartConfig(
+      { ...schema, defaultPreset: "compare-places" },
+      { preset: "trend-over-time" },
+    );
+    expect(explicit.preset).toBe("trend-over-time");
+  });
 });
 
 describe("reduceChartConfig — v2 actions", () => {

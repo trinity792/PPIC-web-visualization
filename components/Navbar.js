@@ -27,6 +27,7 @@ const MODULE_LINKS = [
   { href: "/demographic-projections", label: "Age, Sex & Race Projections" },
   { href: "/housing-stress", label: "Housing Stress" },
   { href: "/building-permits", label: "Building Permits" },
+  { href: "/rhna-progress", label: "RHNA Progress Report" },
 ];
 
 export default function Navbar() {

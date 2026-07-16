@@ -12,9 +12,11 @@
  */
 
 import PopulationHousingDashboard from "@/components/landing/dashboards/PopulationHousingDashboard";
+import RHNAProgressDashboard from "@/components/landing/dashboards/RHNAProgressDashboard";
 
 export const DASHBOARDS = Object.freeze({
   "population-housing": PopulationHousingDashboard,
+  "rhna-progress": RHNAProgressDashboard,
 });
 
 export function getDashboard(categoryId) {
