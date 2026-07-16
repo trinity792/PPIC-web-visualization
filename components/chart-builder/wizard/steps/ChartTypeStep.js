@@ -30,7 +30,7 @@ import StepShell from "@/components/chart-builder/wizard/StepShell";
 // not named here lands under "Other" so new chart types still surface.
 const FAMILIES = [
   { label: "Line", ids: ["line"] },
-  { label: "Bar", ids: ["bar"] },
+  { label: "Bar", ids: ["bar", "divergingBar"] },
   { label: "Pie", ids: ["pie"] },
   { label: "Map", ids: ["choroplethMap", "symbolMap"] },
   { label: "Range", ids: ["dumbbell", "dotPlot", "slope", "forest"] },

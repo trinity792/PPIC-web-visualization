@@ -31,6 +31,21 @@ describe("Phase 6 catalog ids", () => {
     expect(pie.defaults).toMatchObject({ hole: 0 });
   });
 
+  it("registers divergingBar as a Bar-family variant with a center reference default", () => {
+    const divergingBar = getChartType("divergingBar");
+    expect(divergingBar).toMatchObject({
+      id: "divergingBar",
+      transformCapable: true,
+      requiredRoles: ["category", "y"],
+    });
+    expect(divergingBar.roleConstraints.category).toContain("dimension");
+    expect(divergingBar.roleConstraints.y).toContain("measure");
+    expect(divergingBar.defaults).toMatchObject({
+      orientation: "horizontal",
+      center: 0,
+    });
+  });
+
   it("registers proportional-symbol maps as the symbolMap chart family", () => {
     const symbolMap = getChartType("symbolMap");
     expect(symbolMap).toMatchObject({

@@ -537,11 +537,14 @@ function AppearanceSection() {
           </Select>
         </div>
       ) : null}
-      {config.chartType === "bar" ? (
+      {["bar", "divergingBar"].includes(config.chartType) ? (
         <div className="grid gap-2">
           <Label htmlFor="appearance-orientation">Orientation</Label>
           <Select
-            value={config.appearance.orientation || "horizontal"}
+            value={
+              config.appearance.orientation ||
+              (config.chartType === "divergingBar" ? "horizontal" : "vertical")
+            }
             onValueChange={(value) =>
               dispatch({ type: "SET_APPEARANCE", key: "orientation", value })
             }
@@ -554,6 +557,32 @@ function AppearanceSection() {
               <SelectItem value="vertical">Vertical</SelectItem>
             </SelectContent>
           </Select>
+        </div>
+      ) : null}
+      {/* Diverging bars pivot around a reference value (0 by default; set 1.0 for
+          a pace ratio, a survey-neutral midpoint, etc.). */}
+      {config.chartType === "divergingBar" && isVisible("center", config.tier) ? (
+        <div className="grid gap-2">
+          <Label htmlFor="appearance-center">Center reference</Label>
+          <Input
+            id="appearance-center"
+            type="number"
+            inputMode="decimal"
+            placeholder="e.g. 0 or 1.0"
+            value={
+              config.appearance.center == null
+                ? ""
+                : String(config.appearance.center)
+            }
+            onChange={(event) => {
+              const raw = event.target.value.trim();
+              dispatch({
+                type: "SET_APPEARANCE",
+                key: "center",
+                value: raw === "" ? 0 : Number(raw),
+              });
+            }}
+          />
         </div>
       ) : null}
       {["heatmap", "choroplethMap"].includes(config.chartType) ? (

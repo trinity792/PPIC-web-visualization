@@ -26,6 +26,11 @@
 import React, { useState } from "react";
 
 import GraphTabs from "@/components/charts/GraphTabs";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 // Diverging scale domain; the 1.0 center maps to 50%.
 const DOMAIN_MAX = 2;
@@ -38,6 +43,16 @@ function bucketColor(value) {
   if (value >= 0.7) return "var(--ppic-teal-500)";
   if (value >= 0.5) return "var(--ppic-orange-100)";
   return "var(--ppic-orange-300)";
+}
+
+// Plain-language pace descriptor for the hover tooltip, keyed off the same
+// four-quadrant thresholds as bucketColor.
+function statusLabel(value) {
+  if (value == null) return "No data";
+  if (value >= 1.0) return "On or ahead of pace";
+  if (value >= 0.7) return "Nearly on pace";
+  if (value >= 0.5) return "Somewhat behind pace";
+  return "Far behind pace";
 }
 
 function positionPercent(value) {
@@ -77,29 +92,43 @@ export default function RegionalOnTrackBars({ levels = [], byLevel = {} }) {
             const left = Math.min(pos, CENTER_PERCENT);
             const width = Math.abs(pos - CENTER_PERCENT);
             return (
-              <div key={row.region} className="grid grid-cols-[8.5rem_1fr_2.5rem] items-center gap-2">
-                <span className="truncate text-xs" title={row.region}>
-                  {row.region}
-                </span>
-                <div className="relative h-5 rounded bg-muted/50">
-                  {/* 1.0 center reference line */}
-                  <div
-                    className="absolute top-0 h-full w-px bg-foreground/40"
-                    style={{ left: `${CENTER_PERCENT}%` }}
-                  />
-                  <div
-                    className="absolute top-0.5 h-4 rounded-sm"
-                    style={{
-                      left: `${left}%`,
-                      width: `${Math.max(width, 0.5)}%`,
-                      backgroundColor: bucketColor(value),
-                    }}
-                  />
-                </div>
-                <span className="text-right text-xs tabular-nums text-muted-foreground">
-                  {value == null ? "—" : value.toFixed(2)}
-                </span>
-              </div>
+              <Tooltip key={row.region}>
+                <TooltipTrigger asChild>
+                  <div className="grid cursor-default grid-cols-[8.5rem_1fr_2.5rem] items-center gap-2 rounded px-1 py-0.5 hover:bg-muted/50">
+                    <span className="truncate text-xs">{row.region}</span>
+                    <div className="relative h-5 rounded bg-muted/50">
+                      {/* 1.0 center reference line */}
+                      <div
+                        className="absolute top-0 h-full w-px bg-foreground/40"
+                        style={{ left: `${CENTER_PERCENT}%` }}
+                      />
+                      <div
+                        className="absolute top-0.5 h-4 rounded-sm"
+                        style={{
+                          left: `${left}%`,
+                          width: `${Math.max(width, 0.5)}%`,
+                          backgroundColor: bucketColor(value),
+                        }}
+                      />
+                    </div>
+                    <span className="text-right text-xs tabular-nums text-muted-foreground">
+                      {value == null ? "—" : value.toFixed(2)}
+                    </span>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-56">
+                  <p className="font-medium">{row.region}</p>
+                  <p>
+                    Median on-track score: {value == null ? "—" : value.toFixed(2)}
+                  </p>
+                  <p>{statusLabel(value)}</p>
+                  {row.count != null && (
+                    <p className="opacity-80">
+                      {row.count} {row.count === 1 ? "jurisdiction" : "jurisdictions"}
+                    </p>
+                  )}
+                </TooltipContent>
+              </Tooltip>
             );
           })
         )}

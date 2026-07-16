@@ -19,6 +19,9 @@ import { buildShapes } from "@/lib/tabular/toSeries";
 const QUERY_SHAPES = Object.freeze({
   line: "line",
   bar: "category",
+  // Diverging bar shares the single-period category view; toPlotly re-anchors
+  // the same {category, value} records around a center reference.
+  divergingBar: "category",
   dumbbell: "twoPeriod",
   slope: "twoPeriod",
   // Forest plot shares the two-endpoint (CI low/high) two-period shape.
@@ -301,7 +304,10 @@ export async function loadChartData(config, schema, signal) {
   if (config.chartType === "line") {
     return loadLineData(config, schema, signal);
   }
-  if (config.chartType === "bar" && isChangeTransform(config.transform)) {
+  if (
+    (config.chartType === "bar" || config.chartType === "divergingBar") &&
+    isChangeTransform(config.transform)
+  ) {
     return loadBarChangeData(config, schema, signal);
   }
   if (config.chartType === "choroplethMap" && isChangeTransform(config.transform)) {
@@ -361,7 +367,7 @@ export function seriesNamesOf(chartType, result) {
   if (chartType === "line") {
     return [...new Set(records.map((item) => item.location || item.label).filter(Boolean))];
   }
-  if (chartType === "bar") {
+  if (chartType === "bar" || chartType === "divergingBar") {
     return [...new Set(records.map((item) => item.group || item.series).filter(Boolean))];
   }
   if (chartType === "scatter" || chartType === "bubble") {

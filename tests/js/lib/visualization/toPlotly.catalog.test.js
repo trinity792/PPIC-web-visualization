@@ -45,6 +45,58 @@ describe("toPlotly pie/donut", () => {
   });
 });
 
+describe("toPlotly divergingBar", () => {
+  const records = [
+    { category: "Bay Area", value: 1.2 },
+    { category: "Inland Empire", value: 0.6 },
+    { category: "Central Coast", value: null },
+  ];
+
+  it("anchors each bar at the center reference and diverges by side", () => {
+    const { data, layout } = toPlotly({
+      chartType: "divergingBar",
+      bindings: { category: "category", y: "value" },
+      series: records,
+      labels: { title: "Median on-track score by region" },
+      appearance: { center: 1.0 },
+    });
+
+    expect(data).toHaveLength(1);
+    const trace = data[0];
+    expect(trace.type).toBe("bar");
+    expect(trace.orientation).toBe("h");
+    expect(trace.base).toBe(1.0);
+    // Horizontal: categories on y, offsets-from-center on x.
+    expect(trace.y).toEqual(["Bay Area", "Inland Empire", "Central Coast"]);
+    expect(trace.x[0]).toBeCloseTo(0.2); // 1.2 - 1.0, above center
+    expect(trace.x[1]).toBeCloseTo(-0.4); // 0.6 - 1.0, below center
+    expect(trace.x[2]).toBeNull(); // non-finite value drops out
+    // Above vs below center get distinct colors; missing is neutral gray.
+    expect(trace.marker.color[0]).not.toBe(trace.marker.color[1]);
+    // A center reference line is drawn at the center value.
+    expect(layout.shapes?.some((shape) => shape.x0 === 1.0 && shape.x1 === 1.0)).toBe(true);
+    expect(layout.yaxis.autorange).toBe("reversed");
+  });
+
+  it("defaults the center to 0 and flips to vertical on request", () => {
+    const { data, layout } = toPlotly({
+      chartType: "divergingBar",
+      bindings: { category: "category", y: "value" },
+      series: [{ category: "A", value: 5 }],
+      labels: {},
+      appearance: { orientation: "vertical" },
+    });
+
+    const trace = data[0];
+    expect(trace.orientation).toBe("v");
+    expect(trace.base).toBe(0);
+    expect(trace.x).toEqual(["A"]);
+    expect(trace.y).toEqual([5]);
+    // Vertical: center line is horizontal at y = 0.
+    expect(layout.shapes?.some((shape) => shape.y0 === 0 && shape.y1 === 0)).toBe(true);
+  });
+});
+
 describe("toPlotly symbolMap", () => {
   it("renders proportional symbols from records with coordinates and a size binding", () => {
     const { data, layout } = toPlotly({
