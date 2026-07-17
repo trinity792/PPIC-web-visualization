@@ -331,3 +331,127 @@ describe("toPlotly line series colors", () => {
     expect(data[1].line.color).toBe(resolveToken("orange2"));
   });
 });
+
+describe("toPlotly decimal-places (measure formatting)", () => {
+  const ratioField = { kind: "measure", unit: "ratio" };
+  const countField2 = { kind: "measure", unit: "count" };
+
+  const divergingSpec = (appearance = {}, field = ratioField) => ({
+    chartType: "divergingBar",
+    bindings: { category: "region", y: "value" },
+    series: [
+      { region: "A", value: 1.234 },
+      { region: "B", value: 0.5 },
+    ],
+    appearance,
+    field,
+  });
+
+  it("defaults non-integer measures to two decimals on hover and ticks", () => {
+    const { data, layout } = toPlotly(divergingSpec());
+    expect(data[0].hovertemplate).toContain("%{customdata:,.2f}");
+    // Horizontal diverging bar → measure lives on the x-axis.
+    expect(layout.xaxis.hoverformat).toBe(",.2f");
+    expect(layout.xaxis.tickformat).toBe(",.2f");
+  });
+
+  it("honors an explicit decimalPlaces setting", () => {
+    const { data, layout } = toPlotly(divergingSpec({ decimalPlaces: 0 }));
+    expect(data[0].hovertemplate).toContain("%{customdata:,.0f}");
+    expect(layout.xaxis.tickformat).toBe(",.0f");
+  });
+
+  it("leaves whole-number count measures unformatted", () => {
+    const { data, layout } = toPlotly(divergingSpec({}, countField2));
+    expect(data[0].hovertemplate).toContain("%{customdata}");
+    expect(data[0].hovertemplate).not.toContain(":,.2f");
+    expect(layout.xaxis.tickformat).toBeUndefined();
+  });
+
+  it("formats a percent-change transform of a count measure", () => {
+    const { layout } = toPlotly({
+      chartType: "line",
+      bindings: { x: "Year", y: "Value" },
+      series: [{ location: "CA", years: [2020, 2021], values: [10, 12] }],
+      appearance: {},
+      field: countField2,
+      transforms: { id: "percentChange", baseYear: 2020 },
+    });
+    // Line measure lives on the y-axis; x (year) stays unformatted.
+    expect(layout.yaxis.hoverformat).toBe(",.2f");
+    expect(layout.xaxis.hoverformat).toBeUndefined();
+  });
+
+  it("formats non-axis tokens for pie and choropleth measures", () => {
+    const pie = toPlotly({
+      chartType: "pie",
+      bindings: { category: "region", y: "value" },
+      series: [{ region: "A", value: 1.5 }],
+      appearance: {},
+      field: ratioField,
+    });
+    expect(pie.data[0].hovertemplate).toContain("%{value:,.2f}");
+  });
+});
+
+describe("toPlotly divergingBar (dashboard-style styling)", () => {
+  const ratioField = { kind: "measure", unit: "ratio" };
+  const baseSpec = (appearance = {}) => ({
+    chartType: "divergingBar",
+    bindings: { category: "region", y: "value" },
+    series: [
+      { region: "Ahead", value: 1.2 },
+      { region: "Nearly", value: 0.8 },
+      { region: "Behind", value: 0.4 },
+    ],
+    appearance: { center: 1, ...appearance },
+    field: ratioField,
+  });
+
+  it("colors bars by threshold buckets when configured", () => {
+    const buckets = [
+      { at: 1.0, color: "blue3" },
+      { at: 0.7, color: "teal5" },
+      { at: null, color: "orange3" },
+    ];
+    const { data } = toPlotly(baseSpec({ colorBuckets: buckets }));
+    // The single (non-rail) trace carries the per-bar colors.
+    const bars = data[data.length - 1];
+    expect(bars.marker.color).toEqual([COLORS.blue3, COLORS.teal5, COLORS.orange3]);
+  });
+
+  it("falls back to the above/below two-color split without buckets", () => {
+    const { data } = toPlotly(baseSpec());
+    const bars = data[data.length - 1];
+    // center=1: 1.2 is above, 0.8 and 0.4 are below.
+    expect(bars.marker.color).toEqual([COLORS.blue3, COLORS.orange3, COLORS.orange3]);
+  });
+
+  it("pins the measure axis to a fixed value range", () => {
+    const { layout } = toPlotly(baseSpec({ valueRange: [0, 2] }));
+    expect(layout.xaxis.range).toEqual([0, 2]);
+    expect(layout.xaxis.autorange).toBe(false);
+  });
+
+  it("draws a background track rail spanning the range, behind the bars", () => {
+    const { data, layout } = toPlotly(baseSpec({ trackRail: true, valueRange: [0, 2] }));
+    expect(layout.barmode).toBe("overlay");
+    expect(data).toHaveLength(2);
+    const [rail, bars] = data;
+    expect(rail.hoverinfo).toBe("skip");
+    expect(rail.showlegend).toBe(false);
+    expect(rail.base).toBe(0);
+    expect(rail.x).toEqual([2, 2, 2]); // full-range length per category
+    expect(bars.customdata).toEqual([1.2, 0.8, 0.4]);
+  });
+
+  it("strips axis chrome in minimal mode but keeps category labels", () => {
+    const { layout } = toPlotly(baseSpec({ minimalAxis: true }));
+    expect(layout.xaxis.showticklabels).toBe(false);
+    expect(layout.xaxis.showline).toBe(false);
+    expect(layout.xaxis.showgrid).toBe(false);
+    // Category axis (y) keeps its labels — only its line/ticks are dropped.
+    expect(layout.yaxis.showline).toBe(false);
+    expect(layout.yaxis.showticklabels).not.toBe(false);
+  });
+});

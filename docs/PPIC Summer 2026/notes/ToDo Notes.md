@@ -24,17 +24,16 @@ Status: Updating
   - [x] Add top/bottom N option to all applicable charts
   - [x] Forest Plot: Why circles different sizes? Need to increase space between the lines
 ## To Dos Thursday (7/16)
-- [ ] Implement RHNA Module
+- [x] Implement RHNA Module
 - [ ] Implement Zillow Module
 ## To Dos Friday (7/17)
-- AI Comparison Guide Updates:
-  - [ ] Skill files
-  - [ ] Workflows
-  - [ ] VSCode on MoWos
 
 ---
 
 ## Structured ToDos
+- [ ] Viz tool: able to sort by value
+- [ ] Viz tool: more color palettes
+- [ ] RHNA: add Region as geographic level
 - [x] Improve graph editor UI/UX
 - [ ] Add a last updated footer to website, should include date and time in PT.
 - [x] Additionally, each pipeline log card should have a show technical details toggle that displays **all** information available even if it is a success or recovered.
@@ -81,6 +80,10 @@ Note: not in order
 - [ ] Automatic updates should have a `git-conventions.md` file
 - [ ] Non technical explainer for how the website works
 - [ ] Update refractor guides since logging has been implemented
+- AI Comparison Guide Updates:
+  - [ ] Skill files
+  - [ ] Workflows
+  - [ ] VSCode on MoWos
 ### Frontend
 - [x] Graph editor overhaul
   - [x] Plan front and backend architecture & uses

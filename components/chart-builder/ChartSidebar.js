@@ -19,7 +19,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
-import { Clipboard, Download, RotateCcw, Save, Trash2, Upload } from "lucide-react";
+import { Clipboard, Download, Plus, RotateCcw, Save, Trash2, Upload } from "lucide-react";
 
 import ComparisonSection from "@/components/chart-builder/ComparisonSection";
 import EditorActivityLog from "@/components/chart-builder/EditorActivityLog";
@@ -56,6 +56,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -84,6 +85,7 @@ import {
   getChartType,
 } from "@/lib/visualization/chartRegistry";
 import { PRESET_ORDER, PRESETS } from "@/lib/visualization/presetRegistry";
+import { resolveToken } from "@/lib/visualization/palettes";
 import { isVisible } from "@/lib/visualization/settingsTiers";
 import { isTemporal } from "@/lib/visualization/fieldTypes";
 
@@ -492,6 +494,194 @@ export function LineSpacingControls({ lineAxes, appearance, onChange }) {
   );
 }
 
+// Brand tokens offered for threshold bucket colors — the on-track dashboard
+// scale plus a few extras. Not a free color wheel: every option is a brand token.
+const BUCKET_TOKENS = [
+  "blue3",
+  "teal5",
+  "orange1",
+  "orange3",
+  "navyBlue",
+  "steelBlue",
+  "burntOrange",
+  "complementGreen",
+  "gray5",
+];
+
+// The dashboard's on-track bucket set, applied when threshold coloring is
+// switched on. Mirrors RegionalOnTrackBars' bucketColor thresholds.
+const DEFAULT_COLOR_BUCKETS = [
+  { at: 1.0, color: "blue3" },
+  { at: 0.7, color: "teal5" },
+  { at: 0.5, color: "orange1" },
+  { at: null, color: "orange3" },
+];
+
+/**
+ * Dashboard-style styling for the diverging bar: a fixed value range, a
+ * background track rail, minimal axis chrome, and threshold ("traffic-light")
+ * bucket colors. These are the controls the "Pace ranking (dashboard style)"
+ * preset switches on; each is independently editable here.
+ */
+function DivergingStyleControls() {
+  const { config, dispatch } = useChartConfig();
+  const { appearance } = config;
+  const setAppearance = (key, value) =>
+    dispatch({ type: "SET_APPEARANCE", key, value });
+
+  const range = Array.isArray(appearance.valueRange) ? appearance.valueRange : [];
+  const setRange = (index, raw) => {
+    const next = [
+      range[0] == null ? "" : range[0],
+      range[1] == null ? "" : range[1],
+    ];
+    next[index] = raw === "" ? null : Number(raw);
+    // Clear the whole setting once both ends are blank (back to auto range).
+    if (next[0] == null && next[1] == null) setAppearance("valueRange", undefined);
+    else setAppearance("valueRange", next);
+  };
+
+  const buckets = Array.isArray(appearance.colorBuckets) ? appearance.colorBuckets : null;
+  const setBuckets = (next) => setAppearance("colorBuckets", next.length ? next : undefined);
+  const updateBucket = (index, patch) =>
+    setBuckets(buckets.map((bucket, i) => (i === index ? { ...bucket, ...patch } : bucket)));
+
+  return (
+    <>
+      {isVisible("valueRange", config.tier) ? (
+        <div className="grid gap-2">
+          <Label>Value axis range</Label>
+          <div className="flex items-center gap-2">
+            <Input
+              aria-label="Range minimum"
+              type="number"
+              inputMode="decimal"
+              placeholder="auto"
+              value={range[0] == null ? "" : String(range[0])}
+              onChange={(event) => setRange(0, event.target.value.trim())}
+            />
+            <span className="text-muted-foreground">to</span>
+            <Input
+              aria-label="Range maximum"
+              type="number"
+              inputMode="decimal"
+              placeholder="auto"
+              value={range[1] == null ? "" : String(range[1])}
+              onChange={(event) => setRange(1, event.target.value.trim())}
+            />
+          </div>
+        </div>
+      ) : null}
+      {isVisible("trackRail", config.tier) ? (
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor="appearance-track-rail">Track rail</Label>
+          <Switch
+            id="appearance-track-rail"
+            checked={Boolean(appearance.trackRail)}
+            onCheckedChange={(checked) => setAppearance("trackRail", checked)}
+          />
+        </div>
+      ) : null}
+      {isVisible("minimalAxis", config.tier) ? (
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor="appearance-minimal-axis">Minimal axis</Label>
+          <Switch
+            id="appearance-minimal-axis"
+            checked={Boolean(appearance.minimalAxis)}
+            onCheckedChange={(checked) => setAppearance("minimalAxis", checked)}
+          />
+        </div>
+      ) : null}
+      {isVisible("colorBuckets", config.tier) ? (
+        <div className="grid gap-2">
+          <div className="flex items-center justify-between gap-3">
+            <Label htmlFor="appearance-threshold-colors">Threshold colors</Label>
+            <Switch
+              id="appearance-threshold-colors"
+              checked={Boolean(buckets)}
+              onCheckedChange={(checked) =>
+                setBuckets(checked ? DEFAULT_COLOR_BUCKETS : [])
+              }
+            />
+          </div>
+          {buckets ? (
+            <div className="grid gap-1.5">
+              {buckets.map((bucket, index) => (
+                <div
+                  key={index}
+                  className="flex items-center gap-2 rounded-md border bg-card px-2 py-1.5"
+                >
+                  <span className="text-xs text-muted-foreground">≥</span>
+                  <Input
+                    aria-label={`Threshold ${index + 1}`}
+                    type="number"
+                    inputMode="decimal"
+                    className="h-7"
+                    placeholder="catch-all"
+                    value={bucket.at == null ? "" : String(bucket.at)}
+                    onChange={(event) => {
+                      const raw = event.target.value.trim();
+                      updateBucket(index, { at: raw === "" ? null : Number(raw) });
+                    }}
+                  />
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        aria-label={`Choose a color for threshold ${index + 1}`}
+                        className="size-5 shrink-0 rounded-full border"
+                        style={{ backgroundColor: resolveToken(bucket.color) }}
+                      />
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-2" align="end">
+                      <div className="grid grid-cols-5 gap-1.5">
+                        {BUCKET_TOKENS.map((token) => (
+                          <button
+                            key={token}
+                            type="button"
+                            aria-label={token}
+                            aria-pressed={bucket.color === token}
+                            onClick={() => updateBucket(index, { color: token })}
+                            className="size-6 rounded-full border"
+                            style={{ backgroundColor: resolveToken(token) }}
+                          />
+                        ))}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                  <button
+                    type="button"
+                    aria-label={`Remove threshold ${index + 1}`}
+                    className="text-muted-foreground hover:text-foreground"
+                    onClick={() => setBuckets(buckets.filter((_, i) => i !== index))}
+                  >
+                    <Trash2 aria-hidden="true" className="size-4" />
+                  </button>
+                </div>
+              ))}
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="w-full gap-1.5"
+                onClick={() => setBuckets([...buckets, { at: 0, color: "gray5" }])}
+              >
+                <Plus aria-hidden="true" className="size-3.5" />
+                Add threshold
+              </Button>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Color each bar by value thresholds (e.g. on-pace vs. behind) instead
+              of the above/below-center split.
+            </p>
+          )}
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 function AppearanceSection() {
   const { config, dispatch } = useChartConfig();
   const chart = getChartType(config.chartType);
@@ -599,6 +789,27 @@ function AppearanceSection() {
           />
         </div>
       ) : null}
+      {isVisible("decimalPlaces", config.tier) ? (
+        <div className="grid gap-2">
+          <Label htmlFor="appearance-decimals">Decimal places</Label>
+          <Input
+            id="appearance-decimals"
+            type="number"
+            min="0"
+            max="6"
+            step="1"
+            placeholder="2"
+            value={config.appearance.decimalPlaces ?? 2}
+            onChange={(event) =>
+              setAppearanceNumber("decimalPlaces", event.target.value)
+            }
+          />
+          <p className="text-xs text-muted-foreground">
+            Applies to rate, ratio, and percentage values on hover, axes, and
+            labels. Whole-number counts and years are unaffected.
+          </p>
+        </div>
+      ) : null}
       {isVisible("lineSpacing", config.tier) ? (
         <LineSpacingControls
           lineAxes={chart?.lineAxes}
@@ -676,6 +887,7 @@ function AppearanceSection() {
           />
         </div>
       ) : null}
+      {config.chartType === "divergingBar" ? <DivergingStyleControls /> : null}
       {["heatmap", "choroplethMap"].includes(config.chartType) ? (
         <div className="grid gap-2">
           <Label htmlFor="appearance-color-scale">Color scale</Label>
