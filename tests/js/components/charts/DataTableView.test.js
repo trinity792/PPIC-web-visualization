@@ -15,13 +15,14 @@ import DataTableView from "@/components/charts/DataTableView";
 const table = {
   columns: [
     { name: "Location", type: "text" },
+    { name: "Year", type: "number" },
     { name: "Population", type: "number" },
     { name: "Housing units", type: "number" },
   ],
   rows: [
-    ["Alameda", 1682000, 625000],
-    ["Butte", 207000, 95000],
-    ["Fresno", 1008000, 330000],
+    ["Alameda", 2022, 1682000, 625000],
+    ["Butte", 2023, 207000, 95000],
+    ["Fresno", 2024, 1008000, 330000],
   ],
 };
 
@@ -30,8 +31,11 @@ describe("DataTableView", () => {
     render(<DataTableView table={table} format={{}} appearance={{ pageSize: 25 }} />);
 
     expect(screen.getByRole("columnheader", { name: "Location" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Year" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Population" })).toBeInTheDocument();
     expect(screen.getByText("Alameda")).toBeInTheDocument();
+    expect(screen.getByText("2022")).toBeInTheDocument();
+    expect(screen.queryByText("2,022")).not.toBeInTheDocument();
     expect(screen.getByText("1,682,000")).toBeInTheDocument();
   });
 

@@ -9,16 +9,20 @@ Status: Updating
 ---
 # To Do Notes
 ## To Dos Wednesday (7/15)
-- [ ] Presentation slides draft start
+- [x] Presentation slides draft start
 - Module Information:
-- [ ] Plan RHNA Progress Report Module
-- [ ] Plan Zillow Data Module
+- [x] Plan RHNA Progress Report Module
+- [x] Plan Zillow Data Module
 - [ ] Plan Parcel Data Module
 - Viz Tool:
-  - [ ] Fix modules csv so that year column is rendered without commas
-  - [ ] Sidebar length incorrect on pophousing module
-  - [ ] Add top/bottom N lines to show
+  - [x] Fix modules csv so that year column is rendered without commas
+  - [x] Sidebar length incorrect on pophousing module
+  - [x] Add top/bottom N lines to show
   - [ ] Fix embeds and export options
+  - [x] Under edit section, the "Dataset" field dropdown shouldn't be a dropdown and should simply display the datasets used. For the standalone tool, if the data has a title use that (add an option for users to name their datasets (optionally))
+  - [x] Standalone: when pasting the data, the box should not dynamically expand downward, use a verticle scroll bar
+  - [x] Add top/bottom N option to all applicable charts
+  - [x] Forest Plot: Why circles different sizes? Need to increase space between the lines
 ## To Dos Thursday (7/16)
 - [ ] Implement RHNA Module
 - [ ] Implement Zillow Module
@@ -33,10 +37,10 @@ Status: Updating
 ## Structured ToDos
 - [x] Improve graph editor UI/UX
 - [ ] Add a last updated footer to website, should include date and time in PT.
-- [ ] Additionally, each pipeline log card should have a show technical details toggle that displays **all** information available even if it is a success or recovered.
+- [x] Additionally, each pipeline log card should have a show technical details toggle that displays **all** information available even if it is a success or recovered.
 - Add a couple of features:
   - [x] For horizontal dot plots -> toggles for which variables/columns to show especially for regession models (lower, upper, middle bounds). 
-  - [ ] Especially: more line ends (arrows, none, '|', etc.)
+  - [x] Especially: more line ends (arrows, none, '|', etc.)
   - [x] Undo/redo buttons
   - [x] Tabs/buttons
   - [x] Two charts side by side
@@ -46,33 +50,31 @@ Status: Updating
   - [x] add a Forest Plot
 - Tweaks to Viz Tool UI/UX:
   - [x] Alter the view data section to have a "view original data" toggle enabled by default. When it is disabled it shows what data in the chart is.
-  - [ ] Add all official styling to visualization tool (color groups, typography, Key / legend structure, etc.)
-  - [ ] Module/Visualization Tool: Chart Type section gap between Base Chart Name and box for the chart needs to be increased.
-  - [ ] "Date Range" not needed for datasets w/o dates.
-- [ ] Stress test and validate all existing modules
+  - [x] Add all official styling to visualization tool (color groups, typography, Key / legend structure, etc.)
+  - [x] Module/Visualization Tool: Chart Type section gap between Base Chart Name and box for the chart needs to be increased.
+  - [x] "Date Range" not needed for datasets w/o dates.
+- [x] Stress test and validate all existing modules
 - [x] Write `processes.md`
 - [ ] Setup automatic data updates for existing modules
-- [ ] Add RHNA Progress Report Module. [Link](https://data.ca.gov/dataset/rhna-progress-report)
+- [x] Add RHNA Progress Report Module. [Link](https://data.ca.gov/dataset/rhna-progress-report)
 - [ ] Parcel / Terner
 - [ ] Zillow Data
 
 ---
 ## Unstructured ToDos
 Note: not in order
-
-
 ### Backend
-- [ ] Manually verify all modules -> based on flags on each refractor guide
+- [x] Manually verify all modules -> based on flags on each refractor guide
 - [ ] Add live tests
 - [x] Setup logging
 - [ ] Setup automatic updates and error handling
-- [ ] Analyze all of the ways the module datasets have changed over time to widen the parameters for acquisition phase and make pipeline more robust to formatting changes
+- [ ] Analyze all of the ways the module dataset formatting have changed over time to widen the parameters for acquisition phase and make pipeline more robust to formatting changes
 ### Documentation
 - [x] Add all front end documentation to `projectSpec.md`
   - [x] what pulls from globals.css & constants.js
 - [x] **Begin** documentation for graph editor overhaul. *Start* with feature list and user flow
 - [ ] Write `proccesses.md`
-- [ ] Write `unit-tests.md`
+- [x] Write `unit-tests.md`
 - [ ] Instructions for adding a new module (human and AI instructions)
 - [x] Documentation for logging format, explanations, and error handling
 - [ ] Adjust or create a document that acts as a project hub readable by both AI and people (connects to other instruction pages)
@@ -86,9 +88,9 @@ Note: not in order
 - [x] Figure out how to display logs & errors on the front end
 - [ ] Fix indentations on markdown renderer
 - [ ] Need to strip identifying information from the logs. Should use relative paths.
-- [ ] Update UI kit fonts and graphs
-- [ ] Documents: Wire in Footnote YAML field
-- [ ] Footnotes on the graph clip the x axis labels. They should be rendered as callouts below the x axis title
+- [x] Update UI kit fonts and graphs
+- [x] Documents: Wire in Footnote YAML field
+- [x] Footnotes on the graph clip the x axis labels. They should be rendered as callouts below the x axis title
 - [ ] Test & Fix graph export visualitations
 - [ ] Tab feature on charts/graphs
 ### Information Gaps
@@ -97,7 +99,7 @@ Note: not in order
 ### Codebase
 - [ ] Scan frontend files for individual or duplicated configs (fonts, colors, styling, etc.)
   - [x] Centralize frontend configs
-  - [ ] Prefer adding variants to modifying components in place
+  - [x] Prefer adding variants to modifying components in place
   - Consider long centralized config for all components -> all status chips variants and where they go
 - [ ] Review codebase structure for inefficiencies
 - [x] Modularize `docs/` folder

@@ -74,6 +74,26 @@ describe("Phase 6 catalog ids", () => {
 });
 
 describe("descriptor metadata", () => {
+  it("exposes grid spacing only for Cartesian chart families", () => {
+    for (const chartType of [
+      "line",
+      "bar",
+      "divergingBar",
+      "heatmap",
+      "dumbbell",
+      "dotPlot",
+      "forest",
+      "scatter",
+      "bubble",
+      "slope",
+    ]) {
+      expect(getChartType(chartType).lineAxes).toEqual(["horizontal", "vertical"]);
+    }
+    for (const chartType of ["choroplethMap", "pie", "symbolMap", "dataTable"]) {
+      expect(getChartType(chartType).lineAxes).toBeUndefined();
+    }
+  });
+
   it("tags every chart descriptor with transform capability and per-control tier hints", () => {
     for (const [id, descriptor] of Object.entries(CHART_TYPES)) {
       expect(typeof descriptor.transformCapable, `chart type: ${id}`).toBe("boolean");

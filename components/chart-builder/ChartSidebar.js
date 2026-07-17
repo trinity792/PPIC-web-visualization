@@ -22,7 +22,6 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Clipboard, Download, RotateCcw, Save, Trash2, Upload } from "lucide-react";
 
 import ComparisonSection from "@/components/chart-builder/ComparisonSection";
-import DataSourcePanel from "@/components/chart-builder/DataSourcePanel";
 import EditorActivityLog from "@/components/chart-builder/EditorActivityLog";
 import EncodingSection from "@/components/chart-builder/EncodingSection";
 import LabelEditor from "@/components/chart-builder/LabelEditor";
@@ -180,10 +179,30 @@ function DataSourcesSection() {
   const { config, dispatch, schema } = useChartConfig();
   const sources = schema.sources || [];
   const isInline = config.data?.source === "inline";
+  const datasetNames = isInline
+    ? [
+        config.data?.inline?.meta?.title ||
+          config.data?.inline?.meta?.originalName ||
+          "Your data",
+      ]
+    : schema.provenanceFilter
+      ? config.filters.sources?.length
+        ? config.filters.sources
+        : schema.fields?.Source?.values || sources
+      : [config.filters.source || sources[0] || schema.label];
+  const visibleDatasetNames = datasetNames.filter(Boolean);
 
   return (
     <div className="grid gap-4">
-      <DataSourcePanel />
+      <div className="grid gap-2">
+        <Label>Dataset</Label>
+        <div
+          className="rounded-md border bg-muted/40 px-3 py-2 text-sm"
+          aria-label="Datasets used"
+        >
+          {visibleDatasetNames.length ? visibleDatasetNames.join(", ") : schema.label}
+        </div>
+      </div>
       {!isInline ? (
         <>
           {schema.provenanceFilter ? (
@@ -411,8 +430,71 @@ function PresetSection() {
   );
 }
 
+export function LineSpacingControls({ lineAxes, appearance, onChange }) {
+  const axes = new Set(lineAxes || []);
+  if (!axes.size) return null;
+
+  const spacingControl = (axis, key) => (
+    <div className="grid gap-2">
+      <Label htmlFor={`appearance-${key}`}>{axis} spacing (px)</Label>
+      <div className="flex items-center gap-2">
+        <Input
+          id={`appearance-${key}`}
+          type="number"
+          inputMode="numeric"
+          min="0"
+          max="100"
+          step="1"
+          value={appearance[key] ?? ""}
+          placeholder="Auto"
+          onChange={(event) => {
+            const raw = event.target.value;
+            const value = Number(raw);
+            onChange(
+              key,
+              raw === "" || !Number.isFinite(value)
+                ? undefined
+                : Math.min(100, Math.max(0, Math.round(value))),
+            );
+          }}
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-9 px-2.5 text-xs"
+          disabled={appearance[key] == null}
+          onClick={() => onChange(key, undefined)}
+        >
+          Auto
+        </Button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="grid gap-3 rounded-lg border bg-card p-3">
+      <div className="grid gap-1">
+        <span className="text-sm font-medium">Line spacing</span>
+        <span className="text-xs text-muted-foreground">
+          Extra pixels on each side: top/bottom for horizontal, left/right for vertical.
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {axes.has("horizontal")
+          ? spacingControl("Horizontal", "horizontalLinePadding")
+          : null}
+        {axes.has("vertical")
+          ? spacingControl("Vertical", "verticalLinePadding")
+          : null}
+      </div>
+    </div>
+  );
+}
+
 function AppearanceSection() {
   const { config, dispatch } = useChartConfig();
+  const chart = getChartType(config.chartType);
   const setAppearanceNumber = (key, raw) => {
     const value = Number(raw);
     dispatch({
@@ -516,6 +598,15 @@ function AppearanceSection() {
             }
           />
         </div>
+      ) : null}
+      {isVisible("lineSpacing", config.tier) ? (
+        <LineSpacingControls
+          lineAxes={chart?.lineAxes}
+          appearance={config.appearance}
+          onChange={(key, value) =>
+            dispatch({ type: "SET_APPEARANCE", key, value })
+          }
+        />
       ) : null}
       {config.chartType === "line" ? (
         <div className="grid gap-2">

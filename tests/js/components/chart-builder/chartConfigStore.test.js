@@ -136,12 +136,38 @@ describe("reduceChartConfig — v2 actions", () => {
     expect(dispatch(advanced, { type: "SET_TIER", tier: "advanced" })).toBe(advanced);
   });
 
-  it("LOAD_SPEC applies a parsed spec as-is, keeping seriesCount, and revalidates", () => {
-    const withCount = dispatch(base, { type: "SET_SERIES_COUNT", count: 4 });
+  it("SET_RANKING applies Top/Bottom N and resets stale category customization", () => {
+    const defaultBar = dispatch(base, { type: "SET_CHART_TYPE", chartType: "bar" });
+    const bar = {
+      ...defaultBar,
+      appearance: {
+        ...defaultBar.appearance,
+        categoryOrder: ["Old value"],
+        hiddenCategories: ["Old value"],
+      },
+    };
+    const ranked = dispatch(bar, {
+      type: "SET_RANKING",
+      topN: 5,
+      sort: "ascending",
+    });
+    expect(ranked.filters.topN).toBe(5);
+    expect(ranked.appearance.sort).toBe("ascending");
+    expect(ranked.appearance.categoryOrder).toEqual([]);
+    expect(ranked.appearance.hiddenCategories).toEqual([]);
+  });
+
+  it("LOAD_SPEC applies a parsed spec as-is, keeping loaded metadata, and revalidates", () => {
+    const withCount = dispatch(base, {
+      type: "SET_SERIES_COUNT",
+      count: 4,
+      categoryNames: ["Alameda", "Butte"],
+    });
     const draft = { ...withCount, labels: { ...withCount.labels, title: "From code" } };
     const applied = dispatch(withCount, { type: "LOAD_SPEC", spec: draft });
     expect(applied.labels.title).toBe("From code");
     expect(applied.seriesCount).toBe(4);
+    expect(applied.categoryNames).toEqual(["Alameda", "Butte"]);
     expect(applied.validation).toEqual([]);
   });
 
@@ -154,16 +180,18 @@ describe("reduceChartConfig — v2 actions", () => {
     expect(applied.bindings.y).toBe("Spare Widgets");
   });
 
-  it("SET_SERIES_COUNT stores geoUnmatched and seriesNames alongside the count", () => {
+  it("SET_SERIES_COUNT stores loaded metadata alongside the count", () => {
     const withData = dispatch(base, {
       type: "SET_SERIES_COUNT",
       count: 2,
       geoUnmatched: ["Alpine"],
       seriesNames: ["Alameda", "Butte"],
+      categoryNames: ["Fresno", "Kern"],
     });
     expect(withData.seriesCount).toBe(2);
     expect(withData.geoUnmatched).toEqual(["Alpine"]);
     expect(withData.seriesNames).toEqual(["Alameda", "Butte"]);
+    expect(withData.categoryNames).toEqual(["Fresno", "Kern"]);
   });
 
   it("SET_SERIES_COUNT revalidation surfaces a GEO_JOIN_UNMATCHED warning", () => {

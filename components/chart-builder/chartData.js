@@ -13,8 +13,9 @@
  *   - None — data-loading utility that does not render UI
  */
 
-import { getChartType } from "@/lib/visualization/chartRegistry";
+import { rankCategoryRecords } from "@/lib/data/query_shapes";
 import { buildShapes } from "@/lib/tabular/toSeries";
+import { getChartType } from "@/lib/visualization/chartRegistry";
 
 const QUERY_SHAPES = Object.freeze({
   line: "line",
@@ -22,6 +23,7 @@ const QUERY_SHAPES = Object.freeze({
   // Diverging bar shares the single-period category view; toPlotly re-anchors
   // the same {category, value} records around a center reference.
   divergingBar: "category",
+  pie: "category",
   dumbbell: "twoPeriod",
   slope: "twoPeriod",
   // Forest plot shares the two-endpoint (CI low/high) two-period shape.
@@ -173,6 +175,107 @@ function namedSeries(series, suffix) {
   }));
 }
 
+/** Rank line series by their latest visible non-missing value. */
+export function rankLineSeries(series, { topN = 20, sort = "value" } = {}) {
+  const ranked = [...(series || [])];
+  const latestValue = (item) => {
+    for (let index = (item.values || []).length - 1; index >= 0; index -= 1) {
+      const value = item.values[index];
+      if (value != null && Number.isFinite(Number(value))) return Number(value);
+    }
+    return null;
+  };
+  ranked.sort((a, b) => {
+    const aValue = latestValue(a);
+    const bValue = latestValue(b);
+    if (aValue == null) return 1;
+    if (bValue == null) return -1;
+    return sort === "ascending" ? aValue - bValue : bValue - aValue;
+  });
+  return topN && topN > 0 ? ranked.slice(0, topN) : ranked;
+}
+
+function finiteRankingValue(record, chartType) {
+  if (chartType === "forest") {
+    const explicit = [record.point, record.estimate].find((value) =>
+      Number.isFinite(Number(value)),
+    );
+    if (explicit != null) return Number(explicit);
+    const start = Number(record.start ?? record.startValue);
+    const end = Number(record.end ?? record.endValue);
+    if (Number.isFinite(start) && Number.isFinite(end)) return (start + end) / 2;
+  }
+  const candidates =
+    chartType === "dumbbell" || chartType === "slope"
+      ? [record.end, record.endValue, record.value]
+      : chartType === "scatter" || chartType === "bubble"
+        ? [record.y, record.value]
+        : [record.value, record.y];
+  const match = candidates.find((value) => Number.isFinite(Number(value)));
+  return match == null ? null : Number(match);
+}
+
+/** Rank category/range/point records by the value that visually defines them. */
+export function rankChartRecords(
+  chartType,
+  records,
+  { topN = 20, sort = "value" } = {},
+) {
+  const ranked = [...(records || [])];
+  ranked.sort((a, b) => {
+    const aValue = finiteRankingValue(a, chartType);
+    const bValue = finiteRankingValue(b, chartType);
+    if (aValue == null) return 1;
+    if (bValue == null) return -1;
+    return sort === "ascending" ? aValue - bValue : bValue - aValue;
+  });
+  return topN && topN > 0 ? ranked.slice(0, topN) : ranked;
+}
+
+/** Rank heatmap/dot-plot rows by their last visible non-missing value. */
+export function rankMatrixRows(matrix, { topN = 20, sort = "value" } = {}) {
+  const rows = (matrix?.y || []).map((label, index) => {
+    const values = matrix?.z?.[index] || [];
+    let value = null;
+    for (let column = values.length - 1; column >= 0; column -= 1) {
+      if (values[column] != null && Number.isFinite(Number(values[column]))) {
+        value = Number(values[column]);
+        break;
+      }
+    }
+    return { label, values, value, index };
+  });
+  rows.sort((a, b) => {
+    if (a.value == null) return 1;
+    if (b.value == null) return -1;
+    return sort === "ascending" ? a.value - b.value : b.value - a.value;
+  });
+  const selected = topN && topN > 0 ? rows.slice(0, topN) : rows;
+  return {
+    ...matrix,
+    y: selected.map((row) => row.label),
+    z: selected.map((row) => row.values),
+  };
+}
+
+function applyRanking(config, response) {
+  if (!getChartType(config.chartType)?.rankingCapable) return response;
+  const options = {
+    topN: config.filters.topN ?? 20,
+    sort: config.appearance.sort || "value",
+  };
+  if (config.chartType === "line") {
+    return { ...response, series: rankLineSeries(response.series, options) };
+  }
+  if (config.chartType === "heatmap" || config.chartType === "dotPlot") {
+    return { ...response, matrix: rankMatrixRows(response.matrix, options) };
+  }
+  return {
+    ...response,
+    records: rankChartRecords(config.chartType, response.records, options),
+  };
+}
+
 /** Resolve one trace layer to its (named) series; [] when not applicable. */
 async function loadLayerSeries(layer, config, schema, signal) {
   if (layer.type === "secondMeasure" && layer.y) {
@@ -203,7 +306,13 @@ async function loadLineData(config, schema, signal) {
     requestData(config, schema, signal),
     ...config.layers.map((layer) => loadLayerSeries(layer, config, schema, signal)),
   ]);
-  const series = [primary.series, ...layerResults].flat();
+  const primarySeries = rankLineSeries(primary.series, {
+    topN: config.filters.topN ?? 20,
+    sort: config.appearance.sort || "value",
+  });
+  // Explicit comparison/benchmark layers are not candidates for Top/Bottom N;
+  // append them after ranking the primary location series.
+  const series = [primarySeries, ...layerResults].flat();
   return { response: primary, series, geometry: null, unmatched: primary.unmatched || [] };
 }
 
@@ -229,7 +338,10 @@ async function loadBarChangeData(config, schema, signal) {
   const response = await requestData(config, schema, signal, { view: "twoPeriod" });
   const chart = getChartType(config.chartType);
   const topN = config.filters.topN || chart?.limits?.recommendTopN || 20;
-  const records = changeRecords(response.records || [], config.transform).slice(0, topN);
+  const records = rankCategoryRecords(
+    changeRecords(response.records || [], config.transform),
+    { topN, sort: config.appearance.sort || "value" },
+  );
   return {
     response: { ...response, records },
     series: records,
@@ -292,7 +404,8 @@ async function loadChoroplethChangeData(config, schema, signal) {
  * comparison layers simply renders the untransformed/layer-less shape.
  */
 function loadInlineData(config) {
-  const response = buildShapes(config.data.inline, config);
+  const built = buildShapes(config.data.inline, config);
+  const response = applyRanking(config, built);
   const series = response.series || response.records || response.matrix || [];
   return { response, series, geometry: null, unmatched: response.unmatched || [] };
 }
@@ -320,10 +433,11 @@ export async function loadChartData(config, schema, signal) {
       ? loadGeometry(geometryLevelForSubset(config.filters.subset), signal)
       : Promise.resolve(null);
 
-  const [response, geometry] = await Promise.all([
+  const [rawResponse, geometry] = await Promise.all([
     responsePromise,
     geometryPromise,
   ]);
+  const response = applyRanking(config, rawResponse);
   const series =
     response.series ||
     response.records ||
@@ -377,4 +491,19 @@ export function seriesNamesOf(chartType, result) {
     return [...new Set(records.map((item) => item.category || item.location).filter(Boolean))];
   }
   return [];
+}
+
+/** Loaded labels for the Advanced line/bar value manager. */
+export function categoryNamesOf(chartType, result) {
+  if (!result || !["line", "bar", "divergingBar"].includes(chartType)) return [];
+  const records = Array.isArray(result.series)
+    ? result.series
+    : result.series?.records || [];
+  return [
+    ...new Set(
+      records
+        .map((item) => item.category || item.location || item.label)
+        .filter(Boolean),
+    ),
+  ];
 }

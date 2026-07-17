@@ -31,6 +31,7 @@ import React, {
 
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import {
+  categoryNamesOf,
   hasChartData,
   isChangeTransform,
   loadChartData,
@@ -126,6 +127,7 @@ export function PreviewProvider({ children }) {
             count: seriesCountOf(config.chartType, next),
             geoUnmatched: next.unmatched || [],
             seriesNames: seriesNamesOf(config.chartType, next),
+            categoryNames: categoryNamesOf(config.chartType, next),
           });
           setPreviewState((current) => ({
             ...current,

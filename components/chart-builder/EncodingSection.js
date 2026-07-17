@@ -100,9 +100,10 @@ export default function EncodingSection() {
   // (flagged issue 2).
   const declared =
     preset?.chartType === config.chartType ? preset?.sidebar?.encodings : null;
-  const roles = declared?.length
+  const roles = (declared?.length
     ? declared
-    : [...chart.requiredRoles, ...chart.optionalRoles];
+    : [...chart.requiredRoles, ...chart.optionalRoles]
+  ).filter((role) => !(chart.hiddenRoles || []).includes(role));
 
   // Inline (byod) fields carry no measure catalog, so only the kind filter
   // applies; module fields also honor the per-field catalog-role restriction.

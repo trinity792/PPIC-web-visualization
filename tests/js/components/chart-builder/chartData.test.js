@@ -8,9 +8,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  categoryNamesOf,
   changeRecords,
   isChangeTransform,
   loadChartData,
+  rankChartRecords,
+  rankLineSeries,
+  rankMatrixRows,
   seriesNamesOf,
 } from "@/components/chart-builder/chartData";
 
@@ -56,6 +60,81 @@ describe("changeRecords", () => {
     expect(out[0]).toEqual({ location: "Alameda", category: "Alameda", value: 30 });
     expect(out[0].start).toBeUndefined();
     expect(out[0].end).toBeUndefined();
+  });
+});
+
+describe("rankLineSeries", () => {
+  const series = [
+    { location: "Alpha", values: [10, 30] },
+    { location: "Bravo", values: [20, 10] },
+    { location: "Charlie", values: [5, null, 20] },
+  ];
+
+  it("returns the Top N series by latest visible value", () => {
+    expect(
+      rankLineSeries(series, { topN: 2, sort: "value" }).map(
+        (item) => item.location,
+      ),
+    ).toEqual(["Alpha", "Charlie"]);
+  });
+
+  it("returns the Bottom N series by latest visible value", () => {
+    expect(
+      rankLineSeries(series, { topN: 2, sort: "ascending" }).map(
+        (item) => item.location,
+      ),
+    ).toEqual(["Bravo", "Charlie"]);
+  });
+});
+
+describe("ranking across applicable chart shapes", () => {
+  it("ranks range and forest records by their displayed endpoint/estimate", () => {
+    const records = [
+      { category: "Alpha", end: 20, point: 5 },
+      { category: "Bravo", end: 10, point: 30 },
+      { category: "Charlie", end: 40, point: 15 },
+    ];
+
+    expect(
+      rankChartRecords("dumbbell", records, { topN: 2 }).map((row) => row.category),
+    ).toEqual(["Charlie", "Alpha"]);
+    expect(
+      rankChartRecords("forest", records, { topN: 2 }).map((row) => row.category),
+    ).toEqual(["Bravo", "Charlie"]);
+
+    const intervalsOnly = [
+      { category: "Wide high", start: 0, end: 100 },
+      { category: "Narrow high", start: 40, end: 50 },
+    ];
+    expect(rankChartRecords("forest", intervalsOnly, { topN: 1 })[0].category).toBe(
+      "Wide high",
+    );
+  });
+
+  it("ranks scatter/bubble records by y and supports Bottom N", () => {
+    const records = [
+      { location: "Alpha", y: 20 },
+      { location: "Bravo", y: 5 },
+      { location: "Charlie", y: 10 },
+    ];
+    expect(
+      rankChartRecords("scatter", records, { topN: 2, sort: "ascending" }).map(
+        (row) => row.location,
+      ),
+    ).toEqual(["Bravo", "Charlie"]);
+  });
+
+  it("ranks matrix rows by their latest non-missing value", () => {
+    const matrix = {
+      x: [2024, 2025],
+      y: ["Alpha", "Bravo", "Charlie"],
+      z: [[10, 30], [20, 5], [15, null]],
+    };
+    expect(rankMatrixRows(matrix, { topN: 2 })).toEqual({
+      x: [2024, 2025],
+      y: ["Alpha", "Charlie"],
+      z: [[10, 30], [15, null]],
+    });
   });
 });
 
@@ -116,5 +195,28 @@ describe("seriesNamesOf", () => {
       ],
     };
     expect(seriesNamesOf("bar", result)).toEqual(["Owner", "Renter"]);
+  });
+});
+
+describe("categoryNamesOf", () => {
+  it("returns de-duplicated loaded labels for ranked bar charts", () => {
+    const result = {
+      series: [
+        { category: "Alameda", group: "Owner" },
+        { category: "Butte", group: "Owner" },
+        { category: "Alameda", group: "Renter" },
+      ],
+    };
+    expect(categoryNamesOf("bar", result)).toEqual(["Alameda", "Butte"]);
+    expect(categoryNamesOf("divergingBar", result)).toEqual(["Alameda", "Butte"]);
+  });
+
+  it("returns no category options for unrelated chart types", () => {
+    expect(categoryNamesOf("scatter", { series: [{ location: "Alameda" }] })).toEqual([]);
+  });
+
+  it("returns loaded location names for line charts", () => {
+    const result = { series: [{ location: "Alameda" }, { location: "Butte" }] };
+    expect(categoryNamesOf("line", result)).toEqual(["Alameda", "Butte"]);
   });
 });

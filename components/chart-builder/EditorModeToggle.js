@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * EditorModeToggle.js — GUI/Code mode switch plus the settings-tier toggle,
+ * EditorModeToggle.js — GUI/Code mode switch plus the Advanced Mode toggle,
  * rendered above the graph-editor workspace in both modes.
  *
  * Props:
@@ -22,43 +22,25 @@
 import React from "react";
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 
-import { hiddenCount, isVisible, TIERS } from "@/lib/visualization/settingsTiers";
-
-const TIER_LABELS = { basic: "Basic", moderate: "Moderate", advanced: "Advanced" };
+import { isVisible } from "@/lib/visualization/settingsTiers";
 
 /**
- * Settings-tier switch (Basic / Moderate / Advanced). Filters which sidebar
- * sections render; never changes the config's effect (a value set at
- * Advanced still applies at Basic). Moved out of ChartSidebar.js (overhaul
- * Phase 3) so it renders in exactly one place, above the workspace, visible
- * in both GUI and Code mode.
+ * Boolean Advanced Mode switch. The standard editor maps to the moderate tier
+ * and Advanced Mode maps to the advanced tier. The underlying tier values are
+ * retained for compatibility with saved chart specs.
  */
-export function TierToggle({ tier, onTierChange }) {
-  const hidden = hiddenCount(tier);
-
+export function AdvancedModeToggle({ tier, onTierChange }) {
   return (
-    <div className="grid gap-1">
-      <ToggleGroup
-        type="single"
-        value={tier}
-        onValueChange={(next) => next && onTierChange(next)}
-        className="w-full justify-center"
-        aria-label="Settings level"
-      >
-        {TIERS.map((tierId) => (
-          <ToggleGroupItem key={tierId} value={tierId} className="flex-1 text-xs">
-            {TIER_LABELS[tierId]}
-          </ToggleGroupItem>
-        ))}
-      </ToggleGroup>
-      {hidden > 0 ? (
-        <p className="text-center text-xs text-muted-foreground">
-          {hidden} more {hidden === 1 ? "setting" : "settings"} in{" "}
-          {tier === "basic" ? "Moderate / Advanced" : "Advanced"}
-        </p>
-      ) : null}
+    <div className="flex items-center justify-end gap-3">
+      <Label htmlFor="advanced-editor-mode">Advanced Mode</Label>
+      <Switch
+        id="advanced-editor-mode"
+        checked={tier === "advanced"}
+        onCheckedChange={(checked) => onTierChange(checked ? "advanced" : "moderate")}
+      />
     </div>
   );
 }
@@ -74,9 +56,7 @@ export default function EditorModeToggle({ mode, onModeChange, tier, onTierChang
           {codeVisible ? <TabsTrigger value="code">Code</TabsTrigger> : null}
         </TabsList>
       </Tabs>
-      <div className="w-full max-w-64 sm:w-56">
-        <TierToggle tier={tier} onTierChange={onTierChange} />
-      </div>
+      <AdvancedModeToggle tier={tier} onTierChange={onTierChange} />
     </div>
   );
 }

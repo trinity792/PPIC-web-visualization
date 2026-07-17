@@ -95,6 +95,49 @@ describe("toPlotly divergingBar", () => {
     // Vertical: center line is horizontal at y = 0.
     expect(layout.shapes?.some((shape) => shape.y0 === 0 && shape.y1 === 0)).toBe(true);
   });
+
+  it("applies advanced category visibility and drag order", () => {
+    const { data } = toPlotly({
+      chartType: "divergingBar",
+      bindings: { category: "category", y: "value" },
+      series: records,
+      labels: {},
+      appearance: {
+        categoryOrder: ["Central Coast", "Bay Area", "Inland Empire"],
+        hiddenCategories: ["Bay Area"],
+      },
+    });
+    expect(data[0].y).toEqual(["Central Coast", "Inland Empire"]);
+  });
+});
+
+describe("toPlotly forest", () => {
+  it("uses uniform estimate markers and adds vertical room for study rows", () => {
+    const studies = Array.from({ length: 10 }, (_, index) => ({
+      category: `Study ${index + 1}`,
+      start: index,
+      end: index + 2,
+      point: index + 1,
+      size: (index + 1) * 10,
+    }));
+    const { data, layout } = toPlotly({
+      chartType: "forest",
+      bindings: {
+        category: "category",
+        start: "start",
+        end: "end",
+        point: "point",
+        size: "size",
+      },
+      series: studies,
+      labels: {},
+      appearance: {},
+    });
+    const estimates = data.find((trace) => trace.name === "point");
+
+    expect(estimates.marker.size).toBe(13);
+    expect(layout.height).toBe(740);
+  });
 });
 
 describe("toPlotly symbolMap", () => {

@@ -19,6 +19,7 @@
 import React from "react";
 
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/components/ui/utils";
 import { getChartType } from "@/lib/visualization/chartRegistry";
 import { getModuleSchema } from "@/lib/visualization/moduleRegistry";
@@ -76,35 +77,37 @@ export default function ChartTypeStep() {
 
   return (
     <StepShell title="Chart Type" preview={<PreviewPane />}>
-      <div className="grid gap-5">
-        {FAMILIES.map((family) => {
-          const ids = family.ids.filter(
-            (id) => getChartType(id) && (!allowed || allowed.has(id)),
-          );
-          if (!ids.length) return null;
-          return (
-            <div key={family.label} className="grid gap-3">
-              {/* Short fixed-width accent to match the edit sidebar's SectionHeading. */}
-              <div className="relative inline-block self-start">
-                <span className="font-heading text-base font-semibold">
-                  {family.label}
-                </span>
-                <span className="absolute -bottom-1 left-0 h-0.5 w-8 rounded-full bg-ppic-brand" />
+      <ScrollArea className="h-[calc(100svh-24rem)] w-full min-w-0 pr-2">
+        <div className="grid gap-5">
+          {FAMILIES.map((family) => {
+            const ids = family.ids.filter(
+              (id) => getChartType(id) && (!allowed || allowed.has(id)),
+            );
+            if (!ids.length) return null;
+            return (
+              <div key={family.label} className="grid gap-3">
+                {/* Short fixed-width accent to match the edit sidebar's SectionHeading. */}
+                <div className="relative inline-block self-start">
+                  <span className="font-heading text-base font-semibold">
+                    {family.label}
+                  </span>
+                  <span className="absolute -bottom-1 left-0 h-0.5 w-8 rounded-full bg-ppic-brand" />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {ids.map((id) => (
+                    <VariantCard
+                      key={id}
+                      id={id}
+                      selected={config.chartType === id}
+                      onSelect={selectType}
+                    />
+                  ))}
+                </div>
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                {ids.map((id) => (
-                  <VariantCard
-                    key={id}
-                    id={id}
-                    selected={config.chartType === id}
-                    onSelect={selectType}
-                  />
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      </ScrollArea>
     </StepShell>
   );
 }

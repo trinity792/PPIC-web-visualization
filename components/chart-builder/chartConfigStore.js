@@ -394,6 +394,22 @@ export function reduceChartConfig(config, action, schema) {
       };
       break;
 
+    case "SET_RANKING":
+      next = {
+        ...config,
+        filters: { ...config.filters, topN: action.topN },
+        appearance: {
+          ...config.appearance,
+          sort: action.sort,
+          // A new ranked result has a different candidate order; discard the
+          // prior manual arrangement/visibility rather than applying it to a
+          // potentially unrelated Top/Bottom set.
+          categoryOrder: [],
+          hiddenCategories: [],
+        },
+      };
+      break;
+
     case "SET_PERIOD":
       next = {
         ...config,
@@ -416,11 +432,14 @@ export function reduceChartConfig(config, action, schema) {
       // Loaded-data size, fed back in so complexity validation can run, plus
       // any geographic-join fallout (geoUnmatched) and the live trace names
       // (seriesNames, used by the palette per-series override rows) — all
-      // three are computed keys (chartSpec.js COMPUTED_KEYS), never config.
+      // load-derived values are computed keys (chartSpec.js COMPUTED_KEYS),
+      // never serialized config.
       const geoUnmatched = action.geoUnmatched || [];
       const seriesNames = action.seriesNames || [];
+      const categoryNames = action.categoryNames || [];
       const previousUnmatched = config.geoUnmatched || [];
       const previousSeriesNames = config.seriesNames || [];
+      const previousCategoryNames = config.categoryNames || [];
       const countUnchanged = config.seriesCount === action.count;
       const geoUnchanged =
         geoUnmatched.length === previousUnmatched.length &&
@@ -428,12 +447,18 @@ export function reduceChartConfig(config, action, schema) {
       const seriesUnchanged =
         seriesNames.length === previousSeriesNames.length &&
         seriesNames.every((name, index) => name === previousSeriesNames[index]);
-      if (countUnchanged && geoUnchanged && seriesUnchanged) return config;
+      const categoriesUnchanged =
+        categoryNames.length === previousCategoryNames.length &&
+        categoryNames.every((name, index) => name === previousCategoryNames[index]);
+      if (countUnchanged && geoUnchanged && seriesUnchanged && categoriesUnchanged) {
+        return config;
+      }
       next = {
         ...config,
         seriesCount: action.count,
         geoUnmatched,
         seriesNames,
+        categoryNames,
       };
       break;
     }
@@ -536,6 +561,9 @@ export function reduceChartConfig(config, action, schema) {
       next = {
         ...normalizeSpec({ ...action.spec, module: config.module }, schema),
         seriesCount: config.seriesCount,
+        geoUnmatched: config.geoUnmatched,
+        seriesNames: config.seriesNames,
+        categoryNames: config.categoryNames,
       };
       break;
 

@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { filterRows } from "@/lib/data/query_shapes";
+import { buildCategoryValues, filterRows } from "@/lib/data/query_shapes";
 
 const ROWS = [
   { "Geographic Level": "City", Location: "Oakland", Year: 2019, Source: "E-8" },
@@ -40,5 +40,37 @@ describe("filterRows source filter", () => {
     const result = filterRows(ROWS, { levels: ["City"], source: ["E-5", "E-8"] });
     expect(result).toHaveLength(2);
     expect(new Set(result.map((row) => row.Source))).toEqual(new Set(["E-5", "E-8"]));
+  });
+});
+
+describe("buildCategoryValues ranking", () => {
+  const rows = [
+    { Location: "Alpha", Year: 2024, Value: 30 },
+    { Location: "Bravo", Year: 2024, Value: 10 },
+    { Location: "Charlie", Year: 2024, Value: 20 },
+  ];
+
+  it("returns the Top N values in descending order", () => {
+    const result = buildCategoryValues(rows, "Value", {
+      period: 2024,
+      topN: 2,
+      sort: "value",
+    });
+    expect(result.records.map((record) => record.category)).toEqual([
+      "Alpha",
+      "Charlie",
+    ]);
+  });
+
+  it("returns the Bottom N values in ascending order", () => {
+    const result = buildCategoryValues(rows, "Value", {
+      period: 2024,
+      topN: 2,
+      sort: "ascending",
+    });
+    expect(result.records.map((record) => record.category)).toEqual([
+      "Bravo",
+      "Charlie",
+    ]);
   });
 });

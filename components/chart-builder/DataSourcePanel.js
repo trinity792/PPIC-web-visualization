@@ -17,7 +17,7 @@
  *     replacing it; upload via a styled file input + Button, paste via Textarea
  */
 
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import { Pencil, RotateCcw, Trash2, Upload } from "lucide-react";
 
@@ -33,6 +33,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -53,9 +54,15 @@ function tableShape(table) {
   return `${(table.rows || []).length.toLocaleString()} rows × ${(table.columns || []).length} columns`;
 }
 
+function titleFromFilename(filename) {
+  return String(filename || "").replace(/\.[^.]+$/, "");
+}
+
 export default function DataSourcePanel() {
   const { config, dispatch, schema } = useChartConfig();
   const [pasteText, setPasteText] = useState("");
+  const [datasetName, setDatasetName] = useState("");
+  const [titleDraft, setTitleDraft] = useState("");
   const [error, setError] = useState("");
   const [editorOpen, setEditorOpen] = useState(false);
   const fileInputRef = useRef(null);
@@ -64,19 +71,24 @@ export default function DataSourcePanel() {
   // panel is always shown regardless of tier, the dataset selector is hidden,
   // and the source stays pinned to "inline".
   const inlineOnly = Boolean(schema.inlineOnly);
-
-  if (!inlineOnly && !isVisible("ownData", config.tier)) return null;
-
   const source = inlineOnly ? "inline" : config.data?.source || "module";
   const inline = config.data?.inline;
 
+  useEffect(() => {
+    setTitleDraft(inline?.meta?.title || "");
+  }, [inline?.meta?.title]);
+
+  if (!inlineOnly && !isVisible("ownData", config.tier)) return null;
+
   function loadInlineTable(table, originName) {
     setError("");
+    const title = datasetName.trim() || titleFromFilename(originName) || null;
     const withMeta = {
       ...table,
       meta: {
         importedAt: new Date().toISOString(),
         originalName: originName || null,
+        title,
         // A pristine snapshot so "revert to original" has something to
         // restore to after in-place edits in InputTableEditor.
         original: { columns: table.columns, rows: table.rows },
@@ -89,6 +101,7 @@ export default function DataSourcePanel() {
       inline: withMeta,
       defaultChart: true,
     });
+    setTitleDraft(title || "");
     logEditorEvent({
       severity: "info",
       code: "TABLE_IMPORTED",
@@ -153,6 +166,8 @@ export default function DataSourcePanel() {
       source: inlineOnly ? "inline" : "module",
       inline: undefined,
     });
+    setDatasetName("");
+    setTitleDraft("");
     logEditorEvent({
       severity: "info",
       code: "TABLE_REMOVED",
@@ -172,6 +187,19 @@ export default function DataSourcePanel() {
         columns: nextTable.columns,
         rows: nextTable.rows,
         issues: nextTable.issues,
+      },
+    });
+  }
+
+  function handleTitleCommit() {
+    const title = titleDraft.trim() || null;
+    if (title === (inline?.meta?.title || null)) return;
+    dispatch({
+      type: "SET_DATA_SOURCE",
+      source: "inline",
+      inline: {
+        ...inline,
+        meta: { ...(inline.meta || {}), title },
       },
     });
   }
@@ -207,13 +235,24 @@ export default function DataSourcePanel() {
 
       {source === "inline" && !inline ? (
         <div className="grid gap-2">
+          <Label htmlFor="data-source-name">Dataset name (optional)</Label>
+          <Input
+            id="data-source-name"
+            value={datasetName}
+            onChange={(event) => setDatasetName(event.target.value)}
+            placeholder="e.g. County population estimates"
+          />
           <Label htmlFor="data-source-paste">Paste from Excel or Sheets</Label>
           <Textarea
             id="data-source-paste"
             value={pasteText}
             onChange={(event) => setPasteText(event.target.value)}
             placeholder="Paste a table here"
-            className="min-h-24 font-mono text-xs"
+            className={
+              inlineOnly
+                ? "h-32 min-h-32 overflow-y-auto [field-sizing:fixed] font-mono text-xs"
+                : "min-h-24 font-mono text-xs"
+            }
           />
           <Button type="button" size="sm" onClick={handlePaste} disabled={!pasteText.trim()}>
             Use pasted data
@@ -244,9 +283,23 @@ export default function DataSourcePanel() {
 
       {source === "inline" && inline ? (
         <div className="grid gap-2">
+          {inlineOnly ? (
+            <div className="grid gap-2">
+              <Label htmlFor="loaded-data-source-name">Dataset name (optional)</Label>
+              <Input
+                id="loaded-data-source-name"
+                value={titleDraft}
+                onChange={(event) => setTitleDraft(event.target.value)}
+                onBlur={handleTitleCommit}
+                placeholder={inline.meta?.originalName || "Your data"}
+              />
+            </div>
+          ) : null}
           <p className="text-xs text-muted-foreground">
             {tableShape(inline)}
-            {inline.meta?.originalName ? ` · ${inline.meta.originalName}` : ""}
+            {inline.meta?.title || inline.meta?.originalName
+              ? ` · ${inline.meta?.title || inline.meta?.originalName}`
+              : ""}
           </p>
           <div className="flex flex-wrap gap-2">
             <Dialog open={editorOpen} onOpenChange={setEditorOpen}>

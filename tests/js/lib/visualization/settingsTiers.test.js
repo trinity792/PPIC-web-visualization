@@ -36,6 +36,8 @@ describe("isVisible", () => {
     expect(isVisible("seriesColors", "basic")).toBe(false);
     expect(isVisible("seriesColors", "moderate")).toBe(false);
     expect(isVisible("seriesColors", "advanced")).toBe(true);
+    expect(isVisible("categorySelection", "moderate")).toBe(false);
+    expect(isVisible("categorySelection", "advanced")).toBe(true);
   });
 
   it("hides moderate controls at Basic only", () => {

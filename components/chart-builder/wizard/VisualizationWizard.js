@@ -126,7 +126,7 @@ function WizardInner({ steps }) {
       case "chartType":
         return <ChartTypeStep />;
       case "edit":
-        return <EditStep showDataSection={!hasImport} />;
+        return <EditStep />;
       case "export":
         return <ExportStep />;
       default:

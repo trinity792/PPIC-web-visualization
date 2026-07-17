@@ -19,17 +19,19 @@
 import React from "react";
 
 import { cn } from "@/components/ui/utils";
-function Table({ className, ...props }) {
-  return <div
-    data-slot="table-container"
-    className="relative w-full overflow-x-auto"
-  >
+function Table({ className, containerClassName, ...props }) {
+  return (
+    <div
+      data-slot="table-container"
+      className={cn("relative w-full overflow-x-auto", containerClassName)}
+    >
       <table
-    data-slot="table"
-    className={cn("w-full caption-bottom text-sm", className)}
-    {...props}
-  />
-    </div>;
+        data-slot="table"
+        className={cn("w-full caption-bottom text-sm", className)}
+        {...props}
+      />
+    </div>
+  );
 }
 function TableHeader({ className, ...props }) {
   return <thead

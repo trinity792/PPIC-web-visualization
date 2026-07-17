@@ -1,23 +1,17 @@
 "use client";
 
 /**
- * EditStep.js — wizard step "Edit": the GUI ⇄ Code toggle, the settings-tier
+ * EditStep.js — wizard step "Edit": the GUI ⇄ Code toggle, the Advanced Mode
  * switch, and the chart-type/tier-gated editor sections (Date Range, Encodings,
  * Comparisons, Labels, Appearance — plus Data Sources when there is no separate
  * Import step, i.e. the module editor). All of these are the existing
  * chart-builder components, re-laid-out for the wizard.
- *
- * Props:
- *   showDataSection {boolean} — include the Data Sources section (module editor,
- *                               which has no Import step). Default false.
  *
  * Data sources:
  *   - components/chart-builder/ChartSidebar.js (SidebarSections, exported)
  *   - components/chart-builder/EditorModeToggle.js
  *   - components/chart-builder/CodeEditorPanel.js
  */
-
-/* eslint-disable react/prop-types */
 
 import React, { useEffect, useState } from "react";
 
@@ -38,7 +32,7 @@ const EDITOR_MODE_KEY = "chartEditorMode";
 // editor (no Import step); Presets and Graph Type live in the Chart Type step.
 const EDIT_SECTIONS = ["date-range", "encodings", "comparison", "labels", "appearance"];
 
-export default function EditStep({ showDataSection = false }) {
+export default function EditStep() {
   const { config, dispatch } = useChartConfig();
   const [mode, setMode] = useState("gui");
 
@@ -56,7 +50,7 @@ export default function EditStep({ showDataSection = false }) {
     if (mode === "code" && !isVisible("codeEditor", config.tier)) setMode("gui");
   }, [config.tier, mode]);
 
-  const only = showDataSection ? ["data-sources", ...EDIT_SECTIONS] : EDIT_SECTIONS;
+  const only = ["data-sources", ...EDIT_SECTIONS];
 
   return (
     <StepShell title="Edit" preview={<PreviewPane />}>

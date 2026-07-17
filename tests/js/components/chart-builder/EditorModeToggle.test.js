@@ -1,6 +1,6 @@
 /**
  * Tests for components/chart-builder/EditorModeToggle.js — the GUI/Code mode
- * switch + settings-tier toggle. Fully controlled by props (no
+ * switch + Advanced Mode toggle. Fully controlled by props (no
  * ChartConfigProvider dependency), so it renders without CodeMirror or any
  * chart-config context — kept intentionally light per the "no RTL tests
  * mounting CodeMirror" rule (this component never touches CodeMirror).
@@ -38,7 +38,7 @@ describe("EditorModeToggle", () => {
     expect(screen.queryByRole("tab", { name: "Code" })).not.toBeInTheDocument();
   });
 
-  it("reports tier changes from the tier toggle", async () => {
+  it("defaults Advanced Mode to off and enables the advanced tier", async () => {
     const onTierChange = vi.fn();
     render(
       <EditorModeToggle
@@ -48,7 +48,25 @@ describe("EditorModeToggle", () => {
         onTierChange={onTierChange}
       />,
     );
-    await userEvent.click(screen.getByRole("radio", { name: "Advanced" }));
+    const advancedMode = screen.getByRole("switch", { name: "Advanced Mode" });
+    expect(advancedMode).not.toBeChecked();
+    await userEvent.click(advancedMode);
     expect(onTierChange).toHaveBeenCalledWith("advanced");
+  });
+
+  it("returns to the standard moderate tier when Advanced Mode is disabled", async () => {
+    const onTierChange = vi.fn();
+    render(
+      <EditorModeToggle
+        mode="gui"
+        onModeChange={vi.fn()}
+        tier="advanced"
+        onTierChange={onTierChange}
+      />,
+    );
+    const advancedMode = screen.getByRole("switch", { name: "Advanced Mode" });
+    expect(advancedMode).toBeChecked();
+    await userEvent.click(advancedMode);
+    expect(onTierChange).toHaveBeenCalledWith("moderate");
   });
 });

@@ -220,8 +220,13 @@ export default function InputTableEditor({ table, onChange, onRevert }) {
         ) : null}
       </div>
 
-      <div className="max-h-[28rem] overflow-auto rounded-md border">
-        <Table>
+      <div
+        role="region"
+        aria-label="Editable imported data"
+        tabIndex={0}
+        className="max-h-[28rem] overflow-auto rounded-md border"
+      >
+        <Table containerClassName="overflow-visible">
           <TableHeader>
             <TableRow>
               {table.columns.map((column, columnIndex) =>
