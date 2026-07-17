@@ -4,7 +4,7 @@ Content Type: agent instructions
 pinned: false
 description: "Top-level orientation for AI agents working on the PPIC V3 migration, which consolidates the legacy Jupyter (V1) and partial Shiny (V2) systems into a documented, tested React/Next.js site. Sets the project's goals and ground rules for contributors."
 Date Published: June 22, 2026
-Last Updated: 06/30/2026 - 10:17 AM
+Last Updated: 07/17/2026 - 12:00 PM
 Status: Updating
 ---
 
@@ -66,6 +66,8 @@ This VS Code workspace has three folders:
 - Follow `docs/agent/markdown-conventions.md` while editing markdown files.
 - Reference `docs/agent/frontend-conventions.md` before implementing any frontend UI;
   match its patterns for layout, typography, color usage, and component styling
+- Follow `docs/agent/changelog-updater-conventions.md` when adding an entry to the
+  /logs Changelog (edit `data/changelog-overlay.json`, then rebuild)
 - Use the shared constants/theme module (e.g., `constants.js`) for all colors, fonts,
   spacing, and design tokens — never hard-code these values in individual components.
   When a new value is needed, add it to the constants file first, then import it.

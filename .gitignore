@@ -25,3 +25,7 @@ data/images/
 # fixture is kept so /logs is never blank in the repo/demo.
 logs/*_pipeline.log
 logs/pipeline-runs.jsonl
+
+.claude/settings.local.json
+
+web_data_visualization.code-workspace

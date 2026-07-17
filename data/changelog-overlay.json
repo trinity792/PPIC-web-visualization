@@ -1,5 +1,341 @@
 {
   "__doc__": "Curated overlay for the Changelog tab. Keyed by short commit hash. Each entry supplies the human-judged fields git cannot infer, and may override the git-derived title/description. Run `node scripts/changelog/build-changelog.mjs` to merge this with `git log` into data/changelog.json (the file the app reads). intensity: low | moderate | high. area: free text. audited: whether Trinity has manually reviewed the change. Only commits listed here appear in the changelog.",
+  "b58a5bd": {
+    "title": "Project initialization",
+    "area": "Documentation",
+    "intensity": "low",
+    "audited": true,
+    "module": null,
+    "description": "Initial project setup and README."
+  },
+  "5523b72": {
+    "title": "Implemented Population & Housing pipeline phases 1-6",
+    "area": "Backend scripts",
+    "intensity": "high",
+    "audited": true,
+    "module": "Population & Housing",
+    "description": "Implemented the full Population & Housing data pipeline with phases 1-6: acquisition, cleaning, aggregation, calculations, validation, and output finalization. Comprehensive test suite included."
+  },
+  "b0e8a94": {
+    "title": "Completed Population & Housing frontend implementation",
+    "area": "Front-end components",
+    "intensity": "moderate",
+    "audited": true,
+    "module": "Population & Housing",
+    "description": "Built the frontend interface for Population & Housing module with line charts and configuration updates."
+  },
+  "1c20870": {
+    "title": "Updated script code style",
+    "area": "Code quality",
+    "intensity": "low",
+    "audited": true,
+    "module": null,
+    "description": "Applied code style improvements to backend scripts."
+  },
+  "d00fc44": {
+    "title": "Completed Components of Change pipeline migration",
+    "area": "Backend scripts",
+    "intensity": "high",
+    "audited": true,
+    "module": "Components of Change",
+    "description": "Implemented the full Components of Change pipeline with data acquisition, cleaning, aggregation, calculations, and validation."
+  },
+  "e0e5de2": {
+    "title": "Major UI/UX overhaul and graph editor implementation",
+    "area": "Front-end components",
+    "intensity": "high",
+    "audited": true,
+    "module": null,
+    "description": "Completed code validation, redesigned UI/UX, implemented graph editor system, added UI Kit page, and updated project specification."
+  },
+  "b20667b": {
+    "title": "Applied CSS quick fixes",
+    "area": "Front-end components",
+    "intensity": "low",
+    "audited": true,
+    "module": null,
+    "description": "Quick CSS styling adjustments and fixes."
+  },
+  "b87c8fc": {
+    "title": "Applied CSS quick fixes",
+    "area": "Front-end components",
+    "intensity": "low",
+    "audited": true,
+    "module": null,
+    "description": "Additional CSS styling adjustments."
+  },
+  "5426471": {
+    "title": "UI updates and refinements",
+    "area": "Front-end components",
+    "intensity": "moderate",
+    "audited": true,
+    "module": null,
+    "description": "Various UI improvements and component refinements across the application."
+  },
+  "f4b9030": {
+    "title": "Codebase cleanups and refactoring",
+    "area": "Code quality",
+    "intensity": "low",
+    "audited": true,
+    "module": null,
+    "description": "General codebase cleanup and refactoring across frontend and backend."
+  },
+  "e14d6fe": {
+    "title": "Updated README with live site link",
+    "area": "Documentation",
+    "intensity": "low",
+    "audited": true,
+    "module": null,
+    "description": "Added live deployment link to project README."
+  },
+  "4b71300": {
+    "title": "Updated README with live site link (v2)",
+    "area": "Documentation",
+    "intensity": "low",
+    "audited": true,
+    "module": null,
+    "description": "README update with revised live site link."
+  },
+  "22bc1f8": {
+    "title": "Added tests for demographic projections module",
+    "area": "Backend scripts",
+    "intensity": "moderate",
+    "audited": true,
+    "module": "Age-Sex-Race Projections",
+    "description": "Wrote comprehensive test suite for the demographic projections data pipeline."
+  },
+  "010b58a": {
+    "title": "Added data dictionary and Vercel analytics",
+    "area": "Front-end components & Documentation",
+    "intensity": "moderate",
+    "audited": true,
+    "module": null,
+    "description": "Integrated Vercel analytics and added project data dictionary documentation."
+  },
+  "f9bc68a": {
+    "title": "Updated demographic projections tests",
+    "area": "Backend scripts",
+    "intensity": "low",
+    "audited": true,
+    "module": "Age-Sex-Race Projections",
+    "description": "Refinements and updates to demographic projections test suite."
+  },
+  "1b386ac": {
+    "title": "Fixed Vercel analytics integration",
+    "area": "Front-end components",
+    "intensity": "low",
+    "audited": true,
+    "module": null,
+    "description": "Corrected Vercel analytics setup and configuration."
+  },
+  "34c156a": {
+    "title": "Frontend cleanups and partial demographic projections migration",
+    "area": "Backend scripts & Front-end components",
+    "intensity": "moderate",
+    "audited": true,
+    "module": "Age-Sex-Race Projections",
+    "description": "Frontend code cleanup, refractor guide improvements, and partial implementation of demographic projections migration."
+  },
+  "7513306": {
+    "title": "Fixed font rendering",
+    "area": "Front-end components",
+    "intensity": "low",
+    "audited": true,
+    "module": null,
+    "description": "Corrected font loading and rendering issues."
+  },
+  "fd05127": {
+    "title": "Updated project specification",
+    "area": "Documentation",
+    "intensity": "low",
+    "audited": true,
+    "module": null,
+    "description": "Updated project specification documentation."
+  },
+  "7fde4f0": {
+    "title": "Updated H3 code rendering and refactor guides",
+    "area": "Documentation & Front-end components",
+    "intensity": "low",
+    "audited": true,
+    "module": null,
+    "description": "Improved H3 heading code rendering and updated refactor documentation guides."
+  },
+  "005b678": {
+    "title": "Fixed duplicate content type",
+    "area": "Front-end components",
+    "intensity": "low",
+    "audited": true,
+    "module": null,
+    "description": "Resolved duplicate content type definition."
+  },
+  "48bb202": {
+    "title": "Updated project spec module audit status",
+    "area": "Documentation",
+    "intensity": "low",
+    "audited": true,
+    "module": null,
+    "description": "Updated module audit status tracking in project specification."
+  },
+  "bc484ab": {
+    "title": "Reorganized documentation folder structure",
+    "area": "Documentation",
+    "intensity": "low",
+    "audited": true,
+    "module": null,
+    "description": "Restructured documentation directory for improved organization."
+  },
+  "4244a39": {
+    "title": "Updated project spec and graph editor planning",
+    "area": "Documentation",
+    "intensity": "low",
+    "audited": true,
+    "module": null,
+    "description": "Updated project specification and graph editor implementation planning documentation."
+  },
+  "a704dad": {
+    "title": "Completed graph editor overhaul phases 0-4",
+    "area": "Front-end components",
+    "intensity": "high",
+    "audited": true,
+    "module": null,
+    "description": "Implemented the first four phases of the graph editor overhaul including step-wizard flow, encodings, and presets."
+  },
+  "61e9ec7": {
+    "title": "Graph editor phase 5 and test suite",
+    "area": "Front-end components",
+    "intensity": "moderate",
+    "audited": true,
+    "module": null,
+    "description": "Completed phase 5 of graph editor overhaul and wrote comprehensive test coverage."
+  },
+  "a0c3462": {
+    "title": "Graph editor updates and indent fixes",
+    "area": "Front-end components",
+    "intensity": "low",
+    "audited": true,
+    "module": null,
+    "description": "Updated graph editor components and fixed indentation issues."
+  },
+  "9c53987": {
+    "title": "Graph editor UI refinements",
+    "area": "Front-end components",
+    "intensity": "moderate",
+    "audited": true,
+    "module": null,
+    "description": "UI improvements and refinements to the graph editor interface."
+  },
+  "158254d": {
+    "title": "Added changelog infrastructure",
+    "area": "Front-end components & Documentation",
+    "intensity": "moderate",
+    "audited": true,
+    "module": null,
+    "description": "Implemented the changelog system with browser, filtering, and presentation components."
+  },
+  "2a18091": {
+    "title": "Completed Population & Housing frontend and updated spec",
+    "area": "Front-end components",
+    "intensity": "moderate",
+    "audited": true,
+    "module": "Population & Housing",
+    "description": "Finished Population & Housing frontend implementation with update data capability and project specification updates."
+  },
+  "46abd7b": {
+    "title": "Validated Components of Change and markdown enhancements",
+    "area": "Backend scripts & Front-end components",
+    "intensity": "high",
+    "audited": true,
+    "module": "Components of Change",
+    "description": "Fully validated Components of Change module, updated refactor guide, added footnote field to markdown renderer, and enhanced log card display."
+  },
+  "18e518b": {
+    "title": "Updated project specification",
+    "area": "Documentation",
+    "intensity": "low",
+    "audited": true,
+    "module": null,
+    "description": "Project specification updates and refinements."
+  },
+  "ce00d57": {
+    "title": "Validated demographic projections pipeline",
+    "area": "Backend scripts",
+    "intensity": "high",
+    "audited": true,
+    "module": "Age-Sex-Race Projections",
+    "description": "Fully validated the demographic projections pipeline and updated project specification and refactor guide."
+  },
+  "da38a79": {
+    "title": "Validated ACS Housing Stress pipeline",
+    "area": "Backend scripts",
+    "intensity": "high",
+    "audited": true,
+    "module": "ACS Housing Stress",
+    "description": "Completed validation of ACS Housing Stress pipeline and added backfill script capability."
+  },
+  "d5cf717": {
+    "title": "Fixed automation notes",
+    "area": "Documentation",
+    "intensity": "low",
+    "audited": true,
+    "module": null,
+    "description": "Updated automation-related documentation notes."
+  },
+  "a1877d6": {
+    "title": "Fixed configuration errors",
+    "area": "Code quality",
+    "intensity": "low",
+    "audited": true,
+    "module": null,
+    "description": "Fixed minor configuration errors and updated notes."
+  },
+  "42420f9": {
+    "title": "Fully validated Building Permits module",
+    "area": "Backend scripts",
+    "intensity": "high",
+    "audited": true,
+    "module": "Building Permits",
+    "description": "Completed validation of Building Permits module and updated guides and project specification."
+  },
+  "d462190": {
+    "title": "Building Permits module validation completed",
+    "area": "Backend scripts",
+    "intensity": "moderate",
+    "audited": true,
+    "module": "Building Permits",
+    "description": "Final validation pass on the Building Permits pipeline."
+  },
+  "5f35209": {
+    "title": "Updated project notes",
+    "area": "Documentation",
+    "intensity": "low",
+    "audited": true,
+    "module": null,
+    "description": "Updated project TODO and planning notes."
+  },
+  "8e3551e": {
+    "title": "Wrote RHNA module specification and tests",
+    "area": "Backend scripts & Documentation",
+    "intensity": "high",
+    "audited": true,
+    "module": "RHNA Progress Report",
+    "description": "Developed comprehensive module specification and test suite for the RHNA Progress Report data pipeline."
+  },
+  "eed011b": {
+    "title": "Implemented RHNA Progress Report module",
+    "area": "Backend scripts",
+    "intensity": "high",
+    "audited": true,
+    "module": "RHNA Progress Report",
+    "description": "Implemented the RHNA Progress Report module backend, updated module specification and project spec, and added dashboard container."
+  },
+  "5a1e8fe": {
+    "title": "Added diverging bar chart for RHNA module",
+    "area": "Front-end components",
+    "intensity": "moderate",
+    "audited": true,
+    "module": "RHNA Progress Report",
+    "description": "Implemented diverging bar chart visualization for the RHNA Progress Report module."
+  },
   "c80692e": {
     "title": "Resolved Population & Housing refactor issues; validated the pipeline live",
     "area": "Backend scripts",
@@ -127,5 +463,13 @@
     "audited": true,
     "module": null,
     "description": "Added a feedback entry point so users can report bugs from within the tool."
+  },
+  "bd56b8e": {
+    "title": "Chart builder refactor and Zillow module planning",
+    "area": "Front-end components",
+    "intensity": "moderate",
+    "audited": true,
+    "module": null,
+    "description": "Refactored chart builder components, visualization rendering logic, and configuration store with comprehensive test coverage. Began planning the Zillow module with factsheet research and implementation guides."
   }
 }
