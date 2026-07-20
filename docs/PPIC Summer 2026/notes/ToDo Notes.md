@@ -8,18 +8,6 @@ Last Updated: 07/10/2026 - 3:21 PM
 Status: Updating
 ---
 # To Do Notes
-## Monday, July 20th, 2026
-- [ ] Add the option to Hide/Show specific legend items from the graph editor to ensure those changes survive the export
-- [ ] The export/import embed/config should -> Import config should be on the dataset section. Export config on the edit section
-- [ ] Center align the export image and export data buttons
-- [ ] "import/export" pop up is longer than the screen
-- [ ] Make footnote on graphs less harsh & it should extend the width of the x-axis. if the legend is on either side the footnote box should not extend to be under it
-- [x] "Copy embed" button has no reaction to click
-- [x] When you have multiple graphs, the export options only export one graph.
-- [x] Fix all export paths (all export options should export the workspace (multi graphs))
-- [x] Embed gets rolled into export image
-
-
 ## Project Meeting:
 ### Updates
 - Implemented RHNA module
@@ -188,3 +176,13 @@ Note: not in order
 ## To Dos Thursday (7/16)
 - [x] Implement RHNA Module
 - [ ] Implement Zillow Module
+## Monday, July 20th, 2026
+- [x] Add the option to Hide/Show specific legend items from the graph editor to ensure those changes survive the export
+- [x] The export/import embed/config should -> Import config should be on the dataset section. Export config on the edit section
+- [x] Center align the export image and export data buttons
+- [x] "import/export" pop up is longer than the screen
+- [x] Make footnote on graphs less harsh & it should extend the width of the x-axis. if the legend is on either side the footnote box should not extend to be under it
+- [x] "Copy embed" button has no reaction to click
+- [x] When you have multiple graphs, the export options only export one graph.
+- [x] Fix all export paths (all export options should export the workspace (multi graphs))
+- [x] Embed gets rolled into export image

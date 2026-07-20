@@ -476,8 +476,24 @@
     "title": "Decimal-places control and dashboard-style diverging bar",
     "area": "Front-end components",
     "intensity": "moderate",
-    "audited": false,
+    "audited": true,
     "module": null,
     "description": "Added decimal-places appearance setting to format non-integer measure values across Plotly charts (hover tooltips, measure-axis ticks, value labels), and restyled the diverging bar with dashboard-style controls (threshold bucket colors, fixed value range, background track rail, minimal axis chrome) plus a new preset for one-click pace ranking styling."
+  },
+  "80e986f": {
+    "title": "Multi-chart export & embed overhaul",
+    "area": "Front-end components",
+    "intensity": "high",
+    "audited": true,
+    "module": null,
+    "description": "Embed the whole multi-chart workspace with a live scaled preview and one-click copy; split export into Export image and Export data buttons; added combined multi-chart image export, per-chart CSV, and multi-sheet Excel; and selectable image quality presets."
+  },
+  "9659eff": {
+    "title": "Graph editor configuration, legend, and export refinements",
+    "area": "Front-end components",
+    "intensity": "moderate",
+    "audited": true,
+    "module": null,
+    "description": "Relocated config import/export to the dataset and edit steps, implemented per-series legend visibility controls with an eye toggle in the appearance panel, and refined footnote styling with softer presentation. Improved export panel layout and capped embed dialog height."
   }
 }

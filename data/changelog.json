@@ -1,5 +1,31 @@
 [
   {
+    "id": "9659eff",
+    "commit": "9659eff",
+    "timestamp": "2026-07-20T15:59:21-07:00",
+    "date": "2026-07-20",
+    "title": "Graph editor configuration, legend, and export refinements",
+    "description": "Relocated config import/export to the dataset and edit steps, implemented per-series legend visibility controls with an eye toggle in the appearance panel, and refined footnote styling with softer presentation. Improved export panel layout and capped embed dialog height.",
+    "area": "Front-end components",
+    "intensity": "moderate",
+    "audited": true,
+    "contributor": "Trinity Jones",
+    "module": null
+  },
+  {
+    "id": "80e986f",
+    "commit": "80e986f",
+    "timestamp": "2026-07-20T11:31:59-07:00",
+    "date": "2026-07-20",
+    "title": "Multi-chart export & embed overhaul",
+    "description": "Embed the whole multi-chart workspace with a live scaled preview and one-click copy; split export into Export image and Export data buttons; added combined multi-chart image export, per-chart CSV, and multi-sheet Excel; and selectable image quality presets.",
+    "area": "Front-end components",
+    "intensity": "high",
+    "audited": true,
+    "contributor": "Trinity Jones",
+    "module": null
+  },
+  {
     "id": "e6a1d7b",
     "commit": "e6a1d7b",
     "timestamp": "2026-07-17T15:34:32-07:00",
@@ -8,7 +34,7 @@
     "description": "Added decimal-places appearance setting to format non-integer measure values across Plotly charts (hover tooltips, measure-axis ticks, value labels), and restyled the diverging bar with dashboard-style controls (threshold bucket colors, fixed value range, background track rail, minimal axis chrome) plus a new preset for one-click pace ranking styling.",
     "area": "Front-end components",
     "intensity": "moderate",
-    "audited": false,
+    "audited": true,
     "contributor": "Trinity Jones",
     "module": null
   },
