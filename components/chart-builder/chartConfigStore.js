@@ -628,8 +628,34 @@ function removeChart(workspace, chartIdToRemove) {
   };
 }
 
+/**
+ * Replace the whole workspace from a deserialized embed payload: fresh ids per
+ * chart, capacity-clamped to MAX_CHARTS, layout honored only if it can hold the
+ * chart count (else derived). Returns null when there are no charts to load.
+ */
+function loadWorkspace(schema, incoming) {
+  const source = Array.isArray(incoming?.charts) ? incoming.charts : [];
+  const charts = source.slice(0, MAX_CHARTS).map((chart, index) => ({
+    id: chartId(),
+    name: chart.name || `Chart ${index + 1}`,
+    config: createChartConfig(schema, chart.config),
+  }));
+  if (!charts.length) return null;
+  const layout =
+    CHART_LAYOUTS.includes(incoming.layout) &&
+    chartCapacity(incoming.layout) >= charts.length
+      ? incoming.layout
+      : layoutForCount(charts.length);
+  return { activeChartId: charts[0].id, layout, charts };
+}
+
 function reduceWorkspace(workspace, action, schema) {
   switch (action.type) {
+    case "LOAD_WORKSPACE": {
+      const loaded = loadWorkspace(schema, action.workspace);
+      return loaded || workspace;
+    }
+
     case "SET_ACTIVE_CHART":
       return workspace.charts.some((chart) => chart.id === action.chartId)
         ? { ...workspace, activeChartId: action.chartId }

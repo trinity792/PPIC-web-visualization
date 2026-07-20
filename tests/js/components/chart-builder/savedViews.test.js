@@ -9,10 +9,12 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   deleteView,
   deserialize,
+  deserializeWorkspace,
   listViews,
   SAVED_VIEW_VERSION,
   saveView,
   serialize,
+  serializeWorkspace,
 } from "@/components/chart-builder/savedViews";
 import { normalizeSpec } from "@/lib/visualization/chartSpec";
 
@@ -123,6 +125,49 @@ describe("deserialize", () => {
 
   it("rejects non-JSON input", () => {
     expect(() => deserialize("{ nope", schema)).toThrow(/not valid JSON/);
+  });
+});
+
+describe("serializeWorkspace / deserializeWorkspace (multi-chart embeds)", () => {
+  const workspace = {
+    layout: "1x2",
+    charts: [
+      { id: "chart-1", name: "Chart 1", config },
+      {
+        id: "chart-2",
+        name: "Trend",
+        config: { ...config, transform: "actual", labels: { title: "Second" } },
+      },
+    ],
+  };
+
+  it("round-trips layout and every chart config", () => {
+    const out = deserializeWorkspace(serializeWorkspace(workspace), schema);
+    expect(out.layout).toBe("1x2");
+    expect(out.charts.map((c) => c.name)).toEqual(["Chart 1", "Trend"]);
+    expect(out.charts[0].config).toEqual(normalizeSpec(config, schema));
+    expect(out.charts[1].config.transform).toBe("actual");
+  });
+
+  it("serializes compact (no pretty-print newlines) so it fits in a URL", () => {
+    expect(serializeWorkspace(workspace)).not.toContain("\n");
+  });
+
+  it("returns null for a single-config payload so callers fall back to a view", () => {
+    expect(deserializeWorkspace(serialize(config), schema)).toBeNull();
+    expect(deserializeWorkspace("{ nope", schema)).toBeNull();
+  });
+
+  it("fails loudly when a chart in the workspace is invalid", () => {
+    const broken = {
+      ...workspace,
+      charts: [
+        { name: "Bad", config: { ...config, bindings: { ...config.bindings, y: "No Such Field" } } },
+      ],
+    };
+    expect(() => deserializeWorkspace(serializeWorkspace(broken), schema)).toThrow(
+      /Saved view is invalid/,
+    );
   });
 });
 

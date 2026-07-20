@@ -30,7 +30,11 @@ import {
   useChartConfig,
 } from "@/components/chart-builder/chartConfigStore";
 import MultiChartToolbar from "@/components/chart-builder/MultiChartToolbar";
-import { deserialize, getView } from "@/components/chart-builder/savedViews";
+import {
+  deserialize,
+  deserializeWorkspace,
+  getView,
+} from "@/components/chart-builder/savedViews";
 
 import { PreviewProvider } from "@/components/chart-builder/wizard/PreviewContext";
 import PreviewPane from "@/components/chart-builder/wizard/PreviewPane";
@@ -66,7 +70,15 @@ function ViewHydrator({ viewId, hasBuiltInView }) {
         dispatch({ type: "LOAD_VIEW", config: local });
         return;
       }
-      const imported = deserialize(decodeURIComponent(viewId), schema);
+      const decoded = decodeURIComponent(viewId);
+      // Multi-chart embeds carry the whole workspace; single views carry one
+      // config. deserializeWorkspace returns null for the single-config shape.
+      const workspace = deserializeWorkspace(decoded, schema);
+      if (workspace) {
+        dispatch({ type: "LOAD_WORKSPACE", workspace });
+        return;
+      }
+      const imported = deserialize(decoded, schema);
       dispatch({ type: "LOAD_VIEW", config: imported });
     } catch {
       // Unknown deep links fall back to the default preset.
@@ -89,7 +101,7 @@ function EmbeddedPreview() {
     <>
       <EmbedChromeHider />
       <main className="min-h-svh bg-white p-3">
-        <PreviewPane />
+        <PreviewPane embedded />
       </main>
     </>
   );

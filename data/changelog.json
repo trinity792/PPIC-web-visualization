@@ -1,5 +1,18 @@
 [
   {
+    "id": "e6a1d7b",
+    "commit": "e6a1d7b",
+    "timestamp": "2026-07-17T15:34:32-07:00",
+    "date": "2026-07-17",
+    "title": "Decimal-places control and dashboard-style diverging bar",
+    "description": "Added decimal-places appearance setting to format non-integer measure values across Plotly charts (hover tooltips, measure-axis ticks, value labels), and restyled the diverging bar with dashboard-style controls (threshold bucket colors, fixed value range, background track rail, minimal axis chrome) plus a new preset for one-click pace ranking styling.",
+    "area": "Front-end components",
+    "intensity": "moderate",
+    "audited": false,
+    "contributor": "Trinity Jones",
+    "module": null
+  },
+  {
     "id": "bd56b8e",
     "commit": "bd56b8e",
     "timestamp": "2026-07-17T14:04:03-07:00",

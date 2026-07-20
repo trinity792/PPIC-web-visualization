@@ -8,25 +8,47 @@ Last Updated: 07/10/2026 - 3:21 PM
 Status: Updating
 ---
 # To Do Notes
-## To Dos Wednesday (7/15)
-- [x] Presentation slides draft start
-- Module Information:
-- [x] Plan RHNA Progress Report Module
-- [x] Plan Zillow Data Module
+## Monday, July 20th, 2026
+- [ ] Hide/Show specific legend items
+- [ ] The export/import embed/config should -> Import config should be on the dataset section. Export config on the edit section
+- [ ] Center align the export image and export data buttons
+- [ ] "import/export" pop up is longer than the screen
+- [x] "Copy embed" button has no reaction to click
+- [x] When you have multiple graphs, the export options only export one graph.
+- [x] Fix all export paths (all export options should export the workspace (multi graphs))
+- [x] Embed gets rolled into export image
+
+## Project Meeting:
+### Updates
+- Implemented RHNA module
+- All previous modules run live
+  - Can make it even more robust by adding in live tests and tests based on previous changes in workbook structure
+- Added changelog
+- Made some refinements to graph editor feature
+- Started planning for Zillow module (deciced to wait to figure out what to do for automations)
+### Questions
+- [ ] Anything else needed for RHNA module?
+- [ ] **Main**: How are we going to automate module updates?
+  - Context:
+    - Vercel is designed to serve the data, not run it. Currently, pressing the update button causes vercel to start a temporary instance to run the required code. The problem is that it is temporary and anything generated could be lost including logs.
+    - The current workflow has been running the code on my macbook then pushing it to GitHub (which vercel reads)
+  - Solution:
+    - The code (pipelines) need to run elsewhere, not on my macbook.
+    - The data needs to be stored somewhere
+  - Options:
+    - GitHub Actions runs the code
+    - Store the data ?? (Vercel Blob, Internal PPIC Server, )
+  - Needs:
+    - PPIC Github & Vercel Account or Use Staff
+## Later
 - [ ] Plan Parcel Data Module
-- Viz Tool:
-  - [x] Fix modules csv so that year column is rendered without commas
-  - [x] Sidebar length incorrect on pophousing module
-  - [x] Add top/bottom N lines to show
-  - [ ] Fix embeds and export options
-  - [x] Under edit section, the "Dataset" field dropdown shouldn't be a dropdown and should simply display the datasets used. For the standalone tool, if the data has a title use that (add an option for users to name their datasets (optionally))
-  - [x] Standalone: when pasting the data, the box should not dynamically expand downward, use a verticle scroll bar
-  - [x] Add top/bottom N option to all applicable charts
-  - [x] Forest Plot: Why circles different sizes? Need to increase space between the lines
-## To Dos Thursday (7/16)
-- [x] Implement RHNA Module
 - [ ] Implement Zillow Module
-## To Dos Friday (7/17)
+
+---
+
+# Follow Ups
+## A Running List
+- Combined SVG/PDF are raster-wrapped, not true vector (combining vector charts is substantially more work). Single-chart SVG/PDF stay vector-first. If crisp vector multi-chart output matters, that's a follow-up.
 
 ---
 
@@ -118,7 +140,7 @@ Note: not in order
 
 ---
 
-Archived ToDos
+# Archived ToDos
 ## To Dos Today (7/10)
 - Graph Editor Clean Ups
   - [x] View original data checks & fixes
@@ -141,3 +163,21 @@ Archived ToDos
 ## To Dos Tuesday (7/14)
 - [x] Plan Automations
 - [x] Project Meeting
+## To Dos Wednesday (7/15)
+- [x] Presentation slides draft start
+- Module Information:
+- [x] Plan RHNA Progress Report Module
+- [x] Plan Zillow Data Module
+- [ ] Plan Parcel Data Module
+- Viz Tool:
+  - [x] Fix modules csv so that year column is rendered without commas
+  - [x] Sidebar length incorrect on pophousing module
+  - [x] Add top/bottom N lines to show
+  - [ ] Fix embeds and export options
+  - [x] Under edit section, the "Dataset" field dropdown shouldn't be a dropdown and should simply display the datasets used. For the standalone tool, if the data has a title use that (add an option for users to name their datasets (optionally))
+  - [x] Standalone: when pasting the data, the box should not dynamically expand downward, use a verticle scroll bar
+  - [x] Add top/bottom N option to all applicable charts
+  - [x] Forest Plot: Why circles different sizes? Need to increase space between the lines
+## To Dos Thursday (7/16)
+- [x] Implement RHNA Module
+- [ ] Implement Zillow Module

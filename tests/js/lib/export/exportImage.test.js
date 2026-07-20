@@ -7,6 +7,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  exportCombinedImage,
   exportImage,
   IMAGE_FORMATS,
   suggestFilename,
@@ -113,6 +114,26 @@ describe("exportImage", () => {
     );
     expect(clicks).toHaveLength(1);
     expect(clicks[0].download).toBe("chart.png");
+  });
+
+  it("exportCombinedImage delegates to the vector path for a single chart", async () => {
+    const graphDiv = { id: "graph" };
+    const { clicks } = stubAnchorClick();
+
+    await exportCombinedImage([graphDiv, null], {
+      layout: "1x1",
+      format: "png",
+      scale: 2,
+      filename: "one-chart.png",
+    });
+
+    // One real chart => single-chart export (no canvas compositing).
+    expect(globalThis.Plotly.toImage).toHaveBeenCalledWith(
+      graphDiv,
+      expect.objectContaining({ format: "png", scale: 2 }),
+    );
+    expect(clicks).toHaveLength(1);
+    expect(clicks[0].download).toBe("one-chart.png");
   });
 
   it("renders PDF from SVG first so PDF remains vector", async () => {

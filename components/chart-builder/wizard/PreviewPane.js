@@ -31,8 +31,10 @@ import { usePreview } from "@/components/chart-builder/wizard/PreviewContext";
 import { CHART_HEIGHTS } from "@/lib/constants";
 
 function gridClass(layout, count) {
-  if (count <= 1 || layout === "1x1") return "grid-cols-1";
-  if (layout === "1x2") return "grid-cols-1 lg:grid-cols-2";
+  // 2x1 is "Stacked": one column, two rows. Only 1x2 and 2x2 go two-wide. This
+  // must own the column count outright — a later `lg:grid-cols-1` override loses
+  // the tie to `lg:grid-cols-2` in Tailwind's stylesheet order.
+  if (count <= 1 || layout === "1x1" || layout === "2x1") return "grid-cols-1";
   return "grid-cols-1 lg:grid-cols-2";
 }
 
@@ -42,7 +44,7 @@ function slotHeight(layout, count) {
   return 380;
 }
 
-function ChartSlot({ preview, layout, multi, onGraphDiv }) {
+function ChartSlot({ preview, layout, multi, embedded, onGraphDiv }) {
   const { dispatch } = useChartConfig();
   const {
     id,
@@ -61,10 +63,12 @@ function ChartSlot({ preview, layout, multi, onGraphDiv }) {
     <div
       className={cn(
         "relative flex min-h-72 min-w-0 flex-col overflow-hidden rounded-lg border bg-background",
-        active ? "border-ppic-brand ring-2 ring-ppic-brand/25" : "border-border",
+        active && !embedded
+          ? "border-ppic-brand ring-2 ring-ppic-brand/25"
+          : "border-border",
       )}
     >
-      {multi ? (
+      {multi && !embedded ? (
         <div className="flex items-center justify-between gap-2 border-b bg-muted/40 px-3 py-2">
           <span className="truncate text-xs font-medium text-muted-foreground">
             {name}
@@ -138,6 +142,13 @@ function ChartSlot({ preview, layout, multi, onGraphDiv }) {
         {status === "ready" && plotly?.data && !renderError ? (
           <PlotlyChart
             {...plotly}
+            // Embeds are read-only output: hide Plotly's modebar (zoom/pan/etc.)
+            // so the shared chart shows no interactive editor controls.
+            config={
+              embedded
+                ? { ...plotly.config, displayModeBar: false }
+                : plotly.config
+            }
             height={height}
             className="min-w-0 w-full"
             onGraphDiv={(graphDiv) => onGraphDiv(id, graphDiv)}
@@ -148,7 +159,7 @@ function ChartSlot({ preview, layout, multi, onGraphDiv }) {
   );
 }
 
-export default function PreviewPane() {
+export default function PreviewPane({ embedded = false }) {
   const { workspace } = useChartConfig();
   const { previews, setGraphDiv } = usePreview();
   const charts = previews || [];
@@ -160,7 +171,6 @@ export default function PreviewPane() {
       className={cn(
         "grid min-h-130 w-full gap-3 overflow-hidden",
         gridClass(layout, charts.length),
-        layout === "2x1" ? "lg:grid-cols-1" : null,
       )}
     >
       {charts.map((preview) => (
@@ -169,6 +179,7 @@ export default function PreviewPane() {
           preview={preview}
           layout={layout}
           multi={multi}
+          embedded={embedded}
           onGraphDiv={setGraphDiv}
         />
       ))}

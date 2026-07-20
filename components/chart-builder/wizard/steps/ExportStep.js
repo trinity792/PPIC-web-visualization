@@ -25,7 +25,7 @@ import StepShell from "@/components/chart-builder/wizard/StepShell";
 import { usePreview } from "@/components/chart-builder/wizard/PreviewContext";
 
 export default function ExportStep() {
-  const { result, status, graphDivRef } = usePreview();
+  const { result, status, graphDivRef, previews, graphDivRefs } = usePreview();
   const ready = status === "ready" && Boolean(result);
 
   return (
@@ -40,7 +40,12 @@ export default function ExportStep() {
             as CSV or Excel, or the chart configuration as JSON.
           </p>
           {ready ? (
-            <ExportMenu graphDivRef={graphDivRef} loaded={result} />
+            <ExportMenu
+              graphDivRef={graphDivRef}
+              loaded={result}
+              previews={previews}
+              graphDivRefs={graphDivRefs}
+            />
           ) : (
             <p className="text-sm text-muted-foreground">
               Finish building a valid chart to enable export.

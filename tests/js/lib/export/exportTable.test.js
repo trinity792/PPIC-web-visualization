@@ -11,6 +11,7 @@ import {
   copyText,
   displayTable,
   originalTable,
+  tablesToXlsxBlob,
   toCsv,
   toXlsxBlob,
 } from "@/lib/export/exportTable";
@@ -227,6 +228,36 @@ describe("toXlsxBlob", () => {
     expect(sheet.getRow(1).values.slice(1)).toEqual(["Location", "Total Widgets"]);
     expect(sheet.getRow(2).values.slice(1)).toEqual(["Alameda", 100]);
     expect(sheet.getRow(3).values.slice(1)).toEqual(["Butte", 50]);
+  });
+});
+
+describe("tablesToXlsxBlob", () => {
+  it("writes one worksheet per chart with sanitized, de-duplicated names", async () => {
+    const table = {
+      columns: [{ name: "Location" }, { name: "Value" }],
+      rows: [["Alameda", 100]],
+    };
+    // Illegal Excel chars ([ ] : etc.) and a duplicate name after sanitizing.
+    const blob = await tablesToXlsxBlob([
+      { name: "By [County]", table },
+      { name: "By  County ", table },
+    ]);
+    expect(blob).toBeInstanceOf(Blob);
+
+    const ExcelJSModule = await import("exceljs");
+    const ExcelJS = ExcelJSModule.default || ExcelJSModule;
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(await blob.arrayBuffer());
+
+    const names = workbook.worksheets.map((sheet) => sheet.name);
+    expect(names).toHaveLength(2);
+    expect(names[0]).toBe("By  County");
+    // Second sheet collides, so it is suffixed to stay unique.
+    expect(names[1]).not.toBe(names[0]);
+    expect(workbook.getWorksheet(1).getRow(2).values.slice(1)).toEqual([
+      "Alameda",
+      100,
+    ]);
   });
 });
 

@@ -96,6 +96,40 @@ export function deserialize(json, schema) {
   return config;
 }
 
+/**
+ * Workspace (multi-chart) wire format for embeds: `{ layout, charts: [{name,
+ * config}] }`. A single saved view has no top-level `charts` array, so one
+ * `view=` param can carry either shape and the reader can tell them apart.
+ * Serialized compact (no pretty-print) because embeds ride inside a URL.
+ */
+export function serializeWorkspace(workspace) {
+  const charts = (workspace?.charts || []).map((chart) => ({
+    name: chart.name,
+    config: savedShape(chart.config),
+  }));
+  return JSON.stringify({ layout: workspace?.layout || "1x1", charts });
+}
+
+/**
+ * Parse a workspace payload. Returns null when `json` is not workspace-shaped,
+ * so callers can fall back to single-view `deserialize`; throws when it IS a
+ * workspace but any chart config is invalid (reusing per-chart validation).
+ */
+export function deserializeWorkspace(json, schema) {
+  let parsed;
+  try {
+    parsed = typeof json === "string" ? JSON.parse(json) : clone(json);
+  } catch {
+    return null;
+  }
+  if (!parsed || !Array.isArray(parsed.charts)) return null;
+  const charts = parsed.charts.map((chart, index) => ({
+    name: chart?.name || `Chart ${index + 1}`,
+    config: deserialize(chart?.config ?? chart, schema),
+  }));
+  return { layout: parsed.layout, charts };
+}
+
 export function listViews() {
   const store = storage();
   if (!store) return [];
