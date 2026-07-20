@@ -531,6 +531,20 @@ export function reduceChartConfig(config, action, schema) {
       break;
     }
 
+    case "SET_SERIES_VISIBILITY": {
+      // { seriesName, hidden } — persists which legend items are hidden so the
+      // choice survives re-render and export (unlike Plotly's interactive
+      // legend clicks, which live only in the rendered figure).
+      const hidden = new Set(config.appearance.hiddenSeries || []);
+      if (action.hidden) hidden.add(action.seriesName);
+      else hidden.delete(action.seriesName);
+      next = {
+        ...config,
+        appearance: { ...config.appearance, hiddenSeries: [...hidden] },
+      };
+      break;
+    }
+
     case "ADD_ANNOTATION":
       next = {
         ...config,

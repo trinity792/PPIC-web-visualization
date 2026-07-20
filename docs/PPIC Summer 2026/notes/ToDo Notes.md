@@ -9,14 +9,16 @@ Status: Updating
 ---
 # To Do Notes
 ## Monday, July 20th, 2026
-- [ ] Hide/Show specific legend items
+- [ ] Add the option to Hide/Show specific legend items from the graph editor to ensure those changes survive the export
 - [ ] The export/import embed/config should -> Import config should be on the dataset section. Export config on the edit section
 - [ ] Center align the export image and export data buttons
 - [ ] "import/export" pop up is longer than the screen
+- [ ] Make footnote on graphs less harsh & it should extend the width of the x-axis. if the legend is on either side the footnote box should not extend to be under it
 - [x] "Copy embed" button has no reaction to click
 - [x] When you have multiple graphs, the export options only export one graph.
 - [x] Fix all export paths (all export options should export the workspace (multi graphs))
 - [x] Embed gets rolled into export image
+
 
 ## Project Meeting:
 ### Updates
@@ -27,6 +29,7 @@ Status: Updating
 - Made some refinements to graph editor feature
 - Started planning for Zillow module (deciced to wait to figure out what to do for automations)
 ### Questions
+- [ ] Could I go to Sacramento office on Thursday?
 - [ ] Anything else needed for RHNA module?
 - [ ] **Main**: How are we going to automate module updates?
   - Context:
@@ -137,6 +140,10 @@ Note: not in order
 - [ ] Climate/Water stats
 - [ ] Document edit mode that allows pushing to git
 - [ ] Map geojson library
+
+---
+# Internship Feedback
+- [ ] In person coffe chat option
 
 ---
 

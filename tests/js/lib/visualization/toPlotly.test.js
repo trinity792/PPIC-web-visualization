@@ -25,7 +25,7 @@ describe("toPlotly footnote", () => {
     appearance: {},
   };
 
-  it("renders a gray3 callout below the x-axis text", () => {
+  it("renders a soft, light callout below the x-axis text", () => {
     const withoutFootnote = toPlotly(spec);
     const { layout } = toPlotly({
       ...spec,
@@ -40,12 +40,12 @@ describe("toPlotly footnote", () => {
       xanchor: "left",
       y: 0,
       yanchor: "top",
-      bgcolor: COLORS.gray3,
-      bordercolor: COLORS.gray3,
+      bgcolor: COLORS.gray1,
+      bordercolor: COLORS.gray2,
       borderpad: 8,
-      borderwidth: 0,
+      borderwidth: 1,
       showarrow: false,
-      font: { color: COLORS.darkGray },
+      font: { color: COLORS.gray6 },
     });
     expect(footnote.yshift).toBeLessThan(0);
     expect(layout.margin.b).toBeGreaterThan(withoutFootnote.layout.margin.b);
@@ -62,11 +62,30 @@ describe("toPlotly footnote", () => {
     expect(layout.margin.b).toBeGreaterThan(104);
   });
 
-  it("spans the x-axis width and reserves space for wrapped lines", () => {
-    const shortLayout = toPlotly({
+  it("spans the x-axis width, minus a side legend, and reserves wrap space", () => {
+    const footnoteWidth = (layout, w, h) =>
+      fitFootnoteLayout(layout, w, h).annotations.find(
+        (annotation) => annotation.name === "ppic-footnote",
+      ).width;
+
+    // No legend → the callout spans the full plot width.
+    // 600px - 70 left - 40 right - 2*(8 pad + 1 border) = 472.
+    const noLegend = toPlotly({
+      ...spec,
+      appearance: { legendPosition: "hidden" },
+      labels: { ...spec.labels, footnote: "Short note" },
+    }).layout;
+    const fullWidth = footnoteWidth(noLegend, 600, 420);
+    expect(fullWidth).toBe(472);
+
+    // A right-hand legend reserves a column, so the callout stops before it.
+    const rightLegend = toPlotly({
       ...spec,
       labels: { ...spec.labels, footnote: "Short note" },
     }).layout;
+    expect(footnoteWidth(rightLegend, 600, 420)).toBeLessThan(fullWidth);
+
+    // Wrapped and hard-broken footnotes still grow the bottom margin.
     const longLayout = toPlotly({
       ...spec,
       labels: {
@@ -74,21 +93,16 @@ describe("toPlotly footnote", () => {
         footnote: "A long footnote that wraps onto several lines in a narrow graph. ".repeat(4),
       },
     }).layout;
-    const fittedShort = fitFootnoteLayout(shortLayout, 600, 420);
-    const fittedLong = fitFootnoteLayout(longLayout, 300, 420);
+    expect(fitFootnoteLayout(longLayout, 300, 420).margin.b).toBeGreaterThan(
+      longLayout.margin.b,
+    );
     const manualBreakLayout = toPlotly({
       ...spec,
       labels: { ...spec.labels, footnote: "First line\nSecond line" },
     }).layout;
-    const fittedManualBreak = fitFootnoteLayout(manualBreakLayout, 600, 420);
-    const shortFootnote = fittedShort.annotations.find(
-      (annotation) => annotation.name === "ppic-footnote",
+    expect(fitFootnoteLayout(manualBreakLayout, 600, 420).margin.b).toBeGreaterThan(
+      manualBreakLayout.margin.b,
     );
-
-    // 600px chart - 70px left margin - 40px right margin - 16px callout padding.
-    expect(shortFootnote.width).toBe(474);
-    expect(fittedLong.margin.b).toBeGreaterThan(longLayout.margin.b);
-    expect(fittedManualBreak.margin.b).toBeGreaterThan(manualBreakLayout.margin.b);
   });
 
   it("supports bold and italic Markdown while escaping raw HTML", () => {
@@ -106,6 +120,34 @@ describe("toPlotly footnote", () => {
     expect(footnote.text).toBe(
       "<b>Bold</b> and <i>italic</i>; <b>also bold</b> and <i>also italic</i> &lt;script&gt;",
     );
+  });
+});
+
+describe("toPlotly hidden series", () => {
+  const spec = {
+    chartType: "line",
+    bindings: { x: "Year", y: "Value" },
+    series: [
+      { location: "California", years: [2020, 2025], values: [10, 20] },
+      { location: "Texas", years: [2020, 2025], values: [5, 15] },
+    ],
+    labels: {},
+  };
+
+  it("marks a hidden series trace visible:false, leaving others shown", () => {
+    const { data } = toPlotly({
+      ...spec,
+      appearance: { hiddenSeries: ["Texas"] },
+    });
+    const texas = data.find((trace) => trace.name === "Texas");
+    const california = data.find((trace) => trace.name === "California");
+    expect(texas.visible).toBe(false);
+    expect(california.visible).not.toBe(false);
+  });
+
+  it("does not touch traces when no series are hidden", () => {
+    const { data } = toPlotly({ ...spec, appearance: {} });
+    expect(data.every((trace) => trace.visible !== false)).toBe(true);
   });
 });
 

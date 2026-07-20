@@ -121,6 +121,21 @@ describe("reduceChartConfig — v2 actions", () => {
     expect(cleared.appearance.seriesColors).toEqual({});
   });
 
+  it("SET_SERIES_VISIBILITY toggles hiddenSeries membership", () => {
+    const hidden = dispatch(base, {
+      type: "SET_SERIES_VISIBILITY",
+      seriesName: "California",
+      hidden: true,
+    });
+    expect(hidden.appearance.hiddenSeries).toEqual(["California"]);
+    const shown = dispatch(hidden, {
+      type: "SET_SERIES_VISIBILITY",
+      seriesName: "California",
+      hidden: false,
+    });
+    expect(shown.appearance.hiddenSeries).toEqual([]);
+  });
+
   it("ADD_ANNOTATION / REMOVE_ANNOTATION manage the annotations array", () => {
     const note = { id: "a1", type: "text", text: "Recession", x: 2008 };
     const withNote = dispatch(base, { type: "ADD_ANNOTATION", annotation: note });

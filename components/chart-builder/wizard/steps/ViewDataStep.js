@@ -40,6 +40,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
+import { ImportConfigButton } from "@/components/chart-builder/ConfigActions";
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import { usePreview } from "@/components/chart-builder/wizard/PreviewContext";
 import StepShell from "@/components/chart-builder/wizard/StepShell";
@@ -294,6 +295,16 @@ function DataSummary({ mode, setMode, resolved, schemaLabel }) {
         Change the source, filters, or date range in the Edit step to update what
         you see here. Export the full table from the Export step.
       </p>
+
+      <div className="grid gap-2 rounded-lg border bg-card p-3">
+        <Label className="font-medium">Load a saved chart</Label>
+        <p className="text-xs text-muted-foreground">
+          Import a chart config or workspace JSON exported from the Edit step.
+        </p>
+        <div className="self-start">
+          <ImportConfigButton />
+        </div>
+      </div>
     </div>
   );
 }

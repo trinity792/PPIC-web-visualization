@@ -16,6 +16,7 @@
 
 import React from "react";
 
+import { ImportConfigButton } from "@/components/chart-builder/ConfigActions";
 import DataSourcePanel from "@/components/chart-builder/DataSourcePanel";
 import InputTableEditor from "@/components/chart-builder/InputTableEditor";
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
@@ -88,6 +89,10 @@ export default function ImportStep() {
           Paste or Upload
         </div>
         <DataSourcePanel />
+        <div className="mt-1 flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Have a saved chart?</span>
+          <ImportConfigButton />
+        </div>
       </div>
       <CheckLegend />
     </StepShell>

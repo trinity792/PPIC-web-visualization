@@ -364,7 +364,7 @@ export default function ExportMenu({
   }
 
   return (
-    <div className="flex flex-col items-start gap-2">
+    <div className="flex flex-col items-center gap-2">
       <div className="flex flex-wrap items-center gap-2">
         <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
           <SlidersHorizontal aria-hidden="true" className="size-3.5" />
@@ -464,7 +464,7 @@ export default function ExportMenu({
           if (!open) setEmbedCopied(false);
         }}
       >
-        <DialogContent className="sm:max-w-4xl">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>Embed chart</DialogTitle>
             <DialogDescription>

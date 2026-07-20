@@ -16,6 +16,7 @@
 import React, { useEffect, useState } from "react";
 
 import CodeEditorPanel from "@/components/chart-builder/CodeEditorPanel";
+import { ExportConfigButton } from "@/components/chart-builder/ConfigActions";
 import EditorModeToggle from "@/components/chart-builder/EditorModeToggle";
 import ValidationNotice from "@/components/chart-builder/ValidationNotice";
 import { SidebarSections } from "@/components/chart-builder/ChartSidebar";
@@ -55,12 +56,15 @@ export default function EditStep() {
   return (
     <StepShell title="Edit" preview={<PreviewPane />}>
       <div className="grid min-h-0 min-w-0 gap-3">
-        <EditorModeToggle
-          mode={mode}
-          onModeChange={setMode}
-          tier={config.tier}
-          onTierChange={(tier) => dispatch({ type: "SET_TIER", tier })}
-        />
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <EditorModeToggle
+            mode={mode}
+            onModeChange={setMode}
+            tier={config.tier}
+            onTierChange={(tier) => dispatch({ type: "SET_TIER", tier })}
+          />
+          <ExportConfigButton />
+        </div>
         <ValidationNotice />
         <ScrollArea className="h-[calc(100svh-24rem)] w-full min-w-0 pr-2">
           {mode === "code" ? <CodeEditorPanel /> : <SidebarSections only={only} />}

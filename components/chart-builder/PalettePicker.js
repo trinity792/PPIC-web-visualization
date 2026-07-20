@@ -20,7 +20,7 @@
 
 import React from "react";
 
-import { RotateCcw } from "lucide-react";
+import { Eye, EyeOff, RotateCcw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -115,14 +115,37 @@ export default function PalettePicker({ seriesNames = [] }) {
 function SeriesColorRow({ seriesName }) {
   const { config, dispatch } = useChartConfig();
   const override = config.appearance.seriesColors?.[seriesName];
+  const hidden = (config.appearance.hiddenSeries || []).includes(seriesName);
 
   function setColor(token) {
     dispatch({ type: "SET_SERIES_COLOR", seriesName, token });
   }
 
+  function toggleHidden() {
+    dispatch({ type: "SET_SERIES_VISIBILITY", seriesName, hidden: !hidden });
+  }
+
   return (
     <div className="flex items-center justify-between gap-2 rounded-md border bg-card px-2 py-1.5">
-      <span className="min-w-0 flex-1 truncate text-sm">{seriesName}</span>
+      <span
+        className={`min-w-0 flex-1 truncate text-sm ${hidden ? "text-muted-foreground line-through" : ""}`}
+      >
+        {seriesName}
+      </span>
+      <button
+        type="button"
+        onClick={toggleHidden}
+        aria-pressed={hidden}
+        aria-label={hidden ? `Show ${seriesName}` : `Hide ${seriesName}`}
+        title={hidden ? "Show in chart" : "Hide from chart"}
+        className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+      >
+        {hidden ? (
+          <EyeOff aria-hidden="true" className="size-4" />
+        ) : (
+          <Eye aria-hidden="true" className="size-4" />
+        )}
+      </button>
       <Popover>
         <PopoverTrigger asChild>
           <button
