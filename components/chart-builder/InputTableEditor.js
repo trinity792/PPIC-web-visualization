@@ -52,7 +52,7 @@ import { GRADE_CLASSNAMES, gradeTable } from "@/lib/tabular/tableChecker";
 import { isVisible } from "@/lib/visualization/settingsTiers";
 
 const PAGE_SIZE = 100;
-const COLUMN_TYPE_OPTIONS = ["text", "number", "date"];
+const COLUMN_TYPE_OPTIONS = ["text", "group", "number", "date"];
 
 // ── Pure row/column helpers over the { columns, rows, issues } shape ──────
 

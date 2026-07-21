@@ -358,6 +358,28 @@ describe("validateInlineBindings", () => {
     expect(validateInlineBindings(config, table)).toEqual([]);
   });
 
+  it("accepts a real group binding on every sectioning registry family", () => {
+    const groupedTable = {
+      columns: [...table.columns, { name: "Section", type: "group" }],
+      rows: [["Fresno", "100", "North"]],
+    };
+    for (const chartType of [
+      "bar",
+      "divergingBar",
+      "dumbbell",
+      "dotPlot",
+      "forest",
+      "slope",
+    ]) {
+      expect(
+        validateInlineBindings(
+          { chartType, bindings: { group: "Section" } },
+          groupedTable,
+        ),
+      ).toEqual([]);
+    }
+  });
+
   it("is silent for an unknown chart type or a missing table", () => {
     expect(validateInlineBindings({ chartType: "notAChart", bindings: {} }, table)).toEqual([]);
     expect(validateInlineBindings({ chartType: "line", bindings: { x: "County" } }, null)).toEqual([]);

@@ -9,10 +9,13 @@
  * This is the extracted render half of ModuleEditor's former ChartWorkspace.
  *
  * Props:
- *   (none — reads PreviewProvider via usePreview())
+ *   embedded {boolean} — whether the pane is rendering inside an iframe
  *
  * Data sources:
  *   - components/chart-builder/wizard/PreviewContext.js
+ *
+ * UI Kit reference:
+ *   - Reuses GraphTabs for the shared pill-tab filter row
  */
 
 /* eslint-disable react/prop-types */
@@ -22,6 +25,7 @@ import React from "react";
 import { AlertCircle, LoaderCircle } from "lucide-react";
 
 import DataTableView from "@/components/charts/DataTableView";
+import GraphTabs from "@/components/charts/GraphTabs";
 import PlotlyChart from "@/components/charts/PlotlyChart";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { cn } from "@/components/ui/utils";
@@ -29,6 +33,7 @@ import { cn } from "@/components/ui/utils";
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import { usePreview } from "@/components/chart-builder/wizard/PreviewContext";
 import { CHART_HEIGHTS } from "@/lib/constants";
+import { tabValues } from "@/lib/tabular/toSeries";
 
 function gridClass(layout, count) {
   // 2x1 is "Stacked": one column, two rows. Only 1x2 and 2x2 go two-wide. This
@@ -58,6 +63,12 @@ function ChartSlot({ preview, layout, multi, embedded, onGraphDiv }) {
     renderError,
   } = preview;
   const height = slotHeight(layout, multi ? 2 : 1);
+  const tabColumn = config.filters?.tabColumn;
+  const tabs = tabValues(
+    config.data?.inline,
+    tabColumn,
+    config.filters?.tabOrder,
+  );
 
   return (
     <div
@@ -86,6 +97,23 @@ function ChartSlot({ preview, layout, multi, embedded, onGraphDiv }) {
             {active ? "Editing" : "Edit"}
           </button>
         </div>
+      ) : null}
+
+      {tabColumn && tabs.length ? (
+        <GraphTabs
+          options={tabs}
+          value={config.filters.tabValue ?? tabs[0]}
+          onValueChange={(value) =>
+            dispatch({
+              type: "SET_FILTER",
+              chartId: id,
+              key: "tabValue",
+              value,
+            })
+          }
+          ariaLabel={`Filter chart by ${tabColumn}`}
+          className={cn("px-3 pt-2", embedded && "px-2")}
+        />
       ) : null}
 
       <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden px-2 pt-2 sm:px-4">

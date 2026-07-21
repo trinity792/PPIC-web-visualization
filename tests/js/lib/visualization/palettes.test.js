@@ -9,6 +9,7 @@ import { BASE_PLOTLY_COLORS, COLORS } from "@/lib/constants";
 import {
   DEFAULT_PALETTE,
   PALETTES,
+  UI_KIT_PALETTE_IDS,
   paletteForScale,
   resolveToken,
   seriesColor,
@@ -36,6 +37,23 @@ describe("PALETTES", () => {
 
   it("DEFAULT_PALETTE names a registered palette", () => {
     expect(PALETTES[DEFAULT_PALETTE]).toBeDefined();
+  });
+
+  it("registers every named UI Kit color-family palette as an editor option", () => {
+    expect(UI_KIT_PALETTE_IDS).toHaveLength(8);
+    expect(UI_KIT_PALETTE_IDS.map((id) => PALETTES[id]?.label)).toEqual([
+      "Orange · Brand",
+      "Blue · Data",
+      "Teal · Data",
+      "Navy Blue · Accent",
+      "Steel Blue · Accent",
+      "Complement Green · Accent",
+      "Burnt Orange · Accent",
+      "Neutral · Surface",
+    ]);
+    for (const id of UI_KIT_PALETTE_IDS) {
+      expect(PALETTES[id]?.kind).toBe("categorical");
+    }
   });
 });
 

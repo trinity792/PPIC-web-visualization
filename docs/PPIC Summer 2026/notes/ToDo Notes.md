@@ -37,9 +37,21 @@ Status: Updating
 
 ---
 
+# Presentation Notes
+- [ ] Context can be trimmed to ~1 slide (audience already knows a bit about the project)
+- [ ] Able to have multiple slides showing 1 sequence with 1 screenshot per slide and same title
+
+---
+
 # Follow Ups
 ## A Running List
 - Combined SVG/PDF are raster-wrapped, not true vector (combining vector charts is substantially more work). Single-chart SVG/PDF stay vector-first. If crisp vector multi-chart output matters, that's a follow-up.
+- [ ] Fix legend on Range plot - using the gender pay gap example, the legend just shows 0, 1, total with no color indication and does not label "Men" or "Women"; probably needs some way to derive labels w/o specific x/y labeling?
+- [ ] When grouping: the vertical line between group should not be visible (currently the y axis line goes through the group label)
+- [ ] Add each color palette option from the UI kit to the graph editor and it gets set automatically
+- [ ] Remove chart recommendations
+- [ ] when a tab group is enabled, the group label does not need to be shown on the graph
+- [ ] Under chart type: the auto column selector should choose groups if the column is named "Group" || "Category"
 
 ---
 

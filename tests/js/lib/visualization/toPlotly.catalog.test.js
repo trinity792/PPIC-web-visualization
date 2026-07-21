@@ -195,10 +195,10 @@ describe("toPlotly variants", () => {
   it("renders stacked/percent bars through bar appearance instead of separate chart ids", () => {
     const stacked = toPlotly({
       chartType: "bar",
-      bindings: { category: "category", y: "value", group: "group" },
+      bindings: { category: "category", y: "value", color: "color" },
       series: [
-        { category: "A", group: "Renters", value: 60 },
-        { category: "A", group: "Owners", value: 40 },
+        { category: "A", color: "Renters", value: 60 },
+        { category: "A", color: "Owners", value: 40 },
       ],
       labels: {},
       appearance: { stackMode: "percent" },
@@ -223,10 +223,10 @@ describe("toPlotly variants", () => {
   it("renders a population-pyramid-style mirrored bar through appearance.mirror", () => {
     const { data, layout } = toPlotly({
       chartType: "bar",
-      bindings: { category: "Age Group", y: "Population", group: "Sex" },
+      bindings: { category: "Age Group", y: "Population", color: "Sex" },
       series: [
-        { category: "0-4", group: "Male", value: 52 },
-        { category: "0-4", group: "Female", value: 48 },
+        { category: "0-4", color: "Male", value: 52 },
+        { category: "0-4", color: "Female", value: 48 },
       ],
       labels: {},
       appearance: { mirror: true, orientation: "horizontal" },

@@ -6,6 +6,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  COLUMN_TYPES,
   coerceColumn,
   inferColumnType,
   parseDateToken,
@@ -84,6 +85,11 @@ describe("parseDateToken", () => {
 });
 
 describe("inferColumnType", () => {
+  it("never infers the manual-only group type", () => {
+    expect(inferColumnType(["Education", "Occupation"]).type).toBe(COLUMN_TYPES.TEXT);
+    expect(inferColumnType(["Education", "Occupation"]).type).not.toBe(COLUMN_TYPES.GROUP);
+  });
+
   it("infers number for currency/percent/thousands-formatted values", () => {
     expect(inferColumnType(["$1,200", "$3,400", "45%"]).type).toBe("number");
   });
@@ -136,6 +142,12 @@ describe("coerceColumn", () => {
   it("never fails to coerce text (anything stringifies)", () => {
     const { values, failures } = coerceColumn(["Fresno", "123", ""], "text");
     expect(values).toEqual(["Fresno", "123", null]);
+    expect(failures).toEqual([]);
+  });
+
+  it("coerces group columns through the same trimmed-string path as text", () => {
+    const { values, failures } = coerceColumn([" Education ", "123", ""], "group");
+    expect(values).toEqual(["Education", "123", null]);
     expect(failures).toEqual([]);
   });
 

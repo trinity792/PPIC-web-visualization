@@ -215,25 +215,55 @@ function finiteRankingValue(record, chartType) {
   return match == null ? null : Number(match);
 }
 
+const GROUP_SECTIONING_RECORD_CHARTS = new Set([
+  "bar",
+  "divergingBar",
+  "dumbbell",
+  "slope",
+  "forest",
+]);
+
 /** Rank category/range/point records by the value that visually defines them. */
 export function rankChartRecords(
   chartType,
   records,
   { topN = 20, sort = "value" } = {},
 ) {
-  const ranked = [...(records || [])];
-  ranked.sort((a, b) => {
+  const source = [...(records || [])];
+  const groupOrder = new Map();
+  for (const record of source) {
+    if (!groupOrder.has(record.group)) groupOrder.set(record.group, groupOrder.size);
+  }
+  const compare = (a, b) => {
     const aValue = finiteRankingValue(a, chartType);
     const bValue = finiteRankingValue(b, chartType);
     if (aValue == null) return 1;
     if (bValue == null) return -1;
     return sort === "ascending" ? aValue - bValue : bValue - aValue;
-  });
-  return topN && topN > 0 ? ranked.slice(0, topN) : ranked;
+  };
+  const ranked = source.sort(compare);
+  const selected = topN && topN > 0 ? ranked.slice(0, topN) : ranked;
+  if (
+    !GROUP_SECTIONING_RECORD_CHARTS.has(chartType) ||
+    !selected.some((record) => record.group != null)
+  ) {
+    return selected;
+  }
+  // Ranking chooses the same Top/Bottom N as before, then restores source group
+  // order while keeping the value sort inside each block.
+  return selected
+    .map((record, index) => ({ record, index }))
+    .sort((a, b) => {
+      const aRank = groupOrder.get(a.record.group) ?? Infinity;
+      const bRank = groupOrder.get(b.record.group) ?? Infinity;
+      return aRank - bRank || a.index - b.index;
+    })
+    .map(({ record }) => record);
 }
 
 /** Rank heatmap/dot-plot rows by their last visible non-missing value. */
 export function rankMatrixRows(matrix, { topN = 20, sort = "value" } = {}) {
+  const groupOrder = new Map();
   const rows = (matrix?.y || []).map((label, index) => {
     const values = matrix?.z?.[index] || [];
     let value = null;
@@ -243,18 +273,30 @@ export function rankMatrixRows(matrix, { topN = 20, sort = "value" } = {}) {
         break;
       }
     }
-    return { label, values, value, index };
+    const group = matrix?.groups?.[index] ?? null;
+    if (!groupOrder.has(group)) groupOrder.set(group, groupOrder.size);
+    return { label, values, value, group, index };
   });
   rows.sort((a, b) => {
     if (a.value == null) return 1;
     if (b.value == null) return -1;
     return sort === "ascending" ? a.value - b.value : b.value - a.value;
   });
-  const selected = topN && topN > 0 ? rows.slice(0, topN) : rows;
+  const selected = (topN && topN > 0 ? rows.slice(0, topN) : rows).map(
+    (row, rank) => ({ ...row, rank }),
+  );
+  if (matrix?.groups) {
+    selected.sort((a, b) => {
+      const aRank = groupOrder.get(a.group) ?? Infinity;
+      const bRank = groupOrder.get(b.group) ?? Infinity;
+      return aRank - bRank || a.rank - b.rank;
+    });
+  }
   return {
     ...matrix,
     y: selected.map((row) => row.label),
     z: selected.map((row) => row.values),
+    ...(matrix?.groups ? { groups: selected.map((row) => row.group) } : {}),
   };
 }
 
@@ -482,7 +524,7 @@ export function seriesNamesOf(chartType, result) {
     return [...new Set(records.map((item) => item.location || item.label).filter(Boolean))];
   }
   if (chartType === "bar" || chartType === "divergingBar") {
-    return [...new Set(records.map((item) => item.group || item.series).filter(Boolean))];
+    return [...new Set(records.map((item) => item.color || item.series).filter(Boolean))];
   }
   if (chartType === "scatter" || chartType === "bubble") {
     return [...new Set(records.map((item) => item.group || item.color).filter(Boolean))];

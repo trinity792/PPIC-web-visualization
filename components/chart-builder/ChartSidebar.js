@@ -819,6 +819,29 @@ function AppearanceSection() {
           }
         />
       ) : null}
+      {chart?.roleConstraints?.group &&
+      config.bindings.group &&
+      isVisible("groupGap", config.tier) ? (
+        <div className="grid gap-2">
+          <div className="flex items-center justify-between gap-3">
+            <Label htmlFor="appearance-group-gap">Space between groups</Label>
+            <span className="text-xs tabular-nums text-muted-foreground">
+              {Number(config.appearance.groupGap ?? 0.75).toFixed(2)}
+            </span>
+          </div>
+          <Slider
+            id="appearance-group-gap"
+            min={0}
+            max={3}
+            step={0.25}
+            value={[Number(config.appearance.groupGap ?? 0.75)]}
+            onValueChange={([value]) =>
+              dispatch({ type: "SET_APPEARANCE", key: "groupGap", value })
+            }
+            aria-label="Space between groups"
+          />
+        </div>
+      ) : null}
       {config.chartType === "line" ? (
         <div className="grid gap-2">
           <Label htmlFor="appearance-markers">Markers</Label>

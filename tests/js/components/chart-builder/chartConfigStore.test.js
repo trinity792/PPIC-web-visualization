@@ -49,6 +49,11 @@ describe("createChartConfig", () => {
     expect(config.format).toEqual({});
     expect(config.annotations).toEqual([]);
     expect(config.tier).toBe("moderate");
+    expect(config.filters).toMatchObject({
+      tabColumn: null,
+      tabValue: null,
+      tabOrder: [],
+    });
     expect(config.validation).toEqual([]);
   });
 
@@ -93,6 +98,83 @@ describe("reduceChartConfig — v2 actions", () => {
     expect(backToModule.data).toEqual({ source: "module" });
   });
 
+  it("resets the active GraphTab on column and data changes", () => {
+    const inline = {
+      columns: [
+        { name: "Region", type: "text" },
+        { name: "Value", type: "number" },
+      ],
+      rows: [
+        ["North", "1"],
+        ["South", "2"],
+      ],
+    };
+    const withInline = dispatch(base, {
+      type: "SET_DATA_SOURCE",
+      source: "inline",
+      inline,
+    });
+    const tabbed = dispatch(withInline, {
+      type: "SET_FILTER",
+      key: "tabColumn",
+      value: "Region",
+    });
+    expect(tabbed.filters).toMatchObject({
+      tabColumn: "Region",
+      tabValue: "North",
+      tabOrder: ["North", "South"],
+    });
+
+    const south = dispatch(tabbed, {
+      type: "SET_FILTER",
+      key: "tabValue",
+      value: "South",
+    });
+    const changed = dispatch(south, {
+      type: "SET_DATA_SOURCE",
+      source: "inline",
+      inline: { ...inline, rows: [["North", "1"]] },
+    });
+    expect(changed.filters.tabValue).toBe("North");
+
+    const removedColumn = dispatch(changed, {
+      type: "SET_DATA_SOURCE",
+      source: "inline",
+      inline: {
+        columns: [{ name: "Value", type: "number" }],
+        rows: [["1"]],
+      },
+    });
+    expect(removedColumn.filters).toMatchObject({
+      tabColumn: null,
+      tabValue: null,
+      tabOrder: [],
+    });
+  });
+
+  it("persists an advanced custom tab order", () => {
+    const inline = {
+      columns: [{ name: "Region", type: "text" }],
+      rows: [["North"], ["South"], ["Central"]],
+    };
+    const withInline = dispatch(base, {
+      type: "SET_DATA_SOURCE",
+      source: "inline",
+      inline,
+    });
+    const tabbed = dispatch(withInline, {
+      type: "SET_FILTER",
+      key: "tabColumn",
+      value: "Region",
+    });
+    const reordered = dispatch(tabbed, {
+      type: "SET_FILTER",
+      key: "tabOrder",
+      value: ["South", "Central", "North"],
+    });
+    expect(reordered.filters.tabOrder).toEqual(["South", "Central", "North"]);
+  });
+
   it("SET_FORMAT sets and clears one field's override", () => {
     const withFormat = dispatch(base, {
       type: "SET_FORMAT",
@@ -105,8 +187,8 @@ describe("reduceChartConfig — v2 actions", () => {
   });
 
   it("SET_PALETTE and SET_SERIES_COLOR write appearance color state", () => {
-    const withPalette = dispatch(base, { type: "SET_PALETTE", palette: "brand-categorical" });
-    expect(withPalette.appearance.palette).toBe("brand-categorical");
+    const withPalette = dispatch(base, { type: "SET_PALETTE", palette: "ui-kit-blue" });
+    expect(withPalette.appearance.palette).toBe("ui-kit-blue");
     const withOverride = dispatch(withPalette, {
       type: "SET_SERIES_COLOR",
       seriesName: "California",

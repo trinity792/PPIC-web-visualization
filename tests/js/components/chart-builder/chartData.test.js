@@ -136,6 +136,39 @@ describe("ranking across applicable chart shapes", () => {
       z: [[10, 30], [15, null]],
     });
   });
+
+  it("keeps first-seen group blocks while sorting values inside each block", () => {
+    const records = [
+      { category: "Education low", group: "Education", value: 10 },
+      { category: "Education high", group: "Education", value: 30 },
+      { category: "Occupation low", group: "Occupation", value: 20 },
+      { category: "Occupation high", group: "Occupation", value: 40 },
+    ];
+    expect(
+      rankChartRecords("bar", records, { topN: null }).map((row) => row.category),
+    ).toEqual([
+      "Education high",
+      "Education low",
+      "Occupation high",
+      "Occupation low",
+    ]);
+
+    const matrix = {
+      x: [2025],
+      y: records.map((row) => row.category),
+      z: records.map((row) => [row.value]),
+      groups: records.map((row) => row.group),
+    };
+    expect(rankMatrixRows(matrix, { topN: null })).toMatchObject({
+      y: [
+        "Education high",
+        "Education low",
+        "Occupation high",
+        "Occupation low",
+      ],
+      groups: ["Education", "Education", "Occupation", "Occupation"],
+    });
+  });
 });
 
 describe("loadChartData — inline ('your data') source", () => {
@@ -186,12 +219,12 @@ describe("seriesNamesOf", () => {
     expect(seriesNamesOf("line", null)).toEqual([]);
   });
 
-  it("de-duplicates repeated group names for a bar result", () => {
+  it("de-duplicates repeated color-series names for a bar result", () => {
     const result = {
       series: [
-        { category: "Alameda", group: "Owner" },
-        { category: "Butte", group: "Owner" },
-        { category: "Alameda", group: "Renter" },
+        { category: "Alameda", color: "Owner" },
+        { category: "Butte", color: "Owner" },
+        { category: "Alameda", color: "Renter" },
       ],
     };
     expect(seriesNamesOf("bar", result)).toEqual(["Owner", "Renter"]);

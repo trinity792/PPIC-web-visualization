@@ -25,6 +25,7 @@ import {
   useReducer,
 } from "react";
 
+import { tabValues } from "@/lib/tabular/toSeries";
 import { getChartType } from "@/lib/visualization/chartRegistry";
 import {
   autoMapInlineBindings,
@@ -202,6 +203,28 @@ function defaultFilters(schema) {
     subset: Object.keys(schema.subsets || {})[0] || "",
     ...(schema.sources?.length ? { source: schema.sources[0] } : {}),
     ...stratification,
+    tabColumn: null,
+    tabValue: null,
+    tabOrder: [],
+  };
+}
+
+function synchronizeTabFilters(filters, table) {
+  const column = filters?.tabColumn || null;
+  if (!column) {
+    return { ...filters, tabColumn: null, tabValue: null, tabOrder: [] };
+  }
+  const exists = (table?.columns || []).some((item) => item.name === column);
+  if (!exists) {
+    return { ...filters, tabColumn: null, tabValue: null, tabOrder: [] };
+  }
+  const options = tabValues(table, column, filters.tabOrder);
+  const current = filters.tabValue == null ? null : String(filters.tabValue).trim();
+  return {
+    ...filters,
+    tabColumn: column,
+    tabValue: options.includes(current) ? current : options[0] ?? null,
+    tabOrder: options,
   };
 }
 
@@ -252,25 +275,24 @@ export function createChartConfig(schema, initialConfig = {}) {
     tier: DEFAULT_TIER,
   };
 
-  return revalidate(
-    {
-      ...base,
-      ...clone(initial),
-      version: SPEC_VERSION,
-      data: { ...base.data, ...clone(initial.data || {}) },
-      bindings: { ...base.bindings, ...clone(initial.bindings || {}) },
-      period: { ...base.period, ...clone(initial.period || {}) },
-      filters: { ...base.filters, ...clone(initial.filters || {}) },
-      labels: { ...base.labels, ...clone(initial.labels || {}) },
-      format: { ...base.format, ...clone(initial.format || {}) },
-      appearance: { ...base.appearance, ...clone(initial.appearance || {}) },
-      annotations: clone(initial.annotations || base.annotations),
-      referenceLines: clone(initial.referenceLines || base.referenceLines),
-      layers: clone(initial.layers || base.layers),
-      tier: initial.tier || base.tier,
-    },
-    schema,
-  );
+  const merged = {
+    ...base,
+    ...clone(initial),
+    version: SPEC_VERSION,
+    data: { ...base.data, ...clone(initial.data || {}) },
+    bindings: { ...base.bindings, ...clone(initial.bindings || {}) },
+    period: { ...base.period, ...clone(initial.period || {}) },
+    filters: { ...base.filters, ...clone(initial.filters || {}) },
+    labels: { ...base.labels, ...clone(initial.labels || {}) },
+    format: { ...base.format, ...clone(initial.format || {}) },
+    appearance: { ...base.appearance, ...clone(initial.appearance || {}) },
+    annotations: clone(initial.annotations || base.annotations),
+    referenceLines: clone(initial.referenceLines || base.referenceLines),
+    layers: clone(initial.layers || base.layers),
+    tier: initial.tier || base.tier,
+  };
+  merged.filters = synchronizeTabFilters(merged.filters, merged.data?.inline);
+  return revalidate(merged, schema);
 }
 
 /**
@@ -388,6 +410,32 @@ export function reduceChartConfig(config, action, schema) {
       break;
 
     case "SET_FILTER":
+      if (action.key === "tabColumn") {
+        const tabColumn = action.value || null;
+        const options = tabValues(config.data?.inline, tabColumn);
+        next = {
+          ...config,
+          filters: {
+            ...config.filters,
+            tabColumn,
+            tabValue: options[0] ?? null,
+            tabOrder: options,
+          },
+        };
+        break;
+      }
+      if (action.key === "tabOrder") {
+        const tabOrder = tabValues(
+          config.data?.inline,
+          config.filters?.tabColumn,
+          action.value,
+        );
+        next = {
+          ...config,
+          filters: { ...config.filters, tabOrder },
+        };
+        break;
+      }
       next = {
         ...config,
         filters: { ...config.filters, [action.key]: action.value },
@@ -473,7 +521,11 @@ export function reduceChartConfig(config, action, schema) {
     case "SET_DATA_SOURCE": {
       // { source: "module" | "inline", inline?, defaultChart? }
       if (action.source !== "inline") {
-        next = { ...config, data: { source: "module" } };
+        next = {
+          ...config,
+          data: { source: "module" },
+          filters: synchronizeTabFilters(config.filters, null),
+        };
         break;
       }
       const inlineTable = action.inline;
@@ -499,6 +551,7 @@ export function reduceChartConfig(config, action, schema) {
             }
           : {}),
         bindings,
+        filters: synchronizeTabFilters(config.filters, inlineTable),
       };
       break;
     }
@@ -694,6 +747,15 @@ function reduceWorkspace(workspace, action, schema) {
         config: reduceChartConfig(chart.config, action, schema),
       }));
     }
+
+    case "SET_FILTER":
+      if (action.chartId) {
+        return updateChart(workspace, action.chartId, (chart) => ({
+          ...chart,
+          config: reduceChartConfig(chart.config, action, schema),
+        }));
+      }
+      break;
 
     case "SET_DATA_SOURCE":
       if (schema.inlineOnly) {

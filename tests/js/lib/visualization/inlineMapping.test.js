@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
 
-import { inlineRenderBlock } from "@/lib/visualization/inlineMapping";
+import {
+  autoMapInlineBindings,
+  inlineColumnKind,
+  inlineFields,
+  inlineRenderBlock,
+} from "@/lib/visualization/inlineMapping";
 
 /**
  * Build the inline-table shape ({ columns, rows }) the render-block inspects.
@@ -77,5 +82,83 @@ describe("inlineRenderBlock", () => {
     const block = inlineRenderBlock("line", data, {});
     expect(block?.incompatible).toBe(false);
     expect(block.message).toContain("Map your columns");
+  });
+});
+
+describe("Group column mapping", () => {
+  const data = table(
+    ["Label", "Section", "Women", "Men"],
+    ["text", "group", "number", "number"],
+    [
+      ["Graduate degree", "Education", "75", "102"],
+      ["Dentists", "Occupation", "140", "170"],
+    ],
+  );
+
+  it("keeps group as a dimension and exposes its semantic hint", () => {
+    expect(inlineColumnKind("group")).toBe("dimension");
+    expect(inlineFields(data).Section).toMatchObject({
+      kind: "dimension",
+      isGroup: true,
+    });
+  });
+
+  it("binds a typed Group column to sectioning ahead of synonyms or prior roles", () => {
+    expect(
+      autoMapInlineBindings("dumbbell", data, { color: "Section" }),
+    ).toMatchObject({
+      category: "Label",
+      group: "Section",
+      start: "Women",
+      end: "Men",
+    });
+    const barData = table(
+      ["Label", "Section", "Value"],
+      ["text", "group", "number"],
+      [["Graduate degree", "Education", "75"]],
+    );
+    const barBindings = autoMapInlineBindings("bar", barData, { color: "Section" });
+    expect(barBindings.group).toBe("Section");
+    expect(barBindings.color).toBeUndefined();
+  });
+
+  it("keeps the section-name synonym fallback for ordinary text columns", () => {
+    const textGroup = table(
+      ["Label", "Section", "Women", "Men"],
+      ["text", "text", "number", "number"],
+      data.rows,
+    );
+    expect(autoMapInlineBindings("dumbbell", textGroup).group).toBe("Section");
+  });
+
+  it.each(["Group", "Category"])(
+    "reserves an ordinary text column named %s for sectioning when category remains fillable",
+    (groupHeader) => {
+      const namedGroup = table(
+        [groupHeader, "Label", "Women", "Men"],
+        ["text", "text", "number", "number"],
+        [["Education", "Graduate degree", "75", "102"]],
+      );
+      expect(autoMapInlineBindings("dumbbell", namedGroup)).toMatchObject({
+        category: "Label",
+        group: groupHeader,
+        start: "Women",
+        end: "Men",
+      });
+    },
+  );
+
+  it("does not reserve Category when it is the only column that can fill a required role", () => {
+    const onlyCategory = table(
+      ["Category", "Women", "Men"],
+      ["text", "number", "number"],
+      [["Graduate degree", "75", "102"]],
+    );
+    expect(autoMapInlineBindings("dumbbell", onlyCategory)).toMatchObject({
+      category: "Category",
+      start: "Women",
+      end: "Men",
+    });
+    expect(autoMapInlineBindings("dumbbell", onlyCategory).group).toBeUndefined();
   });
 });

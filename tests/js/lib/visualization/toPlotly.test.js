@@ -8,7 +8,11 @@ import { describe, expect, it } from "vitest";
 
 import { BASE_PLOTLY_COLORS, COLORS } from "@/lib/constants";
 import { paletteForScale, resolveToken } from "@/lib/visualization/palettes";
-import { fitFootnoteLayout, toPlotly } from "@/lib/visualization/toPlotly";
+import {
+  fitFootnoteLayout,
+  groupedCategorySections,
+  toPlotly,
+} from "@/lib/visualization/toPlotly";
 
 const countField = {
   kind: "measure",
@@ -290,6 +294,148 @@ describe("toPlotly bar (unchanged for 'actual')", () => {
     });
     expect(data[0].x).toEqual(["Charlie", "Bravo"]);
     expect(data[0].y).toEqual([30, 20]);
+  });
+});
+
+describe("toPlotly grouped category sections", () => {
+  const records = [
+    { category: "Graduate degree", group: "Education", value: 30 },
+    { category: "Bachelor degree", group: "Education", value: 10 },
+    { category: "Dentists", group: "Occupation", value: 40 },
+    { category: "Lawyers", group: "Occupation", value: 20 },
+  ];
+
+  it("computes block order, spacer positions, and one header per block directly", () => {
+    const sections = groupedCategorySections(records, {
+      bindings: { category: "category", group: "group" },
+      appearance: { groupGap: 0.5 },
+    });
+    expect(sections.items.map((item) => item.category)).toEqual([
+      "Graduate degree",
+      "Bachelor degree",
+      "Dentists",
+      "Lawyers",
+    ]);
+    expect(sections.tickvals).toEqual([0, 1, 2.5, 3.5]);
+    expect(sections.headers.map((header) => header.label)).toEqual([
+      "Education",
+      "Occupation",
+    ]);
+  });
+
+  it("sections bars independently from their color-series split", () => {
+    const { data, layout } = toPlotly({
+      chartType: "bar",
+      bindings: {
+        category: "category",
+        group: "group",
+        color: "color",
+        y: "value",
+      },
+      series: [
+        { category: "Degree", group: "Education", color: "Women", value: 75 },
+        { category: "Degree", group: "Education", color: "Men", value: 100 },
+        { category: "Dentists", group: "Occupation", color: "Women", value: 140 },
+        { category: "Dentists", group: "Occupation", color: "Men", value: 170 },
+      ],
+      labels: {},
+      appearance: { groupGap: 1 },
+    });
+    expect(data.map((trace) => trace.name)).toEqual(["Women", "Men"]);
+    expect(layout.xaxis.ticktext).toEqual(["Degree", "Dentists"]);
+    expect(layout.annotations.filter((annotation) => annotation.name === "ppic-group-header"))
+      .toHaveLength(2);
+  });
+
+  it("widens Range row spacing with groupGap while preserving every row mark", () => {
+    const spec = {
+      chartType: "dumbbell",
+      bindings: {
+        category: "category",
+        group: "group",
+        start: "Women",
+        end: "Men",
+        point: "Total",
+      },
+      series: [
+        { category: "Degree", group: "Education", Women: 75, Men: 100, Total: 88 },
+        { category: "Dentists", group: "Occupation", Women: 140, Men: 170, Total: 152 },
+      ],
+      labels: {},
+      // Inline shape builders use synthetic period indices internally; the
+      // legend must still use the bound endpoint column names.
+      period: { startYear: 0, endYear: 1 },
+    };
+    const compact = toPlotly({ ...spec, appearance: { groupGap: 0.5 } });
+    const wide = toPlotly({ ...spec, appearance: { groupGap: 2 } });
+    const compactStarts = compact.data.find((trace) => trace.name === "Women");
+    const wideStarts = wide.data.find((trace) => trace.name === "Women");
+    expect(compactStarts.x).toEqual([75, 140]);
+    expect(wideStarts.x).toEqual([75, 140]);
+    expect(wideStarts.y[1] - wideStarts.y[0]).toBeGreaterThan(
+      compactStarts.y[1] - compactStarts.y[0],
+    );
+    expect(wide.layout.yaxis.ticktext).toEqual(["Degree", "Dentists"]);
+    expect(wide.layout.yaxis.showline).toBe(false);
+    const legendTraces = wide.data.filter((trace) => trace.showlegend !== false);
+    expect(legendTraces.map((trace) => trace.name)).toEqual(["Women", "Men", "Total"]);
+    expect(new Set(legendTraces.map((trace) => trace.marker.color)).size).toBe(3);
+  });
+
+  it("uses the same grouped row axis for dot plots and forest plots", () => {
+    const dot = toPlotly({
+      chartType: "dotPlot",
+      bindings: { y: "Label", x: "Series", color: "Value", group: "Section" },
+      series: {
+        x: ["Women", "Men"],
+        y: ["Degree", "Dentists"],
+        z: [[75, 100], [140, 170]],
+        groups: ["Education", "Occupation"],
+      },
+      labels: {},
+      appearance: { groupGap: 1 },
+    });
+    expect(dot.layout.yaxis.ticktext).toEqual(["Degree", "Dentists"]);
+
+    const forest = toPlotly({
+      chartType: "forest",
+      bindings: {
+        category: "category",
+        group: "group",
+        start: "start",
+        end: "end",
+        point: "point",
+      },
+      series: [
+        { category: "Study A", group: "Primary", start: 0.5, end: 1.5, point: 1 },
+        { category: "Study B", group: "Secondary", start: 1, end: 2, point: 1.5 },
+      ],
+      labels: {},
+      appearance: { groupGap: 1 },
+    });
+    expect(forest.layout.yaxis.ticktext).toEqual(["Study A", "Study B"]);
+  });
+
+  it("sections slopegraph legend entries into labeled groups with adjustable gap", () => {
+    const { data, layout } = toPlotly({
+      chartType: "slope",
+      bindings: {
+        category: "category",
+        group: "group",
+        start: "start",
+        end: "end",
+      },
+      series: [
+        { category: "A", group: "Education", start: 1, end: 2 },
+        { category: "B", group: "Occupation", start: 2, end: 3 },
+      ],
+      labels: {},
+      appearance: { groupGap: 2 },
+      period: {},
+    });
+    expect(data[0].legendgrouptitle.text).toContain("Education");
+    expect(data[1].legendgrouptitle.text).toContain("Occupation");
+    expect(layout.legend.tracegroupgap).toBe(48);
   });
 });
 

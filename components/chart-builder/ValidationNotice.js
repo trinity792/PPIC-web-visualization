@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * ValidationNotice.js — actionable chart-configuration findings and help codes.
+ * ValidationNotice.js — actionable chart-configuration errors and help codes.
  *
- * Clicking any finding copies the full list (all errors + recommendations) to
+ * Clicking any finding copies the full list of visible errors to
  * the clipboard, so a user can paste them into a bug report or a message
  * without transcribing each one.
  *
@@ -14,12 +14,12 @@
  *   - Validation findings from ChartConfigProvider
  *
  * UI Kit reference:
- *   - Implements error and recommendation alert patterns
+ *   - Implements the configuration-error alert pattern
  */
 
 import React, { useState } from "react";
 
-import { AlertCircle, AlertTriangle, CircleHelp, Check, Copy } from "lucide-react";
+import { AlertCircle, CircleHelp, Check, Copy } from "lucide-react";
 
 import {
   Alert,
@@ -135,7 +135,12 @@ function findingsToText(findings) {
 export default function ValidationNotice() {
   const { config } = useChartConfig();
   const [copied, setCopied] = useState(false);
-  const findings = config.validation || [];
+  // Recommendations are advisory and no longer belong in the editor UI. Keep
+  // them in the validation model for diagnostics/compatibility, while showing
+  // only errors that require the user's attention before rendering.
+  const findings = (config.validation || []).filter(
+    (finding) => finding.level === "error",
+  );
 
   if (!findings.length) return null;
 
@@ -167,12 +172,10 @@ export default function ValidationNotice() {
     <div className="grid gap-2">
       <InlineBindingPrompt />
       {findings.map((finding, index) => {
-        const destructive = finding.level === "error";
-        const Icon = destructive ? AlertCircle : AlertTriangle;
         return (
           <Alert
             key={`${finding.code}-${index}`}
-            variant={destructive ? "destructive" : "default"}
+            variant="destructive"
             role="button"
             tabIndex={0}
             aria-label="Copy all configuration findings"
@@ -184,14 +187,12 @@ export default function ValidationNotice() {
                 copyAll();
               }
             }}
-            className={`cursor-pointer transition-colors hover:brightness-[0.98] ${
-              destructive ? "" : "border-amber-400/60"
-            }`}
+            className="cursor-pointer transition-colors hover:brightness-[0.98]"
           >
-            <Icon aria-hidden="true" />
+            <AlertCircle aria-hidden="true" />
             <AlertTitle className="flex items-center justify-between gap-1.5">
               <span className="flex items-center gap-1.5">
-                {destructive ? "Configuration error" : "Recommendation"}
+                Configuration error
                 <Tooltip>
                   <TooltipTrigger
                     type="button"

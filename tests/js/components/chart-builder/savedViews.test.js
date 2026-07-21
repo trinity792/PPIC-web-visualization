@@ -77,6 +77,25 @@ describe("serialize", () => {
     expect(saved.seriesCount).toBeUndefined();
     expect(saved.validation).toBeUndefined();
   });
+
+  it("serializes the active GraphTab and custom tab order for embeds", () => {
+    const saved = JSON.parse(
+      serialize({
+        ...config,
+        filters: {
+          ...config.filters,
+          tabColumn: "Region",
+          tabValue: "Bay Area",
+          tabOrder: ["Bay Area", "Central Coast"],
+        },
+      }),
+    );
+    expect(saved.filters).toMatchObject({
+      tabColumn: "Region",
+      tabValue: "Bay Area",
+      tabOrder: ["Bay Area", "Central Coast"],
+    });
+  });
 });
 
 describe("deserialize", () => {

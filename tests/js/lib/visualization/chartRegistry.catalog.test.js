@@ -74,6 +74,23 @@ describe("Phase 6 catalog ids", () => {
 });
 
 describe("descriptor metadata", () => {
+  it("declares Group sectioning and spacing on every applicable chart family", () => {
+    for (const chartType of [
+      "bar",
+      "divergingBar",
+      "dumbbell",
+      "dotPlot",
+      "forest",
+      "slope",
+    ]) {
+      const chart = getChartType(chartType);
+      expect(chart.optionalRoles).toContain("group");
+      expect(chart.roleConstraints.group).toContain("dimension");
+      expect(chart.defaults.groupGap).toBeGreaterThan(0);
+      expect(chart.controlTiers.groupGap).toBe("moderate");
+    }
+  });
+
   it("exposes grid spacing only for Cartesian chart families", () => {
     for (const chartType of [
       "line",

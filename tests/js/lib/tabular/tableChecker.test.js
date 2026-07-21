@@ -58,6 +58,18 @@ describe("gradeTable", () => {
     expect(gradeTable(table)[1][0]).toBe(CELL_GRADES.NUMBER);
   });
 
+  it("grades group cells exactly like text, including numeric-looking labels", () => {
+    const table = {
+      columns: [{ name: "Section", type: "group" }],
+      rows: [["Education"], ["123"]],
+      issues: [],
+    };
+    expect(gradeTable(table).slice(1)).toEqual([
+      [CELL_GRADES.TEXT],
+      [CELL_GRADES.TEXT],
+    ]);
+  });
+
   it("forces MALFORMED for a (row, column) pair listed in table.issues", () => {
     const table = {
       columns: [{ name: "Formula", type: "text" }],

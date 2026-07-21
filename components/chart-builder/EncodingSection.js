@@ -13,9 +13,9 @@
  *   - Implements graph-editor encoding controls and layer actions
  */
 
-import React from "react";
+import React, { useState } from "react";
 
-import { Plus } from "lucide-react";
+import { GripVertical, Plus } from "lucide-react";
 
 import LayerEditor from "@/components/chart-builder/LayerEditor";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/select";
 
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
+import { tabValues } from "@/lib/tabular/toSeries";
 import {
   CATALOG_ROLE_FOR_BINDING,
   getChartType,
@@ -36,6 +37,7 @@ import {
 import { isMeasure, supportsRole } from "@/lib/visualization/fieldTypes";
 import { inlineFields } from "@/lib/visualization/inlineMapping";
 import { getPreset } from "@/lib/visualization/presetRegistry";
+import { isVisible } from "@/lib/visualization/settingsTiers";
 
 const NONE = "__none__";
 
@@ -113,14 +115,19 @@ export default function EncodingSection() {
   return (
     <div className="grid gap-4">
       <GeographicLevelControl />
+      <TabFilterControl />
       {roles.map((role) => {
         const accepted = chart.roleConstraints[role] || [];
         const catalogRole = CATALOG_ROLE_FOR_BINDING[role];
-        const fields = Object.entries(catalog).filter(([, field]) => {
-          if (!accepted.includes(field.kind)) return false;
-          if (inline) return true;
-          return !isMeasure(field) || !catalogRole || supportsRole(field, catalogRole);
-        });
+        const fields = Object.entries(catalog)
+          .filter(([, field]) => {
+            if (!accepted.includes(field.kind)) return false;
+            if (inline) return true;
+            return !isMeasure(field) || !catalogRole || supportsRole(field, catalogRole);
+          })
+          .sort(([, a], [, b]) =>
+            role === "group" ? Number(Boolean(b.isGroup)) - Number(Boolean(a.isGroup)) : 0,
+          );
         const required = chart.requiredRoles.includes(role);
 
         return (
@@ -205,6 +212,113 @@ function GeographicLevelControl() {
           ))}
         </SelectContent>
       </Select>
+    </div>
+  );
+}
+
+function TabFilterControl() {
+  const { config, dispatch, schema } = useChartConfig();
+  const [dragged, setDragged] = useState(null);
+  const table = config.data?.inline;
+  if (!schema.inlineOnly || config.data?.source !== "inline" || !table) return null;
+
+  const columns = (table.columns || [])
+    .filter((column) => ["group", "text", "date"].includes(column.type))
+    .sort((a, b) => {
+      const aGroup = a.type === "group" ? 0 : 1;
+      const bGroup = b.type === "group" ? 0 : 1;
+      return aGroup - bGroup;
+    });
+  const tabColumn = config.filters?.tabColumn || null;
+  const options = tabValues(table, tabColumn, config.filters?.tabOrder);
+
+  function move(source, targetIndex) {
+    const sourceIndex = options.indexOf(source);
+    if (sourceIndex === -1 || sourceIndex === targetIndex) return;
+    const next = [...options];
+    next.splice(sourceIndex, 1);
+    next.splice(targetIndex, 0, source);
+    dispatch({ type: "SET_FILTER", key: "tabOrder", value: next });
+  }
+
+  function drop(event, target) {
+    event.preventDefault();
+    const source = dragged || event.dataTransfer?.getData("text/plain");
+    if (source) move(source, options.indexOf(target));
+    setDragged(null);
+  }
+
+  return (
+    <div className="grid gap-2">
+      <Label htmlFor="encoding-tab-column">Tab by column</Label>
+      <Select
+        value={tabColumn || NONE}
+        onValueChange={(value) =>
+          dispatch({
+            type: "SET_FILTER",
+            key: "tabColumn",
+            value: value === NONE ? null : value,
+          })
+        }
+      >
+        <SelectTrigger id="encoding-tab-column">
+          <SelectValue placeholder="None" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={NONE}>None</SelectItem>
+          {columns.map((column) => (
+            <SelectItem key={column.name} value={column.name}>
+              {column.name}{column.type === "group" ? " (Group)" : ""}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {tabColumn && options.length > 1 && isVisible("tabOrder", config.tier) ? (
+        <div className="grid gap-2 rounded-lg border bg-card p-3">
+          <div className="grid gap-1">
+            <span className="text-sm font-medium">Order tabs</span>
+            <span className="text-xs text-muted-foreground">
+              Drag values, or focus a handle and use the arrow keys.
+            </span>
+          </div>
+          <div className="grid gap-1.5">
+            {options.map((option, index) => (
+              <div
+                key={option}
+                draggable
+                onDragStart={(event) => {
+                  setDragged(option);
+                  event.dataTransfer?.setData("text/plain", option);
+                  if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+                }}
+                onDragEnd={() => setDragged(null)}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={(event) => drop(event, option)}
+                className="flex items-center gap-2 rounded-md border bg-background px-2 py-1.5"
+              >
+                <button
+                  type="button"
+                  aria-label={`Drag to reorder ${option}. Use arrow keys to move it.`}
+                  onKeyDown={(event) => {
+                    if (event.key === "ArrowUp" && index > 0) {
+                      event.preventDefault();
+                      move(option, index - 1);
+                    }
+                    if (event.key === "ArrowDown" && index < options.length - 1) {
+                      event.preventDefault();
+                      move(option, index + 1);
+                    }
+                  }}
+                  className="cursor-grab text-muted-foreground active:cursor-grabbing"
+                >
+                  <GripVertical aria-hidden="true" className="size-4" />
+                </button>
+                <span className="min-w-0 flex-1 truncate text-sm">{option}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

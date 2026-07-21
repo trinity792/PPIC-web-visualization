@@ -14,7 +14,12 @@ import {
   buildMeasurePairs,
   buildTwoPeriod,
 } from "@/lib/data/query_shapes";
-import { buildShapes, supportedShapes } from "@/lib/tabular/toSeries";
+import {
+  applyTabFilter,
+  buildShapes,
+  supportedShapes,
+  tabValues,
+} from "@/lib/tabular/toSeries";
 
 function inlineTable(columns, rows) {
   return { columns: columns.map((name) => ({ name, type: "text" })), rows, issues: [] };
@@ -96,6 +101,68 @@ describe("buildShapes — category (bar)", () => {
     expect(buildShapes(table, spec)).toEqual(expected);
   });
 
+  it("tags records and preserves first-seen blocks with value sort inside each block", () => {
+    const table = {
+      columns: [
+        { name: "Label", type: "text" },
+        { name: "Section", type: "group" },
+        { name: "Value", type: "number" },
+      ],
+      rows: [
+        ["Degree", "Education", "10"],
+        ["Graduate", "Education", "30"],
+        ["Lawyers", "Occupation", "20"],
+        ["Dentists", "Occupation", "40"],
+      ],
+    };
+    const result = buildShapes(table, {
+      chartType: "bar",
+      bindings: { category: "Label", group: "Section", y: "Value" },
+      filters: {},
+      appearance: { sort: "value" },
+    });
+    expect(result.records.map(({ category, group }) => [category, group])).toEqual([
+      ["Graduate", "Education"],
+      ["Degree", "Education"],
+      ["Dentists", "Occupation"],
+      ["Lawyers", "Occupation"],
+    ]);
+  });
+
+  it("keeps bar color-series metadata independent from category sections", () => {
+    const table = {
+      columns: [
+        { name: "Label", type: "text" },
+        { name: "Section", type: "group" },
+        { name: "Sex", type: "text" },
+        { name: "Value", type: "number" },
+      ],
+      rows: [
+        ["Degree", "Education", "Women", "75"],
+        ["Degree", "Education", "Men", "100"],
+        ["Dentists", "Occupation", "Women", "140"],
+        ["Dentists", "Occupation", "Men", "170"],
+      ],
+    };
+    const result = buildShapes(table, {
+      chartType: "bar",
+      bindings: {
+        category: "Label",
+        group: "Section",
+        color: "Sex",
+        y: "Value",
+      },
+      filters: {},
+      appearance: { sort: "value" },
+    });
+    expect(result.records.map(({ group, color, value }) => [group, color, value])).toEqual([
+      ["Education", "Men", 100],
+      ["Education", "Women", 75],
+      ["Occupation", "Men", 170],
+      ["Occupation", "Women", 140],
+    ]);
+  });
+
   it("honors filters.topN and appearance.sort", () => {
     const table = inlineTable(
       ["County", "Population"],
@@ -141,6 +208,35 @@ describe("buildShapes — twoPeriod (dumbbell/slope)", () => {
     const expected = buildTwoPeriod(syntheticRows, "value", { startYear: 2010, endYear: 2020 });
 
     expect(buildShapes(table, spec)).toEqual(expected);
+  });
+
+  it("carries a group tag on the existing two-period record shape", () => {
+    const table = {
+      columns: [
+        { name: "Label", type: "text" },
+        { name: "Section", type: "group" },
+        { name: "Women", type: "number" },
+        { name: "Men", type: "number" },
+      ],
+      rows: [
+        ["Degree", "Education", "75", "100"],
+        ["Dentists", "Occupation", "140", "170"],
+      ],
+    };
+    const result = buildShapes(table, {
+      chartType: "dumbbell",
+      bindings: {
+        category: "Label",
+        group: "Section",
+        start: "Women",
+        end: "Men",
+      },
+      period: {},
+    });
+    expect(result.records).toEqual([
+      expect.objectContaining({ category: "Degree", group: "Education" }),
+      expect.objectContaining({ category: "Dentists", group: "Occupation" }),
+    ]);
   });
 });
 
@@ -206,6 +302,29 @@ describe("buildShapes — matrix (heatmap)", () => {
 
     expect(buildShapes(table, spec)).toEqual(expected);
   });
+
+  it("carries row groups as a parallel matrix attribute for dot plots", () => {
+    const table = {
+      columns: [
+        { name: "Label", type: "text" },
+        { name: "Section", type: "group" },
+        { name: "Series", type: "text" },
+        { name: "Value", type: "number" },
+      ],
+      rows: [
+        ["Degree", "Education", "Women", "75"],
+        ["Degree", "Education", "Men", "100"],
+        ["Dentists", "Occupation", "Women", "140"],
+        ["Dentists", "Occupation", "Men", "170"],
+      ],
+    };
+    const result = buildShapes(table, {
+      chartType: "dotPlot",
+      bindings: { y: "Label", group: "Section", x: "Series", color: "Value" },
+    });
+    expect(result.matrix.y).toEqual(["Degree", "Dentists"]);
+    expect(result.matrix.groups).toEqual(["Education", "Occupation"]);
+  });
 });
 
 describe("buildShapes — geo (choropleth)", () => {
@@ -236,6 +355,74 @@ describe("buildShapes — unusable input", () => {
 
   it("returns an empty records shape when the table is missing", () => {
     expect(buildShapes(null, { chartType: "line" })).toEqual({ records: [] });
+  });
+});
+
+describe("GraphTab filtering", () => {
+  const data = {
+    columns: [
+      { name: "Region", type: "text" },
+      { name: "Year", type: "date" },
+      { name: "Value", type: "number" },
+    ],
+    rows: [
+      ["North", "2024", "10"],
+      ["", "2024", "99"],
+      ["South", "2024", "20"],
+      ["North", "2025", "12"],
+    ],
+  };
+
+  it("lists nonblank values in first-seen order and honors saved reordering", () => {
+    expect(tabValues(data, "Region")).toEqual(["North", "South"]);
+    expect(tabValues(data, "Region", ["South", "North"])).toEqual([
+      "South",
+      "North",
+    ]);
+  });
+
+  it("filters rows and treats a null or missing column as a no-op", () => {
+    expect(applyTabFilter(data, { tabColumn: "Region", tabValue: "South" }).rows).toEqual([
+      ["South", "2024", "20"],
+    ]);
+    expect(applyTabFilter(data, { tabColumn: null, tabValue: null })).toBe(data);
+    expect(applyTabFilter(data, { tabColumn: "Missing", tabValue: "x" })).toBe(data);
+  });
+
+  it("filters before every shape builder dispatch", () => {
+    const result = buildShapes(data, {
+      chartType: "line",
+      bindings: { x: "Year", y: "Value" },
+      filters: { tabColumn: "Region", tabValue: "North" },
+      period: {},
+    });
+    expect(result.series[0].values).toEqual([10, 12]);
+  });
+
+  it("composes tab filtering with category sectioning", () => {
+    const table = {
+      columns: [
+        { name: "Region", type: "text" },
+        { name: "Label", type: "text" },
+        { name: "Section", type: "group" },
+        { name: "Value", type: "number" },
+      ],
+      rows: [
+        ["North", "Degree", "Education", "10"],
+        ["North", "Dentists", "Occupation", "20"],
+        ["South", "Degree", "Education", "30"],
+      ],
+    };
+    const result = buildShapes(table, {
+      chartType: "bar",
+      bindings: { category: "Label", group: "Section", y: "Value" },
+      filters: { tabColumn: "Region", tabValue: "North" },
+      appearance: {},
+    });
+    expect(result.records).toEqual([
+      expect.objectContaining({ category: "Degree", group: "Education", value: 10 }),
+      expect.objectContaining({ category: "Dentists", group: "Occupation", value: 20 }),
+    ]);
   });
 });
 
@@ -272,5 +459,17 @@ describe("supportedShapes", () => {
     const supported = supportedShapes(table);
     expect(supported).not.toContain("bar");
     expect(supported).not.toContain("choroplethMap");
+  });
+
+  it("counts a group-typed column as a dimension", () => {
+    const table = {
+      columns: [
+        { name: "Section", type: "group" },
+        { name: "Value", type: "number" },
+      ],
+    };
+    expect(supportedShapes(table)).toEqual(
+      expect.arrayContaining(["bar", "choroplethMap"]),
+    );
   });
 });
