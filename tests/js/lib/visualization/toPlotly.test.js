@@ -377,6 +377,16 @@ describe("toPlotly grouped category sections", () => {
     );
     expect(wide.layout.yaxis.ticktext).toEqual(["Degree", "Dentists"]);
     expect(wide.layout.yaxis.showline).toBe(false);
+    const groupedAxis = wide.layout.shapes.filter(
+      (shape) => shape.name === "ppic-group-axis",
+    );
+    expect(groupedAxis).toHaveLength(2);
+    expect(groupedAxis[0]).toMatchObject({ x0: 0, x1: 0, xref: "paper", yref: "y" });
+    const secondHeader = wide.layout.annotations.find(
+      (annotation) => annotation.text === "<b>Occupation</b>",
+    );
+    expect(groupedAxis[0].y1).toBeLessThan(secondHeader.y);
+    expect(groupedAxis[1].y0).toBeGreaterThan(secondHeader.y);
     const legendTraces = wide.data.filter((trace) => trace.showlegend !== false);
     expect(legendTraces.map((trace) => trace.name)).toEqual(["Women", "Men", "Total"]);
     expect(new Set(legendTraces.map((trace) => trace.marker.color)).size).toBe(3);

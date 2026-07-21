@@ -570,12 +570,9 @@ body {
   stroke-width: 1px !important;
 }
 
-.ppic-plotly-chart .legend .legendpoints path {
-  transform: scale(0.58);
-  transform-box: fill-box;
-  transform-origin: center;
-}
-
+/* Plotly positions each marker swatch with its own SVG translate(...).
+   Do not set `transform` here: CSS would replace that translation and move the
+   colored marker out of its legend slot. Trace marker.size owns swatch size. */
 .ppic-plotly-chart .legend .legendpoints path[style*="stroke-width"] {
   stroke-width: 1px !important;
 }

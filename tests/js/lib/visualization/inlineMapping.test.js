@@ -5,6 +5,7 @@ import {
   inlineColumnKind,
   inlineFields,
   inlineRenderBlock,
+  suggestChartType,
 } from "@/lib/visualization/inlineMapping";
 
 /**
@@ -160,5 +161,35 @@ describe("Group column mapping", () => {
       end: "Men",
     });
     expect(autoMapInlineBindings("dumbbell", onlyCategory).group).toBeUndefined();
+  });
+
+  it("keeps required Dot plot roles intact across Range chart switches", () => {
+    const payGap = table(
+      ["Label", "Group", "Total", "Men", "Women"],
+      ["text", "text", "number", "number", "number"],
+      [
+        ["Graduate degree", "Education", "87", "102", "75"],
+        ["Dentists", "Occupation", "152", "170", "140"],
+      ],
+    );
+
+    expect(suggestChartType(payGap)).toBe("dumbbell");
+    const range = autoMapInlineBindings("dumbbell", payGap);
+    expect(range).toMatchObject({
+      category: "Label",
+      group: "Group",
+      start: "Women",
+      end: "Men",
+      point: "Total",
+    });
+
+    const dot = autoMapInlineBindings("dotPlot", payGap, range);
+    expect(dot).toMatchObject({ y: "Label", x: "Group", color: "Total" });
+    expect(dot.group).toBeUndefined();
+
+    const rangeAgain = autoMapInlineBindings("dumbbell", payGap, dot);
+    const dotAgain = autoMapInlineBindings("dotPlot", payGap, rangeAgain);
+    expect(dotAgain).toMatchObject({ y: "Label", x: "Group", color: "Total" });
+    expect(dotAgain.group).toBeUndefined();
   });
 });

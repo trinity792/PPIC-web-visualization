@@ -34,7 +34,11 @@ import {
   CATALOG_ROLE_FOR_BINDING,
   getChartType,
 } from "@/lib/visualization/chartRegistry";
-import { isMeasure, supportsRole } from "@/lib/visualization/fieldTypes";
+import {
+  FIELD_KINDS,
+  isMeasure,
+  supportsRole,
+} from "@/lib/visualization/fieldTypes";
 import { inlineFields } from "@/lib/visualization/inlineMapping";
 import { getPreset } from "@/lib/visualization/presetRegistry";
 import { isVisible } from "@/lib/visualization/settingsTiers";
@@ -120,9 +124,15 @@ export default function EncodingSection() {
         const accepted = chart.roleConstraints[role] || [];
         const catalogRole = CATALOG_ROLE_FOR_BINDING[role];
         const fields = Object.entries(catalog)
-          .filter(([, field]) => {
+          .filter(([name, field]) => {
             if (!accepted.includes(field.kind)) return false;
             if (inline) return true;
+            if (
+              role === "group" &&
+              (field.cardinality === "high" || name === "Source")
+            ) {
+              return false;
+            }
             return !isMeasure(field) || !catalogRole || supportsRole(field, catalogRole);
           })
           .sort(([, a], [, b]) =>
@@ -220,17 +230,42 @@ function TabFilterControl() {
   const { config, dispatch, schema } = useChartConfig();
   const [dragged, setDragged] = useState(null);
   const table = config.data?.inline;
-  if (!schema.inlineOnly || config.data?.source !== "inline" || !table) return null;
+  const inline = config.data?.source === "inline" && table;
+  const columns = inline
+    ? (table.columns || [])
+        .filter((column) => ["group", "text", "date"].includes(column.type))
+        .map((column) => ({
+          name: column.name,
+          label: column.name,
+          isGroup: column.type === "group",
+        }))
+        .sort((a, b) => Number(b.isGroup) - Number(a.isGroup))
+    : Object.entries(schema.fields || {})
+        .filter(
+          ([, field]) =>
+            field.kind === FIELD_KINDS.DIMENSION && field.cardinality !== "high",
+        )
+        .map(([name, field]) => ({ name, label: field.label || name, isGroup: false }));
+  if (!columns.length) return null;
 
-  const columns = (table.columns || [])
-    .filter((column) => ["group", "text", "date"].includes(column.type))
-    .sort((a, b) => {
-      const aGroup = a.type === "group" ? 0 : 1;
-      const bGroup = b.type === "group" ? 0 : 1;
-      return aGroup - bGroup;
-    });
   const tabColumn = config.filters?.tabColumn || null;
-  const options = tabValues(table, tabColumn, config.filters?.tabOrder);
+  const fieldValues =
+    (schema.filterDimensions || []).find(
+      (dimension) => dimension.column === tabColumn,
+    )?.values || schema.fields?.[tabColumn]?.values || [];
+  const moduleOptions = config.tabOptions?.length
+    ? config.tabOptions
+    : fieldValues.map((value) => String(value));
+  const options = inline
+    ? tabValues(table, tabColumn, config.filters?.tabOrder)
+    : [
+        ...(config.filters?.tabOrder || []).filter((value) =>
+          moduleOptions.includes(value),
+        ),
+        ...moduleOptions.filter(
+          (value) => !(config.filters?.tabOrder || []).includes(value),
+        ),
+      ];
 
   function move(source, targetIndex) {
     const sourceIndex = options.indexOf(source);
@@ -268,7 +303,7 @@ function TabFilterControl() {
           <SelectItem value={NONE}>None</SelectItem>
           {columns.map((column) => (
             <SelectItem key={column.name} value={column.name}>
-              {column.name}{column.type === "group" ? " (Group)" : ""}
+              {column.label}{column.isGroup ? " (Group)" : ""}
             </SelectItem>
           ))}
         </SelectContent>

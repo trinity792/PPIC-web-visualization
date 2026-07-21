@@ -128,6 +128,9 @@ export function PreviewProvider({ children }) {
             geoUnmatched: next.unmatched || [],
             seriesNames: seriesNamesOf(config.chartType, next),
             categoryNames: categoryNamesOf(config.chartType, next),
+            ...(Object.hasOwn(next, "tabOptions")
+              ? { tabOptions: next.tabOptions, tabValue: next.tabValue }
+              : {}),
           });
           setPreviewState((current) => ({
             ...current,
@@ -184,9 +187,16 @@ export function PreviewProvider({ children }) {
 
         if (state.result) {
           try {
+            const bindings =
+              config.filters?.tabColumn &&
+              config.filters.tabColumn === config.bindings?.group
+                ? Object.fromEntries(
+                    Object.entries(config.bindings).filter(([role]) => role !== "group"),
+                  )
+                : config.bindings;
             plotly = toPlotly({
               chartType: config.chartType,
-              bindings: config.bindings,
+              bindings,
               series: state.result.series,
               geometry: state.result.geometry,
               featureidkey: state.result.response?.featureidkey,

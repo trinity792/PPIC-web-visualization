@@ -85,9 +85,18 @@ describe("parseDateToken", () => {
 });
 
 describe("inferColumnType", () => {
-  it("never infers the manual-only group type", () => {
+  it("infers group only from an exact Group or Category header", () => {
     expect(inferColumnType(["Education", "Occupation"]).type).toBe(COLUMN_TYPES.TEXT);
     expect(inferColumnType(["Education", "Occupation"]).type).not.toBe(COLUMN_TYPES.GROUP);
+    expect(
+      inferColumnType(["Education", "Occupation"], { columnName: "Group" }).type,
+    ).toBe(COLUMN_TYPES.GROUP);
+    expect(
+      inferColumnType(["Education", "Occupation"], { columnName: " category " }).type,
+    ).toBe(COLUMN_TYPES.GROUP);
+    expect(
+      inferColumnType(["Education", "Occupation"], { columnName: "Groups" }).type,
+    ).toBe(COLUMN_TYPES.TEXT);
   });
 
   it("infers number for currency/percent/thousands-formatted values", () => {

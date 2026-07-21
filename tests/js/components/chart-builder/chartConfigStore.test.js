@@ -11,6 +11,7 @@ import {
   reduceChartConfig,
 } from "@/components/chart-builder/chartConfigStore";
 import { SPEC_VERSION } from "@/lib/visualization/chartSpec";
+import { BYOD_SCHEMA } from "@/lib/visualization/moduleRegistry";
 
 const schema = {
   id: "testmodule",
@@ -98,6 +99,63 @@ describe("reduceChartConfig — v2 actions", () => {
     expect(backToModule.data).toEqual({ source: "module" });
   });
 
+  it("keeps required Dot plot mappings valid across pay-gap chart switches", () => {
+    const payGap = {
+      columns: [
+        { name: "Label", type: "text" },
+        { name: "Group", type: "text" },
+        { name: "Total", type: "number" },
+        { name: "Men", type: "number" },
+        { name: "Women", type: "number" },
+      ],
+      rows: [
+        ["Graduate degree", "Education", "87", "102", "75"],
+        ["Dentists", "Occupation", "152", "170", "140"],
+      ],
+    };
+    const byodDispatch = (config, action) =>
+      reduceChartConfig(config, action, BYOD_SCHEMA);
+    const imported = byodDispatch(createChartConfig(BYOD_SCHEMA), {
+      type: "SET_DATA_SOURCE",
+      source: "inline",
+      inline: payGap,
+      defaultChart: true,
+    });
+    expect(imported.chartType).toBe("dumbbell");
+    expect(imported.bindings).toMatchObject({
+      category: "Label",
+      group: "Group",
+      start: "Women",
+      end: "Men",
+      point: "Total",
+    });
+
+    const dot = byodDispatch(imported, {
+      type: "SET_CHART_TYPE",
+      chartType: "dotPlot",
+    });
+    expect(dot.bindings).toMatchObject({ y: "Label", x: "Group", color: "Total" });
+    expect(dot.bindings.group).toBeUndefined();
+    expect(dot.validation.some((finding) => finding.code === "MISSING_REQUIRED_ROLE"))
+      .toBe(false);
+
+    const range = byodDispatch(dot, {
+      type: "SET_CHART_TYPE",
+      chartType: "dumbbell",
+    });
+    const dotAgain = byodDispatch(range, {
+      type: "SET_CHART_TYPE",
+      chartType: "dotPlot",
+    });
+    expect(dotAgain.bindings).toMatchObject({
+      y: "Label",
+      x: "Group",
+      color: "Total",
+    });
+    expect(dotAgain.validation.some((finding) => finding.code === "MISSING_REQUIRED_ROLE"))
+      .toBe(false);
+  });
+
   it("resets the active GraphTab on column and data changes", () => {
     const inline = {
       columns: [
@@ -150,6 +208,39 @@ describe("reduceChartConfig — v2 actions", () => {
       tabValue: null,
       tabOrder: [],
     });
+  });
+
+  it("preserves module tabs and seeds their values from the field catalog", () => {
+    const moduleSchema = {
+      ...schema,
+      fields: {
+        ...schema.fields,
+        Region: {
+          kind: "dimension",
+          label: "Region",
+          values: ["Bay Area", "Central Valley"],
+        },
+      },
+    };
+    const moduleDispatch = (config, action) =>
+      reduceChartConfig(config, action, moduleSchema);
+    const baseModule = createChartConfig(moduleSchema);
+    const tabbed = moduleDispatch(baseModule, {
+      type: "SET_FILTER",
+      key: "tabColumn",
+      value: "Region",
+    });
+
+    expect(tabbed.data.source).toBe("module");
+    expect(tabbed.filters).toMatchObject({
+      tabColumn: "Region",
+      tabValue: "Bay Area",
+      tabOrder: ["Bay Area", "Central Valley"],
+    });
+
+    const restored = createChartConfig(moduleSchema, tabbed);
+    expect(restored.filters.tabColumn).toBe("Region");
+    expect(restored.filters.tabValue).toBe("Bay Area");
   });
 
   it("persists an advanced custom tab order", () => {
@@ -289,6 +380,26 @@ describe("reduceChartConfig — v2 actions", () => {
     expect(withData.geoUnmatched).toEqual(["Alpine"]);
     expect(withData.seriesNames).toEqual(["Alameda", "Butte"]);
     expect(withData.categoryNames).toEqual(["Fresno", "Kern"]);
+  });
+
+  it("SET_SERIES_COUNT synchronizes dynamically loaded module tab values", () => {
+    const tabbed = dispatch(base, {
+      type: "SET_FILTER",
+      key: "tabColumn",
+      value: "Location",
+    });
+    const withTabs = dispatch(tabbed, {
+      type: "SET_SERIES_COUNT",
+      count: 2,
+      tabOptions: ["North", "South"],
+      tabValue: "South",
+    });
+
+    expect(withTabs.tabOptions).toEqual(["North", "South"]);
+    expect(withTabs.filters).toMatchObject({
+      tabValue: "South",
+      tabOrder: ["North", "South"],
+    });
   });
 
   it("SET_SERIES_COUNT revalidation surfaces a GEO_JOIN_UNMATCHED warning", () => {

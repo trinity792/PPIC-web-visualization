@@ -94,6 +94,59 @@ describe("displayTable", () => {
     });
   });
 
+  it("keeps group columns in range and matrix exports", () => {
+    const range = displayTable(
+      {
+        ...baseSpec,
+        chartType: "dumbbell",
+        bindings: {
+          category: "Location",
+          group: "Region",
+          start: "Start",
+          end: "End",
+        },
+      },
+      {
+        records: [
+          { category: "Alpha", group: "North", start: 10, end: 20 },
+        ],
+      },
+    );
+    expect(range.columns.map((column) => column.name)).toEqual([
+      "Location",
+      "Region",
+      "Start",
+      "End",
+    ]);
+    expect(range.rows).toEqual([["Alpha", "North", 10, 20]]);
+
+    const matrix = displayTable(
+      {
+        ...baseSpec,
+        chartType: "dotPlot",
+        bindings: { y: "Location", group: "Region", x: "Year", color: "Value" },
+      },
+      {
+        series: {
+          x: [2025],
+          y: ["Alpha", "Bravo"],
+          z: [[10], [20]],
+          groups: ["North", "South"],
+        },
+      },
+    );
+    expect(matrix.columns.map((column) => column.name)).toEqual([
+      "Location",
+      "Region",
+      "Year",
+      "Value",
+    ]);
+    expect(matrix.rows).toEqual([
+      ["Alpha", "North", 2025, 10],
+      ["Bravo", "South", 2025, 20],
+    ]);
+  });
+
   it("returns the same table object consumed by R/Stata code generation", () => {
     const spec = {
       ...baseSpec,

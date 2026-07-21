@@ -39,6 +39,18 @@ describe("parsePaste", () => {
     expect(value.columns[1].type).toBe("number");
   });
 
+  it("selects the Group type for exact Group and Category headers", async () => {
+    for (const header of ["Group", "Category"]) {
+      const { value } = await parsePaste(
+        `${header}\tValue\nEducation\t75\nOccupation\t140\n`,
+      );
+      expect(value.columns).toMatchObject([
+        { name: header, type: "group" },
+        { name: "Value", type: "number" },
+      ]);
+    }
+  });
+
   it("returns a TABLE_PARSE_FAILED finding for an empty paste, without throwing", async () => {
     const { value, errors } = await parsePaste("   ");
     expect(value).toBeNull();

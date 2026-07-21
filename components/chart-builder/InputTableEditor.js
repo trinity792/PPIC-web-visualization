@@ -127,7 +127,9 @@ function transpose(table) {
   const [newHeader, ...newRows] = transposed;
   const columns = newHeader.map((name, index) => ({
     name: name || `Column ${index + 1}`,
-    type: inferColumnType(newRows.map((row) => row[index])).type,
+    type: inferColumnType(newRows.map((row) => row[index]), {
+      columnName: name,
+    }).type,
   }));
   return { columns, rows: newRows, issues: [] };
 }

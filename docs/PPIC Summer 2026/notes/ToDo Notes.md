@@ -28,9 +28,9 @@ Status: Updating
     - The data needs to be stored somewhere
   - Options:
     - GitHub Actions runs the code
-    - Store the data ?? (Vercel Blob, Internal PPIC Server, )
+    - Store the data ?? (Vercel Blob, Internal PPIC Server)
   - Needs:
-    - PPIC Github & Vercel Account or Use Staff
+    - PPIC Github & Vercel Account or Use Staff Account
 ## Later
 - [ ] Plan Parcel Data Module
 - [ ] Implement Zillow Module
@@ -46,12 +46,6 @@ Status: Updating
 # Follow Ups
 ## A Running List
 - Combined SVG/PDF are raster-wrapped, not true vector (combining vector charts is substantially more work). Single-chart SVG/PDF stay vector-first. If crisp vector multi-chart output matters, that's a follow-up.
-- [ ] Fix legend on Range plot - using the gender pay gap example, the legend just shows 0, 1, total with no color indication and does not label "Men" or "Women"; probably needs some way to derive labels w/o specific x/y labeling?
-- [ ] When grouping: the vertical line between group should not be visible (currently the y axis line goes through the group label)
-- [ ] Add each color palette option from the UI kit to the graph editor and it gets set automatically
-- [ ] Remove chart recommendations
-- [ ] when a tab group is enabled, the group label does not need to be shown on the graph
-- [ ] Under chart type: the auto column selector should choose groups if the column is named "Group" || "Category"
 
 ---
 
@@ -120,7 +114,7 @@ Note: not in order
 - [x] Documents: Wire in Footnote YAML field
 - [x] Footnotes on the graph clip the x axis labels. They should be rendered as callouts below the x axis title
 - [ ] Test & Fix graph export visualitations
-- [ ] Tab feature on charts/graphs
+- [x] Tab feature on charts/graphs
 ### Information Gaps
 - Internal server hardware capabilities
 - Open ports to host visualizations, traefik or other reverse proxy setup viability (is there someone who can maintain it?)

@@ -81,6 +81,7 @@ function geometryLevelForSubset(subset) {
 }
 
 function selectedLocations(config) {
+  if (Array.isArray(config.moduleLocations)) return config.moduleLocations;
   const places = config.layers
     .filter((layer) => layer.type === "selectedPlaces")
     .flatMap((layer) => layer.values || []);
@@ -166,6 +167,303 @@ async function requestData(config, schema, signal, overrides = {}) {
     throw error;
   }
   return body;
+}
+
+function textValue(value) {
+  if (value == null || String(value).trim() === "") return null;
+  return String(value).trim();
+}
+
+function orderedValues(values = [], savedOrder = []) {
+  const firstSeen = [];
+  const seen = new Set();
+  for (const raw of values || []) {
+    const value = textValue(raw);
+    if (value == null || seen.has(value)) continue;
+    seen.add(value);
+    firstSeen.push(value);
+  }
+  const ordered = [];
+  const used = new Set();
+  for (const raw of savedOrder || []) {
+    const value = textValue(raw);
+    if (value == null || !seen.has(value) || used.has(value)) continue;
+    used.add(value);
+    ordered.push(value);
+  }
+  return [...ordered, ...firstSeen.filter((value) => !used.has(value))];
+}
+
+function moduleTabOptions(schema, column, rows, savedOrder) {
+  if (!column) return [];
+  const filterDimension = (schema.filterDimensions || []).find(
+    (dimension) => dimension.column === column,
+  );
+  const declared = filterDimension?.values || schema.fields?.[column]?.values || [];
+  const values = declared.length ? declared : rows.map((row) => row?.[column]);
+  return orderedValues(values, savedOrder);
+}
+
+function moduleDirectTabFilter(config, schema, column, value) {
+  if (!column || value == null) return config;
+  const filters = { ...config.filters, tabValue: value };
+  const dimension = (schema.filterDimensions || []).find(
+    (candidate) => candidate.column === column,
+  );
+  if (dimension) filters[column] = value;
+  if (column === "Source") {
+    if (schema.provenanceFilter) filters.sources = [value];
+    else if (schema.sources?.includes(value)) filters.source = value;
+  }
+  return { ...config, filters };
+}
+
+function isDirectModuleTab(schema, column) {
+  return Boolean(
+    (schema.filterDimensions || []).some(
+      (dimension) => dimension.column === column,
+    ) ||
+      (column === "Source" && (schema.provenanceFilter || schema.sources?.length)),
+  );
+}
+
+function filterModuleRows(rows, config, schema) {
+  return (rows || []).filter((row) => {
+    for (const dimension of schema.filterDimensions || []) {
+      const selected = textValue(config.filters?.[dimension.column]);
+      if (selected != null && textValue(row?.[dimension.column]) !== selected) {
+        return false;
+      }
+    }
+    const selectedSources = config.filters?.sources;
+    if (
+      schema.provenanceFilter &&
+      selectedSources?.length &&
+      !selectedSources.includes(textValue(row?.Source))
+    ) {
+      return false;
+    }
+    const selectedSource = textValue(config.filters?.source);
+    if (
+      schema.sources?.length &&
+      selectedSource != null &&
+      textValue(row?.Source) !== selectedSource
+    ) {
+      return false;
+    }
+    return true;
+  });
+}
+
+function moduleLocation(row) {
+  return textValue(row?.Location ?? row?.location ?? row?.Jurisdiction);
+}
+
+/**
+ * Resolve module-only grouping/tab context from the same full-width table used
+ * by View Data. The chart APIs stay the source of plotted values (so change
+ * transforms, geographic joins, and line layers retain their existing paths);
+ * this table supplies dimension values and, for a tab, the matching locations.
+ */
+async function prepareModuleFeatures(config, schema, signal) {
+  const groupColumn = config.bindings?.group || null;
+  const tabColumn = config.filters?.tabColumn || null;
+  if (!groupColumn && !tabColumn) return null;
+
+  let tabOptions = moduleTabOptions(
+    schema,
+    tabColumn,
+    [],
+    config.filters?.tabOrder,
+  );
+  const currentTab = textValue(config.filters?.tabValue);
+  let tabValue = tabOptions.includes(currentTab)
+    ? currentTab
+    : tabOptions[0] ?? currentTab;
+  let effectiveConfig = moduleDirectTabFilter(config, schema, tabColumn, tabValue);
+  const groupDimension = (schema.filterDimensions || []).find(
+    (dimension) => dimension.column === groupColumn,
+  );
+  const needsDimensionTable =
+    (groupColumn && !groupDimension) ||
+    (tabColumn && !isDirectModuleTab(schema, tabColumn));
+  const table = needsDimensionTable
+    ? await requestData(effectiveConfig, schema, signal, { view: "table" })
+    : { records: [] };
+  let rows = filterModuleRows(table.records || [], effectiveConfig, schema);
+  if (!tabOptions.length) {
+    tabOptions = moduleTabOptions(
+      schema,
+      tabColumn,
+      rows,
+      config.filters?.tabOrder,
+    );
+    tabValue = tabOptions.includes(currentTab) ? currentTab : tabOptions[0] ?? null;
+    effectiveConfig = moduleDirectTabFilter(
+      effectiveConfig,
+      schema,
+      tabColumn,
+      tabValue,
+    );
+  }
+
+  if (tabColumn && tabValue != null) {
+    rows = rows.filter((row) => textValue(row?.[tabColumn]) === tabValue);
+  }
+
+  let allowedLocations = null;
+  if (tabColumn && !isDirectModuleTab(schema, tabColumn)) {
+    allowedLocations = orderedValues(rows.map(moduleLocation));
+    effectiveConfig = { ...effectiveConfig, moduleLocations: allowedLocations };
+  }
+
+  const groupByLocation = new Map();
+  const groupOrder = new Map();
+  if (groupColumn && !groupDimension) {
+    for (const row of rows) {
+      const location = moduleLocation(row);
+      const group = textValue(row?.[groupColumn]);
+      if (location == null || group == null) continue;
+      groupByLocation.set(location, group);
+      if (!groupOrder.has(group)) groupOrder.set(group, groupOrder.size);
+    }
+  }
+
+  return {
+    config: effectiveConfig,
+    tabOptions,
+    tabValue,
+    allowedLocations,
+    groupByLocation,
+    groupOrder,
+    groupRequests: groupDimension
+      ? (tabColumn === groupColumn && tabValue != null
+          ? [tabValue]
+          : orderedValues(
+              groupDimension.values || schema.fields?.[groupColumn]?.values || [],
+            )
+        ).map((group) => ({
+          group,
+          config: {
+            ...effectiveConfig,
+            filters: { ...effectiveConfig.filters, [groupColumn]: group },
+          },
+        }))
+      : [],
+  };
+}
+
+function resultLocation(item, groupByLocation) {
+  const raw = textValue(item?.location ?? item?.category ?? item?.label);
+  if (raw == null) return null;
+  if (groupByLocation.has(raw)) return raw;
+  const base = raw.split(" · ")[0];
+  return groupByLocation.has(base) ? base : raw;
+}
+
+function withModuleFeatures(result, config, context) {
+  if (!context) return result;
+  const { groupByLocation, groupOrder, tabOptions, tabValue } = context;
+  let series = result.series;
+
+  if (series && !Array.isArray(series) && Array.isArray(series.y)) {
+    const hasExistingGroups = Array.isArray(series.groups);
+    let rows = series.y.map((label, index) => ({
+      label,
+      values: series.z?.[index] || [],
+      group:
+        series.groups?.[index] ?? groupByLocation.get(textValue(label)) ?? null,
+      index,
+    }));
+    if (context.allowedLocations) {
+      const allowed = new Set(context.allowedLocations);
+      rows = rows.filter((row) => allowed.has(textValue(row.label)));
+    }
+    if (groupByLocation.size) {
+      rows.sort((a, b) => {
+        const aRank = groupOrder.get(a.group) ?? Infinity;
+        const bRank = groupOrder.get(b.group) ?? Infinity;
+        return aRank - bRank || a.index - b.index;
+      });
+    }
+    series = {
+      ...series,
+      y: rows.map((row) => row.label),
+      z: rows.map((row) => row.values),
+      ...(hasExistingGroups || groupByLocation.size
+        ? { groups: rows.map((row) => row.group) }
+        : {}),
+    };
+  } else if (Array.isArray(series)) {
+    const allowed = context.allowedLocations
+      ? new Set(context.allowedLocations)
+      : null;
+    const indexed = series
+      .filter((item) => !allowed || allowed.has(resultLocation(item, groupByLocation)))
+      .map((item, index) => {
+        const location = resultLocation(item, groupByLocation);
+        return {
+          item: {
+            ...item,
+            ...(groupByLocation.size
+              ? { group: groupByLocation.get(location) ?? null }
+              : {}),
+          },
+          index,
+        };
+      });
+    if (groupByLocation.size && GROUP_SECTIONING_RECORD_CHARTS.has(config.chartType)) {
+      indexed.sort((a, b) => {
+        const aRank = groupOrder.get(a.item.group) ?? Infinity;
+        const bRank = groupOrder.get(b.item.group) ?? Infinity;
+        return aRank - bRank || a.index - b.index;
+      });
+    }
+    series = indexed.map(({ item }) => item);
+  }
+
+  const response = { ...result.response };
+  if (config.chartType === "line") response.series = series;
+  else if (config.chartType === "heatmap" || config.chartType === "dotPlot") {
+    response.matrix = series;
+  } else response.records = series;
+  return { ...result, response, series, tabOptions, tabValue };
+}
+
+function mergeGroupedModuleResults(grouped, config) {
+  if (!grouped.length) return null;
+  const first = grouped[0].result;
+  const matrixChart = config.chartType === "heatmap" || config.chartType === "dotPlot";
+  let series;
+  if (matrixChart) {
+    const x = first.series?.x || [];
+    series = {
+      ...first.series,
+      x,
+      y: grouped.flatMap(({ result }) => result.series?.y || []),
+      z: grouped.flatMap(({ result }) => result.series?.z || []),
+      groups: grouped.flatMap(({ group, result }) =>
+        (result.series?.y || []).map(() => group),
+      ),
+    };
+  } else {
+    series = grouped.flatMap(({ group, result }) =>
+      (result.series || []).map((item) => ({ ...item, group })),
+    );
+  }
+
+  const response = { ...first.response };
+  if (config.chartType === "line") response.series = series;
+  else if (matrixChart) response.matrix = series;
+  else response.records = series;
+  return {
+    ...first,
+    response,
+    series,
+    unmatched: [
+      ...new Set(grouped.flatMap(({ result }) => result.unmatched || [])),
+    ],
+  };
 }
 
 function namedSeries(series, suffix) {
@@ -452,10 +750,7 @@ function loadInlineData(config) {
   return { response, series, geometry: null, unmatched: response.unmatched || [] };
 }
 
-export async function loadChartData(config, schema, signal) {
-  if (config.data?.source === "inline") {
-    return loadInlineData(config);
-  }
+async function loadModuleChartData(config, schema, signal) {
   if (config.chartType === "line") {
     return loadLineData(config, schema, signal);
   }
@@ -486,6 +781,44 @@ export async function loadChartData(config, schema, signal) {
     response.matrix ||
     [];
   return { response, series, geometry, unmatched: response.unmatched || [] };
+}
+
+function emptyModuleResult(config, context) {
+  const matrix = { x: [], y: [], z: [] };
+  const matrixChart = config.chartType === "heatmap" || config.chartType === "dotPlot";
+  const series = matrixChart ? matrix : [];
+  return {
+    response: matrixChart ? { matrix } : { records: [] },
+    series,
+    geometry: null,
+    unmatched: [],
+    tabOptions: context.tabOptions,
+    tabValue: context.tabValue,
+  };
+}
+
+export async function loadChartData(config, schema, signal) {
+  if (config.data?.source === "inline") {
+    return loadInlineData(config);
+  }
+  const context = await prepareModuleFeatures(config, schema, signal);
+  if (context?.allowedLocations && context.allowedLocations.length === 0) {
+    return emptyModuleResult(config, context);
+  }
+  const effectiveConfig = context?.config || config;
+  const groupRequests = context?.groupRequests || [];
+  const result = groupRequests.length
+    ? mergeGroupedModuleResults(
+        await Promise.all(
+          groupRequests.map(async ({ group, config: groupConfig }) => ({
+            group,
+            result: await loadModuleChartData(groupConfig, schema, signal),
+          })),
+        ),
+        effectiveConfig,
+      )
+    : await loadModuleChartData(effectiveConfig, schema, signal);
+  return withModuleFeatures(result, effectiveConfig, context);
 }
 
 export function hasChartData(chartType, result) {

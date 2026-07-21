@@ -76,4 +76,31 @@ describe("PreviewPane GraphTabs", () => {
       value: "South",
     });
   });
+
+  it("renders module-loaded tab options through the same GraphTabs row", () => {
+    const inlineData = config.data;
+    const inlineFilters = config.filters;
+    config.data = { source: "module" };
+    config.filters = {
+      tabColumn: "Region",
+      tabValue: "Bay Area",
+      tabOrder: ["Bay Area", "Central Valley"],
+    };
+    config.tabOptions = ["Bay Area", "Central Valley"];
+
+    try {
+      render(<PreviewPane />);
+      expect(
+        screen.getByRole("group", { name: "Filter chart by Region" }),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Bay Area" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+    } finally {
+      config.data = inlineData;
+      config.filters = inlineFilters;
+      delete config.tabOptions;
+    }
+  });
 });

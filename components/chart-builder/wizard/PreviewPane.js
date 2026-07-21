@@ -69,6 +69,11 @@ function ChartSlot({ preview, layout, multi, embedded, onGraphDiv }) {
     tabColumn,
     config.filters?.tabOrder,
   );
+  const resolvedTabs = tabs.length
+    ? tabs
+    : preview.result?.tabOptions || config.tabOptions || [];
+  const tabValue =
+    preview.result?.tabValue ?? config.filters?.tabValue ?? resolvedTabs[0];
 
   return (
     <div
@@ -99,10 +104,10 @@ function ChartSlot({ preview, layout, multi, embedded, onGraphDiv }) {
         </div>
       ) : null}
 
-      {tabColumn && tabs.length ? (
+      {tabColumn && resolvedTabs.length ? (
         <GraphTabs
-          options={tabs}
-          value={config.filters.tabValue ?? tabs[0]}
+          options={resolvedTabs}
+          value={tabValue}
           onValueChange={(value) =>
             dispatch({
               type: "SET_FILTER",

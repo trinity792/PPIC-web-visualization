@@ -5,7 +5,7 @@
  * not re-tested here per the setup.js network safety net.)
  */
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   categoryNamesOf,
@@ -201,6 +201,188 @@ describe("loadChartData — inline ('your data') source", () => {
     expect(result.unmatched).toEqual([]);
     expect(result.series).toHaveLength(2);
     expect(result.series[0]).toMatchObject({ location: "Fresno", value: 100 });
+  });
+});
+
+describe("loadChartData — module grouping and tabs", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const schema = {
+    id: "module-test",
+    apiPath: "/api/module-test",
+    subsets: { Counties: ["County"] },
+    filterDimensions: [],
+    fields: {
+      Location: { kind: "dimension", label: "Location", cardinality: "high" },
+      Region: { kind: "dimension", label: "Region" },
+      Status: {
+        kind: "dimension",
+        label: "Status",
+        values: ["On Track", "Behind"],
+      },
+      Metric: { kind: "measure", label: "Metric" },
+    },
+  };
+
+  const config = {
+    chartType: "bar",
+    data: { source: "module" },
+    bindings: { category: "Location", y: "Metric", group: "Region" },
+    period: { year: 2025 },
+    filters: {
+      subset: "Counties",
+      tabColumn: "Status",
+      tabValue: "On Track",
+      tabOrder: ["On Track", "Behind"],
+      topN: 20,
+    },
+    layers: [],
+    appearance: { sort: "value" },
+    transform: "actual",
+  };
+
+  it("filters a module request to the active tab and attaches group metadata", async () => {
+    const fetchMock = vi.fn(async (url) => {
+      const params = new URL(url, "https://example.test").searchParams;
+      if (params.get("view") === "table") {
+        return {
+          ok: true,
+          json: async () => ({
+            records: [
+              { Location: "Alpha", Region: "North", Status: "On Track" },
+              { Location: "Bravo", Region: "North", Status: "Behind" },
+              { Location: "Charlie", Region: "South", Status: "On Track" },
+            ],
+          }),
+        };
+      }
+      return {
+        ok: true,
+        json: async () => ({
+          records: [
+            { location: "Charlie", category: "Charlie", value: 30 },
+            { location: "Alpha", category: "Alpha", value: 10 },
+          ],
+        }),
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await loadChartData(config, schema);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const chartUrl = new URL(fetchMock.mock.calls[1][0], "https://example.test");
+    expect(chartUrl.searchParams.get("locations")).toBe("Alpha,Charlie");
+    expect(result.tabOptions).toEqual(["On Track", "Behind"]);
+    expect(result.tabValue).toBe("On Track");
+    expect(result.series).toEqual([
+      { location: "Alpha", category: "Alpha", value: 10, group: "North" },
+      { location: "Charlie", category: "Charlie", value: 30, group: "South" },
+    ]);
+  });
+
+  it("uses a module filter dimension directly for a stratification tab", async () => {
+    const stratifiedSchema = {
+      ...schema,
+      filterDimensions: [
+        {
+          column: "Status",
+          param: "status",
+          values: ["On Track", "Behind"],
+          default: "On Track",
+        },
+      ],
+    };
+    const fetchMock = vi.fn(async (url) => {
+      const params = new URL(url, "https://example.test").searchParams;
+      return {
+        ok: true,
+        json: async () =>
+          params.get("view") === "table"
+            ? { records: [{ Location: "Bravo", Status: "Behind" }] }
+            : { records: [{ location: "Bravo", category: "Bravo", value: 20 }] },
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await loadChartData(
+      {
+        ...config,
+        bindings: { category: "Location", y: "Metric" },
+        filters: { ...config.filters, tabValue: "Behind" },
+      },
+      stratifiedSchema,
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    for (const [url] of fetchMock.mock.calls) {
+      const params = new URL(url, "https://example.test").searchParams;
+      expect(params.get("status")).toBe("Behind");
+      expect(params.has("locations")).toBe(false);
+    }
+    expect(result.series[0].location).toBe("Bravo");
+  });
+
+  it("loads each module stratum when a filter dimension is used for grouping", async () => {
+    const stratifiedSchema = {
+      ...schema,
+      filterDimensions: [
+        {
+          column: "Status",
+          param: "status",
+          values: ["On Track", "Behind"],
+          default: "On Track",
+        },
+      ],
+    };
+    const fetchMock = vi.fn(async (url) => {
+      const params = new URL(url, "https://example.test").searchParams;
+      const status = params.get("status");
+      return {
+        ok: true,
+        json: async () =>
+          params.get("view") === "table"
+            ? { records: [{ Location: "Alpha", Status: status }] }
+            : {
+                records: [
+                  {
+                    location: "Alpha",
+                    category: "Alpha",
+                    value: status === "On Track" ? 30 : 10,
+                  },
+                ],
+              },
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await loadChartData(
+      {
+        ...config,
+        bindings: { category: "Location", y: "Metric", group: "Status" },
+        filters: {
+          ...config.filters,
+          Status: "On Track",
+          tabColumn: null,
+          tabValue: null,
+          tabOrder: [],
+        },
+      },
+      stratifiedSchema,
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const chartStatuses = fetchMock.mock.calls
+      .map(([url]) => new URL(url, "https://example.test").searchParams)
+      .filter((params) => params.get("view") === "category")
+      .map((params) => params.get("status"));
+    expect(chartStatuses).toEqual(["On Track", "Behind"]);
+    expect(result.series).toEqual([
+      { location: "Alpha", category: "Alpha", value: 30, group: "On Track" },
+      { location: "Alpha", category: "Alpha", value: 10, group: "Behind" },
+    ]);
   });
 });
 

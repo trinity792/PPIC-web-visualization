@@ -209,22 +209,78 @@ function defaultFilters(schema) {
   };
 }
 
-function synchronizeTabFilters(filters, table) {
+function orderedTabOptions(values = [], savedOrder = []) {
+  const firstSeen = [];
+  const seen = new Set();
+  for (const raw of values || []) {
+    if (raw == null || String(raw).trim() === "") continue;
+    const value = String(raw).trim();
+    if (seen.has(value)) continue;
+    seen.add(value);
+    firstSeen.push(value);
+  }
+  const ordered = [];
+  const used = new Set();
+  for (const raw of savedOrder || []) {
+    if (raw == null) continue;
+    const value = String(raw).trim();
+    if (!seen.has(value) || used.has(value)) continue;
+    used.add(value);
+    ordered.push(value);
+  }
+  return [...ordered, ...firstSeen.filter((value) => !used.has(value))];
+}
+
+function schemaTabOptions(schema, column, savedOrder = []) {
+  if (!column || !schema?.fields?.[column]) return [];
+  const dimension = (schema.filterDimensions || []).find(
+    (candidate) => candidate.column === column,
+  );
+  return orderedTabOptions(
+    dimension?.values || schema.fields[column]?.values || [],
+    savedOrder,
+  );
+}
+
+function availableTabOptions(config, schema, column, savedOrder = []) {
+  if (config.data?.source === "inline") {
+    return tabValues(config.data?.inline, column, savedOrder);
+  }
+  const loaded = config.filters?.tabColumn === column ? config.tabOptions : [];
+  return orderedTabOptions(
+    loaded?.length ? loaded : schemaTabOptions(schema, column),
+    savedOrder,
+  );
+}
+
+function synchronizeTabFilters(filters, table, schema) {
   const column = filters?.tabColumn || null;
   if (!column) {
     return { ...filters, tabColumn: null, tabValue: null, tabOrder: [] };
   }
-  const exists = (table?.columns || []).some((item) => item.name === column);
+  const inline = Boolean(table);
+  const exists = inline
+    ? (table?.columns || []).some((item) => item.name === column)
+    : Boolean(schema?.fields?.[column]);
   if (!exists) {
     return { ...filters, tabColumn: null, tabValue: null, tabOrder: [] };
   }
-  const options = tabValues(table, column, filters.tabOrder);
+  const options = inline
+    ? tabValues(table, column, filters.tabOrder)
+    : schemaTabOptions(schema, column, filters.tabOrder);
   const current = filters.tabValue == null ? null : String(filters.tabValue).trim();
   return {
     ...filters,
     tabColumn: column,
-    tabValue: options.includes(current) ? current : options[0] ?? null,
-    tabOrder: options,
+    // Some module dimensions (Region, Cycle) are populated from the loaded
+    // source table rather than a static schema list. Preserve their saved
+    // value/order until the loader reports the values that actually exist.
+    tabValue: options.length
+      ? options.includes(current)
+        ? current
+        : options[0]
+      : current,
+    tabOrder: options.length ? options : filters.tabOrder || [],
   };
 }
 
@@ -291,7 +347,11 @@ export function createChartConfig(schema, initialConfig = {}) {
     layers: clone(initial.layers || base.layers),
     tier: initial.tier || base.tier,
   };
-  merged.filters = synchronizeTabFilters(merged.filters, merged.data?.inline);
+  merged.filters = synchronizeTabFilters(
+    merged.filters,
+    merged.data?.source === "inline" ? merged.data?.inline : null,
+    schema,
+  );
   return revalidate(merged, schema);
 }
 
@@ -412,9 +472,10 @@ export function reduceChartConfig(config, action, schema) {
     case "SET_FILTER":
       if (action.key === "tabColumn") {
         const tabColumn = action.value || null;
-        const options = tabValues(config.data?.inline, tabColumn);
+        const options = availableTabOptions(config, schema, tabColumn);
         next = {
           ...config,
+          tabOptions: options,
           filters: {
             ...config.filters,
             tabColumn,
@@ -425,13 +486,15 @@ export function reduceChartConfig(config, action, schema) {
         break;
       }
       if (action.key === "tabOrder") {
-        const tabOrder = tabValues(
-          config.data?.inline,
+        const tabOrder = availableTabOptions(
+          config,
+          schema,
           config.filters?.tabColumn,
           action.value,
         );
         next = {
           ...config,
+          tabOptions: tabOrder,
           filters: { ...config.filters, tabOrder },
         };
         break;
@@ -485,6 +548,17 @@ export function reduceChartConfig(config, action, schema) {
       const geoUnmatched = action.geoUnmatched || [];
       const seriesNames = action.seriesNames || [];
       const categoryNames = action.categoryNames || [];
+      const hasTabMetadata = Object.hasOwn(action, "tabOptions");
+      const tabOptions = hasTabMetadata
+        ? orderedTabOptions(action.tabOptions, config.filters?.tabOrder)
+        : config.tabOptions || [];
+      const requestedTabValue =
+        action.tabValue == null ? null : String(action.tabValue).trim();
+      const tabValue = hasTabMetadata
+        ? tabOptions.includes(requestedTabValue)
+          ? requestedTabValue
+          : tabOptions[0] ?? null
+        : config.filters?.tabValue ?? null;
       const previousUnmatched = config.geoUnmatched || [];
       const previousSeriesNames = config.seriesNames || [];
       const previousCategoryNames = config.categoryNames || [];
@@ -498,7 +572,19 @@ export function reduceChartConfig(config, action, schema) {
       const categoriesUnchanged =
         categoryNames.length === previousCategoryNames.length &&
         categoryNames.every((name, index) => name === previousCategoryNames[index]);
-      if (countUnchanged && geoUnchanged && seriesUnchanged && categoriesUnchanged) {
+      const previousTabOptions = config.tabOptions || [];
+      const tabsUnchanged =
+        !hasTabMetadata ||
+        (tabOptions.length === previousTabOptions.length &&
+          tabOptions.every((name, index) => name === previousTabOptions[index]) &&
+          tabValue === (config.filters?.tabValue ?? null));
+      if (
+        countUnchanged &&
+        geoUnchanged &&
+        seriesUnchanged &&
+        categoriesUnchanged &&
+        tabsUnchanged
+      ) {
         return config;
       }
       next = {
@@ -507,6 +593,16 @@ export function reduceChartConfig(config, action, schema) {
         geoUnmatched,
         seriesNames,
         categoryNames,
+        ...(hasTabMetadata
+          ? {
+              tabOptions,
+              filters: {
+                ...config.filters,
+                tabValue,
+                tabOrder: tabOptions,
+              },
+            }
+          : {}),
       };
       break;
     }
@@ -524,7 +620,7 @@ export function reduceChartConfig(config, action, schema) {
         next = {
           ...config,
           data: { source: "module" },
-          filters: synchronizeTabFilters(config.filters, null),
+          filters: synchronizeTabFilters(config.filters, null, schema),
         };
         break;
       }
@@ -551,7 +647,7 @@ export function reduceChartConfig(config, action, schema) {
             }
           : {}),
         bindings,
-        filters: synchronizeTabFilters(config.filters, inlineTable),
+        filters: synchronizeTabFilters(config.filters, inlineTable, schema),
       };
       break;
     }
@@ -631,6 +727,7 @@ export function reduceChartConfig(config, action, schema) {
         geoUnmatched: config.geoUnmatched,
         seriesNames: config.seriesNames,
         categoryNames: config.categoryNames,
+        tabOptions: config.tabOptions,
       };
       break;
 

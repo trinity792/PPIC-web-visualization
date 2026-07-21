@@ -9,6 +9,7 @@ import { BASE_PLOTLY_COLORS, COLORS } from "@/lib/constants";
 import {
   DEFAULT_PALETTE,
   PALETTES,
+  PPIC_CATEGORICAL_PALETTE_IDS,
   UI_KIT_PALETTE_IDS,
   paletteForScale,
   resolveToken,
@@ -54,6 +55,33 @@ describe("PALETTES", () => {
     for (const id of UI_KIT_PALETTE_IDS) {
       expect(PALETTES[id]?.kind).toBe("categorical");
     }
+  });
+
+  it("registers official PPIC 3–10-group palettes with Lime last from group 5", () => {
+    expect(PPIC_CATEGORICAL_PALETTE_IDS).toEqual([
+      "ppic-official-3",
+      "ppic-official-4",
+      "ppic-official-5",
+      "ppic-official-6",
+      "ppic-official-7",
+      "ppic-official-8",
+      "ppic-official-9",
+      "ppic-official",
+    ]);
+
+    PPIC_CATEGORICAL_PALETTE_IDS.forEach((id, index) => {
+      const groupCount = index + 3;
+      const palette = PALETTES[id];
+      expect(palette.label).toBe(
+        `Official PPIC categorical · ${groupCount} groups`,
+      );
+      expect(palette.tokens).toHaveLength(groupCount);
+      if (groupCount < 5) {
+        expect(palette.tokens).not.toContain("officialLime");
+      } else {
+        expect(palette.tokens.at(-1)).toBe("officialLime");
+      }
+    });
   });
 });
 
