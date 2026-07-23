@@ -281,6 +281,55 @@ describe("ExportMenu", () => {
   });
 });
 
+// A schema with an apiPath triggers the full-dataset fetch path (real modules).
+const moduleSchema = { ...schema, apiPath: "/api/widgets" };
+
+function renderModuleMenu() {
+  render(
+    <ChartConfigProvider schema={moduleSchema} initialConfig={initialConfig}>
+      <ExportMenu graphDivRef={{ current: { id: "graph-div" } }} loaded={loadedResult} />
+    </ChartConfigProvider>,
+  );
+}
+
+describe("ExportMenu — module full-source export", () => {
+  beforeEach(() => {
+    exportImageMock.mockClear();
+    exportCombinedImageMock.mockClear();
+    for (const fn of Object.values(exportTableMocks)) fn.mockClear();
+    primeTableMocks();
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ view: "table", records: [{ Location: "Alameda", Year: 2020, Value: 100 }] }),
+    });
+  });
+
+  it("fetches the entire cleaned dataset (full=1) for the original-data export", async () => {
+    const user = userEvent.setup();
+    renderModuleMenu();
+
+    await user.click(screen.getByRole("button", { name: /export data/i }));
+    await user.click(screen.getAllByRole("menuitem", { name: "CSV" })[1]);
+
+    // Full-table URL: ignores the chart's row filters, keeps subset, full=1.
+    const url = globalThis.fetch.mock.calls.at(-1)[0];
+    expect(url).toContain("/api/widgets?");
+    expect(url).toContain("view=table");
+    expect(url).toContain("full=1");
+    expect(url).toContain("subset=Counties");
+
+    // The fetched records — not the filtered loaded result — build the table.
+    expect(exportTableMocks.originalTable).toHaveBeenCalledWith(
+      expect.objectContaining({ chartType: "line" }),
+      { response: { records: [{ Location: "Alameda", Year: 2020, Value: 100 }] } },
+    );
+    expect(exportTableMocks.downloadBlob).toHaveBeenCalledWith(
+      expect.any(Blob),
+      "widgets-original.csv",
+    );
+  });
+});
+
 describe("ExportMenu — multi-chart workspace", () => {
   beforeEach(() => {
     exportImageMock.mockClear();

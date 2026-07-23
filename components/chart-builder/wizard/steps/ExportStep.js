@@ -13,12 +13,14 @@
  *   - components/chart-builder/ExportMenu.js
  *   - components/chart-builder/ChartSidebar.js (FooterActions — saved views)
  *   - components/chart-builder/wizard/PreviewContext.js
+ *   - GET /api/module-status (dataset "last updated", modules only)
  */
 
 import React from "react";
 
 import ExportMenu from "@/components/chart-builder/ExportMenu";
 import { FooterActions } from "@/components/chart-builder/ChartSidebar";
+import DatasetLastUpdated from "@/components/chart-builder/DatasetLastUpdated";
 
 import PreviewPane from "@/components/chart-builder/wizard/PreviewPane";
 import StepShell from "@/components/chart-builder/wizard/StepShell";
@@ -39,6 +41,7 @@ export default function ExportStep() {
             Download the chart as an image (PNG, SVG, JPG, PDF), the displayed data
             as CSV or Excel, or the chart configuration as JSON.
           </p>
+          <DatasetLastUpdated />
           {ready ? (
             <ExportMenu
               graphDivRef={graphDivRef}

@@ -4,37 +4,8 @@ Content Type: Notes
 pinned: false
 description: "Notes for me to stay on track"
 Date Published: July 4, 2026
-Last Updated: 07/10/2026 - 3:21 PM
+Last Updated: 07/23/2026
 Status: Updating
----
-# To Do Notes
-## Project Meeting:
-### Updates
-- Implemented RHNA module
-- All previous modules run live
-  - Can make it even more robust by adding in live tests and tests based on previous changes in workbook structure
-- Added changelog
-- Made some refinements to graph editor feature
-- Started planning for Zillow module (deciced to wait to figure out what to do for automations)
-### Questions
-- [ ] Could I go to Sacramento office on Thursday?
-- [ ] Anything else needed for RHNA module?
-- [ ] **Main**: How are we going to automate module updates?
-  - Context:
-    - Vercel is designed to serve the data, not run it. Currently, pressing the update button causes vercel to start a temporary instance to run the required code. The problem is that it is temporary and anything generated could be lost including logs.
-    - The current workflow has been running the code on my macbook then pushing it to GitHub (which vercel reads)
-  - Solution:
-    - The code (pipelines) need to run elsewhere, not on my macbook.
-    - The data needs to be stored somewhere
-  - Options:
-    - GitHub Actions runs the code
-    - Store the data ?? (Vercel Blob, Internal PPIC Server)
-  - Needs:
-    - PPIC Github & Vercel Account or Use Staff Account
-## Later
-- [ ] Plan Parcel Data Module
-- [ ] Implement Zillow Module
-
 ---
 
 # Presentation Notes
@@ -192,3 +163,11 @@ Note: not in order
 - [x] When you have multiple graphs, the export options only export one graph.
 - [x] Fix all export paths (all export options should export the workspace (multi graphs))
 - [x] Embed gets rolled into export image
+
+## Wednesday, July 23rd, 2026
+- [x] Add last updated to front end on export page (module Export step shows "Data last updated" in PT, from `/api/module-status` → newest successful pipeline run)
+- [x] Fix "export all data" button so it exports the exact cleaned CSV for the module ("Original data (entire dataset)" now fetches `?view=table&full=1`, ignoring chart filters)
+- [x] Change "Report a problem" button to "Feedback"
+- [x] Add an "Export entire dataset" button to the module View Data tab (downloads the whole cleaned CSV via `?view=table&full=1`)
+- [x] Render the module's last-updated date on the View Data section too (extracted shared `DatasetLastUpdated`, now on both View Data + Export steps)
+- [x] Verify all modules save all historical data — confirmed: every pipeline unions an immutable historical seed + saved canonical + fresh live rows (dedup keep-last, retaining deep years) and writes the full composed file (atomic write + archive). No rolling-window truncation. No code change needed.

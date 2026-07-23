@@ -19,6 +19,10 @@
  * roles *server-side*, so the preview result alone can never show the other
  * columns — the two source modes fetch the un-narrowed table instead.
  *
+ * The sidebar also carries an "Export entire dataset" button (module sources
+ * only) that downloads the whole cleaned CSV via `?view=table&full=1`,
+ * independent of the selected Data view.
+ *
  * Props:
  *   (none — reads useChartConfig() + usePreview())
  *
@@ -33,18 +37,21 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
-import { AlertCircle, LoaderCircle } from "lucide-react";
+import { AlertCircle, Download, LoaderCircle } from "lucide-react";
 
 import DataTableView from "@/components/charts/DataTableView";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 import { ImportConfigButton } from "@/components/chart-builder/ConfigActions";
+import DatasetLastUpdated from "@/components/chart-builder/DatasetLastUpdated";
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import { usePreview } from "@/components/chart-builder/wizard/PreviewContext";
 import StepShell from "@/components/chart-builder/wizard/StepShell";
-import { displayTable, originalTable } from "@/lib/export/exportTable";
+import { downloadBlob, displayTable, originalTable, toCsv } from "@/lib/export/exportTable";
+import { logEditorEvent } from "@/lib/logs/editorLog";
 
 const MODES = [
   {
@@ -242,6 +249,81 @@ function DataTable({ resolved, schemaLabel }) {
   );
 }
 
+/**
+ * "Export entire dataset" — downloads the module's whole cleaned CSV (every row
+ * and column, ignoring this chart's filters) via `?view=table&full=1`. Renders
+ * nothing for bring-your-own-data (no server dataset). Independent of the "Data
+ * view" radio: it always exports the full file, not just the shown mode.
+ */
+function ExportEntireDatasetButton() {
+  const { config, schema } = useChartConfig();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  if (!isModuleSource(config, schema)) return null;
+
+  async function handleExport() {
+    setBusy(true);
+    setError(null);
+    try {
+      const url = moduleTableUrl(config, schema, "full");
+      const response = await fetch(url);
+      const body = await response.json();
+      if (!response.ok) {
+        throw new Error(body.error || "The dataset could not be loaded.");
+      }
+      const table = originalTable(config, { response: { records: body.records || [] } });
+      if (!table || !table.rows?.length) {
+        throw new Error("No data was returned for this dataset.");
+      }
+      const blob = new Blob([toCsv(table)], { type: "text/csv;charset=utf-8" });
+      downloadBlob(blob, `${config.module}-entire-dataset.csv`);
+      logEditorEvent({
+        severity: "info",
+        code: "EXPORT_DATA",
+        summary: `Exported entire dataset as CSV (${table.rows.length} rows)`,
+        source: "ViewDataStep",
+      });
+    } catch (err) {
+      setError(err.message);
+      logEditorEvent({
+        severity: "error",
+        code: "EXPORT_DATA_FAILED",
+        summary: "Entire-dataset export failed",
+        detail: err.message,
+        source: "ViewDataStep",
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="grid gap-2 rounded-lg border bg-card p-3">
+      <Label className="font-medium">Export</Label>
+      <p className="text-xs text-muted-foreground">
+        Download the entire cleaned dataset — every row and column — as CSV,
+        regardless of this chart&rsquo;s filters.
+      </p>
+      <Button
+        variant="outline"
+        size="sm"
+        className="self-start"
+        onClick={handleExport}
+        disabled={busy}
+      >
+        {busy ? (
+          <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
+        ) : (
+          <Download aria-hidden="true" />
+        )}
+        {busy ? "Preparing…" : "Export entire dataset"}
+      </Button>
+      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+    </div>
+  );
+}
+
 function DataSummary({ mode, setMode, resolved, schemaLabel }) {
   const { table } = resolved;
   const active = MODES.find((option) => option.value === mode) || MODES[0];
@@ -289,12 +371,15 @@ function DataSummary({ mode, setMode, resolved, schemaLabel }) {
         ) : (
           <div className="text-xs text-muted-foreground">Loading…</div>
         )}
+        <DatasetLastUpdated />
       </div>
 
       <p className="text-xs text-muted-foreground">
         Change the source, filters, or date range in the Edit step to update what
-        you see here. Export the full table from the Export step.
+        you see here.
       </p>
+
+      <ExportEntireDatasetButton />
 
       <div className="grid gap-2 rounded-lg border bg-card p-3">
         <Label className="font-medium">Load a saved chart</Label>

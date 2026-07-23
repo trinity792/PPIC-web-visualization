@@ -1,20 +1,20 @@
 "use client";
 
 /**
- * ReportProblemDialog.js — persistent report trigger and public-report disclosure dialog.
+ * ReportProblemDialog.js — persistent feedback trigger and public-report disclosure dialog.
  *
  * Props:
  *   None.
  *
  * Data sources:
- *   - Static link to the PPIC bug report Google Form
+ *   - Static link to the PPIC feedback Google Form
  *
  * UI Kit reference:
  *   - Composes the shared small Button and Dialog patterns
  */
 
 import React, { useState } from "react";
-import { Bug } from "lucide-react";
+import { MessageSquare } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -28,7 +28,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 
-const BUG_REPORT_FORM_URL = "https://forms.gle/Tp8Ah1hyswFLtKgh9";
+const FEEDBACK_FORM_URL = "https://forms.gle/Tp8Ah1hyswFLtKgh9";
 const CONTACT_EMAIL = "jones@ppic.org";
 
 export default function ReportProblemDialog() {
@@ -48,16 +48,16 @@ export default function ReportProblemDialog() {
           size="sm"
           className="rounded-full border-ppic-neutral-300 bg-white text-ppic-neutral-600 shadow-md hover:bg-ppic-neutral-50 hover:text-ppic-neutral-600"
         >
-          <Bug aria-hidden="true" />
-          Report a problem
+          <MessageSquare aria-hidden="true" />
+          Feedback
         </Button>
       </DialogTrigger>
 
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Report a problem</DialogTitle>
+          <DialogTitle>Feedback</DialogTitle>
           <DialogDescription>
-            Click Continue to open the bug report form in a new tab.
+            Click Continue to open the feedback form in a new tab.
           </DialogDescription>
         </DialogHeader>
 
@@ -83,7 +83,7 @@ export default function ReportProblemDialog() {
           </DialogClose>
           <Button asChild>
             <a
-              href={BUG_REPORT_FORM_URL}
+              href={FEEDBACK_FORM_URL}
               target="_blank"
               rel="noreferrer"
             >

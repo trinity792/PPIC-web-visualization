@@ -69,7 +69,7 @@ Excel is served by the **data export** path (download the chart's table as `.xls
 
 **Flow D — export (new):**
 1. **Export image**: PNG / SVG / JPG / PDF, with a transparent-background toggle (PNG/SVG), a size/scale control, and a JPG quality (compression) slider. PDF is a vector export (SVG → PDF), suited to print.
-2. **Export data**: the exact table the chart is displaying (post-filter, post-transform) as CSV or Excel — a cleaned, curated file whether the data came from an upload or a preset.
+2. **Export data**: two sources, each as CSV or Excel — **Chart data (as displayed)** = the exact table the chart is showing (post-filter, post-transform); **Original data (entire dataset)** = for a module, the whole cleaned CSV, fetched via `?view=table&full=1` so it ignores the chart's filters and returns the exact cleaned file (bring-your-own-data exports the full pasted table). The Export step also shows a **"Data last updated"** line (Pacific time) for module datasets, sourced from `/api/module-status`.
 3. **Export config**: copy or download the chart's JSON config; import by paste or file upload. Round-trips through saved views and `?view=` deep links unchanged.
 4. **Sharing is these exports, not a server link.** "Share the chart" = hand someone the PNG/SVG/PDF; "share the data" = hand them the exported CSV/Excel. Nothing is uploaded or stored server-side (see *Backend Changes*).
 

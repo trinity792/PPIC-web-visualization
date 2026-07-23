@@ -5,8 +5,8 @@
  *
  *   • Export image — PNG/SVG/JPG/PDF at a chosen quality, plus an embed dialog
  *     with a live iframe preview of the whole workspace.
- *   • Export data  — the chart's displayed table or the original source table,
- *     each as CSV or Excel.
+ *   • Export data  — the chart's displayed table, or the module's entire cleaned
+ *     dataset (fetched full, ignoring the chart's filters), each as CSV or Excel.
  *
  * Props:
  *   graphDivRef {Object}       — ref to the active mounted Plotly graph div
@@ -98,11 +98,23 @@ function combinedImageFilename(config, format) {
   return `${exportBase(config)}-charts.${format.ext || format.id}`;
 }
 
-// The two data sources a chart can export.
-const DATA_SOURCES = {
-  chart: { table: displayTable, suffix: "" },
-  original: { table: originalTable, suffix: "-original" },
-};
+// The suffix each exportable data source appends to the download filename.
+const DATA_SUFFIX = { chart: "", original: "-original" };
+
+/**
+ * The `view=table&full=1` URL that returns every row and column of a module's
+ * cleaned CSV, ignoring the chart's geography / source / date filters. Returns
+ * null for bring-your-own-data (no server dataset) — that path keeps the pasted
+ * table client-side. `subset`/`source` are still sent because the routes require
+ * a valid subset, but `full=1` makes the query ignore them for row selection.
+ */
+function fullTableUrl(config, schema) {
+  if (!schema?.apiPath || config?.data?.source === "inline") return null;
+  const params = new URLSearchParams({ view: "table", full: "1" });
+  if (config?.filters?.subset) params.set("subset", config.filters.subset);
+  if (config?.filters?.source) params.set("source", config.filters.source);
+  return `${schema.apiPath}?${params}`;
+}
 
 const MAX_EMBED_URL_LENGTH = 16000;
 
@@ -193,7 +205,10 @@ export default function ExportMenu({
   previews = null,
   graphDivRefs = null,
 }) {
-  const { config, workspace } = useChartConfig();
+  const { config, schema, workspace } = useChartConfig();
+  // Full-source tables are fetched on demand and cached by URL so repeated
+  // exports (and the CSV/XLSX pair) don't re-hit the API.
+  const originalTableCache = useRef(new Map());
   const [embedOpen, setEmbedOpen] = useState(false);
   const [embedCopied, setEmbedCopied] = useState(false);
   // Default to the highest-quality preset (index 0).
@@ -226,12 +241,45 @@ export default function ExportMenu({
   }, [previews, config, loaded]);
   const multi = exportCharts.length > 1;
 
-  // Original data is only available when the loaded result carries a richer
-  // source table than the chart itself (originalTable returns null otherwise).
+  // Original ("full source") data is available whenever a chart reads a module
+  // dataset with an API path (fetched full from the server) or already carries a
+  // richer source table than the chart itself (BYOD, or a module response whose
+  // loaded result reconstructs one — originalTable returns null otherwise).
   const hasOriginal = useMemo(
-    () => exportCharts.some((chart) => Boolean(originalTable(chart.config, chart.result))),
-    [exportCharts],
+    () =>
+      exportCharts.some(
+        (chart) =>
+          Boolean(fullTableUrl(chart.config, schema)) ||
+          Boolean(originalTable(chart.config, chart.result)),
+      ),
+    [exportCharts, schema],
   );
+
+  // Resolve a chart's "original" table: the entire cleaned CSV for a module
+  // (fetched full, filters ignored), or the pasted table for BYOD. `null` when
+  // neither exists. Cached by URL.
+  async function resolveOriginalTable(chartConfig, chartResult) {
+    const url = fullTableUrl(chartConfig, schema);
+    if (!url) return originalTable(chartConfig, chartResult);
+    const cache = originalTableCache.current;
+    if (cache.has(url)) return cache.get(url);
+    const response = await fetch(url);
+    const body = await response.json();
+    if (!response.ok) {
+      throw new Error(body.error || "The full dataset could not be loaded.");
+    }
+    const table = originalTable(chartConfig, { response: { records: body.records || [] } });
+    cache.set(url, table);
+    return table;
+  }
+
+  // One resolver for both export sources: displayTable is synchronous, the full
+  // source table may need a fetch — await either uniformly.
+  async function tableFor(sourceId, chartConfig, chartResult) {
+    return sourceId === "original"
+      ? resolveOriginalTable(chartConfig, chartResult)
+      : displayTable(chartConfig, chartResult);
+  }
 
   // Reset the "Copied!" confirmation shortly after it shows.
   useEffect(() => {
@@ -284,72 +332,94 @@ export default function ExportMenu({
     }
   }
 
-  function onExportCsv(sourceId) {
-    const { table: tableFor, suffix } = DATA_SOURCES[sourceId];
-    if (multi) {
-      // CSV holds one table, so each chart downloads as its own file.
-      let count = 0;
-      exportCharts.forEach((chart) => {
-        const table = tableFor(chart.config, chart.result);
-        if (!table) return;
-        const blob = new Blob([toCsv(table)], { type: "text/csv;charset=utf-8" });
-        downloadBlob(blob, `${exportBase(config)}-${slug(chart.name)}${suffix}.csv`);
-        count += 1;
-      });
+  async function onExportCsv(sourceId) {
+    const suffix = DATA_SUFFIX[sourceId];
+    try {
+      if (multi) {
+        // CSV holds one table, so each chart downloads as its own file.
+        let count = 0;
+        for (const chart of exportCharts) {
+          const table = await tableFor(sourceId, chart.config, chart.result);
+          if (!table) continue;
+          const blob = new Blob([toCsv(table)], { type: "text/csv;charset=utf-8" });
+          downloadBlob(blob, `${exportBase(config)}-${slug(chart.name)}${suffix}.csv`);
+          count += 1;
+        }
+        logEditorEvent({
+          severity: "info",
+          code: "EXPORT_DATA",
+          summary: `Exported ${count} charts as CSV (${sourceId} data)`,
+          source: "ExportMenu",
+        });
+        return;
+      }
+      const table = await tableFor(sourceId, config, loaded);
+      if (!table) return;
+      const blob = new Blob([toCsv(table)], { type: "text/csv;charset=utf-8" });
+      const filename =
+        sourceId === "original" ? `${exportBase(config)}-original.csv` : table.filename;
+      downloadBlob(blob, filename);
       logEditorEvent({
         severity: "info",
         code: "EXPORT_DATA",
-        summary: `Exported ${count} charts as CSV (${sourceId} data)`,
+        summary: `Exported ${table.rows.length} rows as CSV (${sourceId} data)`,
         source: "ExportMenu",
       });
-      return;
+    } catch (error) {
+      logEditorEvent({
+        severity: "error",
+        code: "EXPORT_DATA_FAILED",
+        summary: `Data export failed (${sourceId} data, CSV)`,
+        detail: error.message,
+        source: "ExportMenu",
+      });
     }
-    const table = tableFor(config, loaded);
-    if (!table) return;
-    const blob = new Blob([toCsv(table)], { type: "text/csv;charset=utf-8" });
-    const filename =
-      sourceId === "original" ? `${exportBase(config)}-original.csv` : table.filename;
-    downloadBlob(blob, filename);
-    logEditorEvent({
-      severity: "info",
-      code: "EXPORT_DATA",
-      summary: `Exported ${table.rows.length} rows as CSV (${sourceId} data)`,
-      source: "ExportMenu",
-    });
   }
 
   async function onExportXlsx(sourceId) {
-    const { table: tableFor, suffix } = DATA_SOURCES[sourceId];
-    if (multi) {
-      // One workbook, one sheet per chart.
-      const sheets = exportCharts
-        .map((chart) => ({ name: chart.name, table: tableFor(chart.config, chart.result) }))
-        .filter((sheet) => sheet.table);
-      if (!sheets.length) return;
-      const blob = await tablesToXlsxBlob(sheets);
-      downloadBlob(blob, `${exportBase(config)}-charts${suffix}.xlsx`);
+    const suffix = DATA_SUFFIX[sourceId];
+    try {
+      if (multi) {
+        // One workbook, one sheet per chart.
+        const sheets = [];
+        for (const chart of exportCharts) {
+          const table = await tableFor(sourceId, chart.config, chart.result);
+          if (table) sheets.push({ name: chart.name, table });
+        }
+        if (!sheets.length) return;
+        const blob = await tablesToXlsxBlob(sheets);
+        downloadBlob(blob, `${exportBase(config)}-charts${suffix}.xlsx`);
+        logEditorEvent({
+          severity: "info",
+          code: "EXPORT_DATA",
+          summary: `Exported ${sheets.length} charts as XLSX (${sourceId} data)`,
+          source: "ExportMenu",
+        });
+        return;
+      }
+      const table = await tableFor(sourceId, config, loaded);
+      if (!table) return;
+      const blob = await toXlsxBlob(table);
+      const filename =
+        sourceId === "original"
+          ? `${exportBase(config)}-original.xlsx`
+          : table.filename.replace(/\.csv$/, ".xlsx");
+      downloadBlob(blob, filename);
       logEditorEvent({
         severity: "info",
         code: "EXPORT_DATA",
-        summary: `Exported ${sheets.length} charts as XLSX (${sourceId} data)`,
+        summary: `Exported ${table.rows.length} rows as XLSX (${sourceId} data)`,
         source: "ExportMenu",
       });
-      return;
+    } catch (error) {
+      logEditorEvent({
+        severity: "error",
+        code: "EXPORT_DATA_FAILED",
+        summary: `Data export failed (${sourceId} data, XLSX)`,
+        detail: error.message,
+        source: "ExportMenu",
+      });
     }
-    const table = tableFor(config, loaded);
-    if (!table) return;
-    const blob = await toXlsxBlob(table);
-    const filename =
-      sourceId === "original"
-        ? `${exportBase(config)}-original.xlsx`
-        : table.filename.replace(/\.csv$/, ".xlsx");
-    downloadBlob(blob, filename);
-    logEditorEvent({
-      severity: "info",
-      code: "EXPORT_DATA",
-      summary: `Exported ${table.rows.length} rows as XLSX (${sourceId} data)`,
-      source: "ExportMenu",
-    });
   }
 
   async function onCopyEmbed() {
@@ -444,7 +514,7 @@ export default function ExportMenu({
               Excel (XLSX)
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuLabel>Original data (full source)</DropdownMenuLabel>
+            <DropdownMenuLabel>Original data (entire dataset)</DropdownMenuLabel>
             <DropdownMenuItem disabled={!hasOriginal} onSelect={() => onExportCsv("original")}>
               <FileDown aria-hidden="true" />
               CSV
