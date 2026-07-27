@@ -2,10 +2,10 @@
 Topic: Other
 Content Type: Notes
 pinned: false
-description: "Notes for me to stay on track"
+description: Notes for me to stay on track
 Date Published: July 4, 2026
 Last Updated: 07/23/2026
-Status: Updating
+Status: Archive
 ---
 
 # Presentation Notes
