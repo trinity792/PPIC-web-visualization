@@ -7,8 +7,12 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+const configProps = vi.hoisted(() => ({ last: null }));
 vi.mock("@/components/chart-builder/chartConfigStore", () => ({
-  ChartConfigProvider: ({ children }) => <>{children}</>,
+  ChartConfigProvider: ({ children, ...props }) => {
+    configProps.last = props;
+    return <>{children}</>;
+  },
 }));
 const previewProps = vi.hoisted(() => ({ last: null }));
 vi.mock("@/components/chart-builder/wizard/PreviewContext", () => ({
@@ -60,6 +64,11 @@ describe("ModuleWorkbench", () => {
     expect(screen.getByRole("region", { name: "Chart preview" })).toBeInTheDocument();
     expect(screen.queryByRole("complementary")).not.toBeInTheDocument();
     expect(screen.queryByText("Footer")).not.toBeInTheDocument();
+  });
+
+  it("binds nothing on the reader's behalf, on landing or on a chart-type switch", () => {
+    render(<ModuleWorkbench schema={schema} initialConfig={{ module: "widgets" }} />);
+    expect(configProps.last.autoBind).toBe(false);
   });
 
   describe("deferred first render", () => {

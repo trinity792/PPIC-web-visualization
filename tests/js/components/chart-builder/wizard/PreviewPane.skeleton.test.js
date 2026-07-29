@@ -74,4 +74,52 @@ describe("PreviewPane idle skeleton", () => {
       screen.queryByText(/choose your settings to build this chart/i),
     ).not.toBeInTheDocument();
   });
+
+  it("names the unset encodings when the chart is unconfigured", () => {
+    state.previews = [
+      preview({
+        status: "unconfigured",
+        config: {
+          chartType: "line",
+          filters: {},
+          bindings: {},
+          appearance: {},
+          data: {},
+          validation: [
+            { level: "error", code: "MISSING_REQUIRED_ROLE", role: "x", message: "x" },
+            { level: "error", code: "MISSING_REQUIRED_ROLE", role: "y", message: "y" },
+          ],
+        },
+      }),
+    ];
+    render(<PreviewPane />);
+
+    expect(
+      screen.getByText("Set X-Axis and Y-Axis to build this chart."),
+    ).toBeInTheDocument();
+    // The skeleton, not an error card: an unset encoding is work in progress.
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("plotly")).not.toBeInTheDocument();
+  });
+
+  it("falls back to the generic prompt when no role is named", () => {
+    state.previews = [
+      preview({
+        status: "unconfigured",
+        config: {
+          chartType: "line",
+          filters: {},
+          bindings: {},
+          appearance: {},
+          data: {},
+          validation: [],
+        },
+      }),
+    ];
+    render(<PreviewPane />);
+
+    expect(
+      screen.getByText(/choose your settings to build this chart/i),
+    ).toBeInTheDocument();
+  });
 });

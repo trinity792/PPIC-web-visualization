@@ -62,10 +62,20 @@ export default function ModuleWorkbench({
   return (
     // Key on the schema id so switching modules remounts the provider and
     // rebuilds a fresh config against the new schema.
+    //
+    // autoBind={false} is the workbench's manual-encoding rule: the store never
+    // picks a field for the reader, on open or on a chart-type switch. Switching
+    // from a line to a scatter carries over what the scatter can accept and
+    // leaves the rest unset, so the container returns to the skeleton naming the
+    // settings still to make — rather than silently re-plotting a chart the
+    // reader did not ask for, or reporting the gap as a configuration error. A
+    // `?view=` deep link, an embed and a saved view all carry their own
+    // bindings, so they still render on arrival.
     <ChartConfigProvider
       key={schema.id}
       schema={schema}
       initialConfig={initialConfig}
+      autoBind={false}
     >
       {/* Landing on a module builds no chart: the container shows a skeleton and
           issues no request until the reader changes a setting. Two cases opt

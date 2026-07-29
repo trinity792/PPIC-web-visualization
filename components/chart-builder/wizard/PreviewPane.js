@@ -32,17 +32,24 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/components/ui/utils";
 
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
+import { roleLabel } from "@/components/chart-builder/sections/AxisSection";
 import { usePreview } from "@/components/chart-builder/wizard/PreviewContext";
 import { CHART_HEIGHTS } from "@/lib/constants";
 import { tabValues } from "@/lib/tabular/toSeries";
+import { unsetRoles } from "@/lib/visualization/validation";
 
 /**
  * The pre-render placeholder: plot frame, y-axis ticks, and a row of bars, so
  * the container reads as a chart waiting on settings rather than as a failure or
- * a stalled load. Shown only where the provider defers its first fetch (the
- * module workbench); it is decorative, hence aria-hidden with one status label.
+ * a stalled load. Shown where the provider defers its first fetch and where the
+ * chart is not yet fully encoded (the module workbench); it is decorative, hence
+ * aria-hidden with one status label.
+ *
+ * Props:
+ *   message {string} — the caption under the frame; defaults to the generic
+ *     prompt when nothing more specific is known.
  */
-function ChartSkeleton() {
+function ChartSkeleton({ message }) {
   return (
     <div
       role="status"
@@ -71,10 +78,30 @@ function ChartSkeleton() {
         </div>
       </div>
       <p className="text-center text-sm text-muted-foreground">
-        Choose your settings to build this chart.
+        {message || "Choose your settings to build this chart."}
       </p>
     </div>
   );
+}
+
+/** "X-Axis", "X-Axis and Y-Axis", "X-Axis, Y-Axis, and Series". */
+function listLabels(labels) {
+  if (labels.length <= 1) return labels[0] || "";
+  if (labels.length === 2) return `${labels[0]} and ${labels[1]}`;
+  return `${labels.slice(0, -1).join(", ")}, and ${labels[labels.length - 1]}`;
+}
+
+/**
+ * Name the encodings the chart is still waiting on, so the skeleton tells the
+ * reader what to do rather than only that something is missing. Falls back to
+ * the generic caption when the findings carry no role (a preset-level
+ * requirement with no named role, say).
+ */
+function unconfiguredMessage(config) {
+  const labels = unsetRoles(config.validation).map((role) =>
+    roleLabel(role, config.chartType),
+  );
+  return labels.length ? `Set ${listLabels(labels)} to build this chart.` : null;
 }
 
 function gridClass(layout, count) {
@@ -165,6 +192,9 @@ function ChartSlot({ preview, layout, multi, embedded, onGraphDiv }) {
 
       <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden px-2 pt-2 sm:px-4">
         {status === "idle" ? <ChartSkeleton /> : null}
+        {status === "unconfigured" ? (
+          <ChartSkeleton message={unconfiguredMessage(config)} />
+        ) : null}
         {status === "loading" ? (
           <div role="status" className="flex items-center gap-2 text-muted-foreground">
             <LoaderCircle aria-hidden="true" className="size-5 animate-spin" />

@@ -44,6 +44,7 @@ import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import { roleLabel } from "@/components/chart-builder/sections/AxisSection";
 import { getChartType } from "@/lib/visualization/chartRegistry";
 import { inlineColumnKind } from "@/lib/visualization/inlineMapping";
+import { INCOMPLETE_CODES } from "@/lib/visualization/validation";
 
 const NONE = "__none__";
 
@@ -133,13 +134,22 @@ function findingsToText(findings) {
 }
 
 export default function ValidationNotice() {
-  const { config } = useChartConfig();
+  const { autoBind, config } = useChartConfig();
   const [copied, setCopied] = useState(false);
   // Recommendations are advisory and no longer belong in the editor UI. Keep
   // them in the validation model for diagnostics/compatibility, while showing
   // only errors that require the user's attention before rendering.
+  //
+  // Where nothing is bound on the reader's behalf (`autoBind: false`, the module
+  // workbench), an unset required role is not yet a mistake — it is the state
+  // every chart opens in and the state a chart-type switch can return to. The
+  // Axis section already marks those roles with an asterisk and the preview
+  // names them under the skeleton, so a red alert here would only shout about
+  // work in progress.
   const findings = (config.validation || []).filter(
-    (finding) => finding.level === "error",
+    (finding) =>
+      finding.level === "error" &&
+      !(autoBind === false && INCOMPLETE_CODES.includes(finding.code)),
   );
 
   if (!findings.length) return null;

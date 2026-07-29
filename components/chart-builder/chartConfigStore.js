@@ -6,6 +6,10 @@
  * Props:
  *   schema        {Object}    — registered module schema
  *   initialConfig {Object}    — initial declarative chart configuration
+ *   autoBind      {boolean}   — whether the store may choose fields on the
+ *     reader's behalf (default true). The module workbench passes false: it
+ *     seeds no bindings on open and seeds none on a chart-type switch, so the
+ *     chart stays a skeleton until the reader sets each encoding themselves.
  *   children      {ReactNode} — chart-builder consumers of the context
  *
  * Data sources:
@@ -43,6 +47,7 @@ import {
 } from "@/lib/visualization/presetRegistry";
 import {
   allowedTransforms,
+  FIELD_KINDS,
   isMeasure,
 } from "@/lib/visualization/fieldTypes";
 import { validateConfig } from "@/lib/visualization/validation";
@@ -58,6 +63,13 @@ export const MAX_CHARTS = 4;
 export const CHART_LAYOUTS = Object.freeze(["1x1", "1x2", "2x1", "2x2"]);
 const HISTORY_LIMIT = 50;
 const COMPUTED_ACTIONS = new Set(["SET_SERIES_COUNT"]);
+
+/**
+ * Store behavior that differs per editor surface. `autoBind: false` is the
+ * module workbench's manual-encoding rule (see the provider's prop docs); the
+ * standalone Visualization Tool leaves it on.
+ */
+const DEFAULT_OPTIONS = Object.freeze({ autoBind: true });
 
 function clone(value) {
   return value == null ? value : JSON.parse(JSON.stringify(value));
@@ -87,8 +99,8 @@ function stripComputed(config) {
   return clone(next);
 }
 
-function createWorkspace(schema, initialConfig = {}) {
-  const config = createChartConfig(schema, initialConfig);
+function createWorkspace(schema, initialConfig = {}, options = DEFAULT_OPTIONS) {
+  const config = createChartConfig(schema, initialConfig, options);
   return {
     activeChartId: "chart-1",
     layout: "1x1",
@@ -190,6 +202,39 @@ function bindingsForPreset(preset, schema, previous = {}) {
     bindings.end = bindings.start;
   }
 
+  return bindings;
+}
+
+/** Accepted field kinds for a role, defaulting Group to any dimension. */
+function acceptedKinds(chart, role) {
+  return (
+    chart.roleConstraints?.[role] ||
+    (role === "group" ? [FIELD_KINDS.DIMENSION] : [])
+  );
+}
+
+/**
+ * The reader's own field choices, carried onto a chart type — and nothing else.
+ *
+ * This is `bindingsForPreset` with the seeding half removed: a role the new
+ * chart type accepts keeps whatever the reader had bound to it, and a role
+ * they never filled (or one whose field the new type cannot accept, e.g. Year
+ * as a scatter's x) is left unset rather than defaulted to the catalog's first
+ * curated measure. Roles the new chart type does not declare at all fall away,
+ * since `acceptedKinds` returns nothing for them.
+ */
+function carriedBindings(chartTypeId, schema, previous = {}) {
+  const chart = getChartType(chartTypeId);
+  if (!chart) return {};
+  const bindings = {};
+  for (const [role, field] of Object.entries(previous || {})) {
+    if (!field) continue;
+    if (!acceptedKinds(chart, role).includes(schema.fields?.[field]?.kind)) continue;
+    bindings[role] = field;
+  }
+  if (chart.sameMetricBothEnds && bindings.start) {
+    bindings.end = bindings.start;
+  }
   return bindings;
 }
 
@@ -296,7 +341,8 @@ function revalidate(config, schema) {
   };
 }
 
-export function createChartConfig(schema, initialConfig = {}) {
+export function createChartConfig(schema, initialConfig = {}, options = DEFAULT_OPTIONS) {
+  const { autoBind = true } = options || {};
   // Accept v1 shapes (including the legacy wire shape that folded
   // transform/chartType/appearance into `filters`) via the spec migration.
   const initial = migrateSpec(initialConfig) || {};
@@ -310,7 +356,12 @@ export function createChartConfig(schema, initialConfig = {}) {
     preset: preset.id,
     chartType: preset.chartType,
     data: { source: "module" },
-    bindings: bindingsForPreset(preset, schema, initial.bindings),
+    // With autoBind off nothing is seeded: a module opens with every encoding
+    // unset, and a stored view supplies its own bindings through the merge
+    // below. Any binding the caller did pass still carries, kind permitting.
+    bindings: autoBind
+      ? bindingsForPreset(preset, schema, initial.bindings)
+      : carriedBindings(preset.chartType, schema, initial.bindings),
     period: {},
     filters: defaultFilters(schema),
     labels: {
@@ -369,7 +420,8 @@ function presetForChartType(chartType) {
   return id ? PRESETS[id] : null;
 }
 
-export function reduceChartConfig(config, action, schema) {
+export function reduceChartConfig(config, action, schema, options = DEFAULT_OPTIONS) {
+  const { autoBind = true } = options || {};
   let next = config;
 
   switch (action.type) {
@@ -409,17 +461,24 @@ export function reduceChartConfig(config, action, schema) {
       // chart's roles by name/type so switching chart types "just works";
       // modules keep their catalog-driven preset defaults.
       const inlineTable = schema.inlineOnly ? config.data?.inline : null;
+      // Manual encoding (the module workbench): a chart-type switch carries the
+      // reader's compatible choices across and fills in nothing. Whatever the
+      // new type needs and did not inherit stays unset, which the preview reads
+      // as "unconfigured" and draws as the skeleton rather than as an error.
+      const nextBindings = inlineTable
+        ? autoMapInlineBindings(chart.id, inlineTable, config.bindings)
+        : autoBind
+          ? bindingsForPreset(
+              preset || { chartType: chart.id, defaults: {} },
+              schema,
+              config.bindings,
+            )
+          : carriedBindings(chart.id, schema, config.bindings);
       next = {
         ...config,
         chartType: chart.id,
         preset: preset?.id || config.preset,
-        bindings: inlineTable
-          ? autoMapInlineBindings(chart.id, inlineTable, config.bindings)
-          : bindingsForPreset(
-              preset || { chartType: chart.id, defaults: {} },
-              schema,
-              config.bindings,
-            ),
+        bindings: nextBindings,
         appearance: clone(chart.defaults || {}),
         filters: {
           ...config.filters,
@@ -734,11 +793,11 @@ export function reduceChartConfig(config, action, schema) {
       break;
 
     case "LOAD_VIEW":
-      next = createChartConfig(schema, action.config);
+      next = createChartConfig(schema, action.config, options);
       break;
 
     case "RESET":
-      return createChartConfig(schema, action.config);
+      return createChartConfig(schema, action.config, options);
 
     default:
       return config;
@@ -799,12 +858,12 @@ function removeChart(workspace, chartIdToRemove) {
  * chart, capacity-clamped to MAX_CHARTS, layout honored only if it can hold the
  * chart count (else derived). Returns null when there are no charts to load.
  */
-function loadWorkspace(schema, incoming) {
+function loadWorkspace(schema, incoming, options = DEFAULT_OPTIONS) {
   const source = Array.isArray(incoming?.charts) ? incoming.charts : [];
   const charts = source.slice(0, MAX_CHARTS).map((chart, index) => ({
     id: chartId(),
     name: chart.name || `Chart ${index + 1}`,
-    config: createChartConfig(schema, chart.config),
+    config: createChartConfig(schema, chart.config, options),
   }));
   if (!charts.length) return null;
   const layout =
@@ -815,10 +874,10 @@ function loadWorkspace(schema, incoming) {
   return { activeChartId: charts[0].id, layout, charts };
 }
 
-function reduceWorkspace(workspace, action, schema) {
+function reduceWorkspace(workspace, action, schema, options = DEFAULT_OPTIONS) {
   switch (action.type) {
     case "LOAD_WORKSPACE": {
-      const loaded = loadWorkspace(schema, action.workspace);
+      const loaded = loadWorkspace(schema, action.workspace, options);
       return loaded || workspace;
     }
 
@@ -843,7 +902,7 @@ function reduceWorkspace(workspace, action, schema) {
       const targetId = action.chartId || workspace.activeChartId;
       return updateChart(workspace, targetId, (chart) => ({
         ...chart,
-        config: reduceChartConfig(chart.config, action, schema),
+        config: reduceChartConfig(chart.config, action, schema, options),
       }));
     }
 
@@ -851,7 +910,7 @@ function reduceWorkspace(workspace, action, schema) {
       if (action.chartId) {
         return updateChart(workspace, action.chartId, (chart) => ({
           ...chart,
-          config: reduceChartConfig(chart.config, action, schema),
+          config: reduceChartConfig(chart.config, action, schema, options),
         }));
       }
       break;
@@ -862,7 +921,7 @@ function reduceWorkspace(workspace, action, schema) {
           ...workspace,
           charts: workspace.charts.map((chart) => ({
             ...chart,
-            config: reduceChartConfig(chart.config, action, schema),
+            config: reduceChartConfig(chart.config, action, schema, options),
           })),
         };
       }
@@ -876,19 +935,19 @@ function reduceWorkspace(workspace, action, schema) {
   if (!current) return workspace;
   return updateChart(workspace, current.id, (chart) => ({
     ...chart,
-    config: reduceChartConfig(chart.config, action, schema),
+    config: reduceChartConfig(chart.config, action, schema, options),
   }));
 }
 
-function createHistoryState(schema, initialConfig) {
+function createHistoryState(schema, initialConfig, options = DEFAULT_OPTIONS) {
   return {
     past: [],
-    present: createWorkspace(schema, initialConfig),
+    present: createWorkspace(schema, initialConfig, options),
     future: [],
   };
 }
 
-function historyReducer(state, action, schema) {
+function historyReducer(state, action, schema, options = DEFAULT_OPTIONS) {
   if (action.type === "UNDO") {
     if (!state.past.length) return state;
     const present = state.past[state.past.length - 1];
@@ -908,7 +967,7 @@ function historyReducer(state, action, schema) {
     };
   }
 
-  const next = reduceWorkspace(state.present, action, schema);
+  const next = reduceWorkspace(state.present, action, schema, options);
   if (sameWorkspace(state.present, next)) return state;
 
   const isUndoable =
@@ -930,15 +989,24 @@ function historyReducer(state, action, schema) {
  * ======================================================================
  */
 
-export function ChartConfigProvider({ schema, initialConfig, children }) {
+export function ChartConfigProvider({
+  schema,
+  initialConfig,
+  autoBind = true,
+  children,
+}) {
+  // Read fresh on every dispatch, so the surface's binding policy travels with
+  // the action instead of being baked into the initial reducer closure.
+  const options = useMemo(() => ({ autoBind }), [autoBind]);
   const [state, dispatch] = useReducer(
-    (current, action) => historyReducer(current, action, schema),
+    (current, action) => historyReducer(current, action, schema, options),
     initialConfig,
-    (initial) => createHistoryState(schema, initial),
+    (initial) => createHistoryState(schema, initial, options),
   );
   const workspace = state.present;
   const selected = activeChart(workspace);
-  const config = selected?.config || createChartConfig(schema, initialConfig);
+  const config =
+    selected?.config || createChartConfig(schema, initialConfig, options);
 
   const value = useMemo(
     () => ({
@@ -946,10 +1014,14 @@ export function ChartConfigProvider({ schema, initialConfig, children }) {
       dispatch,
       schema,
       workspace,
+      // Consumers read this to tell "the reader has not chosen this yet" apart
+      // from "this is wrong": PreviewContext draws the skeleton instead of
+      // fetching, and ValidationNotice stays quiet about unset roles.
+      autoBind,
       canUndo: state.past.length > 0,
       canRedo: state.future.length > 0,
     }),
-    [config, schema, state.future.length, state.past.length, workspace],
+    [autoBind, config, schema, state.future.length, state.past.length, workspace],
   );
 
   return (

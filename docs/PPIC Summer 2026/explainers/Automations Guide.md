@@ -2,31 +2,35 @@
 Topic: Technical
 Content Type: Explainer
 pinned: false
-description: "Analysis of why the data visualization site cannot currently update itself, and a proposal for the infrastructure needed to automate it, for PPIC leadership and IT."
+description: "Analysis of how the data visualization site is kept current today, and options for automating it, for PPIC leadership and IT."
 Date Published: July 27, 2026
-Last Updated: 07/27/2026 - 01:01 PM
+Last Updated: 07/29/2026 - 09:43 AM
 Status: Updating
 Footnote: Research, outline, edits, and verification by Trinity Jones. GPT 5.6 Sol and GPT 5.6 Terra with Thinking (via Perplexity) used for source gathering. Claude Opus 5 used for grammatical fixes
 ---
 
-# Automating the Data Pipeline: Analysis and Proposal
+# Automating the Data Pipeline: Analysis and Options
+
+> [!info] What this document is asking for
+> This document lays out how the data visualization site is kept current today and what it would take to automate that process. It is a request for guidance on a small number of infrastructure questions, not a request to approve a particular build. Continuing exactly as we do today is included as a full option, and the answers to the questions in [Appendix C](#appendix-c-open-questions) may rule the others in or out.
+
 [The Website](https://ppic-web-visualization.vercel.app/) | [The Specification](https://ppic-web-visualization.vercel.app/documents/projectspec) | [GitHub Repo](https://github.com/trinity792/PPIC-web-visualization)
 ## Executive Summary
-The data visualization site is live and working, but nothing about keeping its data current is automated.
-The obstacle is architectural. Keeping the site current requires three separate capabilities: **running** the pipeline scripts, **saving** the resulting data, and **serving** the website and its data to users. The current system has the entire architecture on one device: every module's dataset has to be downloaded, cleaned, merged, and committed from an individual staff member's machine. This works, but the manual updates delay access to new data, which undercuts the project goal of getting the most up-to-date information quickly and easily. Vercel hosts and delivers the site well, but it was never designed to execute scheduled data jobs or to hold a dataset that grows every month.
-There are two main options to bridge that gap. The first moves the entire system onto PPIC-controlled servers, which solves all three pillars at once but raises the maintenance burden and complicates any future move to a public-facing site. The second keeps Vercel for serving and adds GitHub Actions to run the pipelines on a schedule, which is a much smaller change to the existing setup but leaves the storage question partly unresolved and constrains the potential use of proprietary data. None of the current modules are using proprietary data, but it may be beneficial to keep the option open.
-This document recommends the GitHub and Vercel path as the working default, with open questions regarding where the processed data lives and whether GitHub-hosted runners are allowed to write to PPIC servers. Those are network security questions rather than development ones.
+The data visualization site is live and working. Keeping its data current is presently a manual process.
+The reason is architectural. Keeping the site current requires three separate capabilities: **running** the pipeline scripts, **saving** the resulting data, and **serving** the website and its data to users. The current system has the entire architecture on one device: every module's dataset has to be downloaded, cleaned, merged, and committed from an individual staff member's machine. This works. The tradeoff is that each refresh costs staff time, and new data reaches readers only as fast as someone can run the pipeline. Vercel hosts and delivers the site well, but it was never designed to execute scheduled data jobs or to hold a dataset that grows every month.
+There are three paths, including continuing as we do today. The first is to keep the current arrangement, which costs nothing and requires nothing new from IT, but keeps a person in the loop for every update. The second moves the entire system onto PPIC-controlled servers, which solves all three capabilities at once but raises the maintenance burden and complicates any future move to a public-facing site. The third keeps Vercel for serving and adds GitHub Actions to run the pipelines on a schedule, which is a much smaller change to the existing setup but leaves the storage question partly unresolved and constrains the potential use of proprietary data. None of the current modules are using proprietary data, but it may be beneficial to keep the option open.
+My own preference is the GitHub and Vercel path, for reasons given below. That preference depends on two open questions: where the processed data is permitted to live, and whether GitHub-hosted runners may write to PPIC servers. Both are network security decisions rather than development ones, and if they resolve unfavorably, the current arrangement remains workable.
 ### Decision at a Glance
 
-| | PPIC-Hosted, Private Access | GitHub Actions + Vercel |
-|---|---|---|
-| Solves running the pipeline | Yes | Yes |
-| Solves saving the data | Yes | Unresolved |
-| Solves serving the site | Yes | Yes |
-| Supports proprietary data | Likely | No |
-| Change from current setup | Large | Small |
-| Ongoing maintenance | Higher | Lower |
-| Path to a public-facing site | Complicated | Straightforward |
+| | A: Continue as Today | B: PPIC-Hosted, Private Access | C: GitHub Actions + Vercel |
+|---|---|---|---|
+| Solves running the pipeline | Manual, per refresh | Yes | Yes |
+| Solves saving the data | Local device, then Git | Yes | Unresolved |
+| Solves serving the site | Yes | Yes | Yes |
+| Supports proprietary data | No | Likely | No |
+| Change from current setup | None | Large | Small |
+| Ongoing cost | Staff time per refresh | IT maintenance | Managed services |
+| Path to a public-facing site | Straightforward | Complicated | Straightforward |
 
 ---
 ## Current Architecture
@@ -36,16 +40,16 @@ The site is a React application using a combination of client-side rendering and
 ### The Three Pillars
 Any system that keeps this site current has to do three distinct things. Separating them makes it clear which parts of the problem the current setup already handles and which it does not.
 
-| Pillar | What it means | Where it happens today | Sufficient? |
+| Pillar | What it means | Where it happens today | Automated? |
 |---|---|---|---|
 | **Running** | Executing each module's pipeline: downloading the source data, cleaning it, and merging it with the existing dataset. | On an individual maintainer's personal device. | No |
 | **Saving** | Persisting the cleaned dataset somewhere durable that the site can read from. | On the same personal device, then committed into the Git repository. | No |
 | **Serving** | Hosting the built site and delivering it and its data to readers. | Vercel. | Yes |
 
 > [!important] Vercel serves, but it does not run or store
-> Vercel is designed to deliver a site that has already been built. It is not a place to run scheduled data jobs, and it is not durable storage for growing datasets. Any solution has to source the first two pillars elsewhere, regardless of whether Vercel remains the host.
-### Limitations of the Current Setup
-**There is no path to automated data updates.** The entire purpose of the modules is to give readers quick access to datasets that are refreshed at varying frequencies. Delivering on that today requires the repository to be cloned onto someone's machine, after which there are only two ways for new data to reach the website. Either that device runs its own local automations to execute the pipeline and then push and commit the results, or a person performs those steps manually for each module every time a source dataset is updated. The first option makes the project dependent on one person's machine staying configured and switched on. The second does not scale past a handful of modules.
+> Vercel is designed to deliver a site that has already been built. It is not a place to run scheduled data jobs, and it is not durable storage for growing datasets. Any automated solution has to source the first two pillars elsewhere, regardless of whether Vercel remains the host.
+### Constraints of the Current Setup
+**Updates require a person in the loop at every step.** The purpose of the modules is to give readers quick access to datasets that are refreshed at varying frequencies. Delivering on that today requires the repository to be cloned onto someone's machine, after which there are two ways for new data to reach the website. Either that device runs its own local automations to execute the pipeline and then push and commit the results, or a person performs those steps manually for each module every time a source dataset is updated. The first option makes the project dependent on one person's machine staying configured and switched on. The second is sustainable at a handful of modules but grows costly as the module count rises.
 **Storage requirements grow without bound.** Every refresh appends to the historical record, so dataset file sizes increase over time and someone has to donate local disk space indefinitely. Consumer cloud storage such as OneDrive is an option, but syncing large files during a pipeline run requires a consistently stable connection. If the connection dropped mid-run, only partial data might be written.
 
 ---
@@ -66,46 +70,52 @@ A researcher or project owner receives the change report and decides whether to 
 > All checks passed.
 The reviewer can then approve or reject the update. This human checkpoint is what distinguishes the planned process from blind automation, and it is the reason the pipeline run and the publication step are kept separate.
 ### Step 4: Storage
-The approved dataset is written to permanent online storage. This is the pillar the current architecture has no answer for, and the one that most differentiates the two options below.
+The approved dataset is written to permanent online storage. This is the pillar the current setup handles locally rather than online, and the one that most differentiates the automated options below.
 ### Step 5: Push and Commit
 Once approved, the update is pushed and committed to GitHub, at which point Vercel rebuilds and redeploys the site with the new data. This step already works today; it is only the four steps preceding it that require new infrastructure.
 
 ---
 ## Options Analysis
-Two approaches were considered. They are not mutually exclusive in every detail, since GitHub Actions can be configured to run on PPIC hardware, but they represent meaningfully different commitments in terms of control, cost, and maintenance.
-### Option A: PPIC-Hosted, Private Access
+Three approaches are on the table, the first of which is to change nothing. They are not mutually exclusive in every detail, since GitHub Actions can be configured to run on PPIC hardware, but they represent meaningfully different commitments in terms of control, cost, and maintenance.
+### Option A: Continue as Today
+No new infrastructure. The repository stays on a maintainer's machine, pipelines are run by hand when a source agency publishes, and the results are committed to GitHub, at which point Vercel rebuilds the site. Vercel and GitHub Free already cover this at no cost, and nothing new has to be approved, provisioned, or maintained.
+This option is viable at the current scale. With a handful of modules and a maintainer who knows the pipelines, updates reach the site within a day or two of a source release.
+Its costs are staff time and continuity. Each refresh requires a person to notice the release, run the pipeline, review the output, and commit. That cost scales with the number of modules, and the ability to do it at all depends on one person's machine remaining configured and one person remaining available. Dataset files also grow with every refresh, so local disk usage increases indefinitely.
+If the questions in [Appendix C](#appendix-c-open-questions) make the other two options impractical, this is a workable steady state rather than a failure. The judgment call is how many modules PPIC expects to run and how quickly readers need new data after a source release.
+### Option B: PPIC-Hosted, Private Access
 Vercel is dropped entirely. The repository becomes private, and the site is hosted on PPIC internal servers, reached at an address such as `http://server-ip:port` or `https://server-ip:port`. The same servers run the pipelines on a schedule and hold the data.
 This option solves all three pillars in a single move and gives PPIC full control over both access and data. That control is what would make it possible to build modules on proprietary datasets that cannot leave the organization's network.
 However, this would likely increase maintenance requirements and complicate any path to a future public-facing version of this site. Serving over `https` would probably require setting up a [reverse proxy](https://en.wikipedia.org/wiki/Reverse_proxy), and the whole arrangement depends on hardware and policy questions that have not yet been answered (see [Appendix C](#appendix-c-open-questions)).
-### Option B: GitHub Actions and Vercel (Recommended)
+### Option C: GitHub Actions and Vercel
 PPIC creates organizational GitHub and Vercel accounts. GitHub Actions runs the pipelines on GitHub's servers, Vercel continues to serve the site, and the storage question is resolved separately.
-This is the smaller change. It integrates with what already exists, requires no new hardware, and keeps the site trivially publishable to a wider audience later. Its limitations are that it effectively rules out the possibility of modules built on proprietary data (at least on the Free tiers of GitHub and Vercel), and that the storage pillar remains open: the ideal destination is PPIC servers, but that would mean GitHub reaching into PPIC infrastructure, which is a network security decision outside the scope of this analysis.
-If that turns out to be prohibited, GitHub Actions can be self-hosted, with runners installed on PPIC servers or another PPIC-controlled device. GitHub still schedules and orchestrates the workflow, but the code and the data stay inside the network. This is the natural middle path between the two options.
-Third-party cloud storage is also worth keeping on the table. A service such as OneDrive, SharePoint, Amazon S3, or Azure Blob Storage could hold the processed datasets and be read by both the workflow and the build. This is workable, though not ideal: it adds another account, another set of credentials, and another recurring cost, and the data would sit outside PPIC's direct control without gaining the proprietary-data capability that Option A offers. It seems better suited as a fallback than a first choice, but it should stay in scope rather than be ruled out.
+This is the smaller of the two automated changes. It integrates with what already exists, requires no new hardware, and keeps the site trivially publishable to a wider audience later. Its limitations are that it effectively rules out the possibility of modules built on proprietary data (at least on the Free tiers of GitHub and Vercel), and that the storage pillar remains open: the ideal destination is PPIC servers, but that would mean GitHub reaching into PPIC infrastructure, which is a network security decision outside the scope of this analysis.
+If that turns out to be prohibited, GitHub Actions can be self-hosted, with runners installed on PPIC servers or another PPIC-controlled device. GitHub still schedules and orchestrates the workflow, but the code and the data stay inside the network. This is the natural middle path between Options B and C.
+Third-party cloud storage is also worth keeping on the table. A service such as OneDrive, SharePoint, Amazon S3, or Azure Blob Storage could hold the processed datasets and be read by both the workflow and the build. This is workable, though not ideal: it adds another account, another set of credentials, and another recurring cost, and the data would sit outside PPIC's direct control without gaining the proprietary-data capability that Option B offers. It seems better suited as a fallback than a first choice, but it should stay in scope rather than be ruled out.
 ### Side-by-Side Comparison
 
-| Dimension | Option A: PPIC-Hosted | Option B: GitHub + Vercel |
-|---|---|---|
-| Running the pipeline | PPIC servers, subject to whatever job scheduling is permitted. | GitHub-hosted runners, or self-hosted runners on PPIC hardware. |
-| Saving the data | PPIC servers. Fully solved. | Unresolved. PPIC servers if GitHub is permitted to write to them; otherwise, third-party cloud storage. |
-| Serving the site | PPIC servers, reachable by IP and port. | Vercel, as today. |
-| Access control | Complete. Repo private, site internal only. | Repo can be made private; site access governed by Vercel. |
-| Proprietary data | Likely viable. | Not viable. |
-| Maintenance burden | Higher. Reverse proxy, uptime, capacity, and patching all become PPIC's responsibility. | Lower. Managed services handle hosting and runner infrastructure. |
-| Future public site | Complicated. Would require re-architecting how the site is exposed. | Straightforward. Already how the site works. |
-| Principal unknown | PPIC server capabilities and policy restrictions. | Where processed data is permitted to live. |
+| Dimension | Option A: Continue as Today | Option B: PPIC-Hosted | Option C: GitHub + Vercel |
+|---|---|---|---|
+| Running the pipeline | A maintainer's machine, run by hand at each release. | PPIC servers, subject to whatever job scheduling is permitted. | GitHub-hosted runners, or self-hosted runners on PPIC hardware. |
+| Saving the data | The same machine, then committed to Git. Local disk grows over time. | PPIC servers. Fully solved. | Unresolved. PPIC servers if GitHub is permitted to write to them; otherwise, third-party cloud storage. |
+| Serving the site | Vercel, as today. | PPIC servers, reachable by IP and port. | Vercel, as today. |
+| Access control | Repo currently public; can be made private. | Complete. Repo private, site internal only. | Repo can be made private; site access governed by Vercel. |
+| Proprietary data | Not viable. | Likely viable. | Not viable. |
+| Maintenance burden | No IT burden. Recurring staff time per refresh. | Higher. Reverse proxy, uptime, capacity, and patching all become PPIC's responsibility. | Lower. Managed services handle hosting and runner infrastructure. |
+| Future public site | Straightforward. Already how the site works. | Complicated. Would require re-architecting how the site is exposed. | Straightforward. Already how the site works. |
+| Principal unknown | How many modules the manual process can carry. | PPIC server capabilities and policy restrictions. | Where processed data is permitted to live. |
 
 ---
-## Recommendation
-**Option B**: create organizational GitHub and Vercel accounts, and treat self-hosted GitHub Actions runners as the fallback if data residency requirements rule out GitHub-hosted execution.
-Storage remains the open piece. PPIC servers would be the preferred destination. If that is not permitted, third-party cloud storage is a workable second choice rather than a dead end, with the tradeoffs noted under Option B: an extra vendor, extra credentials, and data held outside PPIC. It is not the ideal arrangement, but it should not be ruled out before the network security questions are answered.
-### Prerequisites
+## My Preference
+If the network security questions in [Appendix C](#appendix-c-open-questions) resolve favorably, my preference is **Option C**: create organizational GitHub and Vercel accounts, and treat self-hosted GitHub Actions runners as the fallback if data residency requirements rule out GitHub-hosted execution. It is the smallest change from what already exists, and it is the only option that removes the per-refresh staff cost without adding servers for PPIC to maintain.
+This is a preference from the project side rather than an assessment of what is feasible or advisable given PPIC's infrastructure and policies. Option A remains fully functional if either of the other two is impractical, and the project can continue on it indefinitely at the current module count.
+Storage is the open piece under Option C. PPIC servers would be the preferred destination. If that is not permitted, third-party cloud storage is a workable second choice rather than a dead end, with the tradeoffs noted above: an extra vendor, extra credentials, and data held outside PPIC. It is not the ideal arrangement, but it should not be ruled out before the network security questions are answered.
+### What Option C Would Require
 - [ ] Create a PPIC-owned GitHub organization and transfer or fork the repository into it.
 - [ ] Create a PPIC-owned Vercel account and connect it to the organization repository.
 - [ ] Get answers to the storage and network security questions in [Appendix C](#appendix-c-open-questions).
 - [ ] Decide on a storage destination, in order of preference: PPIC servers, then third-party cloud storage.
 - [ ] Choose a GitHub plan tier once the private-repository requirement is settled (see [Appendix A](#appendix-a-github-plan-comparison)).
-- [ ] Implement the change report and approval step from the planned process, since automation without a review checkpoint is a regression, not an improvement.
+- [ ] Implement the change report and approval step from the planned process, since automation without a review checkpoint would be a step backward from the current manual review.
 
 ---
 ## Appendix A: GitHub Plan Comparison
@@ -114,7 +124,7 @@ Paid GitHub team and enterprise plans close some of the security gaps that appea
 All three plans (Free, Team, and Enterprise) offer unlimited public and private repositories with unlimited collaborators. The real differences are in security features, governance, CI/CD quotas, and support. Free targets individuals and small or open-source teams, Team targets growing organizations that need enforced workflows, and Enterprise targets large or regulated organizations needing centralized security, compliance, and identity management.
 
 > [!note] Actions minutes are the quota that matters here
-> Because Option B runs pipelines as GitHub Actions workflows, the monthly Actions minutes allowance for private repositories is a functional constraint, not just a line item. Free provides 2,000 minutes per month, Team 3,000, and Enterprise 50,000. Estimating the total runtime across all modules at their intended refresh frequencies is a work in progress.
+> Because Option C runs pipelines as GitHub Actions workflows, the monthly Actions minutes allowance for private repositories is a functional constraint, not just a line item. Free provides 2,000 minutes per month, Team 3,000, and Enterprise 50,000. Estimating the total runtime across all modules at their intended refresh frequencies is a work in progress.
 ### Security Capabilities by Plan
 #### Free
 The Free tier provides Dependabot alerts for dependency vulnerabilities, code scanning and secret scanning for public repositories, basic branch protections without enforced review rules, and standard access controls.
@@ -180,13 +190,13 @@ This project should model visitors × page views × assets per page to estimate 
 ---
 ## Appendix C: Open Questions
 ### Hardware Capabilities
-What are the hardware capabilities of PPIC servers? Specifically, could they handle running local LLMs if the project eventually needs them, and would concurrent access by everyone at PPIC exhaust available capacity? This determines whether Option A is viable at all.
+What are the hardware capabilities of PPIC servers? Specifically, could they handle running local LLMs if the project eventually needs them, and would concurrent access by everyone at PPIC exhaust available capacity? This determines whether Option B is viable at all.
 ### Internal Server Access
-What can be run on PPIC servers, and what is restricted? Scheduled jobs such as cron are the mechanism both options depend on for triggering pipeline runs. A related question under Option A is which ports are available for serving a site.
+What can be run on PPIC servers, and what is restricted? Scheduled jobs such as cron are the mechanism both automated options depend on for triggering pipeline runs. A related question under Option B is which ports are available for serving a site.
 ### External Service Access
-May an external service write to PPIC storage? Under Option B, the ideal destination for processed data is PPIC servers, which would mean GitHub-hosted runners reaching into PPIC infrastructure. If that is prohibited, the options narrow to self-hosted runners or third-party cloud storage.
+May an external service write to PPIC storage? Under Option C, the ideal destination for processed data is PPIC servers, which would mean GitHub-hosted runners reaching into PPIC infrastructure. If that is prohibited, the options narrow to self-hosted runners or third-party cloud storage.
 ### Third-Party Cloud Storage
 If PPIC servers are not available as a destination, which external storage service would be acceptable, and does PPIC already hold a suitable account? OneDrive and SharePoint may already exist under an institutional license, which would make them cheaper and easier to approve than standing up S3 or Azure Blob Storage from scratch.
-### Gaps in This Document
-> [!flag] Missing analysis
-> A rough estimate of monthly Actions minutes consumed across all modules at their intended refresh frequencies is still missing, and without it the choice between the GitHub Free and Team tiers cannot be made on evidence. The same applies to Vercel: Appendix B lays out the plan limits but no traffic estimate has been modeled against them, so the Hobby versus Pro decision is still open.
+### Estimates Still to Be Made
+> [!note] Usage modeling in progress
+> Two estimates are still being worked out on the project side. The first is monthly Actions minutes consumed across all modules at their intended refresh frequencies, which is what settles the choice between the GitHub Free and Team tiers. The second is a traffic estimate modeled against the Vercel plan limits in [Appendix B](#appendix-b-vercel-plan-comparison), which settles Hobby versus Pro. Both are needed regardless of which option is chosen, and neither blocks the infrastructure questions above.

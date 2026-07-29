@@ -89,6 +89,63 @@ describe("createChartConfig", () => {
   });
 });
 
+/**
+ * The module workbench's manual-encoding rule: the store chooses no field on the
+ * reader's behalf, so a chart is only ever as configured as they made it.
+ */
+describe("manual encoding (autoBind: false)", () => {
+  const manual = { autoBind: false };
+  const manualDispatch = (config, action) =>
+    reduceChartConfig(config, action, schema, manual);
+
+  it("opens with no bindings at all", () => {
+    const config = createChartConfig(schema, {}, manual);
+    expect(config.bindings).toEqual({});
+    // Unset roles are reported as findings — the surface decides how to show
+    // them — but they are the "incomplete" kind, not a broken configuration.
+    expect(config.validation.map((finding) => finding.code)).toContain(
+      "MISSING_REQUIRED_ROLE",
+    );
+  });
+
+  it("still honors bindings a saved view or deep link supplies", () => {
+    const config = createChartConfig(
+      schema,
+      { chartType: "line", bindings: { x: "Year", y: "Total Widgets" } },
+      manual,
+    );
+    expect(config.bindings).toMatchObject({ x: "Year", y: "Total Widgets" });
+    expect(
+      config.validation.some((finding) => finding.code === "MISSING_REQUIRED_ROLE"),
+    ).toBe(false);
+  });
+
+  it("SET_CHART_TYPE carries compatible choices and seeds nothing else", () => {
+    const line = createChartConfig(
+      schema,
+      { chartType: "line", bindings: { x: "Year", y: "Total Widgets" } },
+      manual,
+    );
+    const bar = manualDispatch(line, { type: "SET_CHART_TYPE", chartType: "bar" });
+
+    // y is a measure on both, so the reader's own choice follows them across.
+    expect(bar.bindings.y).toBe("Total Widgets");
+    // A bar has no x role and its category is not filled in for them.
+    expect(bar.bindings.x).toBeUndefined();
+    expect(bar.bindings.category).toBeUndefined();
+    expect(
+      bar.validation.filter((finding) => finding.code === "MISSING_REQUIRED_ROLE"),
+    ).toHaveLength(1);
+  });
+
+  it("leaves the auto-binding surfaces seeding defaults as before", () => {
+    const line = createChartConfig(schema, { chartType: "line" });
+    expect(line.bindings).toMatchObject({ x: "Year", y: "Total Widgets" });
+    const bar = dispatch(line, { type: "SET_CHART_TYPE", chartType: "bar" });
+    expect(bar.bindings).toMatchObject({ category: "Location", y: "Total Widgets" });
+  });
+});
+
 describe("reduceChartConfig — v2 actions", () => {
   const base = createChartConfig(schema);
 

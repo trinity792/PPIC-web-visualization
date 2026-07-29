@@ -18,6 +18,13 @@
  *     standalone wizard leaves it off, because its Import step means the reader
  *     has already supplied data by the time a chart is in view.
  *
+ * Statuses: idle | unconfigured | loading | invalid | empty | error | ready.
+ * `unconfigured` is the manual-encoding counterpart to `idle` — a required
+ * encoding is still unset (see `isUnconfigured`), so the pane draws the skeleton
+ * and no request goes out. It is deliberately not `invalid`: on the module
+ * workbench, which binds nothing on the reader's behalf, an unset role is where
+ * every chart starts and where every chart-type switch can land.
+ *
  * Data sources:
  *   - components/chart-builder/chartData.js (loadChartData; inline or API)
  *   - lib/visualization/toPlotly.js
@@ -45,7 +52,7 @@ import {
 } from "@/components/chart-builder/chartData";
 import { effectiveLabels } from "@/lib/visualization/deriveLabels";
 import { toPlotly } from "@/lib/visualization/toPlotly";
-import { hasBlockingErrors } from "@/lib/visualization/validation";
+import { hasBlockingErrors, isIncomplete } from "@/lib/visualization/validation";
 import { inlineRenderBlock } from "@/lib/visualization/inlineMapping";
 
 const PreviewContext = createContext(null);
@@ -61,8 +68,34 @@ export function usePreview() {
 /** Deferred, pre-arming state: no request has been made and none is pending. */
 const IDLE = { status: "idle", result: null, error: null, notice: null };
 
+/**
+ * Settings still to be made: a required encoding is unbound. Distinct from
+ * "invalid", which means a setting the reader *did* make cannot work.
+ */
+const UNCONFIGURED = {
+  status: "unconfigured",
+  result: null,
+  error: null,
+  notice: null,
+};
+
+/**
+ * Is this chart simply unfinished rather than misconfigured?
+ *
+ * Only on a manual-encoding surface (`autoBind: false`, the module workbench).
+ * Everywhere else the store has already bound every required role, so an
+ * unbound one really is a fault and keeps its error. Bring-your-own-data is
+ * excluded too: `inlineRenderBlock` already explains its unmapped columns, and
+ * auto-mapping means an unset role there is a genuine dead end.
+ */
+function isUnconfigured(config, schema, autoBind) {
+  if (autoBind !== false) return false;
+  if (schema.inlineOnly && config.data?.source === "inline") return false;
+  return isIncomplete(config.validation);
+}
+
 export function PreviewProvider({ children, deferInitialRender = false }) {
-  const { canUndo, dispatch, schema, workspace } = useChartConfig();
+  const { autoBind, canUndo, dispatch, schema, workspace } = useChartConfig();
   const [previewState, setPreviewState] = useState({});
   // `canUndo` is the store's own record that a user-initiated, workspace-changing
   // action landed — undo history deliberately excludes COMPUTED_ACTIONS, so the
@@ -117,6 +150,15 @@ export function PreviewProvider({ children, deferInitialRender = false }) {
     const initial = {};
 
     charts.forEach(({ id, config }) => {
+      // Nothing to ask the server for until the reader has said what to plot.
+      // This is what keeps a half-set chart on the skeleton instead of firing a
+      // request that could only fail, and it is why switching chart type on the
+      // workbench raises no error.
+      if (isUnconfigured(config, schema, autoBind)) {
+        initial[id] = UNCONFIGURED;
+        return;
+      }
+
       const isInline =
         schema.inlineOnly && config.data?.source === "inline" && config.data.inline;
       const inlineBlock = isInline
@@ -195,16 +237,22 @@ export function PreviewProvider({ children, deferInitialRender = false }) {
         if (!ids.has(id)) delete graphDivRefs.current[id];
       }
     };
-  }, [armed, requestKey, schema, dispatch]);
+  }, [armed, autoBind, requestKey, schema, dispatch]);
 
   const previews = useMemo(
     () =>
       charts.map(({ id, name, config }) => {
-        // A slot the load effect has not reached yet is loading, unless the
-        // whole provider is still deferred — then it has nothing pending.
-        const state =
-          previewState[id] ||
-          (armed ? { status: "loading", result: null, error: null, notice: null } : IDLE);
+        // An unfinished chart reads as unconfigured immediately, ahead of any
+        // state the effect has yet to overwrite — clearing a binding must show
+        // the skeleton on the same commit, not flash the previous chart until
+        // the load effect catches up. Otherwise: a slot the effect has not
+        // reached yet is loading, unless the provider is still deferred.
+        const state = isUnconfigured(config, schema, autoBind)
+          ? UNCONFIGURED
+          : previewState[id] ||
+            (armed
+              ? { status: "loading", result: null, error: null, notice: null }
+              : IDLE);
         let plotly = null;
         let renderError = null;
 
@@ -260,7 +308,7 @@ export function PreviewProvider({ children, deferInitialRender = false }) {
           renderError,
         };
       }),
-    [activeChartId, armed, charts, previewState, schema],
+    [activeChartId, armed, autoBind, charts, previewState, schema],
   );
 
   const activePreview =
