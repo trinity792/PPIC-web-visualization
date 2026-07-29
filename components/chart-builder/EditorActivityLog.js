@@ -1,10 +1,10 @@
 "use client";
 
 /**
- * EditorActivityLog.js — collapsible "Activity" drawer listing code-mode Run
- * outcomes (lib/logs/editorLog.js), newest first. Rendered in two places:
- * ChartSidebar's footer (above FooterActions) and at the bottom of
- * CodeEditorPanel, so activity is visible from either editor mode.
+ * EditorActivityLog.js — collapsible "Activity" drawer listing editor outcomes
+ * (lib/logs/editorLog.js), newest first: config imports, export failures, and
+ * data refreshes. Rendered at the bottom of the standalone Visualization Tool's
+ * Edit step; the module workbench deliberately omits it (overhaul decision 6).
  *
  * Props:
  *   className {string} — optional utility classes for the outer wrapper

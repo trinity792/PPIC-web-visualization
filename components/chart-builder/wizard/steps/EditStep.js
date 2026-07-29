@@ -1,74 +1,93 @@
 "use client";
 
 /**
- * EditStep.js — wizard step "Edit": the GUI ⇄ Code toggle, the Advanced Mode
- * switch, and the chart-type/tier-gated editor sections (Date Range, Encodings,
- * Comparisons, Labels, Appearance — plus Data Sources when there is no separate
- * Import step, i.e. the module editor). All of these are the existing
- * chart-builder components, re-laid-out for the wizard.
+ * EditStep.js — the standalone Visualization Tool's "Edit" step.
+ *
+ * Renders every section in the shared registry (`lib/visualization/sidebarSections.js`)
+ * except Chart Type, which is the wizard's own step. Composing from the same
+ * registry the module workbench uses is the point: a control added for one
+ * surface appears on the other without being re-authored, and the two cannot
+ * drift into different answers for the same setting.
+ *
+ * What is here and not in the module sidebar is what decision 6 keeps for the
+ * standalone tool: presets, the line-layer action, config export, and the editor
+ * activity log. (Config *import* sits on the Import step, where a saved config
+ * arrives alongside the data.) What used to be here and is gone entirely: the
+ * GUI ⇄ Code toggle and the Basic/Moderate/Advanced switch (decision 5).
+ *
+ * Props:
+ *   (none — reads useChartConfig())
  *
  * Data sources:
- *   - components/chart-builder/ChartSidebar.js (SidebarSections, exported)
- *   - components/chart-builder/EditorModeToggle.js
- *   - components/chart-builder/CodeEditorPanel.js
+ *   - components/chart-builder/sections/SidebarSections.js (the shared registry)
+ *   - components/chart-builder/sections/PresetSection.js
+ *   - components/chart-builder/ConfigActions.js
  */
 
-import React, { useEffect, useState } from "react";
+import React from "react";
 
-import CodeEditorPanel from "@/components/chart-builder/CodeEditorPanel";
 import { ExportConfigButton } from "@/components/chart-builder/ConfigActions";
-import EditorModeToggle from "@/components/chart-builder/EditorModeToggle";
+import EditorActivityLog from "@/components/chart-builder/EditorActivityLog";
 import ValidationNotice from "@/components/chart-builder/ValidationNotice";
-import { SidebarSections } from "@/components/chart-builder/ChartSidebar";
+import CategoriesSection from "@/components/chart-builder/sections/CategoriesSection";
+import PresetSection from "@/components/chart-builder/sections/PresetSection";
+import SidebarSections from "@/components/chart-builder/sections/SidebarSections";
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
+import { Accordion } from "@/components/ui/accordion";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { isVisible } from "@/lib/visualization/settingsTiers";
 
+import { Section } from "@/components/chart-builder/sections/primitives";
 import PreviewPane from "@/components/chart-builder/wizard/PreviewPane";
 import StepShell from "@/components/chart-builder/wizard/StepShell";
 
-const EDITOR_MODE_KEY = "chartEditorMode";
+// Chart Type is the wizard's own step here, so the Edit step renders every
+// other registered section (overhaul decision 10).
+const SECTION_FILTER = { exclude: ["chart-type"] };
 
-// Sections owned by the Edit step. Data Sources is appended for the module
-// editor (no Import step); Presets and Graph Type live in the Chart Type step.
-const EDIT_SECTIONS = ["date-range", "encodings", "comparison", "labels", "appearance"];
+// Comparison layers are a standalone-tool feature, so the shared Axis section is
+// opted into its "Add line" action here and nowhere else.
+const SECTION_PROPS = { axis: { allowLayers: true } };
 
 export default function EditStep() {
-  const { config, dispatch } = useChartConfig();
-  const [mode, setMode] = useState("gui");
-
-  // Restore persisted mode after hydration (shared key with the old editor).
-  useEffect(() => {
-    const saved = window.localStorage.getItem(EDITOR_MODE_KEY);
-    if (saved === "gui" || saved === "code") setMode(saved);
-  }, []);
-  useEffect(() => {
-    window.localStorage.setItem(EDITOR_MODE_KEY, mode);
-  }, [mode]);
-
-  // Drop back to GUI if a tier change hides code mode (gated at "moderate"+).
-  useEffect(() => {
-    if (mode === "code" && !isVisible("codeEditor", config.tier)) setMode("gui");
-  }, [config.tier, mode]);
-
-  const only = ["data-sources", ...EDIT_SECTIONS];
+  const { schema } = useChartConfig();
+  // Bring-your-own-data has no geography, so GeographySection — which normally
+  // owns the category ordering fallback — never renders. Mount it directly.
+  const needsCategories = Object.keys(schema?.subsets || {}).length === 0;
+  // A preset seeds bindings from a module's curated field catalog. Bring-your-
+  // own-data has an empty catalog, so applying one would clear the bindings
+  // `autoMapInlineBindings` just derived from the pasted columns — which is the
+  // same job, done from the data that actually exists.
+  const supportsPresets = !schema?.inlineOnly;
 
   return (
     <StepShell title="Edit" preview={<PreviewPane />}>
       <div className="grid min-h-0 min-w-0 gap-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <EditorModeToggle
-            mode={mode}
-            onModeChange={setMode}
-            tier={config.tier}
-            onTierChange={(tier) => dispatch({ type: "SET_TIER", tier })}
-          />
+        {/* Import lives on the Import step, where a config arrives alongside the
+            data; export lives here, with the chart being built. */}
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <ExportConfigButton />
         </div>
         <ValidationNotice />
         <ScrollArea className="h-[calc(100svh-24rem)] w-full min-w-0 pr-2">
-          {mode === "code" ? <CodeEditorPanel /> : <SidebarSections only={only} />}
+          <div className="grid gap-3">
+            {/* Presets are the wizard's "ask me a question" entry point; the
+                module sidebar drops them (decision 6). */}
+            {supportsPresets ? (
+              <Accordion
+                type="multiple"
+                defaultValue={["presets"]}
+                className="grid gap-1"
+              >
+                <Section value="presets" label="Presets">
+                  <PresetSection />
+                </Section>
+              </Accordion>
+            ) : null}
+            <SidebarSections {...SECTION_FILTER} sectionProps={SECTION_PROPS} />
+            {needsCategories ? <CategoriesSection /> : null}
+          </div>
         </ScrollArea>
+        <EditorActivityLog />
       </div>
     </StepShell>
   );

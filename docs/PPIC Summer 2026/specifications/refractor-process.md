@@ -243,7 +243,7 @@ Building Permits is the clearest case, but the pattern is general: when an upstr
 
 ## The Graph-Editor Overhaul
 
-**Completed and signed off 2026-07-07.** Once all five modules were migrated, the frontend work shifted from per-module wiring to a shared upgrade: turning the chart-builder into a Datawrapper-class editor. Full as-built detail is in [[graphEditor-overhaul]]; the process and the decisions are summarized here.
+**Completed and signed off 2026-07-07.** Once all five modules were migrated, the frontend work shifted from per-module wiring to a shared upgrade: turning the chart-builder into a Datawrapper-class editor. Full as-built detail is in [[visualization-specification]] (the 2026-07-07 guide is archived at [`archive/graphEditor-overhaul.md`](../archive/graphEditor-overhaul.md)); the process and the decisions are summarized here.
 
 ### How it was run
 

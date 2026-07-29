@@ -15,12 +15,21 @@ import {
   queryGeoValues,
   queryFullTable,
   queryLineSeries,
+  queryLocations,
   queryMatrix,
   queryTwoPeriod,
 } from "@/lib/data/demographic_projections";
 import { integerParam, invalid, listParam } from "@/lib/data/apiParams";
 
-const VIEWS = ["line", "category", "twoPeriod", "matrix", "geo", "table"];
+const VIEWS = [
+  "line",
+  "category",
+  "twoPeriod",
+  "matrix",
+  "geo",
+  "table",
+  "locations",
+];
 const CENSUS_SOURCE = "Census cc-est";
 const DOF_SOURCE = "DoF P-3";
 
@@ -52,6 +61,19 @@ export async function GET(request) {
       `Invalid or missing 'subset'. Expected one of: ${AVAILABLE_SUBSETS.join(", ")}`,
       "projections API: subset validation",
     );
+  }
+  // The locations view describes the geography, not the dataset, so it resolves
+  // before the source/subset pairing rules below (US States is Census-only, but
+  // it still has a location list). Response is deliberately { subset, locations }.
+  if (view === "locations") {
+    try {
+      return Response.json(await queryLocations({ subset }));
+    } catch (error) {
+      return Response.json(
+        { error: error.message, source: "projections API: locations query" },
+        { status: 500 },
+      );
+    }
   }
   if (!AVAILABLE_SOURCES.includes(source)) {
     return invalid(

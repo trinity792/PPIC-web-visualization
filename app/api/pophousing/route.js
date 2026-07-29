@@ -14,12 +14,22 @@ import {
   queryLineSeries,
   queryMatrix,
   queryFullTable,
+  queryLocations,
   queryMeasurePairs,
   queryTwoPeriod,
 } from "@/lib/data/pop_housing";
 import { integerParam, invalid, listParam } from "@/lib/data/apiParams";
 
-const VIEWS = ["line", "category", "twoPeriod", "pairs", "matrix", "geo", "table"];
+const VIEWS = [
+  "line",
+  "category",
+  "twoPeriod",
+  "pairs",
+  "matrix",
+  "geo",
+  "table",
+  "locations",
+];
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
@@ -55,6 +65,19 @@ export async function GET(request) {
       `Invalid 'sources'. Expected any of: ${AVAILABLE_SOURCES.join(", ")}`,
       "pop_housing API: sources validation",
     );
+  }
+  // The locations view carries no measure/parameter/period, so it resolves
+  // before the parameter validation below. Its response is deliberately just
+  // { subset, locations } — the sidebar's multi-select needs nothing else.
+  if (view === "locations") {
+    try {
+      return Response.json(await queryLocations({ subset }));
+    } catch (error) {
+      return Response.json(
+        { error: error.message, source: "pop_housing API: locations query" },
+        { status: 500 },
+      );
+    }
   }
   // The full-table view carries no measure/parameter, so it must resolve before
   // the parameter validation below.

@@ -1,0 +1,261 @@
+"use client";
+
+/**
+ * TransformSection.js — how a measure's values are expressed, and which slice of
+ * the module's rows they are computed from.
+ *
+ * The mockup's "Transform" block: one radio per transform the bound measure
+ * allows, with the base-year selector appearing inline beneath "Index to Base
+ * Year". Radios rather than a dropdown because the options are few, mutually
+ * exclusive, and worth seeing at a glance — a reader should be able to tell that
+ * a chart is showing percent change without opening a menu.
+ *
+ * The module's stratification pins (Age group, Sex, Race/ethnicity, Tenure,
+ * Income level) render below them, from `schema.filterDimensions`. They lived
+ * under "Datasets" until July 2026, which was misleading: choosing renters aged
+ * 65+ does not change which dataset you are reading, it changes which rows the
+ * measure is computed over — the same kind of statement the transform radios
+ * make. Housing Stress and RHNA Progress are the modules where the difference
+ * was most visible, since a dataset toggle was the one thing they never had.
+ *
+ * The radio list is the measure's own `transforms`, so a rate measure offers
+ * percentage-point change and never percent change (percent-of-a-percent is a
+ * category error, not a formatting choice). Chart types that cannot express a
+ * transform at all — scatter, pie, the range family — draw no radios rather than
+ * a dead control (flagged issue 1), and on an unstratified module that leaves the
+ * section with nothing at all.
+ *
+ * That "nothing" is why `hasTransformControls` is exported: the sidebar registry
+ * gates the *accordion header* on it, so a Range chart loses the whole "Transform"
+ * block rather than showing a heading with an empty body underneath.
+ *
+ * Exports:
+ *   default             — the section
+ *   hasTransformControls — (config, schema) => boolean, the registry `when` gate
+ *
+ * Props:
+ *   None.
+ *
+ * Data sources:
+ *   - Chart configuration and module schema from ChartConfigProvider
+ *
+ * UI Kit reference:
+ *   - Implements the radio-group, select, and text-input form patterns
+ */
+
+import React from "react";
+
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
+import { getChartType } from "@/lib/visualization/chartRegistry";
+import { allowedTransforms } from "@/lib/visualization/fieldTypes";
+
+const TRANSFORM_LABELS = {
+  actual: "Actual Value",
+  indexed: "Index to Base Year",
+  numericChange: "Numeric Change",
+  percentChange: "Percentage Change",
+  percentagePointChange: "Percentage-Point Change",
+  differenceFromBenchmark: "Difference from Benchmark",
+};
+
+// ── Helpers ──────────────────────────────────────────────────────────
+
+/** The measure whose transforms this chart is expressing. */
+function boundMeasure(config, schema) {
+  const name =
+    config.bindings?.y ||
+    config.bindings?.color ||
+    config.bindings?.start ||
+    config.bindings?.x;
+  return schema?.fields?.[name];
+}
+
+function yearsIn(range) {
+  if (!Array.isArray(range) || range.length !== 2) return [];
+  const [start, end] = range;
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return [];
+  return Array.from({ length: end - start + 1 }, (_, index) => start + index);
+}
+
+/** Whether a chart type takes a benchmark series, and so a benchmark label. */
+function takesBenchmark(chart) {
+  return [
+    ...(chart?.requiredRoles || []),
+    ...(chart?.optionalRoles || []),
+  ].includes("benchmark");
+}
+
+/**
+ * Whether this section has any control to offer — the registry's `when` gate.
+ *
+ * Stratification is checked first and independently of the chart type: pinning
+ * renters or a single income level is a statement about the data, and stays
+ * available on a data table or a symbol map, where no transform applies.
+ *
+ * The transform radios then need all three of: a chart type that can express a
+ * transform (scatter, pie, and the range family cannot), a measure allowing more
+ * than one (bring-your-own-data hits this every time, since its schema carries
+ * no field catalog, and one lone "Actual Value" radio reads as a broken
+ * control), or a benchmark role to label instead.
+ */
+export function hasTransformControls(config, schema) {
+  if (schema?.filterDimensions?.length) return true;
+  const chart = getChartType(config.chartType);
+  if (!chart?.transformCapable) return false;
+  const transforms = allowedTransforms(boundMeasure(config, schema));
+  return transforms.length > 1 || takesBenchmark(chart);
+}
+
+// ── Section ──────────────────────────────────────────────────────────
+
+export default function TransformSection() {
+  const { config, dispatch, schema } = useChartConfig();
+  const chart = getChartType(config.chartType);
+  // The registry gates the header on the same predicate, so this is normally
+  // unreachable. It stays because a section that can be mounted directly should
+  // still know when it has nothing to say, rather than trusting its caller.
+  if (!hasTransformControls(config, schema)) return null;
+
+  const transforms = allowedTransforms(boundMeasure(config, schema));
+  // A measure change can leave a transform stranded (a rate cannot express
+  // percent change); fall back to the first allowed rather than showing a
+  // selection that no radio matches.
+  const active = transforms.includes(config.transform)
+    ? config.transform
+    : transforms[0];
+  const baseYears = yearsIn(schema?.yearRange);
+  // Both re-check `transformCapable`, because stratification alone can open the
+  // section now: a scatter plot on a stratified module gets the pins without
+  // acquiring transform radios it cannot honour.
+  const transformable = Boolean(chart?.transformCapable);
+  const supportsBenchmark = transformable && takesBenchmark(chart);
+  const hasChoice = transformable && transforms.length > 1;
+
+  return (
+    <div className="grid gap-4">
+      {hasChoice ? (
+      <RadioGroup
+        value={active}
+        onValueChange={(transform) => dispatch({ type: "SET_TRANSFORM", transform })}
+        className="grid gap-2"
+      >
+        {transforms.map((transform) => {
+          const label = TRANSFORM_LABELS[transform] || transform;
+          return (
+            <div key={transform} className="grid gap-2">
+              <div className="flex items-center gap-2">
+                {/* aria-label, not a wrapping <label>: RadioGroupItem renders a
+                    button, which takes no name from an enclosing label. */}
+                <RadioGroupItem
+                  value={transform}
+                  id={`transform-${transform}`}
+                  aria-label={label}
+                />
+                <Label htmlFor={`transform-${transform}`} className="font-normal">
+                  {label}
+                </Label>
+              </div>
+              {transform === "indexed" && active === "indexed" && baseYears.length ? (
+                <div className="ml-6 grid gap-2">
+                  <Label htmlFor="transform-base-year">Base year</Label>
+                  <Select
+                    value={
+                      config.period?.baseYear ? String(config.period.baseYear) : ""
+                    }
+                    onValueChange={(value) =>
+                      dispatch({
+                        type: "SET_PERIOD",
+                        key: "baseYear",
+                        value: Number(value),
+                      })
+                    }
+                  >
+                    <SelectTrigger id="transform-base-year">
+                      <SelectValue placeholder="Choose a year" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {baseYears.map((year) => (
+                        <SelectItem key={year} value={String(year)}>
+                          {year}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+      </RadioGroup>
+      ) : null}
+
+      <StratificationFilters />
+
+      {supportsBenchmark ? (
+        <div className="grid gap-2">
+          <Label htmlFor="transform-benchmark">Benchmark label</Label>
+          <Input
+            id="transform-benchmark"
+            value={config.filters?.benchmark || ""}
+            placeholder="e.g. California"
+            onChange={(event) =>
+              dispatch({
+                type: "SET_FILTER",
+                key: "benchmark",
+                value: event.target.value,
+              })
+            }
+          />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+// ── Tightly coupled sub-components ───────────────────────────────────
+
+/**
+ * The module's stratification pins, rendered from `schema.filterDimensions`.
+ * Each writes one value the API applies before shaping, defaulting to the
+ * precomputed aggregate row ("All Ages", "Both Sexes", "Total") rather than to
+ * no filter at all, so a chart always reads a coherent slice.
+ */
+function StratificationFilters() {
+  const { config, dispatch, schema } = useChartConfig();
+  const dimensions = schema?.filterDimensions || [];
+  if (!dimensions.length) return null;
+
+  return dimensions.map((dimension) => (
+    <div className="grid gap-2" key={dimension.column}>
+      <Label htmlFor={`filter-${dimension.column}`}>{dimension.label}</Label>
+      <Select
+        value={config.filters?.[dimension.column] ?? dimension.default}
+        onValueChange={(value) =>
+          dispatch({ type: "SET_FILTER", key: dimension.column, value })
+        }
+      >
+        <SelectTrigger id={`filter-${dimension.column}`}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {dimension.values.map((value) => (
+            <SelectItem key={value} value={value}>
+              {value}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  ));
+}

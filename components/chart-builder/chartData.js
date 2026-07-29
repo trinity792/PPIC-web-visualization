@@ -25,7 +25,6 @@ const QUERY_SHAPES = Object.freeze({
   divergingBar: "category",
   pie: "category",
   dumbbell: "twoPeriod",
-  slope: "twoPeriod",
   // Forest plot shares the two-endpoint (CI low/high) two-period shape.
   forest: "twoPeriod",
   scatter: "pairs",
@@ -34,6 +33,11 @@ const QUERY_SHAPES = Object.freeze({
   // Multi-series dot plot shares the heatmap's two-dimension matrix shape.
   dotPlot: "matrix",
   choroplethMap: "geo",
+  // Symbol maps read the same per-place snapshot a choropleth does; the
+  // difference is how toPlotly draws it, not what the API returns.
+  symbolMap: "geo",
+  // A data table shows the rows behind the chart, so it asks for the full table.
+  dataTable: "table",
 });
 
 // Transforms computed at the data layer rather than by transformRegistry: the
@@ -80,12 +84,33 @@ function geometryLevelForSubset(subset) {
   return subset === "Counties" ? "counties" : subset.toLowerCase();
 }
 
+/**
+ * The places a request should be limited to. `filters.locations` is the
+ * first-class selection the Geographic Level multi-select writes; the
+ * `selectedPlaces` layer is the older path and still applies when no explicit
+ * selection exists (saved views, and the standalone tool's layer editor).
+ */
 function selectedLocations(config) {
   if (Array.isArray(config.moduleLocations)) return config.moduleLocations;
-  const places = config.layers
+  if (config.filters?.locations?.length) return [...new Set(config.filters.locations)];
+  const places = (config.layers || [])
     .filter((layer) => layer.type === "selectedPlaces")
     .flatMap((layer) => layer.values || []);
   return [...new Set(places)];
+}
+
+/**
+ * Split `filters.source` into the two query params the routes accept. It holds a
+ * single dataset id for modules with a dataset toggle, and an array of
+ * provenance labels for Population & Housing — one key, two shapes, because the
+ * Datasets section owns both controls. `filters.sources` is read as a legacy
+ * fallback so saved views from before the workbench overhaul still resolve.
+ */
+function sourceParams(config, overrides = {}) {
+  const raw = overrides.source ?? config.filters?.source;
+  if (Array.isArray(raw)) return { source: null, sources: raw };
+  const legacy = overrides.sources || config.filters?.sources;
+  return { source: raw || null, sources: Array.isArray(legacy) ? legacy : null };
 }
 
 function buildSearchParams(config, schema, overrides = {}) {
@@ -94,12 +119,11 @@ function buildSearchParams(config, schema, overrides = {}) {
     view,
     subset: overrides.subset || config.filters.subset,
   });
-  const source = overrides.source || config.filters.source;
+  const { source, sources } = sourceParams(config, overrides);
   if (source) params.set("source", source);
 
   // Provenance multi-select (Population & Housing): a comma list of Source labels;
   // omitted entirely when all are selected, which the API reads as "all" (B3).
-  const sources = overrides.sources || config.filters.sources;
   if (sources?.length) params.set("sources", sources.join(","));
 
   // Module-specific stratification filters (e.g. Age Group, Sex, Race/Ethnicity).
@@ -157,6 +181,41 @@ function buildSearchParams(config, schema, overrides = {}) {
   return params;
 }
 
+/**
+ * The `view=table&full=1` URL: every row and column of a module's cleaned CSV,
+ * ignoring the chart's geography, source, and date filters.
+ *
+ * Returns null for bring-your-own-data, which has no server dataset - that path
+ * already holds the whole table client-side. `subset` and `source` are still
+ * sent because the routes validate them, but `full=1` makes the query ignore
+ * them when selecting rows.
+ */
+export function fullTableUrl(config, schema) {
+  if (!schema?.apiPath || config?.data?.source === "inline") return null;
+  const params = new URLSearchParams({ view: "table", full: "1" });
+  if (config?.filters?.subset) params.set("subset", config.filters.subset);
+  const { source } = sourceParams(config);
+  if (source) params.set("source", source);
+  return `${schema.apiPath}?${params}`;
+}
+
+/**
+ * Fetch the entire cleaned dataset as `{ records }`. Throws with the route's
+ * `{ error, source }` message so callers can surface where it failed.
+ */
+export async function loadFullTable(config, schema, signal) {
+  const url = fullTableUrl(config, schema);
+  if (!url) return null;
+  const response = await fetch(url, { signal });
+  const body = await response.json();
+  if (!response.ok) {
+    const error = new Error(body.error || "The full dataset could not be loaded.");
+    error.source = body.source;
+    throw error;
+  }
+  return { records: body.records || [] };
+}
+
 async function requestData(config, schema, signal, overrides = {}) {
   const params = buildSearchParams(config, schema, overrides);
   const response = await fetch(`${schema.apiPath}?${params}`, { signal });
@@ -212,7 +271,9 @@ function moduleDirectTabFilter(config, schema, column, value) {
   );
   if (dimension) filters[column] = value;
   if (column === "Source") {
-    if (schema.provenanceFilter) filters.sources = [value];
+    // One key, two shapes: an array pins a provenance vintage, a string pins a
+    // dataset (see sourceParams).
+    if (schema.provenanceFilter) filters.source = [value];
     else if (schema.sources?.includes(value)) filters.source = value;
   }
   return { ...config, filters };
@@ -228,6 +289,7 @@ function isDirectModuleTab(schema, column) {
 }
 
 function filterModuleRows(rows, config, schema) {
+  const { source, sources } = sourceParams(config);
   return (rows || []).filter((row) => {
     for (const dimension of schema.filterDimensions || []) {
       const selected = textValue(config.filters?.[dimension.column]);
@@ -235,15 +297,14 @@ function filterModuleRows(rows, config, schema) {
         return false;
       }
     }
-    const selectedSources = config.filters?.sources;
     if (
       schema.provenanceFilter &&
-      selectedSources?.length &&
-      !selectedSources.includes(textValue(row?.Source))
+      sources?.length &&
+      !sources.includes(textValue(row?.Source))
     ) {
       return false;
     }
-    const selectedSource = textValue(config.filters?.source);
+    const selectedSource = textValue(source);
     if (
       schema.sources?.length &&
       selectedSource != null &&
@@ -504,7 +565,7 @@ function finiteRankingValue(record, chartType) {
     if (Number.isFinite(start) && Number.isFinite(end)) return (start + end) / 2;
   }
   const candidates =
-    chartType === "dumbbell" || chartType === "slope"
+    chartType === "dumbbell"
       ? [record.end, record.endValue, record.value]
       : chartType === "scatter" || chartType === "bubble"
         ? [record.y, record.value]
@@ -517,7 +578,6 @@ const GROUP_SECTIONING_RECORD_CHARTS = new Set([
   "bar",
   "divergingBar",
   "dumbbell",
-  "slope",
   "forest",
 ]);
 
@@ -862,7 +922,7 @@ export function seriesNamesOf(chartType, result) {
   if (chartType === "scatter" || chartType === "bubble") {
     return [...new Set(records.map((item) => item.group || item.color).filter(Boolean))];
   }
-  if (chartType === "dumbbell" || chartType === "slope" || chartType === "forest") {
+  if (chartType === "dumbbell" || chartType === "forest") {
     return [...new Set(records.map((item) => item.category || item.location).filter(Boolean))];
   }
   return [];

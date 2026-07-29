@@ -16,13 +16,22 @@ import {
   queryFullTable,
   queryGeoValues,
   queryLineSeries,
+  queryLocations,
   queryMatrix,
   queryTwoPeriod,
   resolveMeasureColumn,
 } from "@/lib/data/housing_stress";
 import { integerParam, invalid, listParam } from "@/lib/data/apiParams";
 
-const VIEWS = ["line", "category", "twoPeriod", "matrix", "geo", "table"];
+const VIEWS = [
+  "line",
+  "category",
+  "twoPeriod",
+  "matrix",
+  "geo",
+  "table",
+  "locations",
+];
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
@@ -52,6 +61,18 @@ export async function GET(request) {
       `Invalid or missing 'subset'. Expected one of: ${AVAILABLE_SUBSETS.join(", ")}`,
       "housing-stress API: subset validation",
     );
+  }
+  // The locations view carries no measure, so it resolves before the basis /
+  // threshold / measure validation below. Response is { subset, locations }.
+  if (view === "locations") {
+    try {
+      return Response.json(await queryLocations({ subset }));
+    } catch (error) {
+      return Response.json(
+        { error: error.message, source: "housing-stress API: locations query" },
+        { status: 500 },
+      );
+    }
   }
   if (basis && !BASES.includes(basis)) {
     return invalid(

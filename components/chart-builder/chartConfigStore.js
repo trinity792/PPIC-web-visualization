@@ -41,7 +41,6 @@ import {
   PRESET_ORDER,
   PRESETS,
 } from "@/lib/visualization/presetRegistry";
-import { DEFAULT_TIER } from "@/lib/visualization/settingsTiers";
 import {
   allowedTransforms,
   isMeasure,
@@ -201,6 +200,9 @@ function defaultFilters(schema) {
   }
   return {
     subset: Object.keys(schema.subsets || {})[0] || "",
+    // No explicit place selection: the ranking controls decide what to draw
+    // until the user picks places in the Geographic Level section.
+    locations: [],
     ...(schema.sources?.length ? { source: schema.sources[0] } : {}),
     ...stratification,
     tabColumn: null,
@@ -328,7 +330,6 @@ export function createChartConfig(schema, initialConfig = {}) {
     referenceLines: [],
     layers: [],
     appearance: clone(getChartType(preset.chartType)?.defaults || {}),
-    tier: DEFAULT_TIER,
   };
 
   const merged = {
@@ -345,8 +346,10 @@ export function createChartConfig(schema, initialConfig = {}) {
     annotations: clone(initial.annotations || base.annotations),
     referenceLines: clone(initial.referenceLines || base.referenceLines),
     layers: clone(initial.layers || base.layers),
-    tier: initial.tier || base.tier,
   };
+  // Settings tiers were removed in the workbench overhaul; a stored view may
+  // still carry the key, and it must not travel back into the live config.
+  delete merged.tier;
   merged.filters = synchronizeTabFilters(
     merged.filters,
     merged.data?.source === "inline" ? merged.data?.inline : null,
@@ -710,11 +713,10 @@ export function reduceChartConfig(config, action, schema) {
       };
       break;
 
-    case "SET_TIER":
-      // Tiers only change which controls render — never the config's effect.
-      if (config.tier === action.tier) return config;
-      next = { ...config, tier: action.tier };
-      break;
+    // SET_TIER is deliberately unhandled: the Basic/Moderate/Advanced switch was
+    // removed and every control is now visible to every user. Old code or a
+    // stored macro dispatching it falls through to `default` and changes
+    // nothing, rather than reintroducing a key the spec no longer carries.
 
     case "LOAD_SPEC":
       // Code-mode apply: the parsed spec replaces the config as-is (already

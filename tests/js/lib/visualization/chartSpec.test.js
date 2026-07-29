@@ -50,7 +50,6 @@ const v2Spec = {
   annotations: [],
   layers: [],
   referenceLines: [],
-  tier: "moderate",
 };
 
 describe("migrateSpec", () => {
@@ -85,7 +84,7 @@ describe("migrateSpec", () => {
     expect(out.data).toEqual({ source: "module" });
     expect(out.format).toEqual({});
     expect(out.annotations).toEqual([]);
-    expect(out.tier).toBe("moderate");
+    expect(out).not.toHaveProperty("tier");
   });
 
   it("passes a v2 spec through unchanged", () => {
@@ -179,7 +178,6 @@ describe("diffSpec", () => {
       { ...v2Spec, appearance: { legendPosition: "bottom" } },
       { ...v2Spec, annotations: [{ type: "text", text: "note" }] },
       { ...v2Spec, referenceLines: [{ type: "horizontal", value: 5 }] },
-      { ...v2Spec, tier: "advanced" },
     ]) {
       expect(diffSpec(v2Spec, draft, schema).classification).toBe("small");
     }

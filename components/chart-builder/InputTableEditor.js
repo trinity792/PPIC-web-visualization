@@ -45,11 +45,9 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/components/ui/utils";
 
-import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import { addDerivedColumn, compileFormula } from "@/lib/tabular/derivedColumns";
 import { inferColumnType } from "@/lib/tabular/columnTypes";
 import { GRADE_CLASSNAMES, gradeTable } from "@/lib/tabular/tableChecker";
-import { isVisible } from "@/lib/visualization/settingsTiers";
 
 const PAGE_SIZE = 100;
 const COLUMN_TYPE_OPTIONS = ["text", "group", "number", "date"];
@@ -135,7 +133,6 @@ function transpose(table) {
 }
 
 export default function InputTableEditor({ table, onChange, onRevert }) {
-  const { config } = useChartConfig();
   const [page, setPage] = useState(0);
   const [hiddenColumns, setHiddenColumns] = useState(() => new Set());
   const [formulaName, setFormulaName] = useState("");
@@ -350,37 +347,37 @@ export default function InputTableEditor({ table, onChange, onRevert }) {
         </div>
       ) : null}
 
-      {isVisible("derivedColumns", config.tier) ? (
-        <div className="grid gap-2 rounded-md border p-3">
-          <p className="text-sm font-medium">Add a derived column</p>
-          <div className="grid gap-2 sm:grid-cols-[1fr_2fr]">
-            <Input
-              placeholder="Column name"
-              value={formulaName}
-              onChange={(event) => setFormulaName(event.target.value)}
-            />
-            <Input
-              placeholder="e.g. round([Total Population] / 1000, 1)"
-              value={formulaText}
-              onChange={(event) => setFormulaText(event.target.value)}
-            />
-          </div>
-          {formulaError ? (
-            <p className="text-xs text-destructive">
-              {formulaError.message} (position {formulaError.position})
-            </p>
-          ) : null}
-          <Button
-            type="button"
-            size="sm"
-            className="w-fit"
-            onClick={handleAddDerivedColumn}
-            disabled={!formulaText.trim()}
-          >
-            Add column
-          </Button>
+      {/* Derived columns were an Advanced-tier control; with tiers dropped they
+          are simply part of the table editor. */}
+      <div className="grid gap-2 rounded-md border p-3">
+        <p className="text-sm font-medium">Add a derived column</p>
+        <div className="grid gap-2 sm:grid-cols-[1fr_2fr]">
+          <Input
+            placeholder="Column name"
+            value={formulaName}
+            onChange={(event) => setFormulaName(event.target.value)}
+          />
+          <Input
+            placeholder="e.g. round([Total Population] / 1000, 1)"
+            value={formulaText}
+            onChange={(event) => setFormulaText(event.target.value)}
+          />
         </div>
-      ) : null}
+        {formulaError ? (
+          <p className="text-xs text-destructive">
+            {formulaError.message} (position {formulaError.position})
+          </p>
+        ) : null}
+        <Button
+          type="button"
+          size="sm"
+          className="w-fit"
+          onClick={handleAddDerivedColumn}
+          disabled={!formulaText.trim()}
+        >
+          Add column
+        </Button>
+      </div>
     </div>
   );
 }

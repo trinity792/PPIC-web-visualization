@@ -1,5 +1,13 @@
 {
   "__doc__": "Curated overlay for the Changelog tab. Keyed by short commit hash. Each entry supplies the human-judged fields git cannot infer, and may override the git-derived title/description. Run `node scripts/changelog/build-changelog.mjs` to merge this with `git log` into data/changelog.json (the file the app reads). intensity: low | moderate | high. area: free text. audited: whether Trinity has manually reviewed the change. Only commits listed here appear in the changelog.",
+  "PENDING-workbench": {
+    "title": "Module workbench overhaul: single-screen module editor",
+    "area": "Front-end components",
+    "intensity": "high",
+    "audited": false,
+    "module": null,
+    "description": "Split the chart editor into two surfaces. /[module] is now a single-screen workbench: a persistent control sidebar beside a chart container with View Chart / View Data and Export Chart / Export Data. /visualization-tool keeps the step wizard for bring-your-own-data, along with presets, saved views, the multi-chart workspace, trace layers, and the activity log. Both compose from one shared section registry. Added a view=locations API view and a geographic multi-select; withdrew the settings tiers, the code editor, and the Slopegraph chart type."
+  },
   "b58a5bd": {
     "title": "Project initialization",
     "area": "Documentation",

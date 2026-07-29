@@ -13,8 +13,9 @@
  *   - module schema for the module-dataset option (existing behavior)
  *
  * UI Kit reference:
- *   - Extends the existing DataSourcesSection (ChartSidebar) rather than
- *     replacing it; upload via a styled file input + Button, paste via Textarea
+ *   - Upload via a styled file input + Button, paste via Textarea. Complements
+ *     the sidebar's DatasetsSection, which selects among server datasets
+ *     rather than accepting one.
  */
 
 import React, { useEffect, useRef, useState } from "react";
@@ -47,7 +48,6 @@ import InputTableEditor from "@/components/chart-builder/InputTableEditor";
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import { logEditorEvent } from "@/lib/logs/editorLog";
 import { parseFile, parsePaste } from "@/lib/tabular/parseTable";
-import { isVisible } from "@/lib/visualization/settingsTiers";
 
 /** "2,340 rows × 6 columns" — shape only, never cell values (privacy rule). */
 function tableShape(table) {
@@ -68,8 +68,7 @@ export default function DataSourcePanel() {
   const fileInputRef = useRef(null);
 
   // The standalone Visualization Tool (byod schema) has no module dataset: the
-  // panel is always shown regardless of tier, the dataset selector is hidden,
-  // and the source stays pinned to "inline".
+  // dataset selector is hidden and the source stays pinned to "inline".
   const inlineOnly = Boolean(schema.inlineOnly);
   const source = inlineOnly ? "inline" : config.data?.source || "module";
   const inline = config.data?.inline;
@@ -77,8 +76,6 @@ export default function DataSourcePanel() {
   useEffect(() => {
     setTitleDraft(inline?.meta?.title || "");
   }, [inline?.meta?.title]);
-
-  if (!inlineOnly && !isVisible("ownData", config.tier)) return null;
 
   function loadInlineTable(table, originName) {
     setError("");

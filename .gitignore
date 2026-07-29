@@ -29,3 +29,5 @@ logs/pipeline-runs.jsonl
 .claude/settings.local.json
 
 web_data_visualization.code-workspace
+
+.trash/

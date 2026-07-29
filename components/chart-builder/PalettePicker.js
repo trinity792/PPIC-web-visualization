@@ -35,7 +35,6 @@ import {
 
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import { DEFAULT_PALETTE, PALETTES, resolveToken } from "@/lib/visualization/palettes";
-import { isVisible } from "@/lib/visualization/settingsTiers";
 
 // A curated subset of brand tokens offered as per-series overrides: the
 // 10-token default cycle plus a few extras. Deliberately NOT a free color
@@ -68,33 +67,30 @@ const CATEGORICAL_PALETTES = Object.entries(PALETTES).filter(
 
 export default function PalettePicker({ seriesNames = [] }) {
   const { config, dispatch } = useChartConfig();
-  const showPalette = isVisible("palette", config.tier);
-  const showSeriesColors = isVisible("seriesColors", config.tier) && seriesNames.length > 0;
-
-  if (!showPalette && !showSeriesColors) return null;
+  // Per-series overrides only make sense once a load has reported the series
+  // that were actually drawn.
+  const showSeriesColors = seriesNames.length > 0;
 
   return (
     <div className="grid gap-3">
-      {showPalette ? (
-        <div className="grid gap-2">
-          <Label htmlFor="appearance-palette">Color palette</Label>
-          <Select
-            value={config.appearance.palette || DEFAULT_PALETTE}
-            onValueChange={(palette) => dispatch({ type: "SET_PALETTE", palette })}
-          >
-            <SelectTrigger id="appearance-palette">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {CATEGORICAL_PALETTES.map(([id, palette]) => (
-                <SelectItem key={id} value={id}>
-                  {palette.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      ) : null}
+      <div className="grid gap-2">
+        <Label htmlFor="appearance-palette">Color palette</Label>
+        <Select
+          value={config.appearance.palette || DEFAULT_PALETTE}
+          onValueChange={(palette) => dispatch({ type: "SET_PALETTE", palette })}
+        >
+          <SelectTrigger id="appearance-palette">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {CATEGORICAL_PALETTES.map(([id, palette]) => (
+              <SelectItem key={id} value={id}>
+                {palette.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       {showSeriesColors ? (
         <div className="grid gap-2">

@@ -4,7 +4,7 @@ Content Type: project specification
 pinned: true
 description: "The single source of truth for the web-data-visualization project's specification, architecture, and API reference. A living document for programmers and researchers that uses PopHousing as the reference implementation future data modules should mirror."
 Date Published: June 23, 2026
-Last Updated: 07/21/2026
+Last Updated: 07/28/2026 - 04:30 PM
 Status: Updating
 Footnote: Document generated and updated by Claude Opus 4.8 on command. Outlined and verified by Trinity Jones.
 ---
@@ -91,7 +91,9 @@ Migration builds the module; **auditing hardens it.** This table tracks, per mod
 
 ³ **RHNA Progress Report offline functionality** — the full clean → enrich → merge → validate → finalize chain runs end-to-end on local data and produces the validated 5,390-row contract; the backend passes 115 unit tests and the landing dashboard renders from the committed CSV, all without upstream access.
 
-**Graph editor (signed off 2026-07-07).** The graph-editor overhaul shipped: all five modules render the live editor with module-owned **presets**. Building Permits renders the live **graph editor** with module presets and is **Verified** end-to-end against live Census BPS; two non-blocking follow-ups (its category/bar shared-view and a monthly range control) are tracked in the overhaul's as-built guide.
+**Graph editor (signed off 2026-07-07).** The graph-editor overhaul shipped: all five modules render the live editor with module-owned **presets**. Building Permits renders the live editor and is **Verified** end-to-end against live Census BPS; two non-blocking follow-ups (its category/bar shared-view and a monthly range control) remain open.
+
+**Module workbench (2026-07-28).** The editor split into two surfaces: `/[module]` is a single-screen workbench (sidebar + chart container), and `/visualization-tool` keeps the step wizard for bring-your-own-data. Presets, saved views, the multi-chart workspace, and the activity log stay on the standalone tool; the settings tiers, the code editor, and the Slopegraph chart type were withdrawn. See [[visualization-specification]].
 
 ---
 ## Tech Stack
@@ -137,7 +139,7 @@ web-data-visualization/
 │   ├── Navbar.js                 ← shared site shell (Modules dropdown + top-level links)
 │   ├── ui/                       ← shadcn/Radix primitives (button, select, slider, dialog, table, …) + cn util; also nav-dropdown (hover menu) + under-construction placeholder
 │   ├── charts/                   ← PlotlyChart wrapper, ChartPreview, legacy line sections
-│   ├── chart-builder/            ← the dynamic chart editor (sidebar, config store, saved views, layers) + wizard/ (Import → View Data → Chart Type → Edit → Export step shell)
+│   ├── chart-builder/            ← the chart editor: config store, saved views, export; sections/ (the shared sidebar sections + registry), workbench/ (the /[module] single screen), wizard/ (the standalone tool's Import → Chart Type → Edit → Export shell)
 │   ├── logs/                     ← /logs: LogsTabs shell + Pipeline Logs (LogsBrowser, LogFilterSidebar, LogCard, SeverityChip) + Changelog (ChangelogBrowser, ChangelogCard, ChangelogFilterSidebar, IntensityChip) + CopyButton
 │   └── landing/                  ← dashboard shell, chart tiles, stat cards, region table, dashboards/<category>
 ├── lib/
@@ -681,7 +683,7 @@ PopHousing feeds the shared **UI layer** documented in *Frontend Architecture (U
 Owns all reading, parsing, and filtering of the CSV. **Uses `node:fs`, so it must never be imported into a `"use client"` component.** Its numeric-column set, curated metric list, and subset map are **derived from the module schema** (single source of truth, no longer hand-listed here), and it shapes rows through the shared `lib/data/query_shapes.js` helpers.
 
 - `loadPopHousingData()` — reads and parses the CSV **once per server process**, caching the rows (`cachedRows`).
-- **Query shapes**, one per chart family: `queryLineSeries`, `queryCategoryValues` (bar/ranking), `queryTwoPeriod` (dumbbell/slope), `queryMeasurePairs` (scatter/bubble), `queryMatrix` (heatmap), `queryGeoValues` (choropleth — joins county rows to GeoJSON `GEOID` via `lib/data/geography.js`).
+- **Query shapes**, one per chart family: `queryLineSeries`, `queryCategoryValues` (bar/ranking), `queryTwoPeriod` (Range/forest), `queryMeasurePairs` (scatter/bubble), `queryMatrix` (heatmap), `queryGeoValues` (choropleth — joins county rows to GeoJSON `GEOID` via `lib/data/geography.js`).
 - **Landing helpers**: `queryStatewideStats(parameters)` and `queryRegionTable()` — latest-year statewide values + per-region totals for the dashboard, read server-side.
 - `getAvailableLocations(subset)`; exports `AVAILABLE_PARAMETERS` / `AVAILABLE_MEASURES` / `AVAILABLE_SUBSETS` / `SUBSET_TO_LEVELS` (all schema-derived).
 
@@ -692,16 +694,16 @@ A deliberately minimal CSV parser (`split(",")`) avoids a dependency, justified 
 
 | Param | Required | Meaning |
 |---|---|---|
-| `view` | no (default `line`) | Query shape: `line`, `category`, `twoPeriod`, `pairs`, `matrix`, `geo`. |
+| `view` | no (default `line`) | Query shape: `line`, `category`, `twoPeriod`, `pairs`, `matrix`, `geo`, `table`, `locations`. |
 | `subset` | yes | Geographic grouping (`Regions`, `Counties`, `Cities`, `Towns`, `State`). |
 | `parameter` | most views | Metric column (valid measure). For `pairs`, use `xMeasure` / `yMeasure` (+ optional `sizeMeasure`) instead. |
 | `locations` | no | Comma-separated location filter. |
-| `sources` | no | Comma-separated provenance filter (`E-5`, `E-8`, `Aggregated`); omitted means all. Backs the sidebar's Source multi-select. |
+| `sources` | no | Comma-separated provenance filter (`E-5`, `E-8`, `Aggregated`); omitted means all, which is now the only thing the sidebar sends. |
 | `startYear` / `endYear` | no | Integer year bounds (range views). |
 | `period` | no | Single year (`category` / `pairs` / `geo`). |
 | `topN` / `sort` | no | Ranking controls (`category` view). |
 
-The Source column now carries **real per-row provenance** (`E-5` modern, `E-8` history, `Aggregated` rollups), so the schema exposes a `provenanceFilter` flag that renders a Source **multi-select** (default all) in the chart sidebar, threaded to the `sources` param above via the shared `filterRows` helper. A separate **`POST /api/pophousing/update`** route (schema flag `refreshable`) backs an "Update data" button that triggers a background pipeline refresh — see *Current-State Notes & Caveats (PopHousing)*.
+The Source column now carries **real per-row provenance** (`E-5` modern, `E-8` history, `Aggregated` rollups), and the schema's `provenanceFilter` flag marks it as such for `chartData.js`, which is what tells the data layer `filters.source` takes an array shape here. As of 2026-07-28 no control writes that array: the Source multi-select was removed from the sidebar (one dataset, defaulting to every vintage, under a heading that promised a dataset choice), so requests omit `sources` and the API returns all vintages. The **`POST /api/pophousing/update`** route (schema flag `refreshable`) still exists, but the "Update data" button that fired it is unwired pending the refresh-pipeline overhaul — see *Current-State Notes & Caveats (PopHousing)*.
 
 Errors carry a `source` string (`"pop_housing API: <stage>"`) identifying the failed stage. Success returns `{ view, parameter, subset, …shape }` — `series` for line, `records` for category/pairs/geo, `matrix` for heatmap — with the observed period / `yearRange`.
 
@@ -1020,7 +1022,10 @@ Owns reading/parsing/filtering of the CSV (`node:fs`). Every query pins one valu
 `GET /api/projections` — the same `view`-based dispatcher, plus the extra params `ageGroup`, `ageGrouping` (preset name or explicit 5-year list), `sex`, `raceEthnicity`, and `source`. It enforces the source↔subset rule (**US States is Census-only; CA county/region/state subsets are DoF-only**). Errors carry a `source` string (`"projections API: …"`).
 
 ### Module-specific sidebar filters
-The schema advertises `filterDimensions` (Age Group / Sex / Race/Ethnicity, each with its API `param` and default) and a `subsetSource` map. These drive **schema-generic** additions to the shared editor: `chart-builder/ChartSidebar.js` renders a `StratificationFilters` control per dimension in the Data Sources section; `chart-builder/chartConfigStore.js` seeds their defaults; `chart-builder/chartData.js` appends them to the API request; and `chart-builder/EncodingSection.js` pins the source from `subsetSource` when the subset changes. All of this is a **no-op for modules that declare no `filterDimensions`** (PopHousing, Components), so nothing else changed behavior. The module is linked from `components/Navbar.js` and served by the existing dynamic `app/[module]/page.js` route (no per-module page code).
+The schema advertises `filterDimensions` (Age Group / Sex / Race/Ethnicity, each with its API `param` and default) and a `subsetSource` map. These drive **schema-generic** additions to the shared editor: `sections/TransformSection.js` renders one stratification `Select` per dimension; `chart-builder/chartConfigStore.js` seeds their defaults; `chart-builder/chartData.js` appends them to the API request; and `sections/GeographySection.js` pins the source from `subsetSource` when the subset changes. All of this is a **no-op for modules that declare no `filterDimensions`** (PopHousing, Components), so nothing else changed behavior. The module is linked from `components/Navbar.js` and served by the existing dynamic `app/[module]/page.js` route (no per-module page code).
+
+> [!important] No dataset toggle, by design (2026-07-28)
+> The schema declares `datasets: []` while keeping `sources`, so the sidebar shows no Datasets block. `subsetSource` is the only thing that sets `filters.source`, which is the only way the source↔subset rule above is satisfiable: a visible toggle let a reader select Census cc-est while sitting on Counties, and the API answered with `"projections API: source/subset validation"` instead of a chart. `sources` stays on the schema because validation, `chartData.js`, and the `subsetSource` pin all need to know both sources exist.
 
 ---
 
@@ -1381,7 +1386,7 @@ The module is complete, its tests pass, and it has run end-to-end against live C
 - **CBSA name drift absorbed by code renames.** The SF metro now publishes as "San Francisco-Oakland-**Fremont**" (was "…-Berkeley"), Bakersfield as "Bakersfield-Delano", Stockton as "Stockton-Lodi"; the CBSA-*code* rename map pins these to canonical display names regardless of Census label churn.
 - **Monthly axis vs. the year-based UI.** The shared sidebar/slider and `query_shapes.js` are year-integer based; the data-access layer carries its own monthly shaping, but wiring the shared slider/temporal control for a monthly range is deferred to the graph-editor overhaul.
 - **Presets & landing surface deferred.** Curated presets (region overview, overlay, indexed, year-to-date, two-period change, change map) and a landing-page `CATEGORIES` card are intentionally **not** built — deferred to the forthcoming graph-editor overhaul.
-- **Detailed page shows a placeholder.** Because the presets aren't built, opening the editor for this module errored. The schema carries `underConstruction: true`, so `app/[module]/page.js` renders the shared `UnderConstruction` placeholder for `/building-permits` instead of `ModuleEditor`. The module stays in the registry and the Modules dropdown; remove the flag once the overhaul wires up its presets.
+- **Detailed page shows a placeholder.** Because the presets aren't built, opening the editor for this module errored. The schema carries `underConstruction: true`, so `app/[module]/page.js` renders the shared `UnderConstruction` placeholder for `/building-permits` instead of the workbench. The module stays in the registry and the Modules dropdown; remove the flag once the overhaul wires up its presets.
 
 ---
 
@@ -1394,7 +1399,8 @@ The site has **two pages**, both built from the shared layer:
 | Page | Route | What it is |
 |---|---|---|
 | **Landing** | `/` (`app/page.js`) | A stack of **category dashboards** — one self-contained dashboard component per dataset category. |
-| **Detailed module page** | `/[module]` (`app/[module]/page.js`) | The **chart editor**: a dynamic sidebar + a live chart canvas + saved views, for one module. |
+| **Detailed module page** | `/[module]` (`app/[module]/page.js`) | The **module workbench**: a persistent control sidebar beside a chart container, on one screen, for one module. |
+| **Standalone Visualization Tool** | `/visualization-tool` (`app/visualization-tool/page.js`) | The same editor as a **step wizard** over a table you bring yourself (Import → Chart Type → Edit → Export). |
 
 A third, non-data page exists at `/ui-kit` (`app/ui-kit/page.js`, built from `components/ui-kit/`): a static **design-system showcase** of the PPIC palette, typography, components, and example charts. It is a reference surface, not part of the module data flow.
 
@@ -1412,9 +1418,9 @@ Every chart on the site (an editor canvas, a landing tile, a saved view, a `?vie
 |---|---|---|---|
 | `module` | string | schema | The module id (`"pophousing"`). `deserialize` rejects a view whose `module` ≠ the active schema. |
 | `preset` | string | Presets section | Which task-preset seeded the config (`trend-over-time` \| `compare-places` \| `geographic-pattern`). Drives the Encodings layout. |
-| `chartType` | string | Graph Type section | A `chartRegistry` id (`line`, `bar`, `pie`, `symbolMap`, `dataTable`, `choroplethMap`, `heatmap`, `dumbbell` (labeled **Range**), `dotPlot`, `forest`, `slope`, `scatter`, `bubble`). Selects the query shape (`chartData`) and the render adapter (`toPlotly`). |
+| `chartType` | string | Chart Type section | A `chartRegistry` id (`line`, `bar`, `divergingBar`, `pie`, `symbolMap`, `dataTable`, `choroplethMap`, `heatmap`, `dumbbell` (labeled **Range**), `dotPlot`, `forest`, `scatter`, `bubble`). Selects the query shape (`chartData`) and the render adapter (`toPlotly`). A retired id (`slope`) normalizes to its successor with a `CHART_TYPE_RETIRED` warning rather than failing to load. |
 | `bindings` | `{ role → fieldName }` | Encodings section | Which canonical field fills each encoding role (`x`, `y`, `series`, `color`, `category`, `geography`, `start`, `end`, `size`, `unit`). Field names are **canonical CSV columns**, never display labels (guardrail #1). |
-| `filters` | object | Data Sources / Encodings | `subset` (geographic level), optional `source`, optional `topN`, `benchmark` label, and one key **per stratification dimension** (e.g. `"Age Group"`). Sent to the API. |
+| `filters` | object | Datasets / Geographic Level | `subset` (geographic level), `locations` (the explicit place selection; empty means "let the ranking decide"), `source` (a dataset id, **or an array of provenance labels** for Population & Housing), optional `topN`, `benchmark` label, and one key **per stratification dimension** (e.g. `"Age Group"`). Sent to the API. |
 | `period` | object | Date-range slider + Comparison | `startYear`/`endYear` (range charts) or `year` (single-period charts), plus `baseYear` for indexing/change transforms. |
 | `transform` | string | Comparison section | A `transformRegistry` id (`actual`, `indexed`, `percentChange`, …). Applied in **every** `toPlotly` builder (and, for change on category/geo/twoPeriod, fetched two-period and computed client-side); the Transform control is gated by each chart type's `transformCapable` flag. |
 | `comparisonMode` | string | preset | `"places"` or `"sources"`; gates the "must pick a source" guardrail for multi-source modules. |
@@ -1430,35 +1436,52 @@ Every chart on the site (an editor canvas, a landing tile, a saved view, a `?vie
 
 ### The graph-editor overhaul (spec v2, shipped 2026-07-07)
 
-The chart config is now **spec v2** ([`chartSpec.js`](../../../lib/visualization/chartSpec.js), `SPEC_VERSION = 2`), carrying a top-level `version` plus five keys the v1 shape lacked: `data` (module vs inline "your data" — including `data.inline` for a client-only uploaded/pasted table, capped at 1 MB and never sent to a server), `format`, `annotations`, `appearance.palette`/`seriesColors` (brand tokens only, never raw hex), and `tier` (the active settings tier). `migrateSpec` reads a v1 view and unpacks the keys it used to smuggle inside `filters`; `normalizeSpec`/`printSpec`/`parseSpec` (never throws) and `diffSpec` (small vs structural edits) round-trip it.
+The chart config is **spec v2** ([`chartSpec.js`](../../../lib/visualization/chartSpec.js), `SPEC_VERSION = 2`), carrying a top-level `version` plus four keys the v1 shape lacked: `data` (module vs inline "your data" — including `data.inline` for a client-only uploaded/pasted table, capped at 1 MB and never sent to a server), `format`, `annotations`, and `appearance.palette`/`seriesColors` (brand tokens only, never raw hex). `migrateSpec` reads a v1 view and unpacks the keys it used to smuggle inside `filters`; `normalizeSpec`/`printSpec`/`parseSpec` (never throws) and `diffSpec` (small vs structural edits) round-trip it.
+
+> [!note] `tier` was a fifth key and is gone
+> v2 also carried `tier` (the active settings tier). The tier switch was removed in the workbench overhaul, so `tier` is listed in `RETIRED_KEYS` and stripped on normalize — a stored view still loads, it just drops the key. `version` did **not** bump: nothing about the wire shape became unreadable.
 
 The overhaul turned the editor into a general-purpose graph editor. Shipped surfaces:
 
 | Surface | File(s) | What it adds |
 |---|---|---|
-| **Tiered settings** | [`settingsTiers.js`](../../../lib/visualization/settingsTiers.js) | Basic / Moderate / Advanced tiers filter which sidebar controls show; unknown controls fail open. `tier` lives on the config. |
 | **Bring-your-own-data** | [`DataSourcePanel.js`](../../../components/chart-builder/DataSourcePanel.js), [`InputTableEditor.js`](../../../components/chart-builder/InputTableEditor.js), [`lib/tabular/*`](../../../lib/tabular/) | Paste or upload a table (CSV/TSV/TXT/XLSX), correct it in a color-graded grid, and chart it. `toSeries.js` mirrors `query_shapes.js` so inline data feeds `toPlotly` identically to module data; nothing leaves the browser. |
-| **Code mode** | [`CodeEditorPanel.js`](../../../components/chart-builder/CodeEditorPanel.js), [`codebridge/*`](../../../lib/visualization/codebridge/) | A GUI ⇄ code toggle with Spec (JSON) / R / Stata tabs. `codebridge` generates and statically parses a recognized ggplot2 / Stata subset both directions — a code-only researcher can write R or Stata and get a chart. |
-| **Export** | [`ExportMenu.js`](../../../components/chart-builder/ExportMenu.js), [`lib/export/*`](../../../lib/export/) | One dropdown: chart image (PNG/SVG/JPG/PDF), displayed data (CSV/XLSX), and config (copy/download/import). Sharing *is* export — no server-side share links. |
+| **Export** | [`ExportMenu.js`](../../../components/chart-builder/ExportMenu.js), [`lib/export/*`](../../../lib/export/) | Two dropdowns, exported separately as `ExportChartButton` and `ExportDataButton`: chart image (PNG/SVG/JPG/PDF) and data (CSV/XLSX, displayed table or entire cleaned dataset), plus config copy/download/import. Sharing *is* export — no server-side share links. |
 | **Catalog growth** | [`chartRegistry.js`](../../../lib/visualization/chartRegistry.js), [`toPlotly.js`](../../../lib/visualization/toPlotly.js), [`DataTableView.js`](../../../components/charts/DataTableView.js) | Three new base chart ids (`pie`, `symbolMap`, `dataTable`); donut/pyramid/stacked/area are appearance **variants**, not new ids. `DataTableView` renders the `dataTable` type and `RegionTable` delegates to it. |
-| **Activity log** | [`editorLog.js`](../../../lib/logs/editorLog.js), `EditorActivityLog.js` | An in-memory, never-persisted ring of editor events with a "Copy technical details" button. Telemetry stays off — nothing is sent to a server. |
+| **Activity log** | [`editorLog.js`](../../../lib/logs/editorLog.js), `EditorActivityLog.js` | An in-memory, never-persisted ring of editor events with a "Copy technical details" button. Telemetry stays off — nothing is sent to a server. Mounted on the standalone tool only. |
 
-Full detail lives in the as-built guide [`graphEditor-overhaul.md`](graphEditor-overhaul.md).
+Two surfaces from the original overhaul were later **withdrawn**: the Basic/Moderate/Advanced settings tiers and the GUI ⇄ code editor. See *The module workbench* below and [[visualization-specification]].
+
+Full detail lives in [[visualization-specification]]; the original overhaul's as-built guide is archived at [`archive/graphEditor-overhaul.md`](../archive/graphEditor-overhaul.md).
 
 ### Post-overhaul additions — the Visualization Tool wizard (2026-07-08 → 07-10)
 
-After the overhaul shipped, the editor was re-presented as a **step wizard** and extended. The chart config and the whole `lib/visualization` seam are unchanged — this is presentation + new appearance options, gated so **module pipeline data is never touched** (all bring-your-own-data behavior keys on `schema.inlineOnly`). Detail is in *Part 11* of the as-built guide.
+After the overhaul shipped, the editor was re-presented as a **step wizard** and extended. The chart config and the whole `lib/visualization` seam are unchanged — this is presentation + new appearance options, gated so **module pipeline data is never touched** (all bring-your-own-data behavior keys on `schema.inlineOnly`).
 
 | Surface | File(s) | What it adds |
 |---|---|---|
-| **Step wizard** | [`components/chart-builder/wizard/*`](../../../components/chart-builder/wizard/) | The editor is now Import → View Data → Chart Type → Edit → Export. `ModuleEditor` is a thin wrapper over `VisualizationWizard`; the only difference between the standalone tool and a module is the `steps` prop (`DEFAULT_STEPS` vs `MODULE_STEPS`). |
+| **Step wizard** | [`components/chart-builder/wizard/*`](../../../components/chart-builder/wizard/) | Import → Chart Type → Edit → Export, over the shared config store. Now the **standalone tool only**: modules moved to the workbench below. |
 | **Standalone Visualization Tool** | [`app/visualization-tool/page.js`](../../../app/visualization-tool/page.js), [`moduleSchemas/byod.js`](../../../lib/visualization/moduleSchemas/byod.js) | Bring-your-own-data as its own top-level page, driven by a synthetic `byod` schema (`inlineOnly`, no `apiPath`). Pasted **columns** are the bindable fields; exact `Group`/`Category` headers import with the semantic Group type, and [`inlineMapping.js`](../../../lib/visualization/inlineMapping.js) auto-maps columns onto roles and suggests a fitting chart. |
-| **Multi-chart workspace + undo/redo** | [`chartConfigStore.js`](../../../components/chart-builder/chartConfigStore.js), [`MultiChartToolbar.js`](../../../components/chart-builder/MultiChartToolbar.js) | The store wraps the config in a `workspace` (up to `MAX_CHARTS = 4`, `1x1/1x2/2x1/2x2` layouts) inside an undo/redo history. `useChartConfig()` still returns the active chart's `config`; `PreviewPane` renders a grid of chart slots. |
-| **View Data step** | [`wizard/steps/ViewDataStep.js`](../../../components/chart-builder/wizard/steps/ViewDataStep.js), [`exportTable.js`](../../../lib/export/exportTable.js), [`query_shapes.js`](../../../lib/data/query_shapes.js) `buildFullTable` + each module lib's `queryFullTable` | Shows the table behind the chart via a three-way **"Data view"** radio (defaults to _Source data_): **Chart data** = narrowed `displayTable` (reuses the loaded preview, no fetch); **Source data (current filters)** and **Entire dataset** = every column of the cleaned CSV, fetched from the new module API view **`?view=table`** (`&full=1` = whole file). Chart views narrow to the bound roles server-side, so the full columns need this dedicated fetch; stratification is not applied so those columns stay visible. BYOD shows the full pasted table (no server). The sidebar also carries an **"Export entire dataset"** button (module sources only) that downloads the whole cleaned CSV via `?view=table&full=1`, independent of the selected Data view, and a **"Data last updated: …"** line (Pacific time, newest successful pipeline run) via the shared [`DatasetLastUpdated`](../../../components/chart-builder/DatasetLastUpdated.js) component — the same signal shown on the Export step. |
+| **Multi-chart workspace + undo/redo** | [`chartConfigStore.js`](../../../components/chart-builder/chartConfigStore.js), [`MultiChartToolbar.js`](../../../components/chart-builder/MultiChartToolbar.js) | The store wraps the config in a `workspace` (up to `MAX_CHARTS = 4`, `1x1/1x2/2x1/2x2` layouts) inside an undo/redo history. `useChartConfig()` still returns the active chart's `config`; `PreviewPane` renders a grid of chart slots. Standalone tool only. |
+| **Full-table API view** | [`query_shapes.js`](../../../lib/data/query_shapes.js) `buildFullTable` + each module lib's `queryFullTable` | Module API view **`?view=table`** (`&full=1` = whole file) returns every column of the cleaned CSV. Chart views narrow to the bound roles server-side, so the full columns need this dedicated fetch; stratification is not applied so those columns stay visible. It backs the Export Data menu's "entire cleaned dataset" item. |
 | **Export step** | [`wizard/steps/ExportStep.js`](../../../components/chart-builder/wizard/steps/ExportStep.js), [`ExportMenu.js`](../../../components/chart-builder/ExportMenu.js), [`app/api/module-status/route.js`](../../../app/api/module-status/route.js) | Image (PNG/SVG/JPG/PDF), data (CSV/XLSX), and config-JSON export off the displayed figure. **Export data** offers two sources: **Chart data (as displayed)** = `displayTable`; **Original data (entire dataset)** now fetches the module's **whole cleaned CSV** via `?view=table&full=1` (ignoring the chart's geography/source/date filters) and rebuilds it with `originalTable`, so the "export all data" download is the exact cleaned file — not just the rows matching the current chart (BYOD still exports the pasted table client-side; results are cached by URL). A **"Data last updated: …"** line (Pacific time) shows the module's newest successful pipeline run, read from `/api/module-status` (`getLatestSuccessfulRun`, severity `success`/`recovered`); hidden for BYOD. |
 | **Range / dot-plot / forest family** | [`chartRegistry.js`](../../../lib/visualization/chartRegistry.js), [`toPlotly.js`](../../../lib/visualization/toPlotly.js) | `dumbbell` relabeled **Range** (id kept) with an optional `point` center dot (e.g. an estimate inside a CI); sibling **`dotPlot`** (multi-series coloured dots on a shared axis, matrix data path); sibling **`forest`** plot (meta-analysis: study + CI + estimate + weight, with `endpointStyle`/`pointStyle`/`noEffectValue` controls, twoPeriod data path). Per-series value labels via `appearance.pointLabelSeries`. |
 | **Iframe embed** | [`ExportMenu.js`](../../../components/chart-builder/ExportMenu.js), `VisualizationWizard` `embedded` prop | "Embed code" builds a `?embed=1&view=…` iframe URL; the wizard renders a chrome-less preview for that URL. Still export-based — no server-side share links. |
 | **Official palette + typography** | [`constants.js`](../../../lib/constants.js), [`palettes.js`](../../../lib/visualization/palettes.js), `toPlotly.js` | Official PPIC style-guide colors (two-group plus selectable 3–10-group categorical options; Lime is last and begins at five groups), per-element font sizes / family, and legend-label wrapping, surfaced as Appearance controls. |
+
+### The module workbench (2026-07-28) — where the two surfaces diverge
+
+`/[module]` and `/visualization-tool` were the same component with a different `steps` prop. They are now two products for two readers: a researcher exploring a curated PPIC dataset, and a researcher charting a table they brought. Full detail in [[visualization-specification]].
+
+| Piece | File(s) | What it is |
+|---|---|---|
+| **Workbench shell** | [`workbench/ModuleWorkbench.js`](../../../components/chart-builder/workbench/ModuleWorkbench.js) | The `/[module]` shell: providers, the shared `ViewHydrator`, and a two-column grid. No step navigation. |
+| **Control rail** | [`workbench/ModuleSidebar.js`](../../../components/chart-builder/workbench/ModuleSidebar.js) | Renders whichever sections apply, in one accordion. On desktop it is absolutely positioned inside a `lg:relative` cell, so it contributes **zero intrinsic height** and the chart container alone sizes the row; overflow scrolls inside the rail. Below `lg` it returns to static flow. |
+| **Chart container** | [`workbench/ChartContainer.js`](../../../components/chart-builder/workbench/ChartContainer.js), [`workbench/ChartContainerFooter.js`](../../../components/chart-builder/workbench/ChartContainerFooter.js) | Title, body, and action bar. The body is the chart or the **entire cleaned dataset** (`?view=table&full=1`, fetched lazily on first open and cached), not the chart's narrowed table. `ChartContainerFooter` carries View Chart / View Data and the two export dropdowns, both disabled until the preview is `ready`. |
+| **Section registry** | [`sidebarSections.js`](../../../lib/visualization/sidebarSections.js), [`components/chart-builder/sections/*`](../../../components/chart-builder/sections/) | One ordered list of sections — Datasets, Chart Type, Date Range, Geographic Level, Axis, Transform, Labels, Appearance, Typography — each gated by at most two predicates (`key`: does this chart type use it; `when`: does this schema supply it). Both shells compose from it; the wizard's Edit step excludes Chart Type, which is its own step. |
+| **Location options** | [`useLocationOptions.js`](../../../components/chart-builder/useLocationOptions.js), [`datasetLabels.js`](../../../lib/visualization/datasetLabels.js) | The geographic multi-select's option list, cached per module + subset and abortable; and the map from raw source ids to public dataset names. |
+
+**Withdrawn here:** the settings tiers, the code editor, the Slopegraph chart type, and — from the module surface only — presets, saved views, the multi-chart workspace, and the activity log.
 
 ### The client-safe visualization layer (`lib/visualization/`)
 
@@ -1484,9 +1507,9 @@ After the overhaul shipped, the editor was re-presented as a **step wizard** and
 Follow a single chart from URL to pixels. Every arrow is a real file boundary.
 
 1. **Route resolves the module.** [`app/[module]/page.js`](../../../app/[module]/page.js) (a server component) looks the module up with `getModuleSchema`; an unknown id is a `notFound()`. If the URL carries `?view=<id>`, it tries `getBuiltInView(id)` and uses that config as `initialConfig` when the view belongs to this module, otherwise it starts from `{ module: schema.id }`.
-2. **Editor mounts, keyed on the module.** [`ModuleEditor`](../../../components/chart-builder/ModuleEditor.js) wraps everything in `<ChartConfigProvider key={moduleId}>`. The `key` is load-bearing: because every module shares the one `/[module]` route, without it the reducer would carry the previous module's bindings into the new schema and fail validation (`UNKNOWN_FIELD`), blocking every preset. Remounting rebuilds a clean config.
+2. **Editor mounts, keyed on the module.** [`ModuleWorkbench`](../../../components/chart-builder/workbench/ModuleWorkbench.js) wraps everything in `<ChartConfigProvider key={schema.id}>`. The `key` is load-bearing: because every module shares the one `/[module]` route, without it the reducer would carry the previous module's bindings into the new schema and fail validation (`UNKNOWN_FIELD`), blocking every preset. Remounting rebuilds a clean config.
 3. **Config is born.** [`createChartConfig`](../../../components/chart-builder/chartConfigStore.js) seeds `bindings` from the preset (`bindingsForPreset` picks the first catalog field each role accepts, preferring `curated` measures and avoiding reusing one measure across x/y/size), fills `filters` with the first subset + default source + stratification defaults, copies the chart type's appearance `defaults`, then runs `revalidate`.
-4. **A saved/deep-link view may hydrate.** `ViewHydrator` (inside `ModuleEditor`) dispatches `LOAD_VIEW` for a `localStorage` view or a serialized deep-link; failures fall back silently to the default preset.
+4. **A saved/deep-link view may hydrate.** [`ViewHydrator`](../../../components/chart-builder/wizard/ViewHydrator.js) — shared by both shells, so a `?view=` link resolves identically wherever it is opened — dispatches `LOAD_VIEW` for a `localStorage` view or a serialized deep-link; failures fall back silently to the default preset.
 5. **The user edits.** Each sidebar control dispatches one reducer action (table below). The reducer produces the next config and **re-validates on every step**.
 6. **The canvas reacts.** `ChartWorkspace` recomputes a `requestKey` (a JSON digest of `chartType`, `bindings`, `period`, `filters`, `layers`, and `appearance.sort` — the parts that change the *server* result). When it changes, and only if there are no blocking errors, it calls `loadChartData`.
 7. **Data loads.** [`chartData.loadChartData`](../../../components/chart-builder/chartData.js) maps the chart type to a query "view", builds the query string, fetches `/api/<module>` (plus `/api/geography` for maps), and returns `{ response, series, geometry }`. It aborts the in-flight request on any change (`AbortController`).
@@ -1502,7 +1525,7 @@ The **landing tiles take the exact same path** from step 7 on: [`ChartPreview`](
 |---|---|---|
 | `SET_PRESET` | Presets `OptionList` | Swaps chart type + re-seeds bindings/appearance/title from the preset; forces `subset: Counties` for the map preset. |
 | `SET_CHART_TYPE` | Graph Type `OptionList` | Switches chart type, **re-derives bindings** for it, resets appearance to the type defaults. Keeps the current `preset` id when no preset maps to the type (see *Flagged Issues*). |
-| `SET_BINDING` | Encodings selects | Sets/clears one role→field; mirrors `start`↔`end` for dumbbell/slope (`sameMetricBothEnds`); resets `transform` if the new field disallows the current one. |
+| `SET_BINDING` | Axis selects | Sets/clears one role→field; mirrors `start`↔`end` for the Range chart (`sameMetricBothEnds`); resets `transform` if the new field disallows the current one. |
 | `SET_FILTER` | Data Sources, geo level, Top N, benchmark | Sets one `filters` key (`subset`, `source`, stratification column, `topN`, `benchmark`). |
 | `SET_PERIOD` | Date-range slider, Base year | Sets `startYear`/`endYear`/`year`/`baseYear`. |
 | `SET_TRANSFORM` | Comparison transform select/switch | Sets `transform`. |
@@ -1517,8 +1540,8 @@ The **landing tiles take the exact same path** from step 7 on: [`ChartPreview`](
 
 [`chartData.js`](../../../components/chart-builder/chartData.js) is the only place the browser talks to the module APIs. It:
 
-- **Maps chart type → query view** via `QUERY_SHAPES`: `line→line`, `bar→category`, `dumbbell/slope→twoPeriod`, `scatter/bubble→pairs`, `heatmap→matrix`, `choroplethMap→geo`. The server never sees "chart type", only this data-shape verb.
-- **Builds the query string** (`buildSearchParams`): always `view` + `subset`; adds `source` and each `schema.filterDimensions` param (stratification); `locations` (collected from `selectedPlaces` layers); `startYear`/`endYear`/`period`; then either `xMeasure`/`yMeasure`/`sizeMeasure` (pairs) or a single `parameter` (everything else); plus `topN`+`sort` for category.
+- **Maps chart type → query view** via `QUERY_SHAPES`: `line→line`, `bar/divergingBar/pie→category`, `dumbbell/forest→twoPeriod`, `scatter/bubble→pairs`, `heatmap/dotPlot→matrix`, `choroplethMap/symbolMap→geo`, `dataTable→table`. The server never sees "chart type", only this data-shape verb.
+- **Builds the query string** (`buildSearchParams`): always `view` + `subset`; adds `source` (a string) or `sources` (an array — `sourceParams` splits the one `filters.source` key by shape) and each `schema.filterDimensions` param; `locations` (from `filters.locations`, falling back to `selectedPlaces` layers); `startYear`/`endYear`/`period`; then either `xMeasure`/`yMeasure`/`sizeMeasure` (pairs) or a single `parameter` (everything else); plus `topN`+`sort` for category.
 - **Fans out layers in parallel** for line charts (`loadLineData`): the primary series and every trace layer are fetched with `Promise.all`, since layers depend only on the config, not on the primary response. `secondMeasure`/`secondSource`/`benchmark` each become a re-query with an override and a `· suffix` appended to the series name.
 - **Caches geometry** (`geometryCache`, keyed by level) so changing the measure or period on a choropleth doesn't re-download and re-parse the county GeoJSON.
 - **Returns `{ response, series, geometry }`**, coalescing `response.series || response.records || response.matrix`. `hasChartData`/`seriesCountOf` special-case the heatmap (whose "series" is a `{x,y,z}` matrix).
@@ -1536,12 +1559,15 @@ The data-access layer reads and caches the contract CSV once per process, then d
 | `buildTwoPeriod` | `{ startYear, endYear, records:[{category, start, end}] }` | twoPeriod |
 | `buildMeasurePairs` | `{ period, records:[{location, x, y, size?}] }` | pairs |
 | `buildMatrix` | `{ matrix:{x, y, z}, yearRange }` | matrix |
+| `buildLocationList` | `string[]` — distinct, trimmed, locale-sorted names | locations |
+
+The **locations** view is the odd one out: it carries no measure, period, or stratification, because it answers "what places exist at this geographic level", not "what are their values". Every module route accepts `?view=locations&subset=<subset>` and answers with exactly `{ locations: string[], subset: string }` — nothing else, since the geographic multi-select needs nothing else. It resolves **before** each route's measure and period validation for that reason. Each module resolves its own subset rows first (levels, Building Permits' metro→region aggregation, RHNA's `Jurisdiction` column) and passes them to `buildLocationList`, which is why the shared builder does no level filtering of its own.
 
 The **geo** view is the one that reaches across modules: `queryGeoValues` builds category values then joins each Location to a county GEOID via [`lib/data/geography.js`](../../../lib/data/geography.js) `getFeatureIdLookup`, and [`/api/geography`](../../../app/api/geography/route.js) serves the raw GeoJSON `FeatureCollection` (stored under `data/data-cleaned/`, not `public/`) with an aggressive cache header. `featureidkey` (`properties.GEOID`) travels in the response so `toPlotly` can join data to polygons.
 
 ### Rendering: the `toPlotly` adapter
 
-[`toPlotly.js`](../../../lib/visualization/toPlotly.js) is a pure `(spec) → { data, layout, config }` switch, one builder per chart type (`lineSpec`, `barSpec`, `twoPeriodSpec` for dumbbell/slope, `scatterSpec` for scatter/bubble, `heatmapSpec`, `choroplethSpec`). Shared behavior:
+[`toPlotly.js`](../../../lib/visualization/toPlotly.js) is a pure `(spec) → { data, layout, config }` switch, one builder per chart type (`lineSpec`, `barSpec`, `twoPeriodSpec` for Range/forest, `scatterSpec` for scatter/bubble, `heatmapSpec`, `choroplethSpec`). Shared behavior:
 
 - `baseLayout` assembles axes, margins, the title (`wrapTitle`), a subtitle/watermark annotation, and legend placement from [`plotlyDefaults.js`](../../../lib/visualization/plotlyDefaults.js) tokens — spreading a **fresh `font` copy** per layout (the Plotly-mutation footgun above).
 - Colors come from `BASE_PLOTLY_COLORS` (the brand cycle in `lib/constants.js`); choropleths use a light→dark blue ramp, diverging scales use `RdBu`.
@@ -1552,7 +1578,7 @@ The **geo** view is the one that reaches across modules: `queryGeoValues` builds
 
 [`validation.js`](../../../lib/visualization/validation.js) is the single enforcement point for the project's charting guardrails, run by the reducer on every change. `validateConfig` composes six checks into a flat, de-duplicated findings array:
 
-- `validateBindings` — required roles present; each field's `kind` matches the role's `roleConstraints`; catalog `chartRoles` respected; dumbbell/slope use one metric at both ends.
+- `validateBindings` — required roles present; each field's `kind` matches the role's `roleConstraints`; catalog `chartRoles` respected; the Range chart uses one metric at both ends.
 - `validatePresetBindings` — the active preset's required roles are bound.
 - `validateComparability` — two measures may share a value axis only when their `comparisonGroup` matches (population vs vacancy rate is blocked); scatter/bubble opt out (`allowsIncomparableAxes`).
 - `validateLayers` — only the six predefined layer types; `secondMeasure` must be comparable; `secondSource` needs a multi-source module.
@@ -1575,22 +1601,26 @@ The **geo** view is the one that reaches across modules: `queryGeoValues` builds
 | Region table | `landing/RegionTable.js` (uses `ui/table`) | `lib/data/pop_housing.js` `queryRegionTable()` — latest Region rows |
 | "Coming soon" category cards | `app/page.js` + `ui/card`, `ui/badge` | `categoryRegistry` (status `coming-soon`) |
 
-**Detailed module page (`/[module]`)** — `app/[module]/page.js` resolves the module schema, optionally hydrates a `?view=` deep-link, and renders `components/chart-builder/ModuleEditor.js` (config store + sidebar + canvas). A schema flagged `underConstruction: true` short-circuits to the shared `UnderConstruction` placeholder instead; as of 2026-07-07 all five modules — including Building Permits, which the graph-editor overhaul lifted out of `underConstruction` with module-owned presets — render the live editor.
+**Detailed module page (`/[module]`)** — `app/[module]/page.js` resolves the module schema, optionally hydrates a `?view=` deep-link, and renders `components/chart-builder/workbench/ModuleWorkbench.js` (config store + sidebar + chart container). A schema flagged `underConstruction: true` short-circuits to the shared `UnderConstruction` placeholder instead; as of 2026-07-07 all five modules — including Building Permits, which the graph-editor overhaul lifted out of `underConstruction` with module-owned presets — render the live editor.
 
-| Sidebar / canvas part | Front end | What it drives / where data comes from |
+| Sidebar / container part | Front end | What it drives / where data comes from |
 |---|---|---|
 | Config state + validation | `chart-builder/chartConfigStore.js` (`useReducer` + context) | Holds the declarative config; re-runs `validation.js` on every change; feeds `seriesCount` back for complexity checks. |
-| Preset picker | `ChartSidebar.js` → inline `PresetSection` (`OptionList`) | `presetRegistry` (`PRESET_ORDER`/`PRESETS`) → dispatches `SET_PRESET`, seeding chart type + bindings. *(A `Select`-based `chart-builder/PresetPicker.js` duplicate was deleted in the 2026-07-04 pre-clean.)* |
-| Chart-type select | `ChartSidebar.js` | `chartRegistry.CHART_TYPE_IDS`. |
-| Data section (module, geographic level, **Year-range slider**) | `ChartSidebar.js` (`ui/select`, `ui/slider`) | `schema.subsets`, `schema.yearRange`; sets `filters.subset` + `period`. *(Year-granular; a monthly module like Building Permits filters at year resolution here until the temporal control is generalized — see The Building Permits Module caveats.)* |
-| Encodings (X / Y / series / color / size, "+ Add line") | `chart-builder/EncodingSection.js` | `chartRegistry` role constraints + `schema.fields` (only fields whose catalog allows the role). |
-| Comparison (source, transform, base year, benchmark, Top N) | `chart-builder/ComparisonSection.js` | `schema.sources`, `transformRegistry` (allowed transforms per field). |
-| Labels (title / subtitle / axes / legend / tooltip) | `chart-builder/LabelEditor.js` | Display-only overrides; never rewrite canonical field names (guardrail #1). |
-| Appearance (legend, markers, orientation, color scale, **PPIC watermark**) | `ChartSidebar.js` (`ui/select`, `ui/switch`) | `config.appearance`; consumed by `toPlotly`. |
-| Trace layers (selected places, benchmark, second source / measure, derived) | `chart-builder/LayerEditor.js` | Predefined layer types only (guardrail #2); validated in `validation.js`. |
+| Section composition | `lib/visualization/sidebarSections.js` → `workbench/ModuleSidebar.js` | The ordered section registry and its two gates (`key` = this chart type uses it, `when` = this schema supplies it). |
+| Datasets | `sections/DatasetsSection.js`, `lib/visualization/datasetLabels.js` | `schema.datasets`/`sources` → `filters.source`. Hidden unless a module offers two or more datasets, which as of 2026-07-28 is Components of Change alone. The Data vintage multi-select was removed and the stratification pins moved to Transform. |
+| Chart Type | `sections/ChartTypeSection.js` | `chartRegistry` labels, in a fixed design order; `schema.supportedChartTypes` narrows it. |
+| Date Range | `sections/DateRangeSection.js` (`ui/slider`) | `schema.yearRange`; sets `period`. *(Year-granular; a monthly module like Building Permits filters at year resolution here — see The Building Permits Module caveats.)* |
+| Geographic Level (level, place multi-select, ordering, Top-N) | `sections/GeographySection.js`, `useLocationOptions.js`, `sections/categoryControls.js` | `schema.subsets` → `filters.subset`; `?view=locations` → the place list → `filters.locations`; `appearance.categoryOrder`/`hiddenCategories`; `SET_RANKING`. |
+| Categories (non-place fallback) | `sections/CategoriesSection.js` | `config.categoryNames` — the values the last load actually drew. |
+| Axis (X / Y / Series / Color / Group / Tab) | `sections/AxisSection.js` | `chartRegistry` role constraints + `schema.fields` (only fields whose catalog allows the role). |
+| Transform (radios, base year, benchmark, stratification pins) | `sections/TransformSection.js` | `allowedTransforms(measure)`; base year bounded by `schema.yearRange`; `schema.filterDimensions` → one `filters` key per dimension. Gated by `hasTransformControls` alone: the radios are absent for non-`transformCapable` charts, but the pins persist on any chart type a stratified module draws. |
+| Labels (title / subtitle / axes / legend) | `sections/LabelsSection.js` | Display-only overrides; never rewrite canonical field names (guardrail #1). |
+| Appearance (palette, legend, spacing, footnote, chart-specific extras) | `sections/AppearanceSection.js`, `PalettePicker.js` | `config.appearance`; consumed by `toPlotly`. |
+| Typography (sizes, decimal places) | `sections/TypographySection.js` | `config.appearance`; each field clamps to its own range. |
 | Validation notices | `chart-builder/ValidationNotice.js` (`ui/alert`) | `config.validation` from `validation.js`. |
-| Saved views (Reset / Save / saved list) + Export/Import | `ChartSidebar.js` + `chart-builder/savedViews.js` + `chart-builder/ExportMenu.js` | Browser `localStorage` (`ppic.savedViews.v2`); serialize/deserialize the declarative spec-v2 config (reads v1 via `migrateSpec`). Export/import moved into `ExportMenu`. |
-| Chart canvas | `ModuleEditor.js` `ChartWorkspace` → `toPlotly` → `charts/PlotlyChart.js` | `chart-builder/chartData.js` `loadChartData` → `/api/<module>` (+ `/api/geography`); `loading / empty / invalid / error / ready` states. |
+| Chart container + exports | `workbench/ChartContainer.js`, `workbench/ChartContainerFooter.js` → `toPlotly` → `charts/PlotlyChart.js` | `chart-builder/chartData.js` `loadChartData` → `/api/<module>` (+ `/api/geography`); `loading / empty / invalid / error / ready` states. View Data loads the whole cleaned dataset via `loadFullTable`; exports come off the displayed figure. |
+
+Presets, saved views, trace layers, and the multi-chart workspace are **not** on this surface — they live in the standalone Visualization Tool's Edit step. Both surfaces compose from the same section registry, so a control added for one appears on the other.
 
 **Shared shell & rendering**
 
@@ -1645,7 +1675,7 @@ These are consumed at **style-resolution time by the browser** — a component r
 |---|---|
 | `COLORS` (raw hex ramps) + `BASE_PLOTLY_COLORS` (trace cycle) | **Plotly** through [`toPlotly.js`](../../../lib/visualization/toPlotly.js) + [`plotlyDefaults.js`](../../../lib/visualization/plotlyDefaults.js), and the UI-kit `GraphsShowcase`/`ColorPalette`. Plotly is handed a plain config object of literal color strings — it renders into a `<div>` and **never reads CSS variables**. |
 | `DOCUMENT_THUMBNAIL_COLORS` (fg/bg pairs) | Document-card thumbnails and content-type badges, which compute color pairs in JS. |
-| Layout/behavior constants (`CHART_HEIGHTS`, `CHART_SIDEBAR`, `VIEWPORT_BREAKPOINTS`, `UI_SIDEBAR`, `PAGE_LAYOUT`, `DOC_SVG_DEFAULT_SIZE`, `GOOGLE_FONTS`) | Editor sizing math (`ModuleEditor`, `ChartSidebar` resize/zoom), the mobile breakpoint (`use-mobile.js`), `app/layout.js`, and the Markdown SVG sizing. |
+| Layout/behavior constants (`CHART_HEIGHTS`, `CHART_SIDEBAR`, `VIEWPORT_BREAKPOINTS`, `UI_SIDEBAR`, `PAGE_LAYOUT`, `DOC_SVG_DEFAULT_SIZE`, `GOOGLE_FONTS`) | Chart sizing math (`ChartContainer`, `PreviewPane`), the mobile breakpoint (`use-mobile.js`), `app/layout.js`, and the Markdown SVG sizing. *(`CHART_SIDEBAR` fed the retired resizable sidebar shell and is now unused.)* |
 
 These are consumed at **runtime by JS**, often to be passed to a third party (Plotly, inline-SVG/thumbnail generation) that has no knowledge of the CSS cascade.
 
@@ -1658,14 +1688,14 @@ These are consumed at **runtime by JS**, often to be passed to a third party (Pl
 
 ### Frontend — Flagged Issues
 
-*Subtle issues found while documenting the front-end workflow, mirroring the per-module flagged-issues process. **All items below were resolved by the graph-editor overhaul (shipped & signed off 2026-07-07)** — the overhaul folded them into spec v2 as acceptance criteria and fixed each once in the new code. See the as-built guide [`graphEditor-overhaul.md`](graphEditor-overhaul.md).*
+*Subtle issues found while documenting the front-end workflow, mirroring the per-module flagged-issues process. **All items below were resolved by the graph-editor overhaul (shipped & signed off 2026-07-07)** — the overhaul folded them into spec v2 as acceptance criteria and fixed each once in the new code. See [[visualization-specification]].*
 
 > [!success] Resolved by the graph-editor overhaul (2026-07-07)
 > Items 1–4, 6, and 7 were the overhaul's acceptance criteria and are fixed in shipped code; item 5 was resolved earlier by deletion (2026-07-04). Each resolution carries a regression test in `tests/js/`.
 
 1. **Transforms now apply on every transform-capable chart type — ✅ resolved.** Previously `toPlotly` applied `transformSeries` only in `lineSpec`, so the Comparison Transform control was inert on bar/map/heatmap/two-period charts. The overhaul runs transforms in **every** builder (heatmap row-wise; bar/choropleth change transforms fetch the two-period shape and compute change client-side), and the control is now gated by each chart type's `transformCapable` flag so it only shows where it has an effect. The legacy notebooks' `metric_of_change` bar rankings and choropleths work again.
 
-2. **Chart types with no matching preset now show their own roles — ✅ resolved.** Selecting a type with no preset (scatter, bubble, dumbbell, slope, heatmap, and the new pie/symbolMap/dataTable) previously kept the prior `preset` id, so `EncodingSection` rendered the wrong roles. `SET_CHART_TYPE` now re-derives the encoding roles from the chart type itself when no preset maps to it, and every chart type has at least one generic or module-owned preset.
+2. **Chart types with no matching preset now show their own roles — ✅ resolved.** Selecting a type with no preset (scatter, bubble, Range, heatmap, and the new pie/symbolMap/dataTable) previously kept the prior `preset` id, so the encoding section rendered the wrong roles. `SET_CHART_TYPE` re-derives the encoding roles from the chart type when no preset maps to it, and `AxisSection` no longer consults the preset's encoding list at all.
 
 3. **Choropleths are geo-level parameterized and surface unmatched places — ✅ resolved.** The geometry level is no longer hard-coded to counties (`/api/geography?level=` is parameterized), and `queryGeoValues` now returns an `unmatched` array instead of silently dropping records that fail the GEOID join — surfaced as a `GEO_JOIN_UNMATCHED` warning (≤5 names) rather than vanishing from the map.
 

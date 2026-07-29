@@ -1,7 +1,7 @@
 /* eslint-disable react/prop-types */
 import React from "react";
 import { notFound } from "next/navigation";
-import ModuleEditor from "@/components/chart-builder/ModuleEditor";
+import ModuleWorkbench from "@/components/chart-builder/workbench/ModuleWorkbench";
 import { UnderConstruction } from "@/components/ui/under-construction";
 import { getBuiltInView } from "@/lib/visualization/categoryRegistry";
 import {
@@ -44,8 +44,8 @@ export default async function DetailedModulePage({ params, searchParams }) {
     builtIn?.module === module ? builtIn : { module: schema.id };
 
   return (
-    <ModuleEditor
-      moduleId={module}
+    <ModuleWorkbench
+      schema={schema}
       initialConfig={initialConfig}
       viewId={viewId}
       hasBuiltInView={Boolean(builtIn?.module === module)}

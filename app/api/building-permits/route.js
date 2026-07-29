@@ -14,11 +14,12 @@ import {
   queryFullTable,
   queryGeoValues,
   queryLineSeries,
+  queryLocations,
   queryTwoPeriod,
 } from "@/lib/data/building_permits";
 import { integerParam, invalid, listParam } from "@/lib/data/apiParams";
 
-const VIEWS = ["line", "twoPeriod", "geoValues", "table"];
+const VIEWS = ["line", "twoPeriod", "geoValues", "table", "locations"];
 const MONTH_PATTERN = /^\d{4}-\d{2}$/;
 
 function monthParam(searchParams, key) {
@@ -51,6 +52,18 @@ export async function GET(request) {
       `Invalid or missing 'subset'. Expected one of: ${AVAILABLE_SUBSETS.join(", ")}`,
       "building-permits API: subset validation",
     );
+  }
+  // The locations view carries no permit type or month bounds, so it resolves
+  // before those validations. Response is deliberately { subset, locations }.
+  if (view === "locations") {
+    try {
+      return Response.json(await queryLocations({ subset }));
+    } catch (error) {
+      return Response.json(
+        { error: error.message, source: "building-permits API: locations query" },
+        { status: 500 },
+      );
+    }
   }
   if (permitType && !AVAILABLE_PARAMETERS.includes(permitType)) {
     return invalid(

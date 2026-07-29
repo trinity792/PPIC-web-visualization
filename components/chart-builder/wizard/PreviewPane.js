@@ -28,12 +28,54 @@ import DataTableView from "@/components/charts/DataTableView";
 import GraphTabs from "@/components/charts/GraphTabs";
 import PlotlyChart from "@/components/charts/PlotlyChart";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/components/ui/utils";
 
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import { usePreview } from "@/components/chart-builder/wizard/PreviewContext";
 import { CHART_HEIGHTS } from "@/lib/constants";
 import { tabValues } from "@/lib/tabular/toSeries";
+
+/**
+ * The pre-render placeholder: plot frame, y-axis ticks, and a row of bars, so
+ * the container reads as a chart waiting on settings rather than as a failure or
+ * a stalled load. Shown only where the provider defers its first fetch (the
+ * module workbench); it is decorative, hence aria-hidden with one status label.
+ */
+function ChartSkeleton() {
+  return (
+    <div
+      role="status"
+      aria-label="Chart preview — adjust a setting to build this chart"
+      className="flex min-h-72 w-full flex-col justify-end gap-3 self-stretch p-4 sm:p-6"
+    >
+      <div aria-hidden="true" className="flex min-h-0 flex-1 gap-3">
+        <div className="flex flex-col justify-between py-1">
+          {[0, 1, 2, 3].map((tick) => (
+            <Skeleton key={tick} className="h-2.5 w-8" />
+          ))}
+        </div>
+        <div className="flex min-h-0 flex-1 items-end gap-2 border-b border-l border-border/70 px-2 pb-2">
+          {[62, 84, 46, 96, 70, 54, 88].map((height, index) => (
+            <Skeleton
+              key={height}
+              className="w-full rounded-b-none"
+              style={{
+                height: `${height}%`,
+                // Stagger the pulse so the bars read as one settling group
+                // rather than seven things blinking in lockstep.
+                animationDelay: `${index * 120}ms`,
+              }}
+            />
+          ))}
+        </div>
+      </div>
+      <p className="text-center text-sm text-muted-foreground">
+        Choose your settings to build this chart.
+      </p>
+    </div>
+  );
+}
 
 function gridClass(layout, count) {
   // 2x1 is "Stacked": one column, two rows. Only 1x2 and 2x2 go two-wide. This
@@ -122,6 +164,7 @@ function ChartSlot({ preview, layout, multi, embedded, onGraphDiv }) {
       ) : null}
 
       <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden px-2 pt-2 sm:px-4">
+        {status === "idle" ? <ChartSkeleton /> : null}
         {status === "loading" ? (
           <div role="status" className="flex items-center gap-2 text-muted-foreground">
             <LoaderCircle aria-hidden="true" className="size-5 animate-spin" />

@@ -1,0 +1,104 @@
+"use client";
+
+/**
+ * ModuleWorkbench.js — the single-screen chart editor behind every `/[module]`
+ * route.
+ *
+ * Replaces the four-step wizard on modules (overhaul decision 1): a persistent
+ * control sidebar on the left, the chart container on the right, no step
+ * navigation. The standalone Visualization Tool keeps VisualizationWizard.
+ *
+ * Layout note: on desktop the two columns are a grid whose row height is set by
+ * the chart container alone. ModuleSidebar's panel is absolutely positioned
+ * inside its cell, so however long the control list grows it can never stretch
+ * the row — it scrolls inside the container's height instead. Below `lg` the
+ * columns stack and the sidebar returns to natural flow.
+ *
+ * Props:
+ *   schema         {Object}      — registered module schema
+ *   initialConfig  {Object}      — validated initial chart configuration
+ *   viewId         {string|null} — saved or built-in deep-link view identifier
+ *   hasBuiltInView {boolean}     — whether initialConfig already represents viewId
+ *   embedded       {boolean}     — render the preview only, for iframe embeds
+ *
+ * Data sources:
+ *   - components/chart-builder/chartConfigStore.js (ChartConfigProvider)
+ *   - components/chart-builder/wizard/PreviewContext.js (PreviewProvider)
+ *   - components/chart-builder/wizard/ViewHydrator.js
+ *
+ * UI Kit reference:
+ *   - Implements the "Editor Sidebar" + "Chart Container" page pattern
+ */
+
+/* eslint-disable react/prop-types */
+
+import React, { useEffect } from "react";
+
+import { ChartConfigProvider } from "@/components/chart-builder/chartConfigStore";
+import { PreviewProvider } from "@/components/chart-builder/wizard/PreviewContext";
+import ViewHydrator from "@/components/chart-builder/wizard/ViewHydrator";
+import ChartContainer from "@/components/chart-builder/workbench/ChartContainer";
+import ModuleSidebar from "@/components/chart-builder/workbench/ModuleSidebar";
+
+// ── Embed mode ───────────────────────────────────────────────────────
+
+function EmbedChromeHider() {
+  useEffect(() => {
+    document.body.classList.add("chart-embed-mode");
+    return () => document.body.classList.remove("chart-embed-mode");
+  }, []);
+  return null;
+}
+
+// ── Component ────────────────────────────────────────────────────────
+
+export default function ModuleWorkbench({
+  schema,
+  initialConfig,
+  viewId = null,
+  hasBuiltInView = false,
+  embedded = false,
+}) {
+  return (
+    // Key on the schema id so switching modules remounts the provider and
+    // rebuilds a fresh config against the new schema.
+    <ChartConfigProvider
+      key={schema.id}
+      schema={schema}
+      initialConfig={initialConfig}
+    >
+      {/* Landing on a module builds no chart: the container shows a skeleton and
+          issues no request until the reader changes a setting. Two cases opt
+          back out, because in both the chart has already been asked for by name:
+          an iframe embed, which has no sidebar to touch and would otherwise show
+          a skeleton forever, and any `?view=` deep link or saved view. */}
+      <PreviewProvider deferInitialRender={!embedded && !viewId}>
+        <ViewHydrator viewId={viewId} hasBuiltInView={hasBuiltInView} />
+        {embedded ? (
+          <>
+            <EmbedChromeHider />
+            <main className="min-h-svh bg-white p-3">
+              <ChartContainer embedded />
+            </main>
+          </>
+        ) : (
+          <main className="min-h-[calc(100svh-7.5rem)] bg-muted/45 px-4 py-6 sm:px-8 lg:px-12">
+            <div className="page-container">
+              {/* Deliberately NOT items-start: the row must stretch, because
+                  that is what gives the sidebar its height. The chart container
+                  is the only item contributing intrinsic height (the sidebar's
+                  panel is absolutely positioned and contributes none), so the
+                  row is exactly as tall as the chart and the stretched sidebar
+                  cell inherits that. `items-start` would collapse the cell to
+                  zero and the panel with it. */}
+              <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-[22rem_minmax(0,1fr)]">
+                <ModuleSidebar />
+                <ChartContainer />
+              </div>
+            </div>
+          </main>
+        )}
+      </PreviewProvider>
+    </ChartConfigProvider>
+  );
+}

@@ -11,6 +11,7 @@ import {
   CHART_TYPES,
   getChartType,
 } from "@/lib/visualization/chartRegistry";
+import { toPlotly } from "@/lib/visualization/toPlotly";
 
 describe("Phase 6 catalog ids", () => {
   it("registers pie, symbolMap, and dataTable as base chart types", () => {
@@ -81,13 +82,11 @@ describe("descriptor metadata", () => {
       "dumbbell",
       "dotPlot",
       "forest",
-      "slope",
     ]) {
       const chart = getChartType(chartType);
       expect(chart.optionalRoles).toContain("group");
       expect(chart.roleConstraints.group).toContain("dimension");
       expect(chart.defaults.groupGap).toBeGreaterThan(0);
-      expect(chart.controlTiers.groupGap).toBe("moderate");
     }
   });
 
@@ -102,7 +101,6 @@ describe("descriptor metadata", () => {
       "forest",
       "scatter",
       "bubble",
-      "slope",
     ]) {
       expect(getChartType(chartType).lineAxes).toEqual(["horizontal", "vertical"]);
     }
@@ -111,12 +109,86 @@ describe("descriptor metadata", () => {
     }
   });
 
-  it("tags every chart descriptor with transform capability and per-control tier hints", () => {
+  it("tags every chart descriptor with transform capability", () => {
     for (const [id, descriptor] of Object.entries(CHART_TYPES)) {
       expect(typeof descriptor.transformCapable, `chart type: ${id}`).toBe("boolean");
-      const tierHints = descriptor.controlTiers || descriptor.tierHints;
-      expect(tierHints, `chart type: ${id}`).toBeTruthy();
-      expect(typeof tierHints, `chart type: ${id}`).toBe("object");
+      expect(descriptor.controlTiers, `chart type: ${id}`).toBeUndefined();
+      expect(descriptor.tierHints, `chart type: ${id}`).toBeUndefined();
+    }
+  });
+
+  it("does not register the retired Slopegraph", () => {
+    expect(CHART_TYPE_IDS).not.toContain("slope");
+    expect(getChartType("slope")).toBeUndefined();
+  });
+
+  it("keeps a working toPlotly builder for every remaining registered type", () => {
+    const specs = {
+      line: {
+        bindings: { x: "Year", y: "Value" },
+        series: [{ location: "A", years: [2024, 2025], values: [1, 2] }],
+      },
+      bar: {
+        bindings: { category: "category", y: "value" },
+        series: [{ category: "A", value: 1 }],
+      },
+      divergingBar: {
+        bindings: { category: "category", y: "value" },
+        series: [{ category: "A", value: 1 }],
+      },
+      choroplethMap: {
+        bindings: { geography: "geoid", color: "value" },
+        series: [{ geoid: "06001", value: 1 }],
+        geometry: { type: "FeatureCollection", features: [] },
+      },
+      dumbbell: {
+        bindings: { category: "category", start: "start", end: "end" },
+        series: [{ category: "A", start: 1, end: 2 }],
+      },
+      dotPlot: {
+        bindings: { y: "row", x: "column", color: "value" },
+        series: { x: ["X"], y: ["A"], z: [[1]] },
+      },
+      forest: {
+        bindings: { category: "category", start: "start", end: "end" },
+        series: [{ category: "A", start: 1, end: 2 }],
+      },
+      scatter: {
+        bindings: { unit: "location", x: "x", y: "y" },
+        series: [{ location: "A", x: 1, y: 2 }],
+      },
+      bubble: {
+        bindings: { unit: "location", x: "x", y: "y", size: "size" },
+        series: [{ location: "A", x: 1, y: 2, size: 3 }],
+      },
+      heatmap: {
+        bindings: { x: "column", y: "row", color: "value" },
+        series: { x: ["X"], y: ["A"], z: [[1]] },
+      },
+      pie: {
+        bindings: { category: "category", y: "value" },
+        series: [{ category: "A", value: 1 }],
+      },
+      symbolMap: {
+        bindings: { geography: "location", size: "value" },
+        series: [{ location: "A", lat: 37, lon: -122, value: 1 }],
+      },
+      dataTable: {
+        bindings: {},
+        series: { columns: [{ name: "Value" }], rows: [[1]] },
+      },
+    };
+
+    for (const chartType of CHART_TYPE_IDS) {
+      expect(() =>
+        toPlotly({
+          chartType,
+          labels: {},
+          appearance: {},
+          period: {},
+          ...specs[chartType],
+        }),
+      `chart type: ${chartType}`).not.toThrow();
     }
   });
 

@@ -14,12 +14,13 @@ import {
   queryCategoryValues,
   queryFullTable,
   queryLineSeries,
+  queryLocations,
   queryRegionalOnTrack,
   resolveMeasureColumn,
 } from "@/lib/data/rhna_progress";
 import { integerParam, invalid, listParam } from "@/lib/data/apiParams";
 
-const VIEWS = ["category", "line", "table", "bestWorst", "regional"];
+const VIEWS = ["category", "line", "table", "bestWorst", "regional", "locations"];
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
@@ -41,6 +42,18 @@ export async function GET(request) {
       `Invalid 'subset'. Expected one of: ${AVAILABLE_SUBSETS.join(", ")}`,
       "rhna-progress API: subset validation",
     );
+  }
+  // The locations view carries no income level or measure, so it resolves before
+  // those validations. Response is deliberately { subset, locations }.
+  if (view === "locations") {
+    try {
+      return Response.json(await queryLocations({ subset }));
+    } catch (error) {
+      return Response.json(
+        { error: error.message, source: "rhna-progress API: locations query" },
+        { status: 500 },
+      );
+    }
   }
   if (incomeLevel && !INCOME_LEVELS.includes(incomeLevel)) {
     return invalid(

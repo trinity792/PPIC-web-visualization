@@ -1,8 +1,9 @@
 /**
  * Tests for lib/export/exportTable.js - Phase 5's canonical displayed-data
  * export path. These are acceptance tests for the pending export phase: the
- * CSV/XLSX export, generated R/Stata code, and chart data must all share the
- * exact same table object.
+ * CSV/XLSX export, generated R/Stata code, and chart data share the exact same
+ * table object. Generator coverage stays until the Phase 9 open question about
+ * preserving code generation as an export-menu action is resolved.
  */
 
 import { describe, expect, it, vi } from "vitest";
@@ -32,11 +33,10 @@ const baseSpec = {
   annotations: [],
   layers: [],
   referenceLines: [],
-  tier: "moderate",
 };
 
 describe("displayTable", () => {
-  it("flattens a line chart result into the canonical export/codebridge table", () => {
+  it("flattens a line chart result into the canonical export table", () => {
     const spec = {
       ...baseSpec,
       chartType: "line",
@@ -147,7 +147,7 @@ describe("displayTable", () => {
     ]);
   });
 
-  it("returns the same table object consumed by R/Stata code generation", () => {
+  it("returns the same table object consumed by CSV and R/Stata generation", () => {
     const spec = {
       ...baseSpec,
       chartType: "scatter",

@@ -3,10 +3,13 @@
 /**
  * ConfigActions.js — import/export of the chart configuration as JSON.
  *
- * Split intentionally: `ImportConfigButton` lives in the dataset step (load a
- * saved config alongside the data), `ExportConfigButton` lives in the edit step
+ * Split intentionally: `ImportConfigButton` lives in the Import step (load a
+ * saved config alongside the data), `ExportConfigButton` lives in the Edit step
  * (save the chart you're building). Both round-trip through savedViews so a
  * multi-chart workspace survives; a single-chart file loads as one view.
+ *
+ * Both are standalone-tool controls: the module workbench drops config
+ * import/export along with saved views (overhaul decision 6).
  *
  * Props:
  *   (none — read/dispatch through useChartConfig())

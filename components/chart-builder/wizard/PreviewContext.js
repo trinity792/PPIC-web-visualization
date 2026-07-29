@@ -11,7 +11,12 @@
  * fetch and one graph div.
  *
  * Props (PreviewProvider):
- *   children {ReactNode}
+ *   children           {ReactNode}
+ *   deferInitialRender {boolean} — hold the first fetch until the reader touches
+ *     a control, reporting status "idle" until then. The module workbench opts
+ *     in so landing on `/[module]` costs no request and shows a skeleton; the
+ *     standalone wizard leaves it off, because its Import step means the reader
+ *     has already supplied data by the time a chart is in view.
  *
  * Data sources:
  *   - components/chart-builder/chartData.js (loadChartData; inline or API)
@@ -53,9 +58,21 @@ export function usePreview() {
   return context;
 }
 
-export function PreviewProvider({ children }) {
-  const { dispatch, schema, workspace } = useChartConfig();
+/** Deferred, pre-arming state: no request has been made and none is pending. */
+const IDLE = { status: "idle", result: null, error: null, notice: null };
+
+export function PreviewProvider({ children, deferInitialRender = false }) {
+  const { canUndo, dispatch, schema, workspace } = useChartConfig();
   const [previewState, setPreviewState] = useState({});
+  // `canUndo` is the store's own record that a user-initiated, workspace-changing
+  // action landed — undo history deliberately excludes COMPUTED_ACTIONS, so the
+  // loader's own SET_SERIES_COUNT feedback cannot arm the chart and cause the
+  // very fetch loop this defers. Sticky: undoing back to the start leaves the
+  // chart rendered rather than blanking it.
+  const [armed, setArmed] = useState(!deferInitialRender);
+  useEffect(() => {
+    if (!armed && canUndo) setArmed(true);
+  }, [armed, canUndo]);
   // One graph div per chart slot; ExportMenu reads the active slot through the
   // compatibility `graphDivRef` below.
   const graphDivRefs = useRef({});
@@ -89,6 +106,13 @@ export function PreviewProvider({ children }) {
   );
 
   useEffect(() => {
+    // Deferred and untouched: report idle and issue no request at all. This is
+    // the whole point — landing on a module page must not fetch.
+    if (!armed) {
+      setPreviewState(Object.fromEntries(charts.map((chart) => [chart.id, IDLE])));
+      return undefined;
+    }
+
     const controller = new AbortController();
     const initial = {};
 
@@ -171,17 +195,16 @@ export function PreviewProvider({ children }) {
         if (!ids.has(id)) delete graphDivRefs.current[id];
       }
     };
-  }, [requestKey, schema, dispatch]);
+  }, [armed, requestKey, schema, dispatch]);
 
   const previews = useMemo(
     () =>
       charts.map(({ id, name, config }) => {
-        const state = previewState[id] || {
-          status: "loading",
-          result: null,
-          error: null,
-          notice: null,
-        };
+        // A slot the load effect has not reached yet is loading, unless the
+        // whole provider is still deferred — then it has nothing pending.
+        const state =
+          previewState[id] ||
+          (armed ? { status: "loading", result: null, error: null, notice: null } : IDLE);
         let plotly = null;
         let renderError = null;
 
@@ -237,7 +260,7 @@ export function PreviewProvider({ children }) {
           renderError,
         };
       }),
-    [activeChartId, charts, previewState, schema],
+    [activeChartId, armed, charts, previewState, schema],
   );
 
   const activePreview =
@@ -257,7 +280,7 @@ export function PreviewProvider({ children }) {
   const value = useMemo(
     () => ({
       previews,
-      status: activePreview.status || "loading",
+      status: activePreview.status || (armed ? "loading" : "idle"),
       result: activePreview.result || null,
       error: activePreview.error || null,
       notice: activePreview.notice || null,
@@ -269,7 +292,7 @@ export function PreviewProvider({ children }) {
         if (chartId) graphDivRefs.current[chartId] = graphDiv;
       },
     }),
-    [activePreview, graphDivRef, previews],
+    [activePreview, armed, graphDivRef, previews],
   );
 
   return <PreviewContext.Provider value={value}>{children}</PreviewContext.Provider>;

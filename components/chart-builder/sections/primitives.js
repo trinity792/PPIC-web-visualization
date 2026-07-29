@@ -1,0 +1,120 @@
+"use client";
+
+/**
+ * primitives.js — shared layout primitives for the graph-editor sidebar sections.
+ *
+ * Extracted verbatim from ChartSidebar.js so each section can live in its own
+ * file without duplicating the heading rule, card chrome, accordion wrapper, or
+ * the boxed single-select list.
+ *
+ * Props:
+ *   SectionHeading  as {string} — element to render (default "h3"; pass "span"
+ *                                 inside an accordion trigger, which already
+ *                                 supplies its own heading element)
+ *   SectionHeading  children, className
+ *   SectionCard     children, className
+ *   Section         value {string}, label {string}, children — one accordion item
+ *   OptionList      value, onChange, options [{value,label}], ariaLabel
+ *
+ * Data sources:
+ *   - Via props from the section that renders them
+ *
+ * UI Kit reference:
+ *   - Implements the "Editor Sidebar" section heading, card, and single-select
+ *     list patterns
+ */
+
+/* eslint-disable react/prop-types */
+
+import React from "react";
+
+import {
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { cn } from "@/components/ui/utils";
+
+// ── Heading and card ─────────────────────────────────────────────────
+
+export function SectionHeading({ children, className, as: Tag = "h3" }) {
+  return (
+    <Tag
+      className={cn(
+        "relative m-0 inline-block font-heading text-base font-semibold",
+        className,
+      )}
+    >
+      {children}
+      {/* Short brand rule under the label; decorative, so it stays out of the
+          accessible name. */}
+      <span
+        aria-hidden="true"
+        className="absolute -bottom-1 left-0 h-0.5 w-8 rounded-full bg-ppic-brand"
+      />
+    </Tag>
+  );
+}
+
+export function SectionCard({ children, className, ...props }) {
+  return (
+    <div
+      className={cn("rounded-xl border bg-card p-3 shadow-xs", className)}
+      {...props}
+    >
+      {children}
+    </div>
+  );
+}
+
+// ── Accordion section wrapper ────────────────────────────────────────
+
+export function Section({ value, label, children }) {
+  return (
+    <AccordionItem value={value} className="border-b-0">
+      <AccordionTrigger className="py-3 hover:no-underline">
+        {/* Radix already wraps the trigger in a heading element, so the label
+            renders as a span rather than nesting one heading inside another. */}
+        <SectionHeading as="span">{label}</SectionHeading>
+      </AccordionTrigger>
+      <AccordionContent className="pb-4">{children}</AccordionContent>
+    </AccordionItem>
+  );
+}
+
+// ── Boxed single-select list ─────────────────────────────────────────
+
+/**
+ * An inline selectable list (the boxed "highlight the chosen row" look from the
+ * editor mockups' Graph Type / Preset sections).
+ */
+export function OptionList({ value, onChange, options, ariaLabel }) {
+  return (
+    <SectionCard
+      className="grid gap-1 p-1.5"
+      role="listbox"
+      aria-label={ariaLabel}
+    >
+      {options.map((option) => {
+        const selected = option.value === value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            role="option"
+            aria-selected={selected}
+            onClick={() => onChange(option.value)}
+            className={cn(
+              "rounded-lg px-3 py-2 text-left text-sm transition-colors",
+              selected
+                ? "bg-muted font-medium text-foreground"
+                : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+            )}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </SectionCard>
+  );
+}

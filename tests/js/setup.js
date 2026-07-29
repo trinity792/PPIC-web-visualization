@@ -8,6 +8,10 @@
  * - Vitest 4's jsdom environment exposes a non-functional localStorage stub
  *   (opaque-origin behavior), so a real in-memory Storage implementation is
  *   installed on both `window` and `globalThis` and cleared per test.
+ * - jsdom implements neither the Pointer Capture API nor `scrollIntoView`, both
+ *   of which Radix's Select calls on every open. Without them a `user.click`
+ *   on a SelectTrigger throws instead of opening the listbox, so the sidebar
+ *   section tests get no-op stubs for them.
  */
 
 import "@testing-library/jest-dom/vitest";
@@ -18,6 +22,18 @@ import { afterEach, beforeEach, vi } from "vitest";
 // this config runs with `globals: false`, so register it explicitly or every
 // render accumulates across tests in a file.
 afterEach(cleanup);
+
+// Pointer capture is how Radix decides a press belongs to the trigger; jsdom
+// leaves the three methods undefined. Nothing in the suite asserts on capture
+// state, so returning "not captured" is enough for the open/close flow.
+if (!Element.prototype.hasPointerCapture) {
+  Element.prototype.hasPointerCapture = () => false;
+  Element.prototype.setPointerCapture = () => {};
+  Element.prototype.releasePointerCapture = () => {};
+}
+if (!Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = () => {};
+}
 
 class MemoryStorage {
   #map = new Map();

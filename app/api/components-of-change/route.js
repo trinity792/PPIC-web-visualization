@@ -14,12 +14,22 @@ import {
   queryLineSeries,
   queryMatrix,
   queryFullTable,
+  queryLocations,
   queryMeasurePairs,
   queryTwoPeriod,
 } from "@/lib/data/components_of_change";
 import { integerParam, invalid, listParam } from "@/lib/data/apiParams";
 
-const VIEWS = ["line", "category", "twoPeriod", "pairs", "matrix", "geo", "table"];
+const VIEWS = [
+  "line",
+  "category",
+  "twoPeriod",
+  "pairs",
+  "matrix",
+  "geo",
+  "table",
+  "locations",
+];
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
@@ -49,6 +59,19 @@ export async function GET(request) {
       `Invalid or missing 'subset'. Expected one of: ${AVAILABLE_SUBSETS.join(", ")}`,
       "components_of_change API: subset validation",
     );
+  }
+  // The locations view describes the geography, not the dataset, so it resolves
+  // before the source/subset pairing rules below (a Census-only subset still has
+  // a location list). Its response is deliberately just { subset, locations }.
+  if (view === "locations") {
+    try {
+      return Response.json(await queryLocations({ subset }));
+    } catch (error) {
+      return Response.json(
+        { error: error.message, source: "components_of_change API: locations query" },
+        { status: 500 },
+      );
+    }
   }
   if (!AVAILABLE_SOURCES.includes(source)) {
     return invalid(

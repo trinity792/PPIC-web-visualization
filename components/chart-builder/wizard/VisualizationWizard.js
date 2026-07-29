@@ -2,16 +2,19 @@
 
 /**
  * VisualizationWizard.js — the step-based chart-editor shell (Import → Chart
- * Type → Edit → Export). It wraps the existing declarative chart-config store
- * and preview pipeline; each step reuses the existing chart-builder panels. The
- * same wizard powers both the standalone Visualization Tool (all four steps,
- * bring-your-own-data) and the per-module editor (the three non-Import steps,
- * data preloaded) — the only difference is the `steps` prop.
+ * Type → Edit → Export) behind the standalone Visualization Tool. It wraps the
+ * declarative chart-config store and preview pipeline; each step reuses the
+ * shared chart-builder panels.
+ *
+ * Per-module editors no longer use this shell: as of the module workbench
+ * overhaul they render `workbench/ModuleWorkbench` — a single screen with a
+ * persistent sidebar — so the wizard is now the bring-your-own-data surface
+ * only. Both shells share ChartConfigProvider, PreviewProvider, and ViewHydrator.
  *
  * Props:
- *   schema         {Object}         — registered schema (module or the byod one)
+ *   schema         {Object}         — registered schema (normally the byod one)
  *   initialConfig  {Object}         — initial declarative chart configuration
- *   steps          {Array<string>}  — ordered step ids; omit "import" for modules
+ *   steps          {Array<string>}  — ordered step ids (defaults to DEFAULT_STEPS)
  *   viewId         {string|null}    — saved/built-in deep-link view id
  *   hasBuiltInView {boolean}        — whether initialConfig already is viewId
  *   embedded       {boolean}        — render chart preview only for iframe embeds
@@ -19,6 +22,7 @@
  * Data sources:
  *   - components/chart-builder/chartConfigStore.js (ChartConfigProvider)
  *   - components/chart-builder/wizard/PreviewContext.js
+ *   - components/chart-builder/wizard/ViewHydrator.js
  */
 
 /* eslint-disable react/prop-types */
@@ -30,63 +34,24 @@ import {
   useChartConfig,
 } from "@/components/chart-builder/chartConfigStore";
 import MultiChartToolbar from "@/components/chart-builder/MultiChartToolbar";
-import {
-  deserialize,
-  deserializeWorkspace,
-  getView,
-} from "@/components/chart-builder/savedViews";
 
 import { PreviewProvider } from "@/components/chart-builder/wizard/PreviewContext";
+import ViewHydrator from "@/components/chart-builder/wizard/ViewHydrator";
 import PreviewPane from "@/components/chart-builder/wizard/PreviewPane";
 import StepNav from "@/components/chart-builder/wizard/StepNav";
 import ImportStep from "@/components/chart-builder/wizard/steps/ImportStep";
 import ChartTypeStep from "@/components/chart-builder/wizard/steps/ChartTypeStep";
 import EditStep from "@/components/chart-builder/wizard/steps/EditStep";
 import ExportStep from "@/components/chart-builder/wizard/steps/ExportStep";
-import ViewDataStep from "@/components/chart-builder/wizard/steps/ViewDataStep";
 
 const STEP_DEFS = {
   import: { id: "import", label: "Import" },
-  viewData: { id: "viewData", label: "View Data" },
   chartType: { id: "chartType", label: "Chart Type" },
   edit: { id: "edit", label: "Edit" },
   export: { id: "export", label: "Export" },
 };
 
 export const DEFAULT_STEPS = ["import", "chartType", "edit", "export"];
-// Module editors have no Import step (data is preloaded); they open on View Data
-// — the actual table behind the chart — before Chart Type / Edit / Export.
-export const MODULE_STEPS = ["viewData", "chartType", "edit", "export"];
-
-/** Loads a saved / deep-linked view into the store once on mount. */
-function ViewHydrator({ viewId, hasBuiltInView }) {
-  const { dispatch, schema } = useChartConfig();
-
-  useEffect(() => {
-    if (!viewId || hasBuiltInView) return;
-    try {
-      const local = getView(viewId, schema);
-      if (local) {
-        dispatch({ type: "LOAD_VIEW", config: local });
-        return;
-      }
-      const decoded = decodeURIComponent(viewId);
-      // Multi-chart embeds carry the whole workspace; single views carry one
-      // config. deserializeWorkspace returns null for the single-config shape.
-      const workspace = deserializeWorkspace(decoded, schema);
-      if (workspace) {
-        dispatch({ type: "LOAD_WORKSPACE", workspace });
-        return;
-      }
-      const imported = deserialize(decoded, schema);
-      dispatch({ type: "LOAD_VIEW", config: imported });
-    } catch {
-      // Unknown deep links fall back to the default preset.
-    }
-  }, [dispatch, hasBuiltInView, schema, viewId]);
-
-  return null;
-}
 
 function EmbedChromeHider() {
   useEffect(() => {
@@ -133,8 +98,6 @@ function WizardInner({ steps }) {
     switch (currentId) {
       case "import":
         return <ImportStep />;
-      case "viewData":
-        return <ViewDataStep />;
       case "chartType":
         return <ChartTypeStep />;
       case "edit":

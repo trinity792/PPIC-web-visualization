@@ -1,20 +1,31 @@
 "use client";
 
 /**
- * ExportMenu.js — the editor's export controls as two side-by-side buttons:
+ * ExportMenu.js — the editor's export controls.
  *
- *   • Export image — PNG/SVG/JPG/PDF at a chosen quality, plus an embed dialog
- *     with a live iframe preview of the whole workspace.
- *   • Export data  — the chart's displayed table, or the module's entire cleaned
- *     dataset (fetched full, ignoring the chart's filters), each as CSV or Excel.
+ * Two independent dropdown buttons, each exported on its own so a shell can
+ * place them wherever it likes:
  *
- * Props:
- *   graphDivRef {Object}       — ref to the active mounted Plotly graph div
- *   loaded      {Object}       — the loaded chart result behind the active chart
- *   previews    {Array|null}   — per-chart {id,name,config,result} for the whole
- *                                workspace (from PreviewContext); enables
- *                                multi-chart export
- *   graphDivRefs {Object|null} — live map of chartId → mounted graph div
+ *   • ExportChartButton — PNG/SVG/JPG/PDF at a chosen quality, plus an embed
+ *     dialog with a live iframe preview of the whole workspace.
+ *   • ExportDataButton  — the chart's displayed table, or the module's entire
+ *     cleaned dataset (fetched full, ignoring the chart's filters), as CSV or
+ *     Excel.
+ *
+ * The default export composes both, with the shared image-quality control above
+ * them; that is what the wizard's Export step renders. The module workbench's
+ * chart-container footer mounts the two buttons directly instead.
+ *
+ * Props (both buttons):
+ *   graphDivRef  {Object}       — ref to the active mounted Plotly graph div
+ *   loaded       {Object}       — the loaded chart result behind the active chart
+ *   previews     {Array|null}   — per-chart {id,name,config,result} for the whole
+ *                                 workspace (from PreviewContext); enables
+ *                                 multi-chart export
+ *   graphDivRefs {Object|null}  — live map of chartId → mounted graph div
+ *   disabled     {boolean}      — greys the trigger out (preview not ready)
+ *   quality      {Object|null}  — image-quality preset; ExportChartButton keeps
+ *                                 its own state when this is not supplied
  *
  * Data sources:
  *   - `lib/export/{exportImage,exportTable}.js`; embed link via
@@ -51,6 +62,7 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -60,6 +72,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/components/ui/utils";
 
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
+import { fullTableUrl } from "@/components/chart-builder/chartData";
 import { serializeWorkspace } from "@/components/chart-builder/savedViews";
 import {
   exportCombinedImage,
@@ -77,6 +90,12 @@ import {
   toXlsxBlob,
 } from "@/lib/export/exportTable";
 import { logEditorEvent } from "@/lib/logs/editorLog";
+
+/**
+ * ======================================================================
+ * Shared helpers
+ * ======================================================================
+ */
 
 function exportBase(config) {
   return config.data?.source === "inline" ? "your-data" : config.module || "chart";
@@ -102,18 +121,30 @@ function combinedImageFilename(config, format) {
 const DATA_SUFFIX = { chart: "", original: "-original" };
 
 /**
- * The `view=table&full=1` URL that returns every row and column of a module's
- * cleaned CSV, ignoring the chart's geography / source / date filters. Returns
- * null for bring-your-own-data (no server dataset) — that path keeps the pasted
- * table client-side. `subset`/`source` are still sent because the routes require
- * a valid subset, but `full=1` makes the query ignore them for row selection.
+ * The charts an export operates on: every workspace chart when the preview
+ * context is wired (with per-chart config + loaded result), else a single
+ * synthetic chart from the active config/result (keeps the buttons usable
+ * without a PreviewProvider, e.g. in the workbench footer and unit tests).
  */
-function fullTableUrl(config, schema) {
-  if (!schema?.apiPath || config?.data?.source === "inline") return null;
-  const params = new URLSearchParams({ view: "table", full: "1" });
-  if (config?.filters?.subset) params.set("subset", config.filters.subset);
-  if (config?.filters?.source) params.set("source", config.filters.source);
-  return `${schema.apiPath}?${params}`;
+function useExportCharts(previews, config, loaded) {
+  return useMemo(() => {
+    if (Array.isArray(previews) && previews.length) {
+      return previews.map((preview) => ({
+        id: preview.id,
+        name: preview.name,
+        config: preview.config,
+        result: preview.result,
+      }));
+    }
+    return [
+      {
+        id: null,
+        name: config.labels?.title || "Chart 1",
+        config,
+        result: loaded,
+      },
+    ];
+  }, [previews, config, loaded]);
 }
 
 const MAX_EMBED_URL_LENGTH = 16000;
@@ -199,52 +230,196 @@ function EmbedPreview({ src, height }) {
   );
 }
 
-export default function ExportMenu({
+/**
+ * ======================================================================
+ * Image export
+ * ======================================================================
+ */
+
+export function ExportChartButton({
   graphDivRef,
   loaded,
   previews = null,
   graphDivRefs = null,
+  quality = null,
+  disabled = false,
 }) {
-  const { config, schema, workspace } = useChartConfig();
+  const { config, workspace } = useChartConfig();
+  const [embedOpen, setEmbedOpen] = useState(false);
+  const [embedCopied, setEmbedCopied] = useState(false);
+  // When no quality is supplied (the button mounted on its own), keep the
+  // highest-quality preset rather than exposing a second control.
+  const activeQuality = quality || IMAGE_QUALITIES[0];
+  const embed = useMemo(() => embedInfo(config, workspace), [config, workspace]);
+  const exportCharts = useExportCharts(previews, config, loaded);
+  const multi = exportCharts.length > 1;
+
+  // Reset the "Copied!" confirmation shortly after it shows.
+  useEffect(() => {
+    if (!embedCopied) return undefined;
+    const timer = setTimeout(() => setEmbedCopied(false), 2000);
+    return () => clearTimeout(timer);
+  }, [embedCopied]);
+
+  async function onExportImage(format) {
+    try {
+      if (multi) {
+        // Live-read each mounted graph div (the previews snapshot may predate a
+        // slot's mount); combine them into one image in the workspace layout.
+        const graphDivs = exportCharts.map(
+          (chart) => graphDivRefs?.current?.[chart.id] || null,
+        );
+        await exportCombinedImage(graphDivs, {
+          layout: workspace?.layout,
+          format: format.id,
+          scale: activeQuality.scale,
+          transparent: format.supportsAlpha,
+          quality: activeQuality.jpegQuality,
+          filename: combinedImageFilename(config, format),
+        });
+      } else {
+        await exportImage(graphDivRef?.current, {
+          format: format.id,
+          scale: activeQuality.scale,
+          transparent: format.supportsAlpha,
+          quality: activeQuality.jpegQuality,
+          filename: imageFilename(config, format),
+        });
+      }
+      logEditorEvent({
+        severity: "info",
+        code: "EXPORT_IMAGE",
+        summary: multi
+          ? `Exported ${exportCharts.length} charts as ${format.label}`
+          : `Exported chart as ${format.label}`,
+        source: "ExportMenu",
+      });
+    } catch (error) {
+      logEditorEvent({
+        severity: "error",
+        code: error.code || "EXPORT_RENDER_FAILED",
+        summary: `Chart image export failed (${format.label})`,
+        detail: error.message,
+        source: error.source || "exportImage",
+      });
+    }
+  }
+
+  async function onCopyEmbed() {
+    await copyText(embed.code);
+    setEmbedCopied(true);
+    logEditorEvent({
+      severity: "info",
+      code: "EMBED_COPIED",
+      summary: "Copied chart embed code",
+      source: "ExportMenu",
+    });
+  }
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="sm" disabled={disabled}>
+            <ImageIcon aria-hidden="true" />
+            Export image
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-52">
+          <DropdownMenuLabel>Image</DropdownMenuLabel>
+          {IMAGE_FORMATS.map((format) => (
+            <DropdownMenuItem key={format.id} onSelect={() => onExportImage(format)}>
+              <ImageIcon aria-hidden="true" />
+              {format.label}
+            </DropdownMenuItem>
+          ))}
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel>Embed</DropdownMenuLabel>
+          <DropdownMenuItem
+            onSelect={(event) => {
+              event.preventDefault();
+              setEmbedOpen(true);
+            }}
+          >
+            <Code2 aria-hidden="true" />
+            Embed code…
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <Dialog
+        open={embedOpen}
+        onOpenChange={(open) => {
+          setEmbedOpen(open);
+          if (!open) setEmbedCopied(false);
+        }}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Embed chart</DialogTitle>
+            <DialogDescription>
+              Copy this iframe into a page that can embed PPIC chart URLs.
+            </DialogDescription>
+          </DialogHeader>
+          {embed.tooLarge ? (
+            <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+              This embed URL is long because it carries chart configuration in the
+              link. For large uploaded datasets, export the chart image instead.
+            </p>
+          ) : (
+            <div>
+              <p className="mb-1.5 text-xs font-medium text-muted-foreground">Preview</p>
+              {/* The Dialog only mounts this while open, so the preview iframe
+                  loads on demand, not eagerly. Rendered at desktop width and
+                  scaled to fit so the layout matches the real embed. */}
+              <EmbedPreview src={embed.src} height={embed.height} />
+            </div>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="outline" asChild>
+              <a href={embed.src} target="_blank" rel="noopener noreferrer">
+                <ExternalLink aria-hidden="true" />
+                Open in new tab
+              </a>
+            </Button>
+            <Button type="button" onClick={onCopyEmbed} disabled={embed.tooLarge}>
+              {embedCopied ? (
+                <Check aria-hidden="true" />
+              ) : (
+                <Code2 aria-hidden="true" />
+              )}
+              {embedCopied ? "Copied!" : "Copy embed code"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+/**
+ * ======================================================================
+ * Data export
+ * ======================================================================
+ */
+
+export function ExportDataButton({
+  loaded,
+  previews = null,
+  disabled = false,
+}) {
+  const { config, schema } = useChartConfig();
   // Full-source tables are fetched on demand and cached by URL so repeated
   // exports (and the CSV/XLSX pair) don't re-hit the API.
   const originalTableCache = useRef(new Map());
-  const [embedOpen, setEmbedOpen] = useState(false);
-  const [embedCopied, setEmbedCopied] = useState(false);
-  // Default to the highest-quality preset (index 0).
-  const [qualityId, setQualityId] = useState(IMAGE_QUALITIES[0].id);
-  const quality =
-    IMAGE_QUALITIES.find((option) => option.id === qualityId) || IMAGE_QUALITIES[0];
-  const embed = useMemo(() => embedInfo(config, workspace), [config, workspace]);
-
-  // The charts export operates on: every workspace chart when the preview
-  // context is wired (with per-chart config + loaded result), else a single
-  // synthetic chart from the active config/result (keeps the component usable
-  // without a PreviewProvider, e.g. in unit tests).
-  const exportCharts = useMemo(() => {
-    if (Array.isArray(previews) && previews.length) {
-      return previews.map((preview) => ({
-        id: preview.id,
-        name: preview.name,
-        config: preview.config,
-        result: preview.result,
-      }));
-    }
-    return [
-      {
-        id: null,
-        name: config.labels?.title || "Chart 1",
-        config,
-        result: loaded,
-      },
-    ];
-  }, [previews, config, loaded]);
+  const exportCharts = useExportCharts(previews, config, loaded);
   const multi = exportCharts.length > 1;
 
-  // Original ("full source") data is available whenever a chart reads a module
-  // dataset with an API path (fetched full from the server) or already carries a
-  // richer source table than the chart itself (BYOD, or a module response whose
-  // loaded result reconstructs one — originalTable returns null otherwise).
+  // Original ("entire cleaned dataset") data is available whenever a chart reads
+  // a module dataset with an API path (fetched full from the server) or already
+  // carries a richer source table than the chart itself (BYOD, or a module
+  // response whose loaded result reconstructs one — originalTable returns null
+  // otherwise).
   const hasOriginal = useMemo(
     () =>
       exportCharts.some(
@@ -279,57 +454,6 @@ export default function ExportMenu({
     return sourceId === "original"
       ? resolveOriginalTable(chartConfig, chartResult)
       : displayTable(chartConfig, chartResult);
-  }
-
-  // Reset the "Copied!" confirmation shortly after it shows.
-  useEffect(() => {
-    if (!embedCopied) return undefined;
-    const timer = setTimeout(() => setEmbedCopied(false), 2000);
-    return () => clearTimeout(timer);
-  }, [embedCopied]);
-
-  async function onExportImage(format) {
-    try {
-      if (multi) {
-        // Live-read each mounted graph div (the previews snapshot may predate a
-        // slot's mount); combine them into one image in the workspace layout.
-        const graphDivs = exportCharts.map(
-          (chart) => graphDivRefs?.current?.[chart.id] || null,
-        );
-        await exportCombinedImage(graphDivs, {
-          layout: workspace?.layout,
-          format: format.id,
-          scale: quality.scale,
-          transparent: format.supportsAlpha,
-          quality: quality.jpegQuality,
-          filename: combinedImageFilename(config, format),
-        });
-      } else {
-        await exportImage(graphDivRef?.current, {
-          format: format.id,
-          scale: quality.scale,
-          transparent: format.supportsAlpha,
-          quality: quality.jpegQuality,
-          filename: imageFilename(config, format),
-        });
-      }
-      logEditorEvent({
-        severity: "info",
-        code: "EXPORT_IMAGE",
-        summary: multi
-          ? `Exported ${exportCharts.length} charts as ${format.label}`
-          : `Exported chart as ${format.label}`,
-        source: "ExportMenu",
-      });
-    } catch (error) {
-      logEditorEvent({
-        severity: "error",
-        code: error.code || "EXPORT_RENDER_FAILED",
-        summary: `Chart image export failed (${format.label})`,
-        detail: error.message,
-        source: error.source || "exportImage",
-      });
-    }
   }
 
   async function onExportCsv(sourceId) {
@@ -422,16 +546,64 @@ export default function ExportMenu({
     }
   }
 
-  async function onCopyEmbed() {
-    await copyText(embed.code);
-    setEmbedCopied(true);
-    logEditorEvent({
-      severity: "info",
-      code: "EMBED_COPIED",
-      summary: "Copied chart embed code",
-      source: "ExportMenu",
-    });
-  }
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" disabled={disabled}>
+          <Table aria-hidden="true" />
+          Export data
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-60">
+        {/* Each source's label and its two formats share a wrapper, so the label
+            names the items beneath it for assistive tech (and for tests that
+            resolve an item by the group it belongs to). */}
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>Chart data (as displayed)</DropdownMenuLabel>
+          <DropdownMenuItem onSelect={() => onExportCsv("chart")}>
+            <FileDown aria-hidden="true" />
+            CSV
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => onExportXlsx("chart")}>
+            <FileSpreadsheet aria-hidden="true" />
+            Excel (XLSX)
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>Original data (entire cleaned dataset)</DropdownMenuLabel>
+          <DropdownMenuItem disabled={!hasOriginal} onSelect={() => onExportCsv("original")}>
+            <FileDown aria-hidden="true" />
+            CSV
+          </DropdownMenuItem>
+          <DropdownMenuItem disabled={!hasOriginal} onSelect={() => onExportXlsx("original")}>
+            <FileSpreadsheet aria-hidden="true" />
+            Excel (XLSX)
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/**
+ * ======================================================================
+ * Composed surface (wizard Export step)
+ * ======================================================================
+ */
+
+export default function ExportMenu({
+  graphDivRef,
+  loaded,
+  previews = null,
+  graphDivRefs = null,
+}) {
+  // Default to the highest-quality preset (index 0). The control sits above the
+  // buttons rather than inside the image menu, so the choice is visible before
+  // the menu is opened.
+  const [qualityId, setQualityId] = useState(IMAGE_QUALITIES[0].id);
+  const quality =
+    IMAGE_QUALITIES.find((option) => option.id === qualityId) || IMAGE_QUALITIES[0];
 
   return (
     <div className="flex flex-col items-center gap-2">
@@ -467,112 +639,15 @@ export default function ExportMenu({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm">
-              <ImageIcon aria-hidden="true" />
-              Export image
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-52">
-            <DropdownMenuLabel>Image</DropdownMenuLabel>
-            {IMAGE_FORMATS.map((format) => (
-              <DropdownMenuItem key={format.id} onSelect={() => onExportImage(format)}>
-                <ImageIcon aria-hidden="true" />
-                {format.label}
-              </DropdownMenuItem>
-            ))}
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel>Embed</DropdownMenuLabel>
-            <DropdownMenuItem
-              onSelect={(event) => {
-                event.preventDefault();
-                setEmbedOpen(true);
-              }}
-            >
-              <Code2 aria-hidden="true" />
-              Embed code…
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm">
-              <Table aria-hidden="true" />
-              Export data
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56">
-            <DropdownMenuLabel>Chart data (as displayed)</DropdownMenuLabel>
-            <DropdownMenuItem onSelect={() => onExportCsv("chart")}>
-              <FileDown aria-hidden="true" />
-              CSV
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => onExportXlsx("chart")}>
-              <FileSpreadsheet aria-hidden="true" />
-              Excel (XLSX)
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel>Original data (entire dataset)</DropdownMenuLabel>
-            <DropdownMenuItem disabled={!hasOriginal} onSelect={() => onExportCsv("original")}>
-              <FileDown aria-hidden="true" />
-              CSV
-            </DropdownMenuItem>
-            <DropdownMenuItem disabled={!hasOriginal} onSelect={() => onExportXlsx("original")}>
-              <FileSpreadsheet aria-hidden="true" />
-              Excel (XLSX)
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <ExportChartButton
+          graphDivRef={graphDivRef}
+          loaded={loaded}
+          previews={previews}
+          graphDivRefs={graphDivRefs}
+          quality={quality}
+        />
+        <ExportDataButton loaded={loaded} previews={previews} />
       </div>
-
-      <Dialog
-        open={embedOpen}
-        onOpenChange={(open) => {
-          setEmbedOpen(open);
-          if (!open) setEmbedCopied(false);
-        }}
-      >
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>Embed chart</DialogTitle>
-            <DialogDescription>
-              Copy this iframe into a page that can embed PPIC chart URLs.
-            </DialogDescription>
-          </DialogHeader>
-          {embed.tooLarge ? (
-            <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-              This embed URL is long because it carries chart configuration in the
-              link. For large uploaded datasets, export the chart image instead.
-            </p>
-          ) : (
-            <div>
-              <p className="mb-1.5 text-xs font-medium text-muted-foreground">Preview</p>
-              {/* The Dialog only mounts this while open, so the preview iframe
-                  loads on demand, not eagerly. Rendered at desktop width and
-                  scaled to fit so the layout matches the real embed. */}
-              <EmbedPreview src={embed.src} height={embed.height} />
-            </div>
-          )}
-          <DialogFooter>
-            <Button type="button" variant="outline" asChild>
-              <a href={embed.src} target="_blank" rel="noopener noreferrer">
-                <ExternalLink aria-hidden="true" />
-                Open in new tab
-              </a>
-            </Button>
-            <Button type="button" onClick={onCopyEmbed} disabled={embed.tooLarge}>
-              {embedCopied ? (
-                <Check aria-hidden="true" />
-              ) : (
-                <Code2 aria-hidden="true" />
-              )}
-              {embedCopied ? "Copied!" : "Copy embed code"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

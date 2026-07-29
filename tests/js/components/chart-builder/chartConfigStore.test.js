@@ -49,8 +49,9 @@ describe("createChartConfig", () => {
     expect(config.data).toEqual({ source: "module" });
     expect(config.format).toEqual({});
     expect(config.annotations).toEqual([]);
-    expect(config.tier).toBe("moderate");
+    expect(config).not.toHaveProperty("tier");
     expect(config.filters).toMatchObject({
+      locations: [],
       tabColumn: null,
       tabValue: null,
       tabOrder: [],
@@ -317,11 +318,10 @@ describe("reduceChartConfig — v2 actions", () => {
     expect(removed.annotations).toEqual([]);
   });
 
-  it("SET_TIER changes only the tier and no-ops when unchanged", () => {
-    const advanced = dispatch(base, { type: "SET_TIER", tier: "advanced" });
-    expect(advanced.tier).toBe("advanced");
-    expect(advanced.bindings).toEqual(base.bindings);
-    expect(dispatch(advanced, { type: "SET_TIER", tier: "advanced" })).toBe(advanced);
+  it("ignores legacy SET_TIER actions", () => {
+    const unchanged = dispatch(base, { type: "SET_TIER", tier: "advanced" });
+    expect(unchanged).toBe(base);
+    expect(unchanged).not.toHaveProperty("tier");
   });
 
   it("SET_RANKING applies Top/Bottom N and resets stale category customization", () => {

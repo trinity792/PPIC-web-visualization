@@ -1,71 +1,10 @@
-"use client";
-
 /**
- * LabelEditor.js — custom title, axis, legend, and tooltip label controls.
+ * LabelEditor.js — REMOVED.
  *
- * Props:
- *   None.
- *
- * Data sources:
- *   - Chart configuration and module schema from ChartConfigProvider
- *
- * UI Kit reference:
- *   - Implements graph-editor text input and textarea patterns
+ * Replaced by `sections/LabelsSection.js` in phase 8 of the module workbench
+ * overhaul: same five fields with derived placeholders, renamed to the mockup's
+ * labels, with the tooltip template moved to Appearance. Delete this
+ * placeholder. Nothing imports it.
  */
 
-import React from "react";
-
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-
-import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
-import { deriveLabels } from "@/lib/visualization/deriveLabels";
-
-const LABELS = [
-  ["title", "Title"],
-  ["subtitle", "Subtitle"],
-  ["xAxis", "X-axis label"],
-  ["yAxis", "Y-axis label"],
-  ["legend", "Legend title"],
-];
-
-export default function LabelEditor() {
-  const { config, dispatch, schema } = useChartConfig();
-  // Live auto-labels the graph would use; shown as placeholders until the user
-  // types their own.
-  const auto = deriveLabels(config, schema);
-
-  return (
-    <div className="grid gap-4">
-      {LABELS.map(([key, label]) => (
-        <div className="grid gap-2" key={key}>
-          <Label htmlFor={`label-${key}`}>{label}</Label>
-          <Input
-            id={`label-${key}`}
-            value={config.labels[key] || ""}
-            placeholder={auto[key] || ""}
-            onChange={(event) =>
-              dispatch({ type: "SET_LABEL", key, value: event.target.value })
-            }
-          />
-        </div>
-      ))}
-      <div className="grid gap-2">
-        <Label htmlFor="label-tooltip">Tooltip template</Label>
-        <Textarea
-          id="label-tooltip"
-          value={config.labels.tooltip || ""}
-          placeholder="Leave blank for the chart default"
-          onChange={(event) =>
-            dispatch({
-              type: "SET_LABEL",
-              key: "tooltip",
-              value: event.target.value,
-            })
-          }
-        />
-      </div>
-    </div>
-  );
-}
+export {};

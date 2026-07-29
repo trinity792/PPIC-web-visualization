@@ -1,53 +1,12 @@
-"use client";
-
 /**
- * ModuleEditor.js — chart-builder entry point for one registered data module.
+ * ModuleEditor.js — REMOVED.
  *
- * Thin wrapper around the shared VisualizationWizard: a module editor is the
- * wizard with the three non-Import steps (Chart Type → Edit → Export) and the
- * module's data preloaded. The standalone Visualization Tool uses the same
- * wizard with the added Import (bring-your-own-data) step.
+ * Modules no longer render the step wizard. `/[module]` mounts
+ * `components/chart-builder/workbench/ModuleWorkbench.js` directly, which owns
+ * the providers this wrapper used to thread through.
  *
- * Props:
- *   moduleId       {string}      — registered module identifier
- *   initialConfig  {Object}      — validated initial chart configuration
- *   viewId         {string|null} — saved or built-in deep-link view identifier
- *   hasBuiltInView {boolean}     — whether initialConfig already represents viewId
- *   embedded       {boolean}     — render preview-only iframe mode
- *
- * Data sources:
- *   - Module schema from lib/visualization/moduleRegistry.js
- *   - Chart data through chartData.js and the module API route
- *   - Saved views from browser localStorage through savedViews.js
+ * This placeholder exists only because the file could not be deleted from the
+ * environment that performed the overhaul; delete it. Nothing imports it.
  */
 
-/* eslint-disable react/prop-types */
-
-import React from "react";
-
-import { getModuleSchema } from "@/lib/visualization/moduleRegistry";
-
-import VisualizationWizard, {
-  MODULE_STEPS,
-} from "@/components/chart-builder/wizard/VisualizationWizard";
-
-export default function ModuleEditor({
-  moduleId,
-  initialConfig,
-  viewId,
-  hasBuiltInView = false,
-  embedded = false,
-}) {
-  const schema = getModuleSchema(moduleId);
-
-  return (
-    <VisualizationWizard
-      schema={schema}
-      initialConfig={initialConfig}
-      steps={MODULE_STEPS}
-      viewId={viewId}
-      hasBuiltInView={hasBuiltInView}
-      embedded={embedded}
-    />
-  );
-}
+export {};

@@ -369,7 +369,6 @@ describe("validateInlineBindings", () => {
       "dumbbell",
       "dotPlot",
       "forest",
-      "slope",
     ]) {
       expect(
         validateInlineBindings(

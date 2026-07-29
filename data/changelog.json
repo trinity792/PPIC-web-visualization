@@ -1,5 +1,18 @@
 [
   {
+    "id": "PENDING-workbench",
+    "commit": "PENDING-workbench",
+    "timestamp": "2026-07-28T12:00:00-07:00",
+    "date": "2026-07-28",
+    "title": "Module workbench overhaul: single-screen module editor",
+    "description": "Split the chart editor into two surfaces. /[module] is now a single-screen workbench: a persistent control sidebar beside a chart container with View Chart / View Data and Export Chart / Export Data. /visualization-tool keeps the step wizard for bring-your-own-data, along with presets, saved views, the multi-chart workspace, trace layers, and the activity log. Both compose from one shared section registry. Added a view=locations API view and a geographic multi-select; withdrew the settings tiers, the code editor, and the Slopegraph chart type.",
+    "area": "Front-end components",
+    "intensity": "high",
+    "audited": false,
+    "contributor": "Trinity Jones",
+    "module": null
+  },
+  {
     "id": "9659eff",
     "commit": "9659eff",
     "timestamp": "2026-07-20T15:59:21-07:00",

@@ -426,27 +426,6 @@ describe("toPlotly grouped category sections", () => {
     expect(forest.layout.yaxis.ticktext).toEqual(["Study A", "Study B"]);
   });
 
-  it("sections slopegraph legend entries into labeled groups with adjustable gap", () => {
-    const { data, layout } = toPlotly({
-      chartType: "slope",
-      bindings: {
-        category: "category",
-        group: "group",
-        start: "start",
-        end: "end",
-      },
-      series: [
-        { category: "A", group: "Education", start: 1, end: 2 },
-        { category: "B", group: "Occupation", start: 2, end: 3 },
-      ],
-      labels: {},
-      appearance: { groupGap: 2 },
-      period: {},
-    });
-    expect(data[0].legendgrouptitle.text).toContain("Education");
-    expect(data[1].legendgrouptitle.text).toContain("Occupation");
-    expect(layout.legend.tracegroupgap).toBe(48);
-  });
 });
 
 describe("toPlotly choropleth (unchanged for 'actual')", () => {
