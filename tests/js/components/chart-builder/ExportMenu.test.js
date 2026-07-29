@@ -41,7 +41,7 @@ vi.mock("@/lib/export/exportImage", () => ({
 
 vi.mock("@/lib/export/exportTable", () => exportTableMocks);
 
-import ExportMenu from "@/components/chart-builder/ExportMenu";
+import ExportMenu, { ExportDataButton } from "@/components/chart-builder/ExportMenu";
 import { ChartConfigProvider } from "@/components/chart-builder/chartConfigStore";
 
 const schema = {
@@ -323,6 +323,27 @@ describe("ExportMenu — module full-source export", () => {
       expect.objectContaining({ chartType: "line" }),
       { response: { records: [{ Location: "Alameda", Year: 2020, Value: 100 }] } },
     );
+    expect(exportTableMocks.downloadBlob).toHaveBeenCalledWith(
+      expect.any(Blob),
+      "widgets-original.csv",
+    );
+  });
+
+  it("exports the dataset from an unarmed workbench, with no loaded chart", async () => {
+    const user = userEvent.setup();
+    render(
+      <ChartConfigProvider schema={moduleSchema} initialConfig={initialConfig}>
+        <ExportDataButton loaded={null} disabled />
+      </ChartConfigProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: /export data/i }));
+    await user.click(screen.getAllByRole("menuitem", { name: "CSV" })[1]);
+
+    // The request is built from config + schema, so it needs no rendered chart.
+    const url = globalThis.fetch.mock.calls.at(-1)[0];
+    expect(url).toContain("view=table");
+    expect(url).toContain("full=1");
     expect(exportTableMocks.downloadBlob).toHaveBeenCalledWith(
       expect.any(Blob),
       "widgets-original.csv",

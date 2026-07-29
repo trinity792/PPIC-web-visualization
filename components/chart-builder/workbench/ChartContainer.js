@@ -27,7 +27,7 @@
 
 /* eslint-disable react/prop-types */
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { AlertCircle, LoaderCircle } from "lucide-react";
 
@@ -110,7 +110,7 @@ function FullDataTable({ status, table, error, schemaLabel }) {
     return (
       <div
         role="status"
-        className="flex min-h-96 items-center justify-center gap-2 text-muted-foreground"
+        className="flex h-full min-h-96 items-center justify-center gap-2 text-muted-foreground"
       >
         <LoaderCircle aria-hidden="true" className="size-5 animate-spin" />
         Loading the full {schemaLabel} dataset…
@@ -120,7 +120,7 @@ function FullDataTable({ status, table, error, schemaLabel }) {
 
   if (status === "error") {
     return (
-      <div className="flex min-h-96 items-center justify-center">
+      <div className="flex h-full min-h-96 items-center justify-center">
         <Alert variant="destructive" className="max-w-xl">
           <AlertCircle aria-hidden="true" />
           <AlertTitle>The dataset could not be loaded</AlertTitle>
@@ -136,7 +136,7 @@ function FullDataTable({ status, table, error, schemaLabel }) {
 
   if (status === "empty" || !table?.rows?.length) {
     return (
-      <div className="flex min-h-96 items-center justify-center text-center text-muted-foreground">
+      <div className="flex h-full min-h-96 items-center justify-center text-center text-muted-foreground">
         This dataset returned no rows.
       </div>
     );
@@ -152,6 +152,34 @@ function FullDataTable({ status, table, error, schemaLabel }) {
 
 // ── Component ────────────────────────────────────────────────────────
 
+/**
+ * Hold the body at the height the chart view renders at, so toggling to the data
+ * view does not resize the card.
+ *
+ * Measured rather than hard-coded: the chart view's height is PreviewPane's
+ * `min-h-130` floor or the taller of the plot, its border and its tab row,
+ * depending on chart type — a constant here would drift the moment any of those
+ * changed. The data table is bounded instead of allowed to grow, because it
+ * paginates 50 rows and would otherwise make both the card and the sidebar that
+ * stretches to it jump on every toggle.
+ *
+ * Re-measures when the preview status changes, since the skeleton, the spinner
+ * and a rendered chart are not all the same height.
+ */
+function useChartViewHeight(viewMode, status) {
+  const bodyRef = useRef(null);
+  const [height, setHeight] = useState(null);
+
+  useLayoutEffect(() => {
+    if (viewMode !== "chart") return;
+    // 0 in jsdom, which has no layout; the CSS floor stands in.
+    const measured = bodyRef.current?.offsetHeight;
+    if (measured) setHeight(measured);
+  }, [viewMode, status]);
+
+  return { bodyRef, height };
+}
+
 export default function ChartContainer({ embedded = false }) {
   const { schema } = useChartConfig();
   const { status, result, graphDivRef, graphDivRefs, previews } = usePreview();
@@ -159,6 +187,7 @@ export default function ChartContainer({ embedded = false }) {
   // Lifted above the toggle so the loaded dataset survives switching back to the
   // chart — the table unmounts, but the fetch must not repeat.
   const dataset = useFullTable(viewMode === "data");
+  const { bodyRef, height } = useChartViewHeight(viewMode, status);
 
   if (embedded) return <PreviewPane embedded />;
 
@@ -170,11 +199,19 @@ export default function ChartContainer({ embedded = false }) {
         </span>
       </h2>
 
-      <div className="min-h-130 min-w-0 rounded-lg border p-2 sm:p-3">
+      <div
+        ref={bodyRef}
+        className="min-h-130 min-w-0 overflow-hidden rounded-lg border p-2 sm:p-3"
+        style={viewMode === "data" && height ? { height } : undefined}
+      >
         {viewMode === "chart" ? (
           <PreviewPane />
         ) : (
-          <FullDataTable {...dataset} schemaLabel={schema.label} />
+          // h-full so DataTableView fills the pinned box: it is already a flex
+          // column that scrolls its own body and keeps the pager in view.
+          <div className="h-full">
+            <FullDataTable {...dataset} schemaLabel={schema.label} />
+          </div>
         )}
       </div>
 

@@ -155,4 +155,64 @@ describe("ChartContainer", () => {
       expect(screen.getByTestId("chart-pane")).toHaveTextContent(`Chart ${status}`);
     },
   );
+
+  // jsdom performs no layout, so offsetHeight is stubbed to stand in for what a
+  // browser would measure off the rendered chart.
+  describe("body height across the view toggle", () => {
+    function stubOffsetHeight(value) {
+      const descriptor = Object.getOwnPropertyDescriptor(
+        window.HTMLElement.prototype,
+        "offsetHeight",
+      );
+      Object.defineProperty(window.HTMLElement.prototype, "offsetHeight", {
+        configurable: true,
+        get() {
+          return value;
+        },
+      });
+      return () => {
+        if (descriptor) {
+          Object.defineProperty(window.HTMLElement.prototype, "offsetHeight", descriptor);
+        } else {
+          delete window.HTMLElement.prototype.offsetHeight;
+        }
+      };
+    }
+
+    function body(container) {
+      return container.querySelector(".rounded-lg.border");
+    }
+
+    it("pins the data view to the height the chart view measured", async () => {
+      const restore = stubOffsetHeight(544);
+      try {
+        const user = userEvent.setup();
+        const { container } = render(<ChartContainer />);
+
+        // Chart mode is free-height: the CSS floor governs, nothing inline.
+        expect(body(container).style.height).toBe("");
+
+        await user.click(screen.getByRole("button", { name: "View Data" }));
+        await screen.findByTestId("data-table");
+        expect(body(container).style.height).toBe("544px");
+
+        // ...and releasing it on the way back keeps the chart unconstrained.
+        await user.click(screen.getByRole("button", { name: "View Chart" }));
+        expect(body(container).style.height).toBe("");
+      } finally {
+        restore();
+      }
+    });
+
+    it("falls back to the CSS floor when nothing could be measured", async () => {
+      const user = userEvent.setup();
+      const { container } = render(<ChartContainer />);
+
+      await user.click(screen.getByRole("button", { name: "View Data" }));
+      await screen.findByTestId("data-table");
+
+      expect(body(container).style.height).toBe("");
+      expect(body(container).className).toContain("min-h-130");
+    });
+  });
 });

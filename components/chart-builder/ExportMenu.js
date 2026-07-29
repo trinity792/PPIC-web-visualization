@@ -23,7 +23,13 @@
  *                                 workspace (from PreviewContext); enables
  *                                 multi-chart export
  *   graphDivRefs {Object|null}  — live map of chartId → mounted graph div
- *   disabled     {boolean}      — greys the trigger out (preview not ready)
+ *   disabled     {boolean}      — the preview is not ready. ExportChartButton
+ *                                 greys its trigger out entirely (there is no
+ *                                 figure). ExportDataButton greys out only its
+ *                                 "as displayed" items: the entire cleaned
+ *                                 dataset is addressable from config + schema,
+ *                                 so it stays exportable from an unconfigured
+ *                                 chart.
  *   quality      {Object|null}  — image-quality preset; ExportChartButton keeps
  *                                 its own state when this is not supplied
  *
@@ -430,6 +436,15 @@ export function ExportDataButton({
     [exportCharts, schema],
   );
 
+  // `disabled` means "the preview is not ready", which is about the *chart*, not
+  // about the dataset. The entire cleaned dataset is addressable from config and
+  // schema alone, so a reader who has configured nothing — the skeleton state a
+  // module now opens on — can still take the data away. Only the as-displayed
+  // items need a rendered chart; the trigger closes only when neither source has
+  // anything to write.
+  const chartDataReady = !disabled;
+  const triggerDisabled = disabled && !hasOriginal;
+
   // Resolve a chart's "original" table: the entire cleaned CSV for a module
   // (fetched full, filters ignored), or the pasted table for BYOD. `null` when
   // neither exists. Cached by URL.
@@ -549,7 +564,7 @@ export function ExportDataButton({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" disabled={disabled}>
+        <Button variant="outline" size="sm" disabled={triggerDisabled}>
           <Table aria-hidden="true" />
           Export data
         </Button>
@@ -560,11 +575,17 @@ export function ExportDataButton({
             resolve an item by the group it belongs to). */}
         <DropdownMenuGroup>
           <DropdownMenuLabel>Chart data (as displayed)</DropdownMenuLabel>
-          <DropdownMenuItem onSelect={() => onExportCsv("chart")}>
+          <DropdownMenuItem
+            disabled={!chartDataReady}
+            onSelect={() => onExportCsv("chart")}
+          >
             <FileDown aria-hidden="true" />
             CSV
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => onExportXlsx("chart")}>
+          <DropdownMenuItem
+            disabled={!chartDataReady}
+            onSelect={() => onExportXlsx("chart")}
+          >
             <FileSpreadsheet aria-hidden="true" />
             Excel (XLSX)
           </DropdownMenuItem>

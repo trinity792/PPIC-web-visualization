@@ -129,4 +129,48 @@ describe("ExportMenu named buttons", () => {
       loaded,
     );
   });
+
+  // A module workbench now opens on a skeleton with no loaded result, so "the
+  // preview is not ready" must not stand between the reader and the dataset.
+  describe("with no chart configured", () => {
+    it("keeps the Export data trigger open and exports the original dataset", async () => {
+      const user = userEvent.setup();
+      renderButton(<ExportDataButton loaded={null} disabled />);
+
+      const trigger = screen.getByRole("button", { name: /export data/i });
+      expect(trigger).toBeEnabled();
+
+      await user.click(trigger);
+      const fullDatasetGroup = screen.getByText(/entire cleaned dataset/i).parentElement;
+      await user.click(fullDatasetGroup.querySelector('[role="menuitem"]'));
+      expect(tables.originalTable).toHaveBeenCalledWith(
+        expect.objectContaining({ chartType: "line" }),
+        null,
+      );
+      expect(tables.downloadBlob).toHaveBeenCalled();
+    });
+
+    it("still withholds the as-displayed items, which need a rendered chart", async () => {
+      const user = userEvent.setup();
+      renderButton(<ExportDataButton loaded={null} disabled />);
+
+      await user.click(screen.getByRole("button", { name: /export data/i }));
+      const displayedGroup = screen.getByText(/as displayed/i).parentElement;
+      for (const item of displayedGroup.querySelectorAll('[role="menuitem"]')) {
+        expect(item).toHaveAttribute("aria-disabled", "true");
+      }
+      expect(tables.displayTable).not.toHaveBeenCalled();
+    });
+
+    it("still greys out Export chart, which has no figure to write", () => {
+      renderButton(<ExportChartButton graphDivRef={{ current: null }} loaded={null} disabled />);
+      expect(screen.getByRole("button", { name: /export (chart|image)/i })).toBeDisabled();
+    });
+
+    it("closes the trigger only when neither source has anything to write", () => {
+      tables.originalTable.mockReturnValue(null);
+      renderButton(<ExportDataButton loaded={null} disabled />);
+      expect(screen.getByRole("button", { name: /export data/i })).toBeDisabled();
+    });
+  });
 });

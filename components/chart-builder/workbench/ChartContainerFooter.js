@@ -4,8 +4,11 @@
  * ChartContainerFooter.js — the chart card's action bar.
  *
  * A segmented View Chart / View Data toggle on the left, and the two export
- * dropdowns on the right. Both exports stay disabled until the preview reports
- * `ready`, because there is no figure or table to write until then.
+ * dropdowns on the right. Both are told whether the preview is `ready`, but they
+ * act on it differently: Export Chart has nothing to write without a rendered
+ * figure and greys out, while Export Data stays open, because the module's
+ * entire cleaned dataset does not depend on the chart being built. Only its
+ * "as displayed" items wait for `ready`.
  *
  * Deliberately takes preview state as props rather than calling `usePreview()`:
  * the footer is a presentational bar, and keeping it context-free lets it mount

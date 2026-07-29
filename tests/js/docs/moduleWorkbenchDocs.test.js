@@ -49,7 +49,9 @@ describe("module workbench documentation", () => {
     expect(fs.existsSync(overhaulPath)).toBe(true);
     const metadata = frontmatter(fs.readFileSync(overhaulPath, "utf8"));
     expect(metadata.Topic).toBe("Technical");
-    expect(metadata["Content Type"]).toMatch(/implementation plan|as-built|reference|guide/i);
+    expect(metadata["Content Type"]).toMatch(
+      /implementation plan|as-built|specification|reference|guide/i,
+    );
     expect(metadata.Status).toBe("Finalized");
     expect(metadata["Date Published"]).toMatch(/July 27, 2026|2026-07-27/i);
   });
