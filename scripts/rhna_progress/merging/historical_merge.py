@@ -8,6 +8,7 @@ Data sources:
 Outputs:
     - pandas.DataFrame — the accumulated snapshot series
     - bool — whether a new snapshot landed (gates the conditional write)
+    - dict — a revision summary (snapshots added, plus any anomalous rewrite) for the run log
 
 Usage:
     Called by the RHNA Progress pipeline orchestrator; not run standalone.
@@ -22,6 +23,7 @@ import pandas as pd
 
 from scripts.rhna_progress.config.schemas import get_schema_config
 from scripts.rhna_progress.enrichment.overall_progress import mark_most_recent
+from scripts.shared.logging.revision_diff import DEFAULT_SAMPLE_LIMIT, diff_revisions
 
 """
 ========================================================================================================================
@@ -100,3 +102,31 @@ def detect_new_snapshot(existing, combined, grain_keys):
     if existing is None or existing.empty:
         return combined is not None and not combined.empty
     return _canonical_string_frame(existing, grain_keys) != _canonical_string_frame(combined, grain_keys)
+
+
+def summarize_revisions(existing, combined, grain_keys, sample_limit=DEFAULT_SAMPLE_LIMIT):
+    """
+    Describe what a run added to the accumulated snapshot series, and flag any rewrite of one already captured.
+
+    Snapshot Date is part of the grain, so a fresh HCD capture normally lands as *added*
+    rows and nothing else. Unlike the year-indexed modules, a non-zero changed_cells here
+    is an anomaly worth surfacing — an already-stored snapshot's values do not legitimately
+    move, so it points at a re-derived enrichment formula or a bad write rather than a
+    source revision.
+
+    Returns:
+        The revision-diff dict (see scripts/shared/logging/revision_diff.py).
+
+    Test file:
+        scripts/unit_tests/rhna_progress/merging/test_historical_merge.py
+    """
+    if combined is None or combined.empty:
+        return diff_revisions(pd.DataFrame(), pd.DataFrame(), grain_keys, "Snapshot Date", sample_limit=sample_limit)
+    keys = [column for column in grain_keys if column in combined.columns]
+    return diff_revisions(
+        combined,
+        existing if existing is not None else pd.DataFrame(),
+        keys,
+        "Snapshot Date",
+        sample_limit=sample_limit,
+    )

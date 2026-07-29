@@ -9,6 +9,7 @@ from scripts.housing_stress.merging.historical_merge import (
     detect_new_data,
     load_canonical_dataset,
     load_historical_baseline,
+    summarize_revisions,
 )
 
 CONTRACT_COLUMNS = [
@@ -47,6 +48,53 @@ def _row(
 
 def _complete(_candidate):
     return True, []
+
+
+def test_summarize_revisions_reports_a_restated_estimate():
+    # Arrange: ACS re-releases 2023 with a corrected estimate.
+    saved = pd.DataFrame([_row(year=2023, number_30=30)])
+    merged = pd.DataFrame([_row(year=2023, number_30=42)])
+
+    # Act
+    diff = summarize_revisions(merged, saved)
+
+    # Assert
+    assert diff["changed_cells"] == 1
+    assert diff["changed_periods"] == [2023]
+    assert diff["sample"][0]["column"] == "Number Over 30%"
+    assert diff["sample"][0]["old"] == 30
+    assert diff["sample"][0]["new"] == 42
+
+
+def test_summarize_revisions_separates_a_new_vintage_from_a_restatement():
+    # Arrange: 2024 is genuinely new; 2023 is unchanged.
+    saved = pd.DataFrame([_row(year=2023)])
+    merged = pd.DataFrame([_row(year=2023), _row(year=2024)])
+
+    # Act
+    diff = summarize_revisions(merged, saved)
+
+    # Assert
+    assert diff["added_periods"] == [2024]
+    assert diff["changed_cells"] == 0
+
+
+def test_summarize_revisions_ignores_float_round_trip_noise():
+    # Shares detect_new_data's tolerance, so the diff never contradicts the change flag.
+    saved = pd.DataFrame([_row(year=2023)])
+    merged = pd.DataFrame([_row(year=2023)])
+    merged.loc[0, "Share Over 30%"] = 0.30 + 1e-12
+
+    assert detect_new_data(merged, saved) is False
+    assert summarize_revisions(merged, saved)["changed_cells"] == 0
+
+
+def test_summarize_revisions_agrees_with_the_change_flag():
+    saved = pd.DataFrame([_row(year=2023, number_30=30)])
+    merged = pd.DataFrame([_row(year=2023, number_30=31)])
+
+    assert detect_new_data(merged, saved) is True
+    assert summarize_revisions(merged, saved)["changed_cells"] == 1
 
 
 def test_load_canonical_dataset_missing_file_returns_empty_contract(tmp_path):

@@ -9,6 +9,7 @@ from scripts.components_of_change.merging.historical_merge import (
     load_canonical_dataset,
     load_historical_baseline,
     merge_dof_and_census,
+    summarize_source_revisions,
 )
 
 
@@ -71,6 +72,89 @@ def test_detect_new_source_data_treats_na_and_nan_as_equal():
 
     assert new["Percent Change in Population"].isna().all()
     assert detect_new_source_data(new, historical, "DoF", 1990) is False
+
+
+def test_detect_new_source_data_survives_a_cold_start():
+    # A cold start hands in an empty frame with no columns; that must read as "all new"
+    # rather than raising KeyError on the Source lookup and failing Phase 4.
+    new = pd.DataFrame([_row("Alameda", 2021, "DoF", 100)]).drop(columns=["Geographic Level"])
+
+    assert detect_new_source_data(new, pd.DataFrame(), "DoF", 1990) is True
+
+
+def test_summarize_source_revisions_reports_a_revised_value():
+    # Arrange: 2021 is restated, so whole-year replacement overwrites the saved figure.
+    historical = pd.DataFrame([_row("Alameda", 2021, "DoF", 100)])
+    new = historical.drop(columns=["Geographic Level"]).copy()
+    new.loc[new["Year"].eq(2021), "Births"] = 5
+
+    # Act
+    diff = summarize_source_revisions(new, historical, "DoF", 1990)
+
+    # Assert
+    assert diff["changed_cells"] == 1
+    assert diff["changed_periods"] == [2021]
+    assert diff["sample"][0]["column"] == "Births"
+    assert diff["sample"][0]["old"] == 1
+    assert diff["sample"][0]["new"] == 5
+
+
+def test_summarize_source_revisions_separates_a_new_year_from_a_revision():
+    # Arrange: 2022 is genuinely new; nothing already published changed.
+    historical = pd.DataFrame([_row("Alameda", 2021, "DoF", 100)])
+    new = pd.DataFrame(
+        [_row("Alameda", 2021, "DoF", 100), _row("Alameda", 2022, "DoF", 110)]
+    ).drop(columns=["Geographic Level"])
+
+    # Act
+    diff = summarize_source_revisions(new, historical, "DoF", 1990)
+
+    # Assert
+    assert diff["added_periods"] == [2022]
+    assert diff["changed_cells"] == 0
+    assert diff["changed_periods"] == []
+
+
+def test_summarize_source_revisions_is_quiet_when_nothing_changed():
+    historical = pd.DataFrame([_row("Alameda", 2021, "DoF", 100)])
+    new = historical.drop(columns=["Geographic Level"]).copy()
+
+    diff = summarize_source_revisions(new, historical, "DoF", 1990)
+
+    assert diff["changed_cells"] == 0
+    assert diff["added_keys"] == 0
+    assert diff["sample"] == []
+
+
+def test_summarize_source_revisions_agrees_with_the_change_flag():
+    # The diff must describe the same comparison the detector ran, or the log would
+    # explain a different run than the one that saved.
+    historical = pd.DataFrame([_row("Alameda", 2021, "DoF", 100)])
+    new = historical.drop(columns=["Geographic Level"]).copy()
+    new.loc[new["Year"].eq(2021), "Births"] = 7
+
+    assert detect_new_source_data(new, historical, "DoF", 1990) is True
+    assert summarize_source_revisions(new, historical, "DoF", 1990)["changed_cells"] == 1
+
+
+def test_summarize_source_revisions_excludes_the_boundary_year():
+    # The detector ignores the boundary year, so the diff must too — otherwise a run
+    # could report revised cells while the flag says nothing changed.
+    historical = pd.DataFrame([_row("Alameda", 1990, "DoF", 90), _row("Alameda", 1991, "DoF", 100)])
+    new = historical.drop(columns=["Geographic Level"]).copy()
+    new.loc[new["Year"].eq(1990), "Births"] = 99
+
+    assert detect_new_source_data(new, historical, "DoF", 1990) is False
+    assert summarize_source_revisions(new, historical, "DoF", 1990)["changed_cells"] == 0
+
+
+def test_summarize_source_revisions_on_cold_start_reports_additions_only():
+    new = pd.DataFrame([_row("Alameda", 2021, "DoF", 100)]).drop(columns=["Geographic Level"])
+
+    diff = summarize_source_revisions(new, pd.DataFrame(), "DoF", 1990)
+
+    assert diff["added_keys"] == 1
+    assert diff["changed_cells"] == 0
 
 
 def test_combine_source_with_historical_deduplicates_saved_history():

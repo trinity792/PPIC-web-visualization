@@ -8,6 +8,7 @@ from scripts.projections.merging.historical_merge import (
     load_historical_baseline,
     merge_dof_and_census,
     reduce_to_base_strata,
+    summarize_source_revisions,
 )
 
 CONTRACT_COLUMNS = [
@@ -306,6 +307,71 @@ def test_detect_new_source_data_ignores_changes_at_boundary_year():
 
     # Act / Assert
     assert detect_new_source_data(new, historical, "DoF P-3", 2020, _SCHEMA) is False
+
+
+def test_summarize_source_revisions_reports_a_restated_projection():
+    # Arrange: a new vintage restates an already-published projection year.
+    historical = pd.DataFrame([_row(year=2030, population=100)])
+    new = pd.DataFrame([_row(year=2030, population=140)]).drop(columns=["Source"])
+
+    # Act
+    diff = summarize_source_revisions(new, historical, "DoF P-3", 2020, _SCHEMA)
+
+    # Assert
+    assert diff["changed_cells"] == 1
+    assert diff["changed_periods"] == [2030]
+    assert diff["sample"][0]["column"] == "Population"
+    assert diff["sample"][0]["old"] == 100
+    assert diff["sample"][0]["new"] == 140
+
+
+def test_summarize_source_revisions_separates_a_new_year_from_a_restatement():
+    # Arrange
+    historical = pd.DataFrame([_row(year=2030, population=100)])
+    new = pd.DataFrame([_row(year=2030, population=100), _row(year=2031, population=110)]).drop(columns=["Source"])
+
+    # Act
+    diff = summarize_source_revisions(new, historical, "DoF P-3", 2020, _SCHEMA)
+
+    # Assert
+    assert diff["added_periods"] == [2031]
+    assert diff["changed_cells"] == 0
+
+
+def test_summarize_source_revisions_excludes_the_boundary_year():
+    # The detector ignores the boundary year, so the diff must agree — otherwise a run
+    # could report revised cells while the change flag says nothing changed.
+    historical = pd.DataFrame([_row(year=2020, population=100)])
+    new = pd.DataFrame([_row(year=2020, population=999)]).drop(columns=["Source"])
+
+    assert detect_new_source_data(new, historical, "DoF P-3", 2020, _SCHEMA) is False
+    assert summarize_source_revisions(new, historical, "DoF P-3", 2020, _SCHEMA)["changed_cells"] == 0
+
+
+def test_summarize_source_revisions_agrees_with_the_change_flag():
+    historical = pd.DataFrame([_row(year=2030, population=100)])
+    new = pd.DataFrame([_row(year=2030, population=140)]).drop(columns=["Source"])
+
+    assert detect_new_source_data(new, historical, "DoF P-3", 2020, _SCHEMA) is True
+    assert summarize_source_revisions(new, historical, "DoF P-3", 2020, _SCHEMA)["changed_cells"] == 1
+
+
+def test_summarize_source_revisions_ignores_enriched_marginal_rows():
+    # Saved history carries "All Ages"/"Both Sexes" marginals and Region rollups; the diff
+    # runs on base strata only, so those must not register as revisions.
+    historical = pd.DataFrame(
+        [
+            _row(year=2030, population=100),
+            {**_row(year=2030, population=9999), "Age Group": "All Ages"},
+            {**_row(year=2030, population=8888), "Geographic Level": "Region", "Location": "Bay Area"},
+        ]
+    )
+    new = pd.DataFrame([_row(year=2030, population=100)]).drop(columns=["Source"])
+
+    diff = summarize_source_revisions(new, historical, "DoF P-3", 2020, _SCHEMA)
+
+    assert diff["changed_cells"] == 0
+    assert diff["removed_keys"] == 0
 
 
 def test_detect_new_source_data_returns_true_for_additional_rows():

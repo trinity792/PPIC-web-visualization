@@ -46,10 +46,13 @@ from scripts.rhna_progress.merging.historical_merge import (
     detect_new_snapshot,
     load_canonical_dataset,
     load_historical_seed,
+    summarize_revisions,
 )
 from scripts.rhna_progress.output.finalize_dataset import finalize_dataset, write_dataset
 from scripts.rhna_progress.validation.rhna_progress_validators import validate_cleaned, validate_final
 from scripts.shared.geography.california_geography import get_california_geography
+from scripts.shared.logging.pipeline_logging import log_message
+from scripts.shared.logging.revision_diff import format_revision_summary
 from scripts.shared.logging.run_records import execute_pipeline_run
 
 """
@@ -207,6 +210,15 @@ def build_rhna_progress_dataset(config=None, logger=None):
         enriched = mark_most_recent(enriched)
         combined = combine_snapshots(existing, seed, enriched)
         new_snapshot = detect_new_snapshot(existing, combined, grain_keys)
+        # Snapshot Date is part of the grain, so a capture normally only *adds* rows. A
+        # non-zero changed_cells here is an anomaly (a rewritten stored snapshot), not a
+        # routine source revision, so it is worth surfacing in the run log either way.
+        revisions = {}
+        if new_snapshot:
+            revisions = summarize_revisions(existing, combined, grain_keys)
+            revision_message = format_revision_summary(revisions)
+            if revision_message:
+                log_message(logger, revision_message)
     except RHNAProgressPipelinePhaseError:
         raise
     except Exception as error:
@@ -232,6 +244,7 @@ def build_rhna_progress_dataset(config=None, logger=None):
         "acquired_cycles": acquired_cycles,
         "output_path": output_path,
         "row_count": len(prepared),
+        "revisions": revisions,
     }
 
 

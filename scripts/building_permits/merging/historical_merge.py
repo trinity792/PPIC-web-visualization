@@ -8,6 +8,7 @@ Data sources:
 Outputs:
     - pandas.DataFrame — merged dataset
     - bool — whether new data was detected
+    - dict — a revision summary (added vs restated months) for the run log
 
 Usage:
     Called by the building permits pipeline orchestrator; not run standalone.
@@ -17,6 +18,8 @@ Test Folders:
 """
 
 import pandas as pd
+
+from scripts.shared.logging.revision_diff import DEFAULT_SAMPLE_LIMIT, diff_revisions
 
 # Contract columns for an empty canonical dataset, and the grain used for sorting.
 _CONTRACT_COLUMNS = [
@@ -148,3 +151,27 @@ def detect_new_data(candidate_df, current_df):
     left = candidate_df.sort_values(sort_columns).reset_index(drop=True) if sort_columns else candidate_df
     right = current_df.sort_values(sort_columns).reset_index(drop=True) if sort_columns else current_df
     return left.to_csv(index=False) != right.to_csv(index=False)
+
+
+def summarize_revisions(candidate_df, current_df, sample_limit=DEFAULT_SAMPLE_LIMIT):
+    """
+    Describe what changed between the candidate output and the saved rows it replaces.
+
+    Runs on the same pair as detect_new_data. Census revises recent months as late returns
+    arrive, and month-level atomic replacement overwrites the saved counts without trace;
+    this separates those revisions from genuinely new months.
+
+    Returns:
+        The revision-diff dict (see scripts/shared/logging/revision_diff.py).
+
+    Test file:
+        scripts/unit_tests/building_permits/merging/test_historical_merge.py
+    """
+    key_columns = [column for column in _SORT_COLUMNS if column in candidate_df.columns]
+    return diff_revisions(
+        candidate_df,
+        current_df,
+        key_columns,
+        "Date",
+        sample_limit=sample_limit,
+    )

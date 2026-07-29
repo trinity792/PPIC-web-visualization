@@ -4,7 +4,7 @@ Content Type: project specification
 pinned: true
 description: "The single source of truth for the web-data-visualization project's specification, architecture, and API reference. A living document for programmers and researchers that uses PopHousing as the reference implementation future data modules should mirror."
 Date Published: June 23, 2026
-Last Updated: 07/28/2026 - 04:30 PM
+Last Updated: 07/29/2026 - 11:20 AM
 Status: Updating
 Footnote: Document generated and updated by Claude Opus 4.8 on command. Outlined and verified by Trinity Jones.
 ---
@@ -60,7 +60,7 @@ A **module** is one dataset's full vertical slice: its ETL pipeline under `scrip
 | **Population & Housing** (PopHousing) | CA Dept. of Finance E-5 (modern) + E-8 (historical) estimates | **Active** — first module migrated. End-to-end complete, including the E-8 historical build and cross-module run logging (structured JSONL + per-run `.log`, surfaced on `/logs`). |
 | **Components of Change** | CA Dept. of Finance E-6 + U.S. Census county population component estimates | **Active** — second module migrated, built by mirroring PopHousing. Full pipeline, data contract, API route, and charts complete, with a **verified end-to-end run** against the live DoF E-6 + Census sources (4,023 rows, 1991–2025, now including the District of Columbia; Puerto Rico is inert for this Census file). A 2026-07-13 as-built pass resolved every flagged issue (immutable deep-history seed, block-hard/warn-soft validator, decade-proof Census URL, shared additive helper, DC/PR) with tests. |
 | **Age, Sex & Race Projections** (Demographic Projections) | CA Dept. of Finance **P-3** projections + U.S. Census **cc-est** estimates | **Active** — third module migrated, built **test-first** against the shared architecture. Full Python pipeline, data contract, API route, and chart wiring are complete, with a **verified dual-source end-to-end run** against live DoF P-3 + Census cc-est (**1,718,208 rows**: DoF County/Region/State 2020–2070 + Census US State 2020–2025), idempotent on re-run and free of duplicate keys. A 2026-07-03 reliability audit repaired the live source scrapers (both filenames had moved), a fallback-reaggregation crash, and two Census-cleaning gaps; a **2026-07-13 as-built pass then resolved every remaining flagged issue** (base-vs-base change detection so the new-data flags are meaningful, derive-and-accept Census year, observed-horizon P-3 validation, drop-and-log source-drift with a fail-closed completeness backstop, immutable deep-history seed, atomic writes, wired validators) with tests and an offline end-to-end re-verification. See *The Demographic Projections Module → Verification*. |
-| **ACS Housing Stress** | U.S. Census Bureau **ACS 1-year** table-based Summary File, table **B25140** (housing cost burden) | **Active** — fourth module migrated, built **test-first** (136 mirrored tests pass). Full Python pipeline, data contract, API route, module schema, and built-in chart views are complete, with a **verified end-to-end run** against live ACS. It contains the **latest vintage only** (2024, 4,525 rows) — the pipeline fetches one vintage per run and accumulates history over time; the legacy 2012–2023 series was set aside pending a schema migration. A 2026-07-13 as-built pass resolved every flagged issue (A1–A9, B1–B4: discriminated fallback payload with degrade-not-crash, backfill driver + immutable seed, wired cleaning validator, single-fetch cache, atomic writes) with tests and offline re-verification. See *The ACS Housing Stress Module* for caveats. |
+| **ACS Housing Stress** | U.S. Census Bureau **ACS 1-year** table-based Summary File, table **B25140** (housing cost burden) | **Active** — fourth module migrated, built **test-first** (136 mirrored tests pass). Full Python pipeline, data contract, API route, module schema, and built-in chart views are complete, with a **verified end-to-end run** against live ACS. The contract now holds the **full 2012–2024 series (52,950 rows, 2020 excluded)**: the live pipeline still fetches one vintage per run, but the `housing_stress_backfill.py` driver has since built every published vintage into the immutable `HousingStress_Historical.csv` seed, which the live run unions in. A 2026-07-13 as-built pass resolved every flagged issue (A1–A9, B1–B4: discriminated fallback payload with degrade-not-crash, backfill driver + immutable seed, wired cleaning validator, single-fetch cache, atomic writes) with tests and offline re-verification. See *The ACS Housing Stress Module* for caveats. |
 | **Building Permits** | U.S. Census Bureau **Building Permits Survey** monthly CBSA + state `.xls` releases | **Active** — fifth module migrated, built **test-first** (95 mirrored tests pass) and the first **monthly** module. Full Python pipeline, data contract, API route, module schema, data-access layer, and a JS geography mirror are complete, with a **verified end-to-end run** against live Census BPS. The contract holds **197 months, 2010-01 → 2026-05, 14,691 rows** — deep history (pre-2024) now lives in an immutable, read-only seed (`BuildingPermits_Historical.csv`) because the source only hosts a rolling ~2-year window; the live pipeline maintains 2024-onward forward and composes the two each run. A 2026-07-14 as-built pass resolved every flagged issue (A1–A7, B1–B4: immutable deep-history seed + baseline compose + Phase-5 guard, atomic writes, wired cleaning validator, probe retry + prefetch reuse + status-code 404, located + dtype-stable measure/code casts, write-gate-aligned change detection, clean-degrade regression test) with tests and an offline idempotency re-verification. As of 2026-07-07 it renders the live graph editor with module-owned presets (graph-editor overhaul). See *The Building Permits Module* for caveats. |
 | *Original legacy datasets* | V1 notebooks | **All five migrated** ✅ — PopHousing, Components of Change, Demographic Projections, ACS Housing Stress, and Building Permits are all on the V3 architecture. |
 | **RHNA Progress Report** | CA HCD **RHNA Progress Report** (data.ca.gov CKAN package, biweekly overwrite) | **Active — offline-seeded.** The **first net-new module** (no legacy predecessor), built **test-first** (115 mirrored tests pass). Full Python pipeline, data contract, API route, module schema, server-only data-access layer, and a live landing dashboard are complete. The contract is **tidy/long on income level** and **snapshot-versioned** — each biweekly HCD overwrite is captured as a `Snapshot Date`, turning the overwrite stream into a time series — with PPIC's pace / on-track analytics computed once in the pipeline. The committed contract holds **5,390 rows** (539 jurisdictions × 5 income levels × 2 cycles), **offline-seeded** from the two saved cycle files; a **verified live CKAN run is the single gate** to full Active. The chart editor opens on the cross-sectional **ranking** view (the trend line is deferred until biweekly snapshots accrue; no jurisdiction geometry, so no map). See the [module specification](./RHNA-progress-report-module.md). |
@@ -419,7 +419,7 @@ Generic data-quality checks. Each **returns structured results** (lists, counts,
 | `validate_numeric_range(dataframe, value_col, min_value, max_value, row_mask)` | Rows where the value is outside `[min, max]`; nulls are not violations; bounds may be `None`; `row_mask` limits which rows are checked. |
 
 #### [`shared/logging/pipeline_logging.py`](../../../scripts/shared/logging/pipeline_logging.py) · [`dataframe_logging.py`](../../../scripts/shared/logging/dataframe_logging.py) · [`run_records.py`](../../../scripts/shared/logging/run_records.py) — *Shared mechanism*
-The logging surface, implemented over stdlib `logging`: `setup_logging` / `get_logger` / `close_logging` / `log_processing_step` (file + console logger writing `logs/<module>_pipeline.log`), plus `log_dataframe_info` / `log_data_quality_check`. `run_records.py` adds the structured **run-record** layer: `build_run_record` (derives severity — success / recovered / error — a Pacific-time timestamp, phase index, and traceback location), `append_run_record` (one JSON line to `logs/pipeline-runs.jsonl`), and `execute_pipeline_run` (the wrapper each orchestrator's `__main__` calls: set up logging → run → write a record → close, re-raising on failure). By design the **orchestrator supplies the log directory** as an argument (`get_paths()["logs_directory"]`), keeping logging free of any module's config. The `logs/*.jsonl` records are the contract the `/logs` page reads.
+The logging surface, implemented over stdlib `logging`: `setup_logging` / `get_logger` / `close_logging` / `log_processing_step` (file + console logger writing `logs/<module>_pipeline.log`), plus `log_dataframe_info` / `log_data_quality_check`. `run_records.py` adds the structured **run-record** layer: `build_run_record` (derives severity — success / recovered / error — a Pacific-time timestamp, phase index, and traceback location), `append_run_record` (one JSON line to `logs/pipeline-runs.jsonl`), and `execute_pipeline_run` (the wrapper each orchestrator's `__main__` calls: set up logging → run → write a record → close, re-raising on failure). By design the **orchestrator supplies the log directory** as an argument (`get_paths()["logs_directory"]`), keeping logging free of any module's config. The `logs/*.jsonl` records are the contract the `/logs` page reads. [`revision_diff.py`](../../../scripts/shared/logging/revision_diff.py) sits alongside them as a pure diffing mechanism whose output every orchestrator folds into its summary — see *Revision Reporting (All Modules)*.
 
 ---
 
@@ -796,7 +796,7 @@ Same layering as PopHousing: `scripts/shared/` mechanisms (documented above) →
 #### `merging/` — combining sources and detecting change
 | Script | Public functions |
 |---|---|
-| `historical_merge.py` | `load_canonical_dataset` (returns an empty frame + loud `UserWarning` when the CSV is absent, so a cold start proceeds on live data), `load_historical_baseline` (reads the immutable deep-history seed), `combine_history_sources` (unions seed + current output, de-duped on `(Location, Year, Source)` preferring the current output), `combine_source_with_historical`, `detect_new_source_data` (drives the incremental save; normalizes numeric columns to numpy floats first so a freshly-cleaned `Float64`/`pd.NA` frame and the reloaded CSV's `float64`/`np.nan` don't read as a change), `merge_dof_and_census` |
+| `historical_merge.py` | `load_canonical_dataset` (returns an empty frame + loud `UserWarning` when the CSV is absent, so a cold start proceeds on live data), `load_historical_baseline` (reads the immutable deep-history seed), `combine_history_sources` (unions seed + current output, de-duped on `(Location, Year, Source)` preferring the current output), `combine_source_with_historical`, `detect_new_source_data` (drives the incremental save; normalizes numeric columns to numpy floats first so a freshly-cleaned `Float64`/`pd.NA` frame and the reloaded CSV's `float64`/`np.nan` don't read as a change), `summarize_source_revisions` (separates new years from silently restated ones - see *Revision Reporting*), `_aligned_frames` (the shared prep both of those run on, so the diff always explains the flag; also the cold-start guard that returns "no comparable history" instead of raising `KeyError` on an empty saved frame), `merge_dof_and_census` |
 
 #### `output/` · `validation/` — contract and gates
 | Script | Public functions |
@@ -954,7 +954,7 @@ Same layering as the other modules: `scripts/shared/` mechanisms → `scripts/pr
 #### `merging/` · `aggregation/` — combining sources, rollups, and totals
 | Script | Public functions |
 |---|---|
-| `merging/historical_merge.py` | `load_canonical_dataset`, `load_historical_baseline` / `combine_history_sources` (seed + current union, prefer current), `reduce_to_base_strata` (single owner of "base row"), `combine_source_with_historical` (atomic per-`(Source, Year)` replacement, gated on completeness, retained years reduced to base strata), `detect_new_source_data` (base-vs-base comparison), `merge_dof_and_census`. |
+| `merging/historical_merge.py` | `load_canonical_dataset`, `load_historical_baseline` / `combine_history_sources` (seed + current union, prefer current), `reduce_to_base_strata` (single owner of "base row"), `combine_source_with_historical` (atomic per-`(Source, Year)` replacement, gated on completeness, retained years reduced to base strata), `detect_new_source_data` (base-vs-base comparison), `summarize_source_revisions` (separates new years from a vintage that restates the published horizon - see *Revision Reporting*), `_aligned_frames` / `_recent_rows` / `_row_set` (the shared base-strata prep both the flag and the diff run on), `merge_dof_and_census`. |
 | `aggregation/regional_aggregation.py` | `add_regional_data` (9 CA regions), `add_state_total` (California from 58 counties; skips a DoF state row that already exists, keeps a separate Census `US State` row). |
 | `aggregation/precomputed_totals.py` | `add_all_ages_totals`, `add_both_sexes_totals`, `add_all_races_totals`, `build_precomputed_totals` (runs them in order so the grand total is correct). |
 
@@ -1177,7 +1177,7 @@ Same layering as the other modules: `scripts/shared/` mechanisms → `scripts/ho
 | Script | Public functions |
 |---|---|
 | `aggregation/geographic_levels.py` | `build_state_rows` (50 states, USPS abbreviation as Location), `build_region_rows` (9 CA regions), `build_county_rows` (58 CA counties), `build_all_levels` (concatenate + sort). Replaces the three legacy closures. |
-| `merging/historical_merge.py` | `load_canonical_dataset`, `combine_with_historical` (validate-before-mutate; atomic whole-year replacement), `detect_new_data` (order/index-insensitive). |
+| `merging/historical_merge.py` | `load_canonical_dataset`, `combine_with_historical` (validate-before-mutate; atomic whole-year replacement), `detect_new_data` (order/index-insensitive), `summarize_revisions` (separates a new vintage from a restated one, sharing the detector's float tolerance - see *Revision Reporting*). |
 
 #### `validation/` · `output/` — gates and contract
 | Script | Public functions |
@@ -1244,8 +1244,8 @@ The schema declares four curated measures (counts and shares use distinct `compa
 
 The module is complete, its tests pass, and it has run end-to-end against live ACS. A few things about *today's* state are worth recording:
 
-- **Verified run — latest vintage only.** `python -m scripts.orchestrators.housing_stress_pipeline` resolved vintage **2024** and wrote `HousingStress_Current.csv` (**4,525 rows**: State 50, County 58, Region 9 × 9 races × 5 tenures, minus ACS-suppressed strata), and is idempotent on re-run ("No new data detected"). The pipeline fetches **one vintage per run** and accumulates earlier years over successive runs, so the contract holds **2024 only** today.
-- **Legacy 2012–2023 set aside.** A legacy-format `HousingStress_Current.csv` (old `Race/ethnicity`/`Label` columns, including forbidden 2020 rows) was sitting at the contract path and corrupted the merge; it was moved to `HousingStress_Current.legacy-2012-2023.csv.bak`. Bootstrapping that history into the V3 contract (rename + reconcile race labels, drop 2020, append) is a separate one-time migration, not yet done.
+- **Verified run + full backfilled series.** `python -m scripts.orchestrators.housing_stress_pipeline` resolves the latest vintage (**2024**: State 50, County 58, Region 9 × 9 races × 5 tenures, minus ACS-suppressed strata) and is idempotent on re-run ("No new data detected"). The live pipeline still fetches **one vintage per run**, but `scripts/orchestrators/housing_stress_backfill.py` has since walked every published ACS 1-year vintage from 2012 into the immutable `HousingStress_Historical.csv` seed, which the live run unions in — so the contract now holds **2012–2024, 52,950 rows** (2020 excluded, as ACS published no standard 1-year release).
+- **Legacy 2012–2023 superseded, not migrated.** The old legacy-format file (old `Race/ethnicity`/`Label` columns, including forbidden 2020 rows) was sitting at the contract path and corrupted the merge; it was moved to `HousingStress_Current.legacy-2012-2023.csv.bak` and remains there. It was never migrated — the backfill driver rebuilt those years from the ACS source in the V3 schema instead, which is the better outcome, so the `.bak` is now dead weight rather than a pending task.
 - **Two acquisition fixes made during the first real run** (the mocked orchestrator tests had hidden them, same pattern as Projections): (1) `resolve_latest_vintage` now advances past a **timeout/connection error**, not just a 404 — the Census server *hangs* rather than 404s for some not-yet-published vintages (e.g. 2026/2025), so a probe timeout must step to the previous year while a *parse* error still raises; (2) state acquisition now downloads each national `.dat` **once** via `download_national_table` and filters all 50 states in memory, instead of re-downloading it per state (was ~900 requests). `paths.py` also gained `manual_state_path` / `manual_ca_path` to match the orchestrator. Tests were added for all three.
 - **County/region are approximate.** They come from PUMA aggregation (PUMAs cross county lines); only the State series is exact. A future move to ACS **5-year** county tables (direct `SUMLEV=050`) is recorded as an open option, not adopted.
 - **Cross-module editor fix shipped alongside this module.** The shared chart editor kept the previous module's config when navigating between modules (all under `/[module]`), so arriving at a new module validated the old module's field bindings against the new schema and blocked every preset with a configuration error. Fixed by keying `<ChartConfigProvider>` on `moduleId` in `components/chart-builder/ModuleEditor.js` so the editor rebuilds a fresh config per module — a project-wide fix that benefits every module.
@@ -1315,7 +1315,7 @@ Same layering as the other modules: `scripts/shared/` mechanisms → `scripts/bu
 #### `merging/` · `validation/` · `output/` — history, gates, and contract
 | Script | Public functions |
 |---|---|
-| `merging/historical_merge.py` | `load_canonical_dataset`, `latest_stored_month`, `combine_with_historical` (atomic whole-month replacement), `detect_new_data` (order/index-insensitive). |
+| `merging/historical_merge.py` | `load_canonical_dataset`, `latest_stored_month`, `combine_with_historical` (atomic whole-month replacement), `detect_new_data` (order/index-insensitive), `summarize_revisions` (separates new months from Census's late-return restatements, and names any lost deep-history month - see *Revision Reporting*). |
 | `validation/building_permits_validators.py` | `validate_cleaning_output`, `validate_building_permits_dataset` (row-count bounds, both levels present, 50 states per month, metros **⊆** the canonical 26, contiguous monthly `Date` range across the present span, non-negative measures, no duplicate keys). |
 | `output/finalize_dataset.py` | `prepare_output` (contract column order + integer casts), `archive_and_save` (content-identical skip; `BuildingPermits_{mm-dd-yy}.csv` archive timestamp). |
 
@@ -1758,6 +1758,80 @@ Validators **return structured results rather than printing**; only the orchestr
 
 ---
 
+## Revision Reporting (All Modules)
+
+Every module replaces an overlapping period **wholesale** rather than upserting individual keys - the merge helpers all state "never performs key-level upserts", because mixing vintages inside one period would produce a year that is part old-methodology and part new. The cost of that correct choice is that a source which **restates an already-published period** silently overwrites the saved figures, and the run log records only "new data detected".
+
+Since 2026-07-29 every pipeline additionally records **what** changed. This does not alter the merge, the change flag, or the write gate; it is purely additive reporting.
+
+### The shared helper
+
+[`scripts/shared/logging/revision_diff.py`](../../../scripts/shared/logging/revision_diff.py) is a pure, no-I/O mechanism that separates genuinely new periods from revised values between two frames.
+
+| Function | Description |
+|---|---|
+| `diff_revisions(new_df, saved_df, key_columns, period_column, ...)` | Returns a JSON-safe dict: `added_periods`, `changed_periods`, `removed_periods`, `added_keys`, `removed_keys`, `changed_cells`, `truncated`, and a magnitude-ranked `sample` of `{key, column, old, new}` records. |
+| `has_revisions(diff)` | Whether a diff describes any revised cells or removed keys. |
+| `format_revision_summary(diff, limit=3)` | Renders the diff as a one-line human log message, or `None` when nothing was revised. |
+
+The rules it implements, and why each exists:
+
+- **Added is not revised.** A key present only in the new pull counts as an addition, so a genuinely new year never inflates the revision counts. This separation is the entire point of the helper.
+- **Null on both sides is not a change,** and numeric cells compare within a `tolerance` (default `1e-9`), reusing the CSV round-trip ULP reasoning the change detectors already encode. Non-numeric columns compare as text, so a renamed label still registers.
+- **Booleans are cast to 0/1** before comparison. `pd.to_numeric` leaves a bool Series as bool and numpy refuses to subtract those, which would otherwise crash on RHNA's `Most Recent`.
+- **The sample is capped** (default 20) and ranked by `|new - old| / max(|old|, 1)`, so a small county's meaningful revision outranks a rounding wobble in a large one. It is built with a per-column `nlargest` rather than melting the frame, which is what keeps the worst case bounded.
+- **Values are cast to Python scalars.** `run_records._json_safe` falls back to `str(value)` on anything `json.dumps` rejects, so one stray `numpy.int64` would collapse the whole block into an unparseable string.
+- **Whole floats lose the decimal** in period labels and sample keys, because modules normalize `Year` to `float64` for null-safe comparison and the log should read `Fresno County|2023|DoF`, not `2023.0`.
+
+### Per-module adapters
+
+Each module's `merging/historical_merge.py` exposes one thin adapter that reuses **the same prepared frames its change detector uses**, so the reported revisions always explain that run's change flag rather than a different comparison.
+
+| Module | Adapter | Grain / period | Notes |
+|---|---|---|---|
+| Components of Change | `summarize_source_revisions(new_df, historical_df, source, boundary_year)` | `(Location, Year, Source)` / `Year` | Shares the extracted `_aligned_frames` with `detect_new_source_data`; excludes the boundary year exactly as the detector does. |
+| Demographic Projections | `summarize_source_revisions(..., schema_config)` | contract keys minus `Population` / `Year` | Runs on base strata only, so enriched marginals and Region rollups never register as revisions. |
+| ACS Housing Stress | `summarize_revisions(merged_df, historical_df)` | `(Year, Geographic Level, Location, Race/Ethnicity, Tenure)` / `Year` | Passes the detector's `_FLOAT_ABS_TOLERANCE` through, so the diff cannot contradict the flag. |
+| Building Permits | `summarize_revisions(candidate_df, current_df)` | `(Date, Geographic Level, Location)` / `Date` | `removed_periods` names any lost deep-history month, which the Phase 5 guard then fails on. |
+| RHNA Progress | `summarize_revisions(existing, combined, grain_keys)` | grain keys / `Snapshot Date` | The inverted case - see below. |
+
+Orchestrators call the adapter **only when the change flag is already true**, add the result to the returned summary under `revisions`, and log `format_revision_summary` through the module logger.
+
+> [!note] RHNA is the inverted case
+> `Snapshot Date` is part of RHNA's grain, so a fresh HCD capture normally lands as *added* rows and nothing else. A non-zero `changed_cells` there is therefore an **anomaly** - an already-stored snapshot's values do not legitimately move - and points at a re-derived enrichment formula or a bad write rather than a source revision. It is worth surfacing precisely because it should never happen.
+
+### Where it surfaces
+
+`_serialize_summary` carries the block into the run record's `result.revisions`, so it lands in `logs/pipeline-runs.jsonl` alongside `new_data` and `row_count`:
+
+```json
+"revisions": {
+  "DoF": {
+    "added_periods": [2024],
+    "changed_periods": [2023],
+    "added_keys": 1,
+    "removed_keys": 0,
+    "changed_cells": 1,
+    "truncated": false,
+    "sample": [
+      {"key": "Fresno County|2023|DoF", "column": "Births", "old": 12400.0, "new": 12180.0}
+    ]
+  }
+}
+```
+
+The matching log line reads `DoF Revisions: 1 cells revised; periods 2023 - Fresno County|2023|DoF Births 12400.0 -> 12180.0`.
+
+**Verified at scale.** Against the real 1,718,208-row Projections contract with every `Population` value perturbed - the worst case, a wholesale vintage restatement - the diff completes in **8.6 s** and serializes to **2.6 KB**, because the counts are aggregate and only the top 20 cells are materialized. The log line collapses a long span to `periods 2020-2070 (51 periods)` rather than naming all 51.
+
+> [!warning] Not yet rendered on `/logs`
+> `KeyValueBlock` in `components/logs/LogCard.js` `JSON.stringify`s a nested object onto one line, so `revisions` currently shows as a blob in the Result block. It is legible in the "Raw record" `<pre>`. A dedicated renderer is a pending frontend change.
+
+> [!note] What this does and does not give you
+> The contract still holds only the agency's current best estimate; superseded values are not retained in the dataset, and a prior figure is recoverable only from `data/archive/`. What the run log now provides is a **trail** - which periods moved, by how much, and on which run - so a discrepancy against a previously published PPIC figure can be explained rather than merely discovered.
+
+---
+
 ## Testing
 
 *Project-wide standard; the current suite covers all five modules — PopHousing, Components of Change, Demographic Projections, ACS Housing Stress, and Building Permits (1,054 backend tests passing), alongside the frontend Vitest suite.*
@@ -1784,7 +1858,7 @@ The pytest suite lives in `scripts/unit_tests/`, **mirroring the source tree** (
 
 **Within Demographic Projections:** the full Python pipeline (config → acquisition → cleaning → merge → aggregation → validation → output), orchestrator, data contract, API route, module schema, data-access layer, and the module-specific stratification filter controls are complete, with a **verified dual-source end-to-end run** (live DoF P-3 + Census cc-est, 1,718,208 rows, idempotent, zero duplicate keys — see *Verification (Demographic Projections)*). A 2026-07-03 reliability audit fixed four live-only defects (both source scrapers, a fallback-reaggregation crash, and two Census-cleaning gaps). The doc's bespoke chart-shape presets (age pyramid, projection-vs-estimate, overlay comparison) are deferred pending per-module preset support — see *Current-State Notes & Caveats (Demographic Projections)*.
 
-**Within ACS Housing Stress:** the full Python pipeline (config → acquisition → cleaning + geography → build-levels → merge → validation → output), orchestrator, data contract, API route, module schema, data-access layer, the Race/Ethnicity + Tenure sidebar filters, four built-in views, and the navbar tab are complete, with 136 mirrored tests passing and a **verified end-to-end run** (vintage 2024, 4,525 rows). The contract holds the **latest vintage only** today (the pipeline fetches one vintage per run); the legacy 2012–2023 series was set aside pending a schema migration. Shipped alongside it: two acquisition robustness fixes (probe advances past Census-server hangs; download-once-per-table), a cross-module editor fix (`key={moduleId}` on `ChartConfigProvider`), and `__init__.py` package files that fix full-suite pytest collection — see *Current-State Notes & Caveats (ACS Housing Stress)*.
+**Within ACS Housing Stress:** the full Python pipeline (config → acquisition → cleaning + geography → build-levels → merge → validation → output), orchestrator, data contract, API route, module schema, data-access layer, the Race/Ethnicity + Tenure sidebar filters, four built-in views, and the navbar tab are complete, with 136 mirrored tests passing and a **verified end-to-end run** (vintage 2024). The live pipeline fetches one vintage per run, and the `housing_stress_backfill.py` driver has since built every vintage from 2012 into the immutable seed, so the contract holds **2012–2024, 52,950 rows** (2020 excluded). Shipped alongside it: two acquisition robustness fixes (probe advances past Census-server hangs; download-once-per-table), a cross-module editor fix (`key={moduleId}` on `ChartConfigProvider`), and `__init__.py` package files that fix full-suite pytest collection — see *Current-State Notes & Caveats (ACS Housing Stress)*.
 
 **Within Building Permits:** the full Python pipeline (config → acquisition → cleaning → geography tagging → merge → validation → output), orchestrator, data contract, API route, module schema, month-aware data-access layer, and the JS geography mirror are complete, with a **verified end-to-end run** against live Census BPS. The contract holds **197 months (2010-01 → 2026-05, 14,691 rows)** — deep history lives in the immutable, read-only `BuildingPermits_Historical.csv` seed (composed with the live pull each run) because the source hosts only a rolling ~2-year window. A 2026-07-14 as-built pass resolved every flagged issue (A1–A7, B1–B4) with tests and an offline idempotency re-verification; the module's audit chips are **Verified** for Reliability, Robustness, Live, Offline, and Manually verified (Efficiency is the lone open column, shared by all five modules). The graph-editor overhaul (2026-07-07) shipped its module-owned presets and lifted it out of `underConstruction`; a monthly range control and the category/bar shared-view remain non-blocking follow-ups — see *Current-State Notes & Caveats (Building Permits)*.
 

@@ -9,6 +9,7 @@ Data sources:
 Outputs:
     - pandas.DataFrame — merged dataset with both sources
     - bool flags — whether new data was detected for each source
+    - dict — per-source revision summaries (added vs restated years) for the run log
 
 Usage:
     Called by the projections pipeline orchestrator; not run standalone.
@@ -20,6 +21,8 @@ Test Folders:
 from pathlib import Path
 
 import pandas as pd
+
+from scripts.shared.logging.revision_diff import DEFAULT_SAMPLE_LIMIT, diff_revisions
 
 CONTRACT_COLUMNS = [
     "Geographic Level",
@@ -130,13 +133,19 @@ def combine_source_with_historical(new_df, historical_df, source, year_column, c
     return pd.concat([retained, incoming], ignore_index=True)
 
 
-def detect_new_source_data(new_df, historical_df, source, boundary_year, schema_config):
-    """Determine whether the freshly cleaned source contains genuinely new data. Test file: scripts/unit_tests/projections/merging/test_historical_merge.py
+def _aligned_frames(new_df, historical_df, source, boundary_year, schema_config):
+    """
+    Build the two base-strata frames shared by change detection and the revision diff.
 
-    Both sides are reduced to base strata before comparison (A1): the incoming
-    frame is base-only (County / US State, no marginals) while saved history is
-    fully enriched, so comparing raw sets would always differ and make the flag
-    meaningless. Reducing history to the same base shape makes the flag truthful.
+    Both callers must see the same pair, otherwise the reported revisions could describe
+    something other than what the detector detected.
+
+    Returns:
+        (incoming, history) — both reduced to base strata and filtered to years beyond the
+        boundary year, matching the grain the change flag is computed on.
+
+    Test file:
+        scripts/unit_tests/projections/merging/test_historical_merge.py
     """
     incoming = reduce_to_base_strata(new_df.copy(), schema_config)
     incoming["Source"] = source
@@ -145,17 +154,61 @@ def detect_new_source_data(new_df, historical_df, source, boundary_year, schema_
     else:
         history = historical_df
     history = reduce_to_base_strata(history, schema_config)
+    return _recent_rows(incoming, boundary_year), _recent_rows(history, boundary_year)
 
-    return _recent_row_set(incoming, boundary_year) != _recent_row_set(history, boundary_year)
+
+def detect_new_source_data(new_df, historical_df, source, boundary_year, schema_config):
+    """Determine whether the freshly cleaned source contains genuinely new data. Test file: scripts/unit_tests/projections/merging/test_historical_merge.py
+
+    Both sides are reduced to base strata before comparison (A1): the incoming
+    frame is base-only (County / US State, no marginals) while saved history is
+    fully enriched, so comparing raw sets would always differ and make the flag
+    meaningless. Reducing history to the same base shape makes the flag truthful.
+    """
+    incoming, history = _aligned_frames(new_df, historical_df, source, boundary_year, schema_config)
+    return _row_set(incoming) != _row_set(history)
 
 
-def _recent_row_set(df, boundary_year):
-    """Return the set of contract-keyed rows with Year beyond the boundary year."""
+def summarize_source_revisions(new_df, historical_df, source, boundary_year, schema_config, sample_limit=DEFAULT_SAMPLE_LIMIT):
+    """
+    Describe what changed between a source's fresh pull and the saved rows it replaces.
+
+    Runs on the same base-strata pair as detect_new_source_data. A new P-3 vintage
+    republishes the whole 2020-2070 horizon, so per-year atomic replacement can restate
+    already-published projections without trace; this separates those revisions from
+    genuinely new years.
+
+    Returns:
+        The revision-diff dict (see scripts/shared/logging/revision_diff.py).
+
+    Test file:
+        scripts/unit_tests/projections/merging/test_historical_merge.py
+    """
+    incoming, history = _aligned_frames(new_df, historical_df, source, boundary_year, schema_config)
+    key_columns = [column for column in CONTRACT_COLUMNS if column != "Population"]
+    return diff_revisions(
+        incoming,
+        history,
+        [column for column in key_columns if column in incoming.columns],
+        "Year",
+        value_columns=["Population"],
+        sample_limit=sample_limit,
+    )
+
+
+def _recent_rows(df, boundary_year):
+    """Return the rows with Year beyond the boundary year, the grain change flags use. Test file: scripts/unit_tests/projections/merging/test_historical_merge.py"""
     if df.empty or "Year" not in df.columns:
+        return df
+    return df[df["Year"] > boundary_year]
+
+
+def _row_set(df):
+    """Return the set of contract-keyed row tuples used for equality comparison. Test file: scripts/unit_tests/projections/merging/test_historical_merge.py"""
+    if df.empty:
         return set()
-    recent = df[df["Year"] > boundary_year]
-    columns = [column for column in CONTRACT_COLUMNS if column in recent.columns]
-    return set(recent[columns].itertuples(index=False, name=None))
+    columns = [column for column in CONTRACT_COLUMNS if column in df.columns]
+    return set(df[columns].itertuples(index=False, name=None))
 
 
 def merge_dof_and_census(dof_df, census_df):

@@ -7,6 +7,7 @@ from scripts.building_permits.merging.historical_merge import (
     latest_stored_month,
     load_canonical_dataset,
     load_historical_baseline,
+    summarize_revisions,
 )
 
 CONTRACT_COLUMNS = [
@@ -37,6 +38,55 @@ def _row(
         "3 and 4 Units": 10,
         "5 Units or More": 25,
     }
+
+
+def test_summarize_revisions_reports_a_restated_month():
+    # Arrange: Census revises an already-published month as late returns arrive.
+    saved = pd.DataFrame([_row(date="2026-04", total=100)])
+    candidate = pd.DataFrame([_row(date="2026-04", total=118)])
+
+    # Act
+    diff = summarize_revisions(candidate, saved)
+
+    # Assert
+    assert diff["changed_cells"] == 1
+    assert diff["changed_periods"] == ["2026-04"]
+    assert diff["sample"][0]["column"] == "Total"
+    assert diff["sample"][0]["old"] == 100
+    assert diff["sample"][0]["new"] == 118
+
+
+def test_summarize_revisions_separates_a_new_month_from_a_restatement():
+    # Arrange: 2026-05 is genuinely new; 2026-04 is unchanged.
+    saved = pd.DataFrame([_row(date="2026-04", total=100)])
+    candidate = pd.DataFrame([_row(date="2026-04", total=100), _row(date="2026-05", total=110)])
+
+    # Act
+    diff = summarize_revisions(candidate, saved)
+
+    # Assert
+    assert diff["added_periods"] == ["2026-05"]
+    assert diff["changed_cells"] == 0
+
+
+def test_summarize_revisions_agrees_with_the_change_flag():
+    saved = pd.DataFrame([_row(date="2026-04", total=100)])
+    candidate = pd.DataFrame([_row(date="2026-04", total=101)])
+
+    assert detect_new_data(candidate, saved) is True
+    assert summarize_revisions(candidate, saved)["changed_cells"] == 1
+
+
+def test_summarize_revisions_flags_a_lost_month_as_removed():
+    # A dropped deep-history month is exactly what the Phase 5 guard fails on; the log
+    # should name it rather than only reporting "new data".
+    saved = pd.DataFrame([_row(date="2010-01", total=50), _row(date="2026-04", total=100)])
+    candidate = pd.DataFrame([_row(date="2026-04", total=100)])
+
+    diff = summarize_revisions(candidate, saved)
+
+    assert diff["removed_keys"] == 1
+    assert diff["removed_periods"] == ["2010-01"]
 
 
 def test_load_canonical_dataset_missing_file_returns_empty_contract(tmp_path):

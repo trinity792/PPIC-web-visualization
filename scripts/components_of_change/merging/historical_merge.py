@@ -8,6 +8,7 @@ Data sources:
 Outputs:
     - pandas.DataFrame — source-level and final merged Components datasets
     - bool — source change-detection flags
+    - dict — per-source revision summaries (added vs revised years) for the run log
 
 Usage:
     python scripts/components_of_change/merging/historical_merge.py
@@ -22,6 +23,7 @@ from pathlib import Path
 import pandas as pd
 
 from scripts.components_of_change.calculations.demographic_rates import recalculate_population_change
+from scripts.shared.logging.revision_diff import DEFAULT_SAMPLE_LIMIT, diff_revisions
 from scripts.shared.validation.dataframe_validators import find_duplicate_rows, validate_required_columns
 
 """
@@ -107,15 +109,35 @@ def combine_source_with_historical(new_df, historical_df, source, year_col):
     return combined
 
 
-def detect_new_source_data(new_df, historical_df, source, boundary_year):
-    """Return whether a source differs from saved data after excluding the boundary year. Test file: scripts/unit_tests/components_of_change/merging/test_historical_merge.py"""
+def _aligned_frames(new_df, historical_df, source, boundary_year):
+    """
+    Build the two comparable frames shared by change detection and the revision diff.
+
+    Both callers must see exactly the same pair, otherwise the reported revisions could
+    describe something other than what the detector detected.
+
+    Returns:
+        (new_source, historical_source, comparable) — the aligned frames plus a flag that
+        is False when there is no like-for-like history to compare against (cold start, or
+        a schema change), which callers treat as "everything is new".
+
+    Test file:
+        scripts/unit_tests/components_of_change/merging/test_historical_merge.py
+    """
     new_source = _without_geographic_level(new_df)
     new_source = new_source.loc[new_source["Year"].ne(boundary_year)].copy()
+
     historical_source = _without_geographic_level(historical_df)
+    # A cold start hands in an empty frame with no columns at all; treat that as "no
+    # comparable history" rather than raising KeyError on the Source lookup.
+    if "Source" not in historical_source.columns or "Year" not in historical_source.columns:
+        return new_source, pd.DataFrame(), False
     historical_source = historical_source.loc[historical_source["Source"].eq(source) & historical_source["Year"].ne(boundary_year)].copy()
+
     if set(new_source.columns) != set(historical_source.columns):
-        return True
+        return new_source, historical_source, False
     historical_source = historical_source.loc[:, new_source.columns]
+
     sort_columns = [column for column in ["Location", "Year", "Source"] if column in new_source.columns]
     if sort_columns:
         new_source = new_source.sort_values(sort_columns, kind="stable")
@@ -126,11 +148,46 @@ def detect_new_source_data(new_df, historical_df, source, boundary_year):
     # to avoid reporting a change on every run.
     new_source = _normalize_numeric_dtypes(new_source.reset_index(drop=True))
     historical_source = _normalize_numeric_dtypes(historical_source.reset_index(drop=True))
+    return new_source, historical_source, True
+
+
+def detect_new_source_data(new_df, historical_df, source, boundary_year):
+    """Return whether a source differs from saved data after excluding the boundary year. Test file: scripts/unit_tests/components_of_change/merging/test_historical_merge.py"""
+    new_source, historical_source, comparable = _aligned_frames(new_df, historical_df, source, boundary_year)
+    if not comparable:
+        return True
     try:
         pd.testing.assert_frame_equal(new_source, historical_source, check_dtype=False)
         return False
     except AssertionError:
         return True
+
+
+def summarize_source_revisions(new_df, historical_df, source, boundary_year, sample_limit=DEFAULT_SAMPLE_LIMIT):
+    """
+    Describe what changed between a source's fresh pull and the saved rows it replaces.
+
+    Runs on the same aligned pair as detect_new_source_data, so the counts always explain
+    that run's change flag. Separates genuinely new years from silently revised figures,
+    which whole-year atomic replacement would otherwise overwrite without trace.
+
+    Returns:
+        The revision-diff dict (see scripts/shared/logging/revision_diff.py), or the
+        zero-diff shape when there is no comparable history.
+
+    Test file:
+        scripts/unit_tests/components_of_change/merging/test_historical_merge.py
+    """
+    new_source, historical_source, comparable = _aligned_frames(new_df, historical_df, source, boundary_year)
+    if not comparable:
+        return diff_revisions(new_source, pd.DataFrame(), ["Location", "Year", "Source"], "Year", sample_limit=sample_limit)
+    return diff_revisions(
+        new_source,
+        historical_source,
+        ["Location", "Year", "Source"],
+        "Year",
+        sample_limit=sample_limit,
+    )
 
 
 def merge_dof_and_census(dof_df, census_df):

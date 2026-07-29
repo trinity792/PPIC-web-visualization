@@ -4,7 +4,7 @@ Content Type: module specification
 pinned: false
 description: "Technical module specification for the RHNA Progress Report module"
 Date Published: July 15, 2026
-Last Updated: 07/16/2026 - 2:05 PM
+Last Updated: 07/29/2026 - 11:20 AM
 Status: Updating
 Footnote: Document generated and updated by Claude Opus 4.8 on command. Outlined and verified by Trinity Jones.
 ---
@@ -217,6 +217,7 @@ The rest of this document is the per-script, per-function reference. Because thi
 - `load_canonical_dataset(paths)` / `load_historical_seed(paths)` - read the canonical CSV (empty contract frame + loud `UserWarning` on cold start) and the immutable seed (empty when absent).
 - `combine_snapshots(existing, seed, new_snapshots)` - concatenates `seed < existing < new` and `drop_duplicates(subset=grain, keep="last")`, so the freshest capture wins on any repeated grain key, then re-derives `Most Recent`. Copies inputs.
 - `detect_new_snapshot(existing, combined, grain_keys)` - returns `True` only when `combined` introduces a new grain row or a changed measure, by comparing the two frames sorted-by-grain and stringified (`.astype(str).to_csv`), which is insensitive to row order and dtype drift. Gates the conditional write.
+- `summarize_revisions(existing, combined, grain_keys)` - delegates to the shared `scripts/shared/logging/revision_diff.py` to record what a run actually added, keyed on the grain with `Snapshot Date` as the period. Because `Snapshot Date` is *part of* the grain, a normal capture lands as **added** rows and nothing else, which makes RHNA the inverted case among the modules: a non-zero `changed_cells` is an **anomaly** worth surfacing (an already-stored snapshot's values do not legitimately move, so it points at a re-derived enrichment formula or a bad write) rather than the routine source revision it would be elsewhere. The orchestrator calls it only when `new_snapshot` is true and folds the result into the run record's `result.revisions`. See *Revision Reporting (All Modules)* in [[projectSpec]].
 
 ## `validation/`
 

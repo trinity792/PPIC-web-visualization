@@ -50,6 +50,7 @@ from scripts.building_permits.merging.historical_merge import (
     latest_stored_month,
     load_canonical_dataset,
     load_historical_baseline,
+    summarize_revisions,
 )
 from scripts.building_permits.output.finalize_dataset import archive_and_save, prepare_output
 from scripts.building_permits.validation.building_permits_validators import (
@@ -58,7 +59,8 @@ from scripts.building_permits.validation.building_permits_validators import (
 )
 from scripts.shared.geography.california_geography import get_california_geography
 from scripts.shared.logging.dataframe_logging import log_data_quality_check
-from scripts.shared.logging.pipeline_logging import log_processing_step
+from scripts.shared.logging.pipeline_logging import log_message, log_processing_step
+from scripts.shared.logging.revision_diff import format_revision_summary
 from scripts.shared.logging.run_records import execute_pipeline_run
 
 """
@@ -228,6 +230,16 @@ def build_building_permits_dataset(config=None, logger=None):
         # never disagree with whether archive_and_save writes a byte-different file.
         new_data = detect_new_data(prepared, current_df)
 
+        # Census revises recent months as late returns arrive, and month-level atomic
+        # replacement overwrites the saved counts without trace. Record which months are
+        # new versus silently revised.
+        revisions = {}
+        if new_data:
+            revisions = summarize_revisions(prepared, current_df)
+            revision_message = format_revision_summary(revisions)
+            if revision_message:
+                log_message(logger, revision_message)
+
         # Loud deep-history guard (guide A1): every month the immutable seed supplies must
         # survive into the output. If any pre-2024 month is missing, fail rather than
         # silently shipping a truncated series (which the contiguity check cannot catch,
@@ -262,6 +274,7 @@ def build_building_permits_dataset(config=None, logger=None):
         "acquired_months": acquired_months,
         "output_path": output_path,
         "row_count": len(prepared),
+        "revisions": revisions,
     }
 
 

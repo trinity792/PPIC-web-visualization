@@ -130,6 +130,13 @@ def _configure_success(monkeypatch, tmp_path, changes=(True, True)):
         "detect_new_source_data",
         Mock(side_effect=list(changes)),
     )
+    # Revision reporting runs only for sources that flagged new data; stub it alongside
+    # the detector so these phase tests stay about orchestration, not diffing.
+    monkeypatch.setattr(
+        pipeline,
+        "summarize_source_revisions",
+        Mock(return_value={"changed_cells": 0, "sample": []}),
+    )
     monkeypatch.setattr(
         pipeline,
         "assign_geographic_level",

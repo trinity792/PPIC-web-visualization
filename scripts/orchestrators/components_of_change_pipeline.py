@@ -33,11 +33,12 @@ from scripts.components_of_change.config.columns import get_columns_config
 from scripts.components_of_change.config.geography import get_components_geography
 from scripts.components_of_change.config.paths import get_paths
 from scripts.components_of_change.config.sources import get_source_settings
-from scripts.components_of_change.merging.historical_merge import combine_history_sources, combine_source_with_historical, detect_new_source_data, load_canonical_dataset, load_historical_baseline, merge_dof_and_census
+from scripts.components_of_change.merging.historical_merge import combine_history_sources, combine_source_with_historical, detect_new_source_data, load_canonical_dataset, load_historical_baseline, merge_dof_and_census, summarize_source_revisions
 from scripts.components_of_change.output.finalize_dataset import archive_and_save, assign_geographic_level, prepare_components_output
 from scripts.components_of_change.validation.dataset_validator import validate_components_dataset
 from scripts.shared.logging.dataframe_logging import log_data_quality_check, log_dataframe_info
 from scripts.shared.logging.pipeline_logging import log_message, log_processing_step
+from scripts.shared.logging.revision_diff import format_revision_summary
 from scripts.shared.logging.run_records import execute_pipeline_run
 
 """
@@ -175,6 +176,20 @@ def build_components_dataset(config=None, logger=None):
         # union, so a run whose live pull matches the last output does not re-save.
         new_dof_data_found = False if dof_failed else detect_new_source_data(dof_full, current_df, "DoF", source_settings["dof_boundary_year"])
         new_census_data_found = False if census_failed else detect_new_source_data(census_full, current_df, "Census", source_settings["census_boundary_year"])
+        # Whole-year replacement overwrites a restated year without trace, so record what
+        # the change flag alone cannot say: which years are new vs silently revised.
+        revisions = {}
+        for source_name, source_full, source_is_new, boundary_key in (
+            ("DoF", dof_full, new_dof_data_found, "dof_boundary_year"),
+            ("Census", census_full, new_census_data_found, "census_boundary_year"),
+        ):
+            if not source_is_new:
+                continue
+            source_diff = summarize_source_revisions(source_full, current_df, source_name, source_settings[boundary_key])
+            revisions[source_name] = source_diff
+            revision_message = format_revision_summary(source_diff)
+            if revision_message:
+                log_message(logger, f"{source_name} {revision_message}")
         log_processing_step(logger, "Phase 4 merge", (len(dof_full) + len(census_full), len(merged_df.columns)), (len(merged_df), len(merged_df.columns)), new_dof=new_dof_data_found, new_census=new_census_data_found)
     except Exception as error:
         _raise_phase_error("Phase 4", error)
@@ -210,6 +225,7 @@ def build_components_dataset(config=None, logger=None):
         "census_used_manual": census_used_manual,
         "output_path": output_path,
         "row_count": len(finalized_df),
+        "revisions": revisions,
     }
 
 

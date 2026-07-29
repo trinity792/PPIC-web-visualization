@@ -44,6 +44,7 @@ from scripts.housing_stress.merging.historical_merge import (
     detect_new_data,
     load_canonical_dataset,
     load_historical_baseline,
+    summarize_revisions,
 )
 from scripts.housing_stress.output.finalize_dataset import archive_and_save, prepare_output
 from scripts.housing_stress.validation.housing_stress_validators import (
@@ -54,6 +55,7 @@ from scripts.housing_stress.validation.housing_stress_validators import (
 from scripts.shared.geography.california_geography import get_california_geography
 from scripts.shared.logging.dataframe_logging import log_data_quality_check, log_dataframe_info
 from scripts.shared.logging.pipeline_logging import log_message, log_processing_step
+from scripts.shared.logging.revision_diff import format_revision_summary
 from scripts.shared.logging.run_records import execute_pipeline_run
 
 _YEAR_COLUMN = "Year"
@@ -252,6 +254,15 @@ def build_housing_stress_dataset(config=None, logger=None):
         # materializes the full deep-history series into HousingStress_Current.csv,
         # and a run whose merged result already matches the current file no-ops.
         new_data = detect_new_data(merged, current)
+        # A re-released ACS vintage replaces its year in full, so a restated estimate
+        # overwrites the saved figure without trace. Record which vintages are new versus
+        # silently revised.
+        revisions = {}
+        if new_data:
+            revisions = summarize_revisions(merged, current)
+            revision_message = format_revision_summary(revisions)
+            if revision_message:
+                log_message(logger, revision_message)
         log_processing_step(
             logger,
             "Phase 4 merge",
@@ -288,6 +299,7 @@ def build_housing_stress_dataset(config=None, logger=None):
         "resolved_year": resolved_year,
         "output_path": output_path,
         "row_count": len(prepared),
+        "revisions": revisions,
     }
 
 

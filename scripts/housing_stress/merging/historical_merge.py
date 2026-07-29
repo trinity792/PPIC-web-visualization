@@ -8,6 +8,7 @@ Data sources:
 Outputs:
     - pandas.DataFrame — merged dataset
     - bool — whether new data was detected
+    - dict — a revision summary (added vs restated vintages) for the run log
 
 Usage:
     Called by the housing stress pipeline orchestrator; not run standalone.
@@ -21,6 +22,8 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+
+from scripts.shared.logging.revision_diff import DEFAULT_SAMPLE_LIMIT, diff_revisions
 
 # Contract columns for an empty canonical dataset, and the grain used for sorting.
 _CONTRACT_COLUMNS = [
@@ -174,3 +177,29 @@ def detect_new_data(merged_df, historical_df):
         elif not left_column.astype("object").equals(right_column.astype("object")):
             return True
     return False
+
+
+def summarize_revisions(merged_df, historical_df, sample_limit=DEFAULT_SAMPLE_LIMIT):
+    """
+    Describe what changed between the merged dataset and the saved rows it replaces.
+
+    Runs on the same pair as detect_new_data and shares its float tolerance, so the counts
+    always explain that run's change flag. A re-released ACS vintage replaces its year in
+    full, so a restated estimate would otherwise overwrite the saved figure without trace;
+    this separates those revisions from the genuinely new vintage.
+
+    Returns:
+        The revision-diff dict (see scripts/shared/logging/revision_diff.py).
+
+    Test file:
+        scripts/unit_tests/housing_stress/merging/test_historical_merge.py
+    """
+    key_columns = [column for column in _SORT_COLUMNS if column in merged_df.columns]
+    return diff_revisions(
+        merged_df,
+        historical_df,
+        key_columns,
+        "Year",
+        sample_limit=sample_limit,
+        tolerance=_FLOAT_ABS_TOLERANCE,
+    )

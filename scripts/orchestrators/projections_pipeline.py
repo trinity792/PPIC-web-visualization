@@ -57,6 +57,7 @@ from scripts.projections.merging.historical_merge import (
     load_historical_baseline,
     merge_dof_and_census,
     reduce_to_base_strata,
+    summarize_source_revisions,
 )
 from scripts.projections.output.finalize_dataset import (
     archive_and_save,
@@ -71,6 +72,7 @@ from scripts.projections.validation.projections_validators import (
 from scripts.shared.geography.california_geography import get_california_geography
 from scripts.shared.logging.dataframe_logging import log_data_quality_check, log_dataframe_info
 from scripts.shared.logging.pipeline_logging import log_message, log_processing_step
+from scripts.shared.logging.revision_diff import format_revision_summary
 from scripts.shared.logging.run_records import execute_pipeline_run
 
 _DOF_SOURCE = "DoF P-3"
@@ -344,6 +346,21 @@ def build_projections_dataset(config=None, logger=None):
 
         dof_new = detect_new_source_data(dof_clean, historical, _DOF_SOURCE, source_settings["dof_boundary_year"], schema_config)
         census_new = detect_new_source_data(census_clean, historical, _CENSUS_SOURCE, source_settings["census_boundary_year"], schema_config)
+        # A new P-3 vintage republishes the whole horizon, so per-year atomic replacement
+        # can restate already-published projections without trace. Record which years are
+        # new versus silently revised.
+        revisions = {}
+        for source_name, source_clean, source_is_new, boundary_key in (
+            (_DOF_SOURCE, dof_clean, dof_new, "dof_boundary_year"),
+            (_CENSUS_SOURCE, census_clean, census_new, "census_boundary_year"),
+        ):
+            if not source_is_new:
+                continue
+            source_diff = summarize_source_revisions(source_clean, historical, source_name, source_settings[boundary_key], schema_config)
+            revisions[source_name] = source_diff
+            revision_message = format_revision_summary(source_diff)
+            if revision_message:
+                log_message(logger, f"{source_name} {revision_message}")
         log_processing_step(
             logger, "Phase 4 merge & aggregate",
             (len(dof_clean) + len(census_clean), len(CONTRACT_COLUMNS)),
@@ -387,6 +404,7 @@ def build_projections_dataset(config=None, logger=None):
         "census_failed": census_failed,
         "output_path": output_path,
         "row_count": len(prepared),
+        "revisions": revisions,
     }
 
 

@@ -1,3 +1,5 @@
+from datetime import date
+
 import pandas as pd
 import pytest
 from scripts.rhna_progress.merging.historical_merge import (
@@ -5,9 +7,35 @@ from scripts.rhna_progress.merging.historical_merge import (
     detect_new_snapshot,
     load_canonical_dataset,
     load_historical_seed,
+    summarize_revisions,
 )
 
 from scripts.unit_tests.rhna_progress.helpers import GRAIN_KEYS, OUTPUT_COLUMNS, long_frame, long_row
+
+
+def test_summarize_revisions_reports_a_new_snapshot_as_added():
+    # Snapshot Date is part of the grain, so a fresh capture lands as added rows only.
+    existing = long_frame([long_row(snapshot_date=date(2026, 7, 15))])
+    combined = long_frame(
+        [long_row(snapshot_date=date(2026, 7, 15)), long_row(snapshot_date=date(2026, 7, 29))]
+    )
+
+    diff = summarize_revisions(existing, combined, GRAIN_KEYS)
+
+    assert diff["added_keys"] == 1
+    assert diff["changed_cells"] == 0
+
+
+def test_summarize_revisions_flags_a_rewritten_stored_snapshot():
+    # An already-captured snapshot's values must not move; when they do it points at a
+    # re-derived enrichment formula or a bad write, not a source revision.
+    existing = long_frame([long_row(snapshot_date=date(2026, 7, 15), units=50)])
+    combined = long_frame([long_row(snapshot_date=date(2026, 7, 15), units=75)])
+
+    diff = summarize_revisions(existing, combined, GRAIN_KEYS)
+
+    assert diff["changed_cells"] >= 1
+    assert any(record["column"] == "Units" for record in diff["sample"])
 
 
 def test_load_canonical_dataset_missing_file_returns_empty_contract_with_warning(tmp_path):
