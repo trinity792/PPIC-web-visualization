@@ -50,6 +50,7 @@ import {
   FIELD_KINDS,
   isMeasure,
 } from "@/lib/visualization/fieldTypes";
+import { transformOptions } from "@/lib/visualization/transformRegistry";
 import { validateConfig } from "@/lib/visualization/validation";
 
 /**
@@ -331,7 +332,26 @@ function synchronizeTabFilters(filters, table, schema) {
   };
 }
 
-function revalidate(config, schema) {
+/**
+ * Drop an imported-data transform the current chart can no longer express, so
+ * the config never claims a view the renderer would silently ignore — switching
+ * an indexed line to a bar (no time axis, so nothing to index against), or
+ * re-importing a table that now holds a single period.
+ *
+ * Imported data only. A module keeps a stranded transform and surfaces
+ * TRANSFORM_NOT_ALLOWED instead: there, the field catalog is the reader's own to
+ * fix, and rewriting the config would hide the notice that explains it.
+ */
+function withExpressibleTransform(config, schema) {
+  const transform = config?.transform;
+  if (!transform || transform === "actual") return config;
+  const { transforms, inline } = transformOptions(config, schema);
+  if (!inline || transforms.includes(transform)) return config;
+  return { ...config, transform: "actual" };
+}
+
+function revalidate(rawConfig, schema) {
+  const config = withExpressibleTransform(rawConfig, schema);
   return {
     ...config,
     validation: validateConfig(config, schema, {

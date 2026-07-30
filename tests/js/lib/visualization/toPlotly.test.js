@@ -7,6 +7,7 @@
 import { describe, expect, it } from "vitest";
 
 import { BASE_PLOTLY_COLORS, COLORS } from "@/lib/constants";
+import { buildShapes } from "@/lib/tabular/toSeries";
 import { paletteForScale, resolveToken } from "@/lib/visualization/palettes";
 import {
   fitFootnoteLayout,
@@ -259,6 +260,42 @@ describe("toPlotly heatmap", () => {
       transforms: { id: "numericChange", baseYear: 2020 },
     });
     expect(data[0].z).toEqual([[0, null]]);
+  });
+});
+
+describe("toPlotly indexed imported data", () => {
+  it("indexes every inline series to 100 at the chosen base period", () => {
+    // The imported-data half of the Transform section, end to end: an imported
+    // table has no catalog field, so `field` is undefined and only the transform
+    // id decides. Divergent series must each start at 100.
+    const table = {
+      columns: [
+        { name: "County", type: "text" },
+        { name: "Year", type: "date" },
+        { name: "Population", type: "number" },
+      ],
+      rows: [
+        ["Fresno", "2020", "200"],
+        ["Fresno", "2021", "220"],
+        ["Kern", "2020", "50"],
+        ["Kern", "2021", "40"],
+      ],
+    };
+    const bindings = { x: "Year", y: "Population", series: "County" };
+    const { series } = buildShapes(table, { chartType: "line", bindings, period: {} });
+
+    const { data } = toPlotly({
+      chartType: "line",
+      bindings,
+      series,
+      field: undefined,
+      transforms: { id: "indexed", baseYear: 2020 },
+      appearance: {},
+    });
+    expect(data.map((trace) => trace.name)).toEqual(["Fresno", "Kern"]);
+    expect(data[0].y[0]).toBe(100);
+    expect(data[0].y[1]).toBeCloseTo(110);
+    expect(data[1].y).toEqual([100, 80]);
   });
 });
 

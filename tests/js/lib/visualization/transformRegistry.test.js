@@ -9,6 +9,7 @@ import {
   TRANSFORMS,
   applyTransform,
   isTransformAllowed,
+  transformOptions,
 } from "@/lib/visualization/transformRegistry";
 
 const series = (values, years = values.map((_, i) => 2020 + i)) => ({
@@ -145,5 +146,102 @@ describe("applyTransform", () => {
     const { applied, blocked } = applyTransform("noSuchTransform", [series([1])], countField);
     expect(blocked).toBe(true);
     expect(applied).toBe("actual");
+  });
+});
+
+describe("transformOptions", () => {
+  const moduleSchema = {
+    id: "widgets",
+    yearRange: [2020, 2022],
+    fields: { Stock: countField, Rate: rateField },
+  };
+  const byodSchema = { id: "byod", inlineOnly: true, fields: {}, yearRange: [1990, 2026] };
+  const table = {
+    columns: [
+      { name: "County", type: "text" },
+      // Date-typed, as a line chart's temporal x role requires; the raw cells are
+      // still the year text that `inlinePeriods` parses.
+      { name: "Year", type: "date" },
+      { name: "Population", type: "number" },
+    ],
+    rows: [
+      ["Fresno", "2020", "100"],
+      ["Fresno", "2021", "110"],
+    ],
+  };
+  const inlineConfig = (overrides = {}) => ({
+    chartType: "line",
+    bindings: { x: "Year", y: "Population", series: "County" },
+    data: { source: "inline", inline: table },
+    ...overrides,
+  });
+
+  it("reads a module measure's own transforms and the schema year range", () => {
+    const options = transformOptions(
+      { chartType: "line", bindings: { y: "Stock" }, data: { source: "module" } },
+      moduleSchema,
+    );
+    expect(options).toEqual({
+      transforms: countField.transforms,
+      basePeriods: [2020, 2021, 2022],
+      inline: false,
+    });
+  });
+
+  it("offers a rate only the transforms its unit permits", () => {
+    const { transforms } = transformOptions(
+      { chartType: "line", bindings: { y: "Rate" }, data: { source: "module" } },
+      moduleSchema,
+    );
+    expect(transforms).toEqual(rateField.transforms);
+  });
+
+  it("offers imported data absolute values or index-to-100 over its own periods", () => {
+    expect(transformOptions(inlineConfig(), byodSchema)).toEqual({
+      transforms: ["actual", "indexed"],
+      basePeriods: [2020, 2021],
+      inline: true,
+    });
+  });
+
+  it("offers imported data no choice when its table holds one period", () => {
+    const single = { ...table, rows: [["Fresno", "2020", "100"]] };
+    const { transforms, basePeriods } = transformOptions(
+      inlineConfig({ data: { source: "inline", inline: single } }),
+      byodSchema,
+    );
+    // Indexing one period sets every series to 100 — a broken control, not a view.
+    expect(transforms).toEqual(["actual"]);
+    expect(basePeriods).toEqual([2020]);
+  });
+
+  it("offers imported data no choice on a chart with no time axis", () => {
+    const { transforms } = transformOptions(
+      inlineConfig({ chartType: "bar", bindings: { category: "County", y: "Population" } }),
+      byodSchema,
+    );
+    expect(transforms).toEqual(["actual"]);
+  });
+
+  it("offers nothing to a chart type that cannot express a transform", () => {
+    expect(
+      transformOptions(
+        { chartType: "scatter", bindings: { y: "Stock" }, data: { source: "module" } },
+        moduleSchema,
+      ),
+    ).toEqual({ transforms: ["actual"], basePeriods: [], inline: false });
+    expect(transformOptions(inlineConfig({ chartType: "pie" }), byodSchema).transforms).toEqual([
+      "actual",
+    ]);
+  });
+
+  it("treats a module chart as module data even when a stale inline table is present", () => {
+    // `inlineOnly` is the byod schema's own flag; a module never routes here.
+    const { inline, transforms } = transformOptions(
+      { chartType: "line", bindings: { y: "Stock" }, data: { source: "inline", inline: table } },
+      moduleSchema,
+    );
+    expect(inline).toBe(false);
+    expect(transforms).toEqual(countField.transforms);
   });
 });

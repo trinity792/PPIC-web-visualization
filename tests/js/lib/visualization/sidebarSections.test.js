@@ -93,6 +93,42 @@ describe("visibleSectionsFor", () => {
     ).toContain("transform");
   });
 
+  it("shows Transform on the wizard's Edit step for a multi-period imported table", () => {
+    // The Edit step's own filter, so this is the list the standalone tool renders.
+    const editStep = { exclude: ["chart-type"] };
+    const byod = { id: "byod", inlineOnly: true, fields: {}, yearRange: [1990, 2026] };
+    const inline = {
+      columns: [
+        { name: "County", type: "text" },
+        { name: "Year", type: "date" },
+        { name: "Population", type: "number" },
+      ],
+      rows: [
+        ["Fresno", "2020", "100"],
+        ["Fresno", "2021", "110"],
+      ],
+    };
+    const imported = (overrides = {}) => ({
+      chartType: "line",
+      bindings: { x: "Year", y: "Population", series: "County" },
+      data: { source: "inline", inline },
+      filters: {},
+      ...overrides,
+    });
+
+    expect(
+      visibleSectionsFor(imported(), byod, editStep).map((item) => item.value),
+    ).toContain("transform");
+    // A bar tags every inline row with one implied period: nothing to index against.
+    expect(
+      visibleSectionsFor(
+        imported({ chartType: "bar", bindings: { category: "County", y: "Population" } }),
+        byod,
+        editStep,
+      ).map((item) => item.value),
+    ).not.toContain("transform");
+  });
+
   it("shows Date Range only when the schema has temporal data", () => {
     expect(
       visibleSectionsFor(config(), schema).map((item) => item.value),

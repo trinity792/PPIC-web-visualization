@@ -25,6 +25,12 @@
  * a dead control (flagged issue 1), and on an unstratified module that leaves the
  * section with nothing at all.
  *
+ * Imported data (the standalone Visualization Tool) gets the same section with a
+ * two-radio list — Absolute Values or Index to 100 at Base Period — whose base
+ * periods are the imported x column's own values rather than a module year
+ * range. `transformOptions` in lib/visualization/transformRegistry.js owns both
+ * lists, so what this section offers and what the reducer accepts cannot drift.
+ *
  * That "nothing" is why `hasTransformControls` is exported: the sidebar registry
  * gates the *accordion header* on it, so a Range chart loses the whole "Transform"
  * block rather than showing a heading with an empty body underneath.
@@ -58,7 +64,7 @@ import {
 
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import { getChartType } from "@/lib/visualization/chartRegistry";
-import { allowedTransforms } from "@/lib/visualization/fieldTypes";
+import { transformOptions } from "@/lib/visualization/transformRegistry";
 
 const TRANSFORM_LABELS = {
   actual: "Actual Value",
@@ -69,24 +75,16 @@ const TRANSFORM_LABELS = {
   differenceFromBenchmark: "Difference from Benchmark",
 };
 
+// Imported data indexes against whatever the x column holds — years in most
+// pasted tables, but months, quarters, or waves just as often — so its two
+// radios say "period" where a module's say "year", and name the 100 the reader
+// is choosing between.
+const INLINE_TRANSFORM_LABELS = {
+  actual: "Absolute Values",
+  indexed: "Index to 100 at Base Period",
+};
+
 // ── Helpers ──────────────────────────────────────────────────────────
-
-/** The measure whose transforms this chart is expressing. */
-function boundMeasure(config, schema) {
-  const name =
-    config.bindings?.y ||
-    config.bindings?.color ||
-    config.bindings?.start ||
-    config.bindings?.x;
-  return schema?.fields?.[name];
-}
-
-function yearsIn(range) {
-  if (!Array.isArray(range) || range.length !== 2) return [];
-  const [start, end] = range;
-  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return [];
-  return Array.from({ length: end - start + 1 }, (_, index) => start + index);
-}
 
 /** Whether a chart type takes a benchmark series, and so a benchmark label. */
 function takesBenchmark(chart) {
@@ -103,18 +101,19 @@ function takesBenchmark(chart) {
  * renters or a single income level is a statement about the data, and stays
  * available on a data table or a symbol map, where no transform applies.
  *
- * The transform radios then need all three of: a chart type that can express a
- * transform (scatter, pie, and the range family cannot), a measure allowing more
- * than one (bring-your-own-data hits this every time, since its schema carries
- * no field catalog, and one lone "Actual Value" radio reads as a broken
- * control), or a benchmark role to label instead.
+ * The transform radios then need a chart type that can express a transform
+ * (scatter, pie, and the range family cannot) plus either a real choice of
+ * transforms from `transformOptions` or a benchmark role to label instead. One
+ * lone "Actual Value" radio reads as a broken control, so it is never drawn.
  */
 export function hasTransformControls(config, schema) {
   if (schema?.filterDimensions?.length) return true;
   const chart = getChartType(config.chartType);
   if (!chart?.transformCapable) return false;
-  const transforms = allowedTransforms(boundMeasure(config, schema));
-  return transforms.length > 1 || takesBenchmark(chart);
+  const { transforms, inline } = transformOptions(config, schema);
+  // A benchmark is a module series (the "Difference from Benchmark" comparison
+  // fetches it); an imported table has none, so it cannot open the section.
+  return transforms.length > 1 || (!inline && takesBenchmark(chart));
 }
 
 // ── Section ──────────────────────────────────────────────────────────
@@ -127,19 +126,20 @@ export default function TransformSection() {
   // still know when it has nothing to say, rather than trusting its caller.
   if (!hasTransformControls(config, schema)) return null;
 
-  const transforms = allowedTransforms(boundMeasure(config, schema));
+  const { transforms, basePeriods, inline } = transformOptions(config, schema);
   // A measure change can leave a transform stranded (a rate cannot express
   // percent change); fall back to the first allowed rather than showing a
   // selection that no radio matches.
   const active = transforms.includes(config.transform)
     ? config.transform
     : transforms[0];
-  const baseYears = yearsIn(schema?.yearRange);
+  const labels = inline ? INLINE_TRANSFORM_LABELS : TRANSFORM_LABELS;
+  const basePeriodLabel = inline ? "Base period" : "Base year";
   // Both re-check `transformCapable`, because stratification alone can open the
   // section now: a scatter plot on a stratified module gets the pins without
   // acquiring transform radios it cannot honour.
   const transformable = Boolean(chart?.transformCapable);
-  const supportsBenchmark = transformable && takesBenchmark(chart);
+  const supportsBenchmark = transformable && !inline && takesBenchmark(chart);
   const hasChoice = transformable && transforms.length > 1;
 
   return (
@@ -151,7 +151,7 @@ export default function TransformSection() {
         className="grid gap-2"
       >
         {transforms.map((transform) => {
-          const label = TRANSFORM_LABELS[transform] || transform;
+          const label = labels[transform] || TRANSFORM_LABELS[transform] || transform;
           return (
             <div key={transform} className="grid gap-2">
               <div className="flex items-center gap-2">
@@ -166,9 +166,9 @@ export default function TransformSection() {
                   {label}
                 </Label>
               </div>
-              {transform === "indexed" && active === "indexed" && baseYears.length ? (
+              {transform === "indexed" && active === "indexed" && basePeriods.length ? (
                 <div className="ml-6 grid gap-2">
-                  <Label htmlFor="transform-base-year">Base year</Label>
+                  <Label htmlFor="transform-base-year">{basePeriodLabel}</Label>
                   <Select
                     value={
                       config.period?.baseYear ? String(config.period.baseYear) : ""
@@ -182,12 +182,19 @@ export default function TransformSection() {
                     }
                   >
                     <SelectTrigger id="transform-base-year">
-                      <SelectValue placeholder="Choose a year" />
+                      {/* Left unset, the transform indexes each series to its own
+                          first value — the placeholder says so rather than
+                          implying nothing has happened. */}
+                      <SelectValue
+                        placeholder={
+                          inline ? "First period in the data" : "Choose a year"
+                        }
+                      />
                     </SelectTrigger>
                     <SelectContent>
-                      {baseYears.map((year) => (
-                        <SelectItem key={year} value={String(year)}>
-                          {year}
+                      {basePeriods.map((period) => (
+                        <SelectItem key={period} value={String(period)}>
+                          {period}
                         </SelectItem>
                       ))}
                     </SelectContent>

@@ -17,6 +17,7 @@ import {
 import {
   applyTabFilter,
   buildShapes,
+  inlinePeriods,
   supportedShapes,
   tabValues,
 } from "@/lib/tabular/toSeries";
@@ -471,5 +472,65 @@ describe("supportedShapes", () => {
     expect(supportedShapes(table)).toEqual(
       expect.arrayContaining(["bar", "choroplethMap"]),
     );
+  });
+});
+
+describe("inlinePeriods", () => {
+  const table = inlineTable(
+    ["County", "Year", "Population"],
+    [
+      ["Fresno", "2021", "110"],
+      ["Fresno", "2020", "100"],
+      ["Kern", "2021", "95"],
+      ["Kern", "2020", "90"],
+    ],
+  );
+  const spec = (overrides = {}) => ({
+    chartType: "line",
+    bindings: { x: "Year", y: "Population", series: "County" },
+    ...overrides,
+  });
+
+  it("returns the distinct periods of the bound x column, ascending and de-duplicated", () => {
+    expect(inlinePeriods(table, spec())).toEqual([2020, 2021]);
+  });
+
+  it("offers the same periods a matrix chart's time axis plots", () => {
+    expect(
+      inlinePeriods(
+        table,
+        spec({ chartType: "heatmap", bindings: { x: "Year", y: "County", color: "Population" } }),
+      ),
+    ).toEqual([2020, 2021]);
+  });
+
+  it("returns nothing for shapes with no time axis", () => {
+    // Bar tags every row with one implied period, so there is no base period to
+    // index against — the transform control must not offer one.
+    expect(
+      inlinePeriods(table, spec({ chartType: "bar", bindings: { category: "County", y: "Population" } })),
+    ).toEqual([]);
+    expect(inlinePeriods(table, spec({ chartType: "scatter" }))).toEqual([]);
+  });
+
+  it("returns nothing when x is unbound, missing, or non-numeric", () => {
+    expect(inlinePeriods(table, spec({ bindings: { y: "Population" } }))).toEqual([]);
+    expect(inlinePeriods(table, spec({ bindings: { x: "Nope" } }))).toEqual([]);
+    expect(inlinePeriods(table, spec({ bindings: { x: "County" } }))).toEqual([]);
+    expect(inlinePeriods(null, spec())).toEqual([]);
+  });
+
+  it("counts only the periods inside the active GraphTab slice", () => {
+    const tabbed = inlineTable(
+      ["County", "Year", "Population"],
+      [
+        ["Fresno", "2020", "100"],
+        ["Fresno", "2021", "110"],
+        ["Kern", "2022", "95"],
+      ],
+    );
+    expect(
+      inlinePeriods(tabbed, spec({ filters: { tabColumn: "County", tabValue: "Kern" } })),
+    ).toEqual([2022]);
   });
 });

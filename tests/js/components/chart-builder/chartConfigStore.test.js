@@ -157,6 +157,85 @@ describe("reduceChartConfig — v2 actions", () => {
     expect(backToModule.data).toEqual({ source: "module" });
   });
 
+  describe("imported-data index-to-100", () => {
+    // A line chart's x role accepts only a temporal column, so the year column is
+    // typed as Date — what inlineRenderBlock's "set its column type to Date"
+    // suggestion produces for a pasted trend table.
+    const trend = {
+      columns: [
+        { name: "County", type: "text" },
+        { name: "Year", type: "date" },
+        { name: "Population", type: "number" },
+      ],
+      rows: [
+        ["Fresno", "2020", "100"],
+        ["Fresno", "2021", "110"],
+        ["Kern", "2020", "90"],
+        ["Kern", "2021", "95"],
+      ],
+    };
+    const byodDispatch = (config, action) => reduceChartConfig(config, action, BYOD_SCHEMA);
+    const imported = () =>
+      byodDispatch(createChartConfig(BYOD_SCHEMA), {
+        type: "SET_DATA_SOURCE",
+        source: "inline",
+        inline: trend,
+        defaultChart: true,
+      });
+
+    it("keeps the transform and raises no base-period warning on a time-axis chart", () => {
+      const indexed = byodDispatch(imported(), { type: "SET_TRANSFORM", transform: "indexed" });
+      expect(indexed.chartType).toBe("line");
+      expect(indexed.bindings).toMatchObject({ x: "Year", y: "Population" });
+      expect(indexed.transform).toBe("indexed");
+      const withBase = byodDispatch(indexed, {
+        type: "SET_PERIOD",
+        key: "baseYear",
+        value: 2021,
+      });
+      expect(withBase.transform).toBe("indexed");
+      // The year slider's window is a module concept; an inline chart plots every
+      // row it was given, so 2021 is not "outside" anything.
+      expect(withBase.validation.some((f) => f.code === "BASE_YEAR_OUT_OF_RANGE")).toBe(false);
+    });
+
+    it("drops the transform when the new chart type cannot express it", () => {
+      const indexed = byodDispatch(imported(), { type: "SET_TRANSFORM", transform: "indexed" });
+      const bar = byodDispatch(indexed, { type: "SET_CHART_TYPE", chartType: "bar" });
+      // Bar has no time axis inline, so an indexed bar would silently draw raw
+      // values — the config must not claim a view the renderer ignores.
+      expect(bar.transform).toBe("actual");
+    });
+
+    it("drops the transform when a re-import leaves a single period", () => {
+      const indexed = byodDispatch(imported(), { type: "SET_TRANSFORM", transform: "indexed" });
+      const reimported = byodDispatch(indexed, {
+        type: "SET_DATA_SOURCE",
+        source: "inline",
+        inline: { ...trend, rows: [["Fresno", "2020", "100"], ["Kern", "2020", "90"]] },
+      });
+      expect(reimported.transform).toBe("actual");
+    });
+
+    it("leaves a module's stranded transform alone, notice and all", () => {
+      // Modules surface TRANSFORM_NOT_ALLOWED instead; rewriting the config would
+      // hide the notice that explains the field catalog.
+      const line = createChartConfig(schema, { chartType: "line", transform: "percentChange" });
+      const spare = dispatch(line, {
+        type: "SET_BINDING",
+        role: "y",
+        field: "Spare Widgets",
+      });
+      expect(spare.transform).toBe("actual");
+      const stranded = dispatch(
+        { ...line, bindings: { ...line.bindings, y: "Spare Widgets" } },
+        { type: "SET_TRANSFORM", transform: "percentChange" },
+      );
+      expect(stranded.transform).toBe("percentChange");
+      expect(stranded.validation.some((f) => f.code === "TRANSFORM_NOT_ALLOWED")).toBe(true);
+    });
+  });
+
   it("keeps required Dot plot mappings valid across pay-gap chart switches", () => {
     const payGap = {
       columns: [

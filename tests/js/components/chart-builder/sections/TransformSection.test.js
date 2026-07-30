@@ -148,6 +148,89 @@ describe("TransformSection", () => {
     });
   });
 
+  describe("imported data (bring-your-own-data)", () => {
+    const byodSchema = { id: "byod", inlineOnly: true, fields: {}, yearRange: [1990, 2026] };
+    const table = {
+      columns: [
+        { name: "County", type: "text" },
+        // Date-typed, as a line chart's temporal x role requires.
+        { name: "Year", type: "date" },
+        { name: "Population", type: "number" },
+      ],
+      rows: [
+        ["Fresno", "2020", "100"],
+        ["Fresno", "2021", "110"],
+        ["Kern", "2020", "90"],
+        ["Kern", "2021", "95"],
+      ],
+    };
+    const inlineConfig = (overrides = {}) =>
+      config({
+        bindings: { x: "Year", y: "Population", series: "County" },
+        data: { source: "inline", inline: table },
+        period: {},
+        ...overrides,
+      });
+
+    beforeEach(() => {
+      state.schema = byodSchema;
+      state.config = inlineConfig();
+    });
+
+    it("offers absolute values or index-to-100, and no module-only transforms", () => {
+      render(<TransformSection />);
+      expect(screen.getAllByRole("radio")).toHaveLength(2);
+      expect(screen.getByRole("radio", { name: /absolute values/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole("radio", { name: /index to 100 at base period/i }),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("radio", { name: /change/i })).not.toBeInTheDocument();
+    });
+
+    it("draws base periods from the imported column, not the schema year range", async () => {
+      const user = userEvent.setup();
+      state.config = inlineConfig({ transform: "indexed" });
+      render(<TransformSection />);
+
+      await user.click(screen.getByLabelText("Base period"));
+      expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+        "2020",
+        "2021",
+      ]);
+      await user.click(screen.getByRole("option", { name: "2021" }));
+      expect(state.dispatch).toHaveBeenCalledWith({
+        type: "SET_PERIOD",
+        key: "baseYear",
+        value: 2021,
+      });
+    });
+
+    it("offers no benchmark label, which only a module series can supply", () => {
+      render(<TransformSection />);
+      expect(screen.queryByLabelText(/benchmark/i)).not.toBeInTheDocument();
+    });
+
+    it("renders nothing on a chart with no time axis to index against", () => {
+      state.config = inlineConfig({
+        chartType: "bar",
+        bindings: { category: "County", y: "Population" },
+      });
+      const { container } = render(<TransformSection />);
+      expect(container).toBeEmptyDOMElement();
+    });
+
+    it("reports controls only when the table holds more than one period", () => {
+      expect(hasTransformControls(inlineConfig(), byodSchema)).toBe(true);
+      const single = { ...table, rows: [["Fresno", "2020", "100"]] };
+      expect(
+        hasTransformControls(
+          inlineConfig({ data: { source: "inline", inline: single } }),
+          byodSchema,
+        ),
+      ).toBe(false);
+    });
+  });
+
   describe("hasTransformControls", () => {
     it("reports nothing to render for chart types that cannot transform", () => {
       expect(hasTransformControls(config({ chartType: "scatter" }), schema)).toBe(false);
