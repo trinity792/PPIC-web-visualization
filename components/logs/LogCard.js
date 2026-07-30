@@ -7,10 +7,10 @@
  *   - "nontechnical": a researcher-facing card modeled on the Documents landing
  *     DocumentCard — the severity icon fills the left thumbnail tile, with the
  *     status chip + copy button top-right, a plain-English summary, and
- *     When / Phase / Cause / Impact / Result rows. Every card (success, recovered,
- *     or failed) carries a "Show technical details" disclosure that reveals the
- *     complete record: the error block when present, plus Result / Flags and the
- *     full raw record.
+ *     When / Phase / Cause / Impact / Result / Revised rows. Every card (success,
+ *     recovered, or failed) carries a "Show technical details" disclosure that
+ *     reveals the complete record: the error block when present, plus Result,
+ *     a structured Revisions block, Flags, and the full raw record.
  *   - "technical": the raw JSON record shown in a code block.
  * Both modes expose a copy button for the raw record.
  *
@@ -36,6 +36,9 @@ import {
   deriveCause,
   deriveImpact,
   deriveResult,
+  deriveRevisions,
+  deriveRevisionSummary,
+  formatPeriodList,
   formatTimestamp,
   severityMeta,
 } from "@/lib/logs/presentation";
@@ -59,9 +62,15 @@ function DetailRow({ label, children }) {
 const MONO_PRE_CLASS =
   "max-h-72 overflow-auto rounded-lg border border-ppic-border bg-ppic-neutral-50 p-3 text-xs leading-relaxed text-ppic-neutral-700";
 
-function KeyValueBlock({ title, data }) {
+// `revisions` gets its own structured block below; excluding it here stops
+// KeyValueBlock from also dumping it as a one-line JSON blob.
+const RESULT_KEYS_RENDERED_SEPARATELY = new Set(["revisions"]);
+
+function KeyValueBlock({ title, data, omitKeys }) {
   if (!data || typeof data !== "object") return null;
-  const entries = Object.entries(data).filter(([, value]) => value != null);
+  const entries = Object.entries(data).filter(
+    ([key, value]) => value != null && !omitKeys?.has(key)
+  );
   if (!entries.length) return null;
   return (
     <div className="space-y-1">
@@ -76,6 +85,95 @@ function KeyValueBlock({ title, data }) {
           </React.Fragment>
         ))}
       </dl>
+    </div>
+  );
+}
+
+/**
+ * One source's revision diff: what the run added versus what it silently restated.
+ * Modules replace an overlapping period wholesale, so a restated figure overwrites
+ * the saved one — this is the only place that overwrite is visible.
+ */
+function RevisionDiff({ diff }) {
+  const counts = [
+    diff.addedKeys ? `${diff.addedKeys.toLocaleString()} rows added` : null,
+    diff.changedCells ? `${diff.changedCells.toLocaleString()} values restated` : null,
+    diff.removedKeys ? `${diff.removedKeys.toLocaleString()} rows removed` : null,
+  ].filter(Boolean);
+
+  return (
+    <div className="space-y-1.5">
+      {diff.source ? (
+        <div className="text-xs font-medium text-ppic-neutral-700">{diff.source}</div>
+      ) : null}
+      <div className="text-xs text-ppic-neutral-500">
+        {counts.length ? counts.join(" · ") : "No changes"}
+      </div>
+      {diff.addedPeriods.length ? (
+        <div className="text-xs text-ppic-neutral-500">
+          New: {formatPeriodList(diff.addedPeriods)}
+        </div>
+      ) : null}
+      {diff.changedPeriods.length ? (
+        <div className="text-xs text-ppic-neutral-500">
+          Restated: {formatPeriodList(diff.changedPeriods)}
+        </div>
+      ) : null}
+      {diff.removedPeriods.length ? (
+        <div className="text-xs text-ppic-neutral-500">
+          Removed: {formatPeriodList(diff.removedPeriods)}
+        </div>
+      ) : null}
+
+      {diff.sample.length ? (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs text-ppic-neutral-700">
+            <thead>
+              <tr className="text-left text-ppic-neutral-500">
+                <th className="py-1 pr-3 font-medium">Row</th>
+                <th className="py-1 pr-3 font-medium">Column</th>
+                <th className="py-1 pr-3 font-medium">Was</th>
+                <th className="py-1 font-medium">Now</th>
+              </tr>
+            </thead>
+            <tbody>
+              {diff.sample.map((change, index) => (
+                <tr
+                  key={`${change.key}-${change.column}-${index}`}
+                  className="border-t border-ppic-border align-top"
+                >
+                  <td className="py-1 pr-3 break-words">{change.key}</td>
+                  <td className="py-1 pr-3 break-words">{change.column}</td>
+                  <td className="py-1 pr-3 tabular-nums">{String(change.old)}</td>
+                  <td className="py-1 tabular-nums">{String(change.new)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {diff.truncated ? (
+            <div className="pt-1 text-xs text-ppic-neutral-500">
+              Showing the {diff.sample.length} largest of{" "}
+              {diff.changedCells.toLocaleString()} changes.
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function RevisionsBlock({ entry }) {
+  const revisions = deriveRevisions(entry);
+  const withChanges = revisions.filter(
+    (diff) => diff.addedKeys || diff.changedCells || diff.removedKeys
+  );
+  if (!withChanges.length) return null;
+  return (
+    <div className="space-y-2">
+      <div className="text-xs font-medium text-ppic-neutral-500">Revisions</div>
+      {withChanges.map((diff, index) => (
+        <RevisionDiff key={diff.source || `diff-${index}`} diff={diff} />
+      ))}
     </div>
   );
 }
@@ -108,7 +206,8 @@ function TechnicalDetails({ entry }) {
         </div>
       ) : null}
 
-      <KeyValueBlock title="Result" data={entry.result} />
+      <KeyValueBlock title="Result" data={entry.result} omitKeys={RESULT_KEYS_RENDERED_SEPARATELY} />
+      <RevisionsBlock entry={entry} />
       <KeyValueBlock title="Flags" data={entry.flags} />
 
       <div className="space-y-1">
@@ -149,6 +248,10 @@ export default function LogCard({ entry, mode }) {
   const cause = deriveCause(entry);
   const impact = deriveImpact(entry);
   const result = deriveResult(entry);
+  // Surfaced on the card face, not only in the disclosure: a restated figure means a
+  // previously published number has changed, which a reader needs to know without
+  // opening technical details.
+  const revised = deriveRevisionSummary(entry);
 
   return (
     <div
@@ -199,6 +302,7 @@ export default function LogCard({ entry, mode }) {
           <DetailRow label="Cause">{cause}</DetailRow>
           <DetailRow label="Impact">{impact}</DetailRow>
           <DetailRow label="Result">{result}</DetailRow>
+          <DetailRow label="Revised">{revised}</DetailRow>
         </div>
 
         <Collapsible open={open} onOpenChange={setOpen} className="mt-3">

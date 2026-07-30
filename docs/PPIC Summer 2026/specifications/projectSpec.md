@@ -4,7 +4,7 @@ Content Type: project specification
 pinned: true
 description: "The single source of truth for the web-data-visualization project's specification, architecture, and API reference. A living document for programmers and researchers that uses PopHousing as the reference implementation future data modules should mirror."
 Date Published: June 23, 2026
-Last Updated: 07/30/2026 - 11:40 AM
+Last Updated: 07/30/2026 - 03:10 PM
 Status: Updating
 Footnote: Document generated and updated by Claude Opus 4.8 on command. Outlined and verified by Trinity Jones.
 ---
@@ -1824,8 +1824,19 @@ The matching log line reads `DoF Revisions: 1 cells revised; periods 2023 - Fres
 
 **Verified at scale.** Against the real 1,718,208-row Projections contract with every `Population` value perturbed - the worst case, a wholesale vintage restatement - the diff completes in **8.6 s** and serializes to **2.6 KB**, because the counts are aggregate and only the top 20 cells are materialized. The log line collapses a long span to `periods 2020-2070 (51 periods)` rather than naming all 51.
 
-> [!warning] Not yet rendered on `/logs`
-> `KeyValueBlock` in `components/logs/LogCard.js` `JSON.stringify`s a nested object onto one line, so `revisions` currently shows as a blob in the Result block. It is legible in the "Raw record" `<pre>`. A dedicated renderer is a pending frontend change.
+### On the `/logs` page
+
+The frontend renderer landed 2026-07-30. `lib/logs/presentation.js` gained three client-safe helpers, and `components/logs/LogCard.js` renders their output.
+
+| Helper | Description |
+|---|---|
+| `deriveRevisions(entry)` | Normalizes `result.revisions` into a flat array, absorbing **both** backend shapes: a `{source: diff}` map from the multi-source modules (Components, Projections) and a bare diff from the single-source ones (Housing Stress, Building Permits, RHNA). Returns `[]` when absent. |
+| `formatPeriodList(periods)` | `2023` · `2023, 2024` · `2020–2070 (51 periods)` past eight, mirroring `format_revision_summary` so the card and the log line read the same way. |
+| `deriveRevisionSummary(entry)` | One researcher-facing sentence, or `null` when a run only *added* periods. |
+
+Two surfaces consume them. A **`Revised` row on the card face** carries the plain-language sentence - "47 previously published values restated in 2024, 2025." - because a changed figure is something a reader needs without opening the disclosure; it is absent entirely on an additions-only run. Inside **Show technical details**, a structured `Revisions` block gives per-source counts, the New / Restated / Removed period lines, and the sample as a real `Row / Column / Was / Now` table, closing with "Showing the 3 largest of 47 changes" when truncated. `KeyValueBlock` now takes an `omitKeys` prop so `revisions` is not *also* dumped as a one-line JSON blob in the Result block.
+
+Two records in the committed `logs/sample-runs.jsonl` fixture exercise both shapes, so the page demonstrates the feature in a fresh checkout. Covered by 17 Vitest cases across `tests/js/lib/logs/presentation.test.js` and `tests/js/components/logs/LogCard.test.js`.
 
 > [!note] What this does and does not give you
 > The contract still holds only the agency's current best estimate; superseded values are not retained in the dataset, and a prior figure is recoverable only from `data/archive/`. What the run log now provides is a **trail** - which periods moved, by how much, and on which run - so a discrepancy against a previously published PPIC figure can be explained rather than merely discovered.
@@ -1862,7 +1873,7 @@ The pytest suite lives in `scripts/unit_tests/`, **mirroring the source tree** (
 
 **Within Building Permits:** the full Python pipeline (config → acquisition → cleaning → geography tagging → merge → validation → output), orchestrator, data contract, API route, module schema, month-aware data-access layer, and the JS geography mirror are complete, with a **verified end-to-end run** against live Census BPS. The contract holds **197 months (2010-01 → 2026-05, 14,691 rows)** — deep history lives in the immutable, read-only `BuildingPermits_Historical.csv` seed (composed with the live pull each run) because the source hosts only a rolling ~2-year window. A 2026-07-14 as-built pass resolved every flagged issue (A1–A7, B1–B4) with tests and an offline idempotency re-verification; the module's audit chips are **Verified** for Reliability, Robustness, Live, Offline, and Manually verified (Efficiency is the lone open column, shared by all five modules). The graph-editor overhaul (2026-07-07) shipped its module-owned presets and lifted it out of `underConstruction`; a monthly range control and the category/bar shared-view remain non-blocking follow-ups — see *Current-State Notes & Caveats (Building Permits)*.
 
-Cross-module **run logging is now implemented** (`shared/logging/pipeline_logging.py`, `dataframe_logging.py`, `run_records.py`): all five orchestrators set up a file + console logger, log each phase, and write one structured JSONL record per run to `logs/pipeline-runs.jsonl`. The `/logs` page (`app/logs/page.js` → `components/logs/`) is a **tabbed shell** (`LogsTabs`): a **Pipeline Logs** tab that reads those records via `lib/logs/logs.js` and renders them, Documents-landing-style, as a sidebar-filtered feed of **DocumentCard-variant run cards** — severity icon as the thumbnail tile, status chip + copy button top-right — with plain-language cause & impact derived on the client (`lib/logs/presentation.js`), a sidebar **Technical details** switch (off by default) plus a **per-card "Show technical details" disclosure that surfaces the complete record (error block, Result, Flags, raw JSON) on every card — success and recovered runs included** — and 15-at-a-time "Show more" paging; and a **Changelog** tab (`ChangelogBrowser`, curated changes derived from commit history through `lib/changelog/` over `data/changelog.json` + `data/changelog-overlay.json`, rebuilt by `scripts/changelog/build-changelog.mjs`). The live `logs/pipeline-runs.jsonl` is git-ignored; a committed `logs/sample-runs.jsonl` fixture keeps the page populated in the repo. No scaffolded-but-`TODO` surface remains project-wide; further work is enhancement.
+Cross-module **run logging is now implemented** (`shared/logging/pipeline_logging.py`, `dataframe_logging.py`, `run_records.py`): all five orchestrators set up a file + console logger, log each phase, and write one structured JSONL record per run to `logs/pipeline-runs.jsonl`. The `/logs` page (`app/logs/page.js` → `components/logs/`) is a **tabbed shell** (`LogsTabs`): a **Pipeline Logs** tab that reads those records via `lib/logs/logs.js` and renders them, Documents-landing-style, as a sidebar-filtered feed of **DocumentCard-variant run cards** — severity icon as the thumbnail tile, status chip + copy button top-right — with plain-language cause & impact derived on the client (`lib/logs/presentation.js`), a sidebar **Technical details** switch (off by default) plus a **per-card "Show technical details" disclosure that surfaces the complete record (error block, Result, the structured Revisions block, Flags, raw JSON) on every card — success and recovered runs included** — a card-face **`Revised`** row naming any previously published values the run restated (see *Revision Reporting (All Modules)*), and 15-at-a-time "Show more" paging; and a **Changelog** tab (`ChangelogBrowser`, curated changes derived from commit history through `lib/changelog/` over `data/changelog.json` + `data/changelog-overlay.json`, rebuilt by `scripts/changelog/build-changelog.mjs`). The live `logs/pipeline-runs.jsonl` is git-ignored; a committed `logs/sample-runs.jsonl` fixture keeps the page populated in the repo. No scaffolded-but-`TODO` surface remains project-wide; further work is enhancement.
 
 ---
 
