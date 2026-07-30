@@ -10,7 +10,9 @@ import {
   CHART_TYPE_IDS,
   CHART_TYPES,
   getChartType,
+  SKELETON_SHAPES,
 } from "@/lib/visualization/chartRegistry";
+import { RETIRED_CHART_TYPES } from "@/lib/visualization/chartSpec";
 import { toPlotly } from "@/lib/visualization/toPlotly";
 
 describe("Phase 6 catalog ids", () => {
@@ -32,19 +34,16 @@ describe("Phase 6 catalog ids", () => {
     expect(pie.defaults).toMatchObject({ hole: 0 });
   });
 
-  it("registers divergingBar as a Bar-family variant with a center reference default", () => {
+  it("carries diverging as a bar default in place of a separate chart type (Workstream B)", () => {
+    expect(getChartType("bar").defaults).toMatchObject({ diverging: false });
+  });
+
+  it("keeps divergingBar registered but hidden, resolving through RETIRED_CHART_TYPES", () => {
+    // Not deleted yet — Workstream B Phase 4 is one release out — but hidden
+    // from the chart-type grid, and its id maps to "bar" for migration.
     const divergingBar = getChartType("divergingBar");
-    expect(divergingBar).toMatchObject({
-      id: "divergingBar",
-      transformCapable: true,
-      requiredRoles: ["category", "y"],
-    });
-    expect(divergingBar.roleConstraints.category).toContain("dimension");
-    expect(divergingBar.roleConstraints.y).toContain("measure");
-    expect(divergingBar.defaults).toMatchObject({
-      orientation: "horizontal",
-      center: 0,
-    });
+    expect(divergingBar?.hidden).toBe(true);
+    expect(RETIRED_CHART_TYPES.divergingBar).toBe("bar");
   });
 
   it("registers proportional-symbol maps as the symbolMap chart family", () => {
@@ -189,6 +188,25 @@ describe("descriptor metadata", () => {
           ...specs[chartType],
         }),
       `chart type: ${chartType}`).not.toThrow();
+    }
+  });
+
+  it("declares every implied role as also required, resolving to an acceptable kind", () => {
+    for (const [id, descriptor] of Object.entries(CHART_TYPES)) {
+      const implied = descriptor.impliedRoles || {};
+      for (const [role, source] of Object.entries(implied)) {
+        expect(descriptor.requiredRoles, `${id}.${role}`).toContain(role);
+        const acceptedKinds = descriptor.roleConstraints[role] || [];
+        const resolvedKind = source === "temporal" ? "temporal" : "dimension";
+        expect(acceptedKinds, `${id}.${role}`).toContain(resolvedKind);
+      }
+    }
+  });
+
+  it("declares a skeletonShape on every chart type (Workstream C)", () => {
+    for (const [id, descriptor] of Object.entries(CHART_TYPES)) {
+      expect(descriptor.skeletonShape, `chart type: ${id}`).toEqual(expect.any(String));
+      expect(SKELETON_SHAPES, `chart type: ${id}`).toContain(descriptor.skeletonShape);
     }
   });
 

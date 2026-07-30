@@ -13,7 +13,11 @@
  * standalone tool: presets, the line-layer action, config export, and the editor
  * activity log. (Config *import* sits on the Import step, where a saved config
  * arrives alongside the data.) What used to be here and is gone entirely: the
- * GUI ⇄ Code toggle and the Basic/Moderate/Advanced switch (decision 5).
+ * GUI ⇄ Code toggle (decision 5).
+ *
+ * Advanced Mode is back, but as one boolean rather than the old three tiers, and
+ * scoped to this step so the switch and everything it governs stay together.
+ * Today it hides exactly one block: Ranked values.
  *
  * Props:
  *   (none — reads useChartConfig())
@@ -29,6 +33,10 @@ import React from "react";
 import { ExportConfigButton } from "@/components/chart-builder/ConfigActions";
 import EditorActivityLog from "@/components/chart-builder/EditorActivityLog";
 import ValidationNotice from "@/components/chart-builder/ValidationNotice";
+import {
+  AdvancedModeProvider,
+  AdvancedModeToggle,
+} from "@/components/chart-builder/advancedMode";
 import CategoriesSection from "@/components/chart-builder/sections/CategoriesSection";
 import PresetSection from "@/components/chart-builder/sections/PresetSection";
 import SidebarSections from "@/components/chart-builder/sections/SidebarSections";
@@ -44,11 +52,22 @@ import StepShell from "@/components/chart-builder/wizard/StepShell";
 // other registered section (overhaul decision 10).
 const SECTION_FILTER = { exclude: ["chart-type"] };
 
-// Comparison layers are a standalone-tool feature, so the shared Axis section is
-// opted into its "Add line" action here and nowhere else.
+// Comparison layers are a standalone-tool feature, so the shared Outcome
+// section is opted into its "Add line" action here and nowhere else.
 const SECTION_PROPS = { axis: { allowLayers: true } };
 
 export default function EditStep() {
+  return (
+    <AdvancedModeProvider>
+      <EditStepBody />
+    </AdvancedModeProvider>
+  );
+}
+
+// ── Tightly coupled sub-components ───────────────────────────────────
+
+/** The step's own content, split out only so the provider can wrap it. */
+function EditStepBody() {
   const { schema } = useChartConfig();
   // Bring-your-own-data has no geography, so GeographySection — which normally
   // owns the category ordering fallback — never renders. Mount it directly.
@@ -64,7 +83,8 @@ export default function EditStep() {
       <div className="grid min-h-0 min-w-0 gap-3">
         {/* Import lives on the Import step, where a config arrives alongside the
             data; export lives here, with the chart being built. */}
-        <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          <AdvancedModeToggle id="standalone-advanced-mode" />
           <ExportConfigButton />
         </div>
         <ValidationNotice />

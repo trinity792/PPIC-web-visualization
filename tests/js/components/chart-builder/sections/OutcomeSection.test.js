@@ -1,8 +1,14 @@
-/** Phase 7 field-binding and tabbing contract. */
+/**
+ * Phase 7 field-binding and tabbing contract, extended by Workstream A (the
+ * Outcome reframe): an implied role renders as a hint sentence rather than a
+ * dropdown, the measure role reads "Outcome" for chart types that imply
+ * anything, and bar/diverging bar's orientation toggle lives here now. Also
+ * covers Workstream B's Diverging bars switch, which lives beside it.
+ */
 
 import React from "react";
 
-import { fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -15,7 +21,8 @@ vi.mock("@/components/chart-builder/chartConfigStore", () => ({
   useChartConfig: () => state,
 }));
 
-import AxisSection from "@/components/chart-builder/sections/AxisSection";
+import OutcomeSection from "@/components/chart-builder/sections/OutcomeSection";
+import { BYOD_SCHEMA } from "@/lib/visualization/moduleRegistry";
 
 const schema = {
   id: "widgets",
@@ -57,32 +64,85 @@ function lineConfig(overrides = {}) {
     bindings: { x: "Year", y: "Value", series: "Location" },
     filters: { tabColumn: null, tabValue: null, tabOrder: [] },
     tabOptions: [],
+    appearance: {},
     // The store always seeds `layers`, and LayerEditor reads it unguarded.
     layers: [],
     ...overrides,
   };
 }
 
-describe("AxisSection", () => {
+function barConfig(overrides = {}) {
+  return {
+    chartType: "bar",
+    preset: "compare-places",
+    data: { source: "module" },
+    bindings: { y: "Value" },
+    filters: { tabColumn: null, tabValue: null, tabOrder: [], subset: "Counties" },
+    tabOptions: [],
+    appearance: {},
+    layers: [],
+    ...overrides,
+  };
+}
+
+describe("OutcomeSection", () => {
   beforeEach(() => {
     state.dispatch.mockClear();
     state.schema = schema;
     state.config = lineConfig();
   });
 
-  it("renders line roles and forest-specific role labels", () => {
-    const { unmount } = render(<AxisSection />);
-    for (const label of ["X-Axis", "Y-Axis", "Series", "Color"]) {
+  it("hides the implied X-Axis for a line and labels the measure Outcome", () => {
+    render(<OutcomeSection />);
+    expect(screen.queryByLabelText("X-Axis")).not.toBeInTheDocument();
+    for (const label of ["Outcome", "Series"]) {
       expect(screen.getByLabelText(new RegExp(label, "i"))).toBeInTheDocument();
     }
-    unmount();
+    expect(screen.queryByLabelText(/^Color/i)).not.toBeInTheDocument();
+  });
 
+  it.each(["line", "bar", "scatter", "bubble"])(
+    "moves the %s Color binding out of Outcome",
+    (chartType) => {
+      state.config =
+        chartType === "bar" ? barConfig() : lineConfig({ chartType, preset: null });
+      render(<OutcomeSection />);
+      expect(screen.queryByLabelText(/^Color/i)).not.toBeInTheDocument();
+    },
+  );
+
+  it("keeps Color in Outcome for chart types that did not move it", () => {
+    state.config = lineConfig({
+      chartType: "pie",
+      preset: null,
+      bindings: { category: "Region", y: "Value" },
+    });
+    render(<OutcomeSection />);
+    expect(screen.getByLabelText(/^Color/i)).toBeInTheDocument();
+  });
+
+  it("renders the implied X-Axis hint naming Date Range, not a dropdown", () => {
+    render(<OutcomeSection />);
+    expect(screen.getByText(/Plotted against Year, set in Date Range/i)).toBeInTheDocument();
+  });
+
+  it("hides the implied Category for a bar and renders its Geographic Level hint", () => {
+    state.config = barConfig();
+    render(<OutcomeSection />);
+    expect(screen.queryByLabelText("Category")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/One bar per location in Counties, set in Geographic Level/i),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/Outcome/)).toBeInTheDocument();
+  });
+
+  it("renders forest-specific role labels (no implied roles on forest)", () => {
     state.config = lineConfig({
       chartType: "forest",
       preset: null,
       bindings: { category: "Location", start: "Lower", end: "Upper" },
     });
-    render(<AxisSection />);
+    render(<OutcomeSection />);
     // Exact labels, asterisks included: "Study" alone also matches the optional
     // "Study weight", and the trailing * is how a required role is marked.
     for (const label of [
@@ -98,8 +158,8 @@ describe("AxisSection", () => {
 
   it("offers only fields whose kind satisfies a role's constraints", async () => {
     const user = userEvent.setup();
-    render(<AxisSection />);
-    await user.click(screen.getByLabelText(/Y-Axis/i));
+    render(<OutcomeSection />);
+    await user.click(screen.getByLabelText(/Outcome/i));
     expect(screen.getByRole("option", { name: "Value" })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: "Year" })).not.toBeInTheDocument();
     expect(screen.queryByRole("option", { name: "Region" })).not.toBeInTheDocument();
@@ -107,15 +167,15 @@ describe("AxisSection", () => {
 
   it("excludes measures that do not support the role's catalog role", async () => {
     const user = userEvent.setup();
-    render(<AxisSection />);
-    await user.click(screen.getByLabelText(/Y-Axis/i));
+    render(<OutcomeSection />);
+    await user.click(screen.getByLabelText(/Outcome/i));
     expect(screen.getByRole("option", { name: "Value" })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: "Restricted metric" })).not.toBeInTheDocument();
   });
 
   it("keeps high-cardinality fields and Source out of Group", async () => {
     const user = userEvent.setup();
-    render(<AxisSection />);
+    render(<OutcomeSection />);
     await user.click(screen.getByLabelText(/^Group/i));
     expect(screen.getByRole("option", { name: "Region" })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: "Location" })).not.toBeInTheDocument();
@@ -124,24 +184,24 @@ describe("AxisSection", () => {
 
   it("marks required roles and omits Not set only for them", async () => {
     const user = userEvent.setup();
-    render(<AxisSection />);
+    render(<OutcomeSection />);
     expect(screen.getAllByText("*", { selector: "span" }).length).toBeGreaterThan(0);
 
-    await user.click(screen.getByLabelText(/Y-Axis/i));
+    await user.click(screen.getByLabelText(/Outcome/i));
     expect(screen.queryByRole("option", { name: "Not set" })).not.toBeInTheDocument();
     await user.keyboard("{Escape}");
-    await user.click(screen.getByLabelText(/^Color/i));
+    await user.click(screen.getByLabelText(/^Series/i));
     expect(screen.getByRole("option", { name: "Not set" })).toBeInTheDocument();
   });
 
   it("contains neither geography nor the module Add line layer action", () => {
-    render(<AxisSection />);
+    render(<OutcomeSection />);
     expect(screen.queryByLabelText(/geographic level/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /add line/i })).not.toBeInTheDocument();
   });
 
   it("keeps Add line available when the standalone Edit step opts into layers", () => {
-    render(<AxisSection allowLayers />);
+    render(<OutcomeSection allowLayers />);
     expect(screen.getByRole("button", { name: /add line/i })).toBeInTheDocument();
   });
 
@@ -163,10 +223,73 @@ describe("AxisSection", () => {
       },
       bindings: { x: "Period", y: "Amount", series: "Place" },
     });
-    render(<AxisSection allowLayers />);
-    await user.click(screen.getByLabelText(/Y-Axis/i));
+    render(<OutcomeSection allowLayers />);
+    await user.click(screen.getByLabelText(/Outcome/i));
     expect(screen.getByRole("option", { name: "Amount" })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: "Value" })).not.toBeInTheDocument();
+  });
+
+  it("keeps a real X-Axis dropdown for bring-your-own-data, which has no temporal field to imply", () => {
+    state.schema = BYOD_SCHEMA;
+    state.config = lineConfig({
+      data: {
+        source: "inline",
+        inline: {
+          columns: [
+            { name: "Period", type: "date" },
+            { name: "Amount", type: "number" },
+          ],
+          rows: [["2025", "10"]],
+          issues: [],
+        },
+      },
+      bindings: { x: "Period", y: "Amount" },
+    });
+    render(<OutcomeSection allowLayers />);
+    expect(screen.getByLabelText(/^X-Axis/)).toBeInTheDocument();
+  });
+
+  it("writes bar orientation to appearance", async () => {
+    const user = userEvent.setup();
+    state.config = barConfig();
+    render(<OutcomeSection />);
+    await user.click(screen.getByLabelText(/orientation/i));
+    await user.click(screen.getByRole("option", { name: "Horizontal" }));
+    expect(state.dispatch).toHaveBeenCalledWith({
+      type: "SET_APPEARANCE",
+      key: "orientation",
+      value: "horizontal",
+    });
+  });
+
+  it("shows no orientation control for a line", () => {
+    render(<OutcomeSection />);
+    expect(screen.queryByLabelText(/orientation/i)).not.toBeInTheDocument();
+  });
+
+  it("shows the Diverging bars switch for a bar and not for a line (Workstream B)", () => {
+    state.config = barConfig();
+    render(<OutcomeSection />);
+    expect(screen.getByLabelText(/diverging bars/i)).toBeInTheDocument();
+    cleanup();
+    state.config = lineConfig();
+    render(<OutcomeSection />);
+    expect(screen.queryByLabelText(/diverging bars/i)).not.toBeInTheDocument();
+  });
+
+  it("turning Diverging on dispatches only the diverging key, leaving orientation untouched", async () => {
+    const user = userEvent.setup();
+    state.config = barConfig();
+    render(<OutcomeSection />);
+    await user.click(screen.getByLabelText(/diverging bars/i));
+    expect(state.dispatch).toHaveBeenCalledWith({
+      type: "SET_APPEARANCE",
+      key: "diverging",
+      value: true,
+    });
+    expect(state.dispatch).not.toHaveBeenCalledWith(
+      expect.objectContaining({ key: "orientation" }),
+    );
   });
 
   it("dispatches tab-column selection and keyboard tab-order changes", async () => {
@@ -179,7 +302,7 @@ describe("AxisSection", () => {
       },
       tabOptions: ["North", "South"],
     });
-    render(<AxisSection />);
+    render(<OutcomeSection />);
 
     const handle = screen.getByRole("button", {
       name: /drag to reorder South.*arrow keys/i,

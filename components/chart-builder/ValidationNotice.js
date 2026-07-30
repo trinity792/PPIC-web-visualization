@@ -41,7 +41,7 @@ import {
 } from "@/components/ui/tooltip";
 
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
-import { roleLabel } from "@/components/chart-builder/sections/AxisSection";
+import { roleLabel } from "@/components/chart-builder/sections/OutcomeSection";
 import { getChartType } from "@/lib/visualization/chartRegistry";
 import { inlineColumnKind } from "@/lib/visualization/inlineMapping";
 import { INCOMPLETE_CODES } from "@/lib/visualization/validation";

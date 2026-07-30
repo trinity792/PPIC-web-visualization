@@ -43,6 +43,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+import { useAdvancedMode } from "@/components/chart-builder/advancedMode";
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import useLocationOptions from "@/components/chart-builder/useLocationOptions";
 import CategoriesSection from "@/components/chart-builder/sections/CategoriesSection";
@@ -58,8 +59,13 @@ const COLLAPSED_LOCATION_COUNT = 7;
 /**
  * Chart types whose categories are the places themselves, so ordering and
  * ranking belong in this section rather than in Categories.
+ *
+ * `divergingBar` is not listed (Workstream B): it retired to a `bar` variant
+ * flag, so a diverging bar's `chartType` is "bar" and already matches here —
+ * listing the retired id too would be redundant, not incorrect, since it is
+ * never live in the editor once normalizeSpec has rewritten it.
  */
-const PLACE_CATEGORY_CHART_TYPES = new Set(["line", "bar", "divergingBar"]);
+const PLACE_CATEGORY_CHART_TYPES = new Set(["line", "bar"]);
 
 /** Whether a schema offers any geography at all (bring-your-own-data does not). */
 export function hasGeographicSubsets(config, schema) {
@@ -69,6 +75,8 @@ export function hasGeographicSubsets(config, schema) {
 export default function GeographySection() {
   const { config, dispatch, schema } = useChartConfig();
   const options = useLocationOptions(schema, config.filters);
+  // Read before the early return: hook order cannot depend on the schema.
+  const { advanced } = useAdvancedMode();
 
   if (!hasGeographicSubsets(config, schema)) return null;
 
@@ -89,6 +97,8 @@ export default function GeographySection() {
     dispatch({ type: "SET_FILTER", key: "subset", value });
     // Place names do not survive a level change (a county is not a region), so
     // an explicit selection is cleared rather than silently filtering nothing.
+    // The implied `category` binding (Workstream A) is not touched here: a level
+    // change alters which rows a chart draws, not which column names them.
     dispatch({ type: "SET_FILTER", key: "locations", value: [] });
     const forcedSource = schema.subsetSource?.[value];
     if (forcedSource && schema.sources?.includes(forcedSource)) {
@@ -158,12 +168,16 @@ export default function GeographySection() {
       />
 
       {reorderable ? (
-        <RankingControls
-          idPrefix="geography-ranking"
-          topN={config.filters?.topN ?? 20}
-          sort={config.appearance?.sort || "value"}
-          onChange={({ topN, sort }) => dispatch({ type: "SET_RANKING", topN, sort })}
-        />
+        // Ranked values sits behind Advanced Mode; the place list above still
+        // carries ordering and visibility, so hiding it costs no reach.
+        advanced ? (
+          <RankingControls
+            idPrefix="geography-ranking"
+            topN={config.filters?.topN ?? 20}
+            sort={config.appearance?.sort || "value"}
+            onChange={({ topN, sort }) => dispatch({ type: "SET_RANKING", topN, sort })}
+          />
+        ) : null
       ) : (
         // This chart's categories are something other than places (a pie of
         // housing types, a heatmap of age groups), so ordering, visibility, and

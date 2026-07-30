@@ -1,12 +1,19 @@
 "use client";
 
 /**
- * AxisSection.js — which column feeds each part of the chart.
+ * OutcomeSection.js — which variable is plotted, and what the chart type
+ * already knows without asking (Workstream A, the "Outcome reframe").
  *
- * The mockup's "Axis" block. Decision 2 folds the Series and Color encodings in
- * beside X and Y, so one grid answers "what is plotted against what, split how,
- * coloured by what" instead of scattering those across sections. Group and
- * Tab-by-column follow (decision 4).
+ * The mockup's "Axis" block, reframed: for a chart type where one axis is
+ * already determined by context — a line's x is always time, a bar's category
+ * is always the geographic level chosen above it — that role is not asked for
+ * as a dropdown. It renders as a sentence naming the section that owns the
+ * setting instead (`impliedRoleHint`), and the remaining "what is plotted"
+ * choice reads as **Outcome** rather than Y-Axis. Series, Group, and
+ * Tab-by-column still fill in beside it, and bar/diverging bar's orientation
+ * toggle lives here too — the one degree of freedom Settings Reframing keeps as
+ * an explicit control. Line, Bar, Scatter, and Bubble put their optional Color
+ * binding in Appearance beside the palette; other chart types keep Color here.
  *
  * Roles come from the chart-type descriptor rather than a fixed x/y list, so a
  * forest plot asks for a study and its confidence bounds and a dot plot asks for
@@ -23,6 +30,7 @@
  * Data sources:
  *   - Chart configuration and module schema from ChartConfigProvider
  *   - lib/visualization/inlineMapping.js for bring-your-own-data columns
+ *   - lib/visualization/impliedRoles.js for what the chart type infers
  *
  * UI Kit reference:
  *   - Implements the select and draggable list-row patterns
@@ -44,6 +52,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import { tabValues } from "@/lib/tabular/toSeries";
@@ -56,7 +65,8 @@ import {
   isMeasure,
   supportsRole,
 } from "@/lib/visualization/fieldTypes";
-import { inlineFields } from "@/lib/visualization/inlineMapping";
+import { impliedBindings, impliedRoleHint } from "@/lib/visualization/impliedRoles";
+import { bindableFields } from "@/lib/visualization/inlineMapping";
 
 const NONE = "__none__";
 
@@ -79,12 +89,7 @@ const AXIS_LABELS = {
  * the standalone bring-your-own-data tool — the pasted/uploaded table's columns
  * (schema.inlineOnly). Modules keep their own catalog even in "Your data" mode.
  */
-export function bindableFields(schema, config) {
-  if (schema.inlineOnly && config.data?.source === "inline" && config.data.inline) {
-    return inlineFields(config.data.inline);
-  }
-  return schema.fields;
-}
+export { bindableFields };
 
 export function roleLabel(role, chartType) {
   // The dot plot borrows the heatmap's x/y/color roles but reads more naturally
@@ -103,6 +108,15 @@ export function roleLabel(role, chartType) {
       size: "Study weight",
     };
     if (forestLabels[role]) return forestLabels[role];
+  }
+  // A chart type with any implied role has folded its axis choice into a
+  // single "what is plotted" question — the Settings Reframing callout — so its
+  // measure role reads as Outcome rather than Y-Axis. Descriptor-only: this does
+  // not depend on whether the implied role actually resolves for this schema
+  // (byod's line still shows a real X-Axis dropdown, but its Y-Axis reads
+  // Outcome too, because the chart type itself is the same reframed kind).
+  if (role === "y" && Object.keys(getChartType(chartType)?.impliedRoles || {}).length) {
+    return "Outcome";
   }
   if (AXIS_LABELS[role]) return AXIS_LABELS[role];
   const labels = {
@@ -130,14 +144,28 @@ export function roleLabel(role, chartType) {
  * Group is appended for chart types that do not declare it, because the sidebar
  * offers grouping everywhere (decision 4) even where the descriptor treats it as
  * a chart-specific extra.
+ *
+ * A role the chart type implies AND the schema resolves is dropped from the
+ * dropdown grid entirely — it renders as a hint sentence instead (see the
+ * section body). A role the chart type implies but the schema cannot resolve
+ * (byod: no temporal field, no geography field) stays a real dropdown, per
+ * impliedRoles.js's "omit rather than guess" contract. A descriptor can also
+ * place its Color binding in Appearance; this changes only where the control is
+ * rendered, not the binding stored in config.
  */
-function rolesFor(config) {
+function rolesFor(config, schema) {
   const chart = getChartType(config.chartType);
   if (!chart) return [];
   const declared = [...chart.requiredRoles, ...chart.optionalRoles].filter(
     (role) => !(chart.hiddenRoles || []).includes(role),
   );
-  return declared.includes("group") ? declared : [...declared, "group"];
+  const withGroup = declared.includes("group") ? declared : [...declared, "group"];
+  const implied = impliedBindings(config.chartType, schema);
+  return withGroup.filter(
+    (role) =>
+      !implied[role] &&
+      !(role === "color" && chart.colorBindingSection === "appearance"),
+  );
 }
 
 /** Accepted field kinds for a role, defaulting Group to any dimension. */
@@ -147,10 +175,17 @@ function acceptedKinds(chart, role) {
 
 // ── Section ──────────────────────────────────────────────────────────
 
-export default function AxisSection({ allowLayers = false }) {
+export default function OutcomeSection({ allowLayers = false }) {
   const { config, dispatch, schema } = useChartConfig();
   const chart = getChartType(config.chartType);
-  const roles = rolesFor(config);
+  const roles = rolesFor(config, schema);
+  const implied = impliedBindings(config.chartType, schema);
+  // Workstream B: a diverging bar is `appearance.diverging` on a plain `bar`
+  // now, not a separate chart type. `chartType === "divergingBar"` is kept
+  // alongside it only for a config that has not yet passed through
+  // normalizeSpec's retirement rewrite.
+  const diverging =
+    config.chartType === "divergingBar" || Boolean(config.appearance?.diverging);
 
   // Inline (byod) fields carry no measure catalog, so only the kind filter
   // applies; module fields also honor the per-field catalog-role restriction.
@@ -212,6 +247,65 @@ export default function AxisSection({ allowLayers = false }) {
           );
         })}
       </div>
+
+      {/* Implied roles render as a sentence, not a disabled control: a disabled
+          Select invites a click and then explains nothing, where a sentence
+          naming the section that owns the setting is what a reader can act on. */}
+      {Object.keys(implied).map((role) => (
+        <p key={role} className="text-sm text-muted-foreground">
+          {impliedRoleHint(role, config, schema)}
+        </p>
+      ))}
+
+      {/* Orientation is the one degree of freedom Settings Reframing keeps as an
+          explicit control: a bar/diverging-bar chart still lets the reader pick
+          vertical vs. horizontal, because unlike category it is not implied by
+          anything already chosen elsewhere. Plain `bar` defaults vertical and a
+          diverging one defaults horizontal, so turning Diverging on below must
+          NOT flip this control to match — after Workstream A the reader owns
+          orientation directly, and silently moving a control they can see is
+          precisely the auto-binding behaviour the workbench withdrew. A reader
+          who wants a horizontal diverging bar sets orientation themselves, and
+          the diverging presets keep supplying orientation: "horizontal" for
+          the case where nobody wants to. */}
+      {["bar", "divergingBar"].includes(config.chartType) ? (
+        <div className="grid gap-2">
+          <Label htmlFor="appearance-orientation">Orientation</Label>
+          <Select
+            value={config.appearance?.orientation || (diverging ? "horizontal" : "vertical")}
+            onValueChange={(value) =>
+              dispatch({ type: "SET_APPEARANCE", key: "orientation", value })
+            }
+          >
+            <SelectTrigger id="appearance-orientation">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="horizontal">Horizontal</SelectItem>
+              <SelectItem value="vertical">Vertical</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
+
+      {/* Bar absorbs Diverging Bar (Workstream B): a variant flag, not a
+          separate chart type, matching how `pie` already varies through
+          `hole`. Not offered for the legacy `divergingBar` id itself — a
+          config still carrying that id has not yet passed through
+          normalizeSpec's retirement rewrite, so there is nothing for the
+          switch to turn off. */}
+      {config.chartType === "bar" ? (
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor="appearance-diverging">Diverging bars</Label>
+          <Switch
+            id="appearance-diverging"
+            checked={diverging}
+            onCheckedChange={(checked) =>
+              dispatch({ type: "SET_APPEARANCE", key: "diverging", value: checked })
+            }
+          />
+        </div>
+      ) : null}
 
       <TabFilterControl />
 

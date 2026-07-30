@@ -22,61 +22,122 @@
 
 import React from "react";
 
-import { AlertCircle, LoaderCircle } from "lucide-react";
+import {
+  AlertCircle,
+  ChartBar,
+  ChartBarIncreasing,
+  ChartColumnBig,
+  ChartGantt,
+  ChartNoAxesGantt,
+  ChartPie,
+  ChartScatter,
+  Grid3x3,
+  LoaderCircle,
+  Table,
+} from "lucide-react";
 
+import CaliforniaCountiesOutline from "@/components/charts/CaliforniaCountiesOutline";
 import DataTableView from "@/components/charts/DataTableView";
 import GraphTabs from "@/components/charts/GraphTabs";
 import PlotlyChart from "@/components/charts/PlotlyChart";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/components/ui/utils";
 
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
-import { roleLabel } from "@/components/chart-builder/sections/AxisSection";
+import { roleLabel } from "@/components/chart-builder/sections/OutcomeSection";
 import { usePreview } from "@/components/chart-builder/wizard/PreviewContext";
 import { CHART_HEIGHTS } from "@/lib/constants";
 import { tabValues } from "@/lib/tabular/toSeries";
+import { getChartType } from "@/lib/visualization/chartRegistry";
 import { unsetRoles } from "@/lib/visualization/validation";
 
 /**
- * The pre-render placeholder: plot frame, y-axis ticks, and a row of bars, so
- * the container reads as a chart waiting on settings rather than as a failure or
- * a stalled load. Shown where the provider defers its first fetch and where the
- * chart is not yet fully encoded (the module workbench); it is decorative, hence
- * aria-hidden with one status label.
+ * The skeleton a chart type draws while it waits (Workstream C). Bar is the
+ * one type whose shape depends on config as well as descriptor: its declared
+ * "bars" flips to "barsHorizontal" when the reader has set a horizontal
+ * orientation, so a horizontal bar chart doesn't wait behind a vertical
+ * placeholder. Falls back to "bars" for an unknown chart type rather than
+ * throwing.
+ */
+function skeletonShapeFor(chartType, appearance = {}) {
+  const declared = getChartType(chartType)?.skeletonShape || "bars";
+  if (declared === "bars" && appearance.orientation === "horizontal") {
+    return "barsHorizontal";
+  }
+  return declared;
+}
+
+/**
+ * One oversized Lucide icon per shape. The icons carry the whole drawing, so
+ * there is no hand-built geometry to keep in sync with the real renderers —
+ * a skeleton only has to say "a chart of this kind is coming".
+ *
+ * `map` is deliberately absent: the two map types draw the California county
+ * outline instead, which no icon set has.
+ */
+const SKELETON_SHAPE_ICONS = {
+  bars: ChartColumnBig,
+  barsHorizontal: ChartBar,
+  line: ChartBarIncreasing,
+  gantt: ChartGantt,
+  ganttNoAxes: ChartNoAxesGantt,
+  scatter: ChartScatter,
+  grid: Grid3x3,
+  pie: ChartPie,
+  table: Table,
+};
+
+/**
+ * The shape itself, scaled up and pulsing.
+ *
+ * Tinted with `text-muted-foreground/30` rather than the `bg-accent` the
+ * `Skeleton` primitive uses: accent is tuned for large filled blocks and all
+ * but disappears as a thin stroke, and every shape here is stroke art. The
+ * stroke is thinned from Lucide's default 2 because these render ~10x their
+ * design size, where an unscaled stroke reads as a heavy blob.
+ */
+function SkeletonShape({ shape }) {
+  const Icon = SKELETON_SHAPE_ICONS[shape];
+  return (
+    <div
+      data-skeleton-shape={shape}
+      aria-hidden="true"
+      className="flex min-h-0 flex-1 animate-pulse items-center justify-center text-muted-foreground/30"
+    >
+      {shape === "map" ? (
+        <CaliforniaCountiesOutline className="h-60 w-60 max-h-full max-w-full" />
+      ) : (
+        <Icon className="h-52 w-52 max-h-full max-w-full" strokeWidth={1.25} />
+      )}
+    </div>
+  );
+}
+
+/**
+ * The pre-render placeholder: a shape naming the chart type waiting on
+ * settings, so the container reads as *this* chart waiting rather than as a
+ * failure, a stalled load, or (before Workstream C) a bar chart regardless of
+ * what is actually selected. Shown where the provider defers its first fetch
+ * and where the chart is not yet fully encoded (the module workbench); it is
+ * decorative, hence aria-hidden with one status label.
  *
  * Props:
+ *   shape   {string} — one of chartRegistry.js's SKELETON_SHAPES; defaults to
+ *     "bars" so a fabricated/unknown chart type still renders something.
  *   message {string} — the caption under the frame; defaults to the generic
  *     prompt when nothing more specific is known.
  */
-function ChartSkeleton({ message }) {
+function ChartSkeleton({ shape = "bars", message }) {
+  // An unregistered shape falls back to bars rather than rendering nothing —
+  // the skeleton is the only thing on screen at this point.
+  const resolved = shape === "map" || SKELETON_SHAPE_ICONS[shape] ? shape : "bars";
   return (
     <div
       role="status"
       aria-label="Chart preview — adjust a setting to build this chart"
       className="flex min-h-72 w-full flex-col justify-end gap-3 self-stretch p-4 sm:p-6"
     >
-      <div aria-hidden="true" className="flex min-h-0 flex-1 gap-3">
-        <div className="flex flex-col justify-between py-1">
-          {[0, 1, 2, 3].map((tick) => (
-            <Skeleton key={tick} className="h-2.5 w-8" />
-          ))}
-        </div>
-        <div className="flex min-h-0 flex-1 items-end gap-2 border-b border-l border-border/70 px-2 pb-2">
-          {[62, 84, 46, 96, 70, 54, 88].map((height, index) => (
-            <Skeleton
-              key={height}
-              className="w-full rounded-b-none"
-              style={{
-                height: `${height}%`,
-                // Stagger the pulse so the bars read as one settling group
-                // rather than seven things blinking in lockstep.
-                animationDelay: `${index * 120}ms`,
-              }}
-            />
-          ))}
-        </div>
-      </div>
+      <SkeletonShape shape={resolved} />
       <p className="text-center text-sm text-muted-foreground">
         {message || "Choose your settings to build this chart."}
       </p>
@@ -191,9 +252,14 @@ function ChartSlot({ preview, layout, multi, embedded, onGraphDiv }) {
       ) : null}
 
       <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden px-2 pt-2 sm:px-4">
-        {status === "idle" ? <ChartSkeleton /> : null}
+        {status === "idle" ? (
+          <ChartSkeleton shape={skeletonShapeFor(config.chartType, config.appearance)} />
+        ) : null}
         {status === "unconfigured" ? (
-          <ChartSkeleton message={unconfiguredMessage(config)} />
+          <ChartSkeleton
+            shape={skeletonShapeFor(config.chartType, config.appearance)}
+            message={unconfiguredMessage(config)}
+          />
         ) : null}
         {status === "loading" ? (
           <div role="status" className="flex items-center gap-2 text-muted-foreground">

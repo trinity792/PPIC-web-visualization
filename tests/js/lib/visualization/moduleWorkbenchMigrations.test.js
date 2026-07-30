@@ -9,6 +9,7 @@ import {
 import { deserialize, serialize } from "@/components/chart-builder/savedViews";
 import { CHART_TYPE_IDS, getChartType } from "@/lib/visualization/chartRegistry";
 import { normalizeSpec, parseSpec } from "@/lib/visualization/chartSpec";
+import { toPlotly } from "@/lib/visualization/toPlotly";
 
 const schema = {
   id: "widgets",
@@ -75,6 +76,81 @@ describe("retired chart and state shape", () => {
         expect.objectContaining({ code: "CHART_TYPE_RETIRED", level: "warn" }),
       ]),
     );
+  });
+
+  describe("divergingBar retires to bar + appearance.diverging (Workstream B)", () => {
+    const oldDivergingBarView = {
+      ...oldView,
+      chartType: "divergingBar",
+      preset: "diverging-pace",
+      bindings: { category: "Location", y: "Stock" },
+      appearance: {
+        center: 1,
+        orientation: "horizontal",
+        valueRange: [0, 2],
+        trackRail: true,
+        minimalAxis: true,
+        colorBuckets: [
+          { at: 1.0, color: "blue3" },
+          { at: null, color: "orange3" },
+        ],
+      },
+    };
+
+    it("migrates a stored v2 divergingBar view to bar with diverging on", () => {
+      const normalized = normalizeSpec(oldDivergingBarView, schema);
+      expect(normalized.chartType).toBe("bar");
+      expect(normalized.appearance.diverging).toBe(true);
+    });
+
+    it("keeps the center reference intact", () => {
+      const normalized = normalizeSpec(oldDivergingBarView, schema);
+      expect(normalized.appearance.center).toBe(1);
+    });
+
+    it("keeps the dashboard styling intact", () => {
+      const normalized = normalizeSpec(oldDivergingBarView, schema);
+      expect(normalized.appearance.valueRange).toEqual([0, 2]);
+      expect(normalized.appearance.trackRail).toBe(true);
+      expect(normalized.appearance.minimalAxis).toBe(true);
+      expect(normalized.appearance.colorBuckets).toEqual(
+        oldDivergingBarView.appearance.colorBuckets,
+      );
+    });
+
+    it("renders identically before and after migration", () => {
+      const series = [
+        { category: "Alameda", value: 1.2 },
+        { category: "Butte", value: 0.6 },
+      ];
+      const bindings = { category: "category", y: "value" };
+      const before = toPlotly({
+        chartType: "divergingBar",
+        bindings,
+        series,
+        labels: {},
+        appearance: oldDivergingBarView.appearance,
+      });
+      const normalized = normalizeSpec(
+        { ...oldDivergingBarView, bindings },
+        schema,
+      );
+      const after = toPlotly({ ...normalized, series });
+      expect(after).toEqual(before);
+    });
+
+    it("announces the retirement via parseSpec", () => {
+      const { spec, errors } = parseSpec(
+        JSON.stringify(oldDivergingBarView),
+        schema,
+      );
+      expect(spec.chartType).toBe("bar");
+      expect(errors).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ code: "CHART_TYPE_RETIRED", level: "warn" }),
+        ]),
+      );
+    });
   });
 
   it("creates locations and no tier in fresh configs", () => {

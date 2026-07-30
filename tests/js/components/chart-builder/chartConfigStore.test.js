@@ -22,6 +22,7 @@ const schema = {
   fields: {
     Year: { kind: "temporal" },
     Location: { kind: "dimension" },
+    Region: { kind: "dimension" },
     "Total Widgets": {
       kind: "measure",
       unit: "count",
@@ -98,14 +99,26 @@ describe("manual encoding (autoBind: false)", () => {
   const manualDispatch = (config, action) =>
     reduceChartConfig(config, action, schema, manual);
 
-  it("opens with no bindings at all", () => {
+  it("opens with its implied roles resolved and nothing else", () => {
+    // Default preset is trend-over-time (line): x is implied from the sole
+    // temporal field, y is a real choice and stays unset.
     const config = createChartConfig(schema, {}, manual);
-    expect(config.bindings).toEqual({});
+    expect(config.bindings).toEqual({ x: "Year" });
     // Unset roles are reported as findings — the surface decides how to show
     // them — but they are the "incomplete" kind, not a broken configuration.
     expect(config.validation.map((finding) => finding.code)).toContain(
       "MISSING_REQUIRED_ROLE",
     );
+  });
+
+  it("a workbench bar opens with its category resolved", () => {
+    const config = createChartConfig(
+      { ...schema, defaultPreset: "compare-places" },
+      {},
+      manual,
+    );
+    expect(config.chartType).toBe("bar");
+    expect(config.bindings).toEqual({ category: "Location" });
   });
 
   it("still honors bindings a saved view or deep link supplies", () => {
@@ -120,7 +133,16 @@ describe("manual encoding (autoBind: false)", () => {
     ).toBe(false);
   });
 
-  it("SET_CHART_TYPE carries compatible choices and seeds nothing else", () => {
+  it("a stored view overrides an implied role", () => {
+    const config = createChartConfig(
+      { ...schema, defaultPreset: "compare-places" },
+      { bindings: { category: "Region" } },
+      manual,
+    );
+    expect(config.bindings.category).toBe("Region");
+  });
+
+  it("SET_CHART_TYPE carries compatible choices and resolves the implied category", () => {
     const line = createChartConfig(
       schema,
       { chartType: "line", bindings: { x: "Year", y: "Total Widgets" } },
@@ -130,12 +152,22 @@ describe("manual encoding (autoBind: false)", () => {
 
     // y is a measure on both, so the reader's own choice follows them across.
     expect(bar.bindings.y).toBe("Total Widgets");
-    // A bar has no x role and its category is not filled in for them.
+    // A bar has no x role, so it falls away rather than following across.
     expect(bar.bindings.x).toBeUndefined();
-    expect(bar.bindings.category).toBeUndefined();
+    // Category is implied (geography), not carried or reader-chosen, so both
+    // required roles are now answered and nothing is left MISSING_REQUIRED_ROLE.
+    expect(bar.bindings.category).toBe("Location");
     expect(
       bar.validation.filter((finding) => finding.code === "MISSING_REQUIRED_ROLE"),
-    ).toHaveLength(1);
+    ).toHaveLength(0);
+  });
+
+  it("a line-to-bar switch swaps implied roles", () => {
+    const line = createChartConfig(schema, { chartType: "line" }, manual);
+    expect(line.bindings).toEqual({ x: "Year" });
+    const bar = manualDispatch(line, { type: "SET_CHART_TYPE", chartType: "bar" });
+    expect(bar.bindings.category).toBe("Location");
+    expect(bar.bindings.x).toBeUndefined();
   });
 
   it("leaves the auto-binding surfaces seeding defaults as before", () => {

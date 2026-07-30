@@ -21,19 +21,28 @@ describe("EditStep overhaul composition", () => {
   });
 
   it("removes GUI/Code and tier controls", () => {
+    // Advanced Mode is back as a single boolean (see below); what stays gone is
+    // the code editor and the three-tier visibility registry.
     for (const removed of [
       "EditorModeToggle",
       "CodeEditorPanel",
       "SET_TIER",
       "settingsTiers",
-      "Advanced Mode",
     ]) {
       expect(source, removed).not.toContain(removed);
     }
   });
 
-  it("opts the shared Axis section into the standalone Add line action", () => {
-    expect(source).toMatch(/AxisSection|allowLayers/);
+  it("hosts the Advanced Mode switch over its own sections", () => {
+    expect(source).toMatch(
+      /import\s*\{[^}]*AdvancedModeProvider[^}]*\}\s*from\s*["'][^"']*advancedMode["']/,
+    );
+    expect(source).toContain("<AdvancedModeProvider>");
+    expect(source).toMatch(/<AdvancedModeToggle[^>]*\/>/);
+  });
+
+  it("opts the shared Outcome section into the standalone Add line action", () => {
+    expect(source).toMatch(/OutcomeSection|allowLayers/);
     expect(source).toContain("allowLayers");
   });
 

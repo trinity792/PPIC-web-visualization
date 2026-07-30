@@ -29,9 +29,16 @@ import StepShell from "@/components/chart-builder/wizard/StepShell";
 
 // Family → chart-type ids, in the order the mockup lists them. Any registry id
 // not named here lands under "Other" so new chart types still surface.
+//
+// Diverging Bar is not listed (Workstream B): it retired to a `bar` variant
+// flag (`appearance.diverging`, set from OutcomeSection), not a separate card,
+// so both editor surfaces offer the toggle instead of a second tile — unlike
+// ChartTypeSection.js's `orderedChartTypes`, this component has no fallback
+// that appends an unlisted-but-registered id, so no `hidden` marker is needed
+// here for the id to disappear from the gallery.
 const FAMILIES = [
   { label: "Line", ids: ["line"] },
-  { label: "Bar", ids: ["bar", "divergingBar"] },
+  { label: "Bar", ids: ["bar"] },
   { label: "Pie", ids: ["pie"] },
   { label: "Map", ids: ["choroplethMap", "symbolMap"] },
   { label: "Range", ids: ["dumbbell", "dotPlot", "forest"] },

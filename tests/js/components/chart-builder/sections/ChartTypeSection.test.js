@@ -22,7 +22,6 @@ const orderedLabels = [
   "Bar",
   "Choropleth Map",
   "Forest / Whisker Plot",
-  "Diverging Bar",
   "Symbol Map",
   "Dot Plot",
   "Range",
@@ -45,6 +44,13 @@ describe("ChartTypeSection", () => {
     const buttons = screen.getAllByRole("button");
     expect(buttons.map((button) => button.textContent.trim())).toEqual(orderedLabels);
     expect(buttons[0].parentElement).toHaveClass("grid-cols-2");
+  });
+
+  it("does not append the hidden, retired Diverging Bar as a stray tile (Workstream B)", () => {
+    render(<ChartTypeSection />);
+    expect(
+      screen.queryByRole("button", { name: "Diverging Bar" }),
+    ).not.toBeInTheDocument();
   });
 
   it("marks and dispatches the selected chart type", async () => {

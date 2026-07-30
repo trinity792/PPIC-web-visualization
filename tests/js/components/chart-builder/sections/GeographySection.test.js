@@ -198,7 +198,7 @@ describe("GeographySection", () => {
     });
   });
 
-  it.each(["line", "bar", "divergingBar"])(
+  it.each(["line", "bar"])(
     "dispatches Top/Bottom N through SET_RANKING for %s place charts",
     async (chartType) => {
     const user = userEvent.setup();

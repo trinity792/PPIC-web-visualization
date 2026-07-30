@@ -29,6 +29,7 @@ import { ChevronDown } from "lucide-react";
 
 import { cn } from "@/components/ui/utils";
 
+import { useAdvancedMode } from "@/components/chart-builder/advancedMode";
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import {
   CategoryList,
@@ -46,6 +47,7 @@ export function hasCategories(config) {
 
 export default function CategoriesSection() {
   const { config, dispatch } = useChartConfig();
+  const { advanced } = useAdvancedMode();
   const [open, setOpen] = useState(false);
 
   const names = orderedCategories(
@@ -85,12 +87,17 @@ export default function CategoriesSection() {
               dispatch({ type: "SET_APPEARANCE", key: "hiddenCategories", value })
             }
           />
-          <RankingControls
-            idPrefix="categories-ranking"
-            topN={config.filters?.topN ?? 20}
-            sort={config.appearance?.sort || "value"}
-            onChange={({ topN, sort }) => dispatch({ type: "SET_RANKING", topN, sort })}
-          />
+          {/* Ranked values is the one block behind Advanced Mode: ordering and
+              visibility answer "which values, in what order", and Top/Bottom N
+              re-issues that whole arrangement from the data. */}
+          {advanced ? (
+            <RankingControls
+              idPrefix="categories-ranking"
+              topN={config.filters?.topN ?? 20}
+              sort={config.appearance?.sort || "value"}
+              onChange={({ topN, sort }) => dispatch({ type: "SET_RANKING", topN, sort })}
+            />
+          ) : null}
         </div>
       ) : null}
     </div>

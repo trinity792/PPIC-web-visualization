@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { CHART_TYPE_IDS } from "@/lib/visualization/chartRegistry";
+import { CHART_TYPE_IDS, getChartType } from "@/lib/visualization/chartRegistry";
 import { BUILDING_PERMITS_SCHEMA } from "@/lib/visualization/moduleSchemas/buildingPermits";
 import { DEMOGRAPHIC_PROJECTIONS_SCHEMA } from "@/lib/visualization/moduleSchemas/demographicProjections";
 import { MODULE_SCHEMAS } from "@/lib/visualization/moduleRegistry";
@@ -31,13 +31,17 @@ describe("schema.presets contract", () => {
     }
   });
 
-  it("every chart type has at least one generic or module-owned preset", () => {
+  it("every non-hidden chart type has at least one generic or module-owned preset", () => {
     const presetChartTypes = new Set([
       ...Object.values(PRESETS).map((preset) => preset.chartType),
       ...modulePresets().map(({ preset }) => preset.config.chartType),
     ]);
 
+    // A `hidden` descriptor (Workstream B: the retired `divergingBar` id) is
+    // reachable only through migration, never through a preset or a tile, so
+    // it is exempt rather than expected to keep a now-pointless preset alive.
     for (const chartType of CHART_TYPE_IDS) {
+      if (getChartType(chartType)?.hidden) continue;
       expect(presetChartTypes, `chartType: ${chartType}`).toContain(chartType);
     }
   });

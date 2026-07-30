@@ -4,12 +4,13 @@
  * AppearanceSection.js — palette, legend, spacing, footnote, and the styling a
  * particular chart type needs.
  *
- * Ordered as the mockup draws it: Color Palette, Legend Position, the two line
- * spacings, Footnote. Everything after Footnote is chart-type-conditional, so a
- * default line chart shows exactly the mockup's five controls and a diverging
- * bar or forest plot grows the extras it actually needs. That ordering is a
- * contract, not a preference — the tested one — because it is what keeps the
- * common case from being buried under options nine charts out of ten ignore.
+ * Ordered as the mockup draws it: the chart-conditional Color binding, Color
+ * Palette, Legend Position, the two line spacings, Footnote. Everything after
+ * Footnote is chart-type-conditional, so a default line chart shows Color with
+ * the shared appearance controls and a diverging bar or forest plot grows the
+ * extras it actually needs. That ordering is a contract, not a preference — the
+ * tested one — because it is what keeps the common case from being buried under
+ * options nine charts out of ten ignore.
  *
  * Typography moved to its own section; the tooltip template arrived here from
  * Labels.
@@ -47,8 +48,15 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
-import { getChartType } from "@/lib/visualization/chartRegistry";
+import {
+  CATALOG_ROLE_FOR_BINDING,
+  getChartType,
+} from "@/lib/visualization/chartRegistry";
+import { isMeasure, supportsRole } from "@/lib/visualization/fieldTypes";
+import { bindableFields } from "@/lib/visualization/inlineMapping";
 import { resolveToken } from "@/lib/visualization/palettes";
+
+const NONE = "__none__";
 
 // ── Line spacing ─────────────────────────────────────────────────────
 
@@ -290,17 +298,55 @@ function DivergingStyleControls() {
 // ── Section ──────────────────────────────────────────────────────────
 
 export default function AppearanceSection() {
-  const { config, dispatch } = useChartConfig();
+  const { config, dispatch, schema } = useChartConfig();
   const chart = getChartType(config.chartType);
   const appearance = config.appearance || {};
   const setAppearance = (key, value) =>
     dispatch({ type: "SET_APPEARANCE", key, value });
 
   const isRangeFamily = ["dumbbell", "dotPlot", "forest"].includes(config.chartType);
+  const showsColorBinding = chart?.colorBindingSection === "appearance";
+  const colorFields = showsColorBinding
+    ? Object.entries(bindableFields(schema, config)).filter(([, field]) => {
+        if (!(chart.roleConstraints.color || []).includes(field.kind)) return false;
+        return (
+          !isMeasure(field) ||
+          supportsRole(field, CATALOG_ROLE_FOR_BINDING.color)
+        );
+      })
+    : [];
 
   return (
     <div className="grid gap-4">
-      {/* ---- The mockup's five, in order ---- */}
+      {showsColorBinding ? (
+        <div className="grid gap-2">
+          <Label htmlFor="binding-color">Color</Label>
+          <Select
+            value={config.bindings?.color || NONE}
+            onValueChange={(field) =>
+              dispatch({
+                type: "SET_BINDING",
+                role: "color",
+                field: field === NONE ? null : field,
+              })
+            }
+          >
+            <SelectTrigger id="binding-color">
+              <SelectValue placeholder="Not set" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NONE}>Not set</SelectItem>
+              {colorFields.map(([name, field]) => (
+                <SelectItem key={name} value={name}>
+                  {field.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
+
+      {/* ---- The shared appearance controls, in order ---- */}
       <PalettePicker seriesNames={config.seriesNames || []} />
 
       <div className="grid gap-2">
@@ -379,30 +425,19 @@ export default function AppearanceSection() {
         </div>
       ) : null}
 
-      {["bar", "divergingBar"].includes(config.chartType) ? (
-        <div className="grid gap-2">
-          <Label htmlFor="appearance-orientation">Orientation</Label>
-          <Select
-            value={
-              appearance.orientation ||
-              (config.chartType === "divergingBar" ? "horizontal" : "vertical")
-            }
-            onValueChange={(value) => setAppearance("orientation", value)}
-          >
-            <SelectTrigger id="appearance-orientation">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="horizontal">Horizontal</SelectItem>
-              <SelectItem value="vertical">Vertical</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      ) : null}
+      {/* Orientation moved to OutcomeSection (Workstream A): it is the one
+          degree of freedom the Outcome section still asks about explicitly,
+          alongside the category/measure choice it otherwise infers. The
+          Diverging bars switch lives there too, beside orientation
+          (Workstream B). */}
 
       {/* Diverging bars pivot around a reference value (0 by default; set 1.0 for
-          a pace ratio, a survey-neutral midpoint, etc.). */}
-      {config.chartType === "divergingBar" ? (
+          a pace ratio, a survey-neutral midpoint, etc.). Gated on the
+          `diverging` flag rather than a chart type (Workstream B: Bar absorbs
+          Diverging Bar) — `divergingBar` is kept alongside it only for a
+          config that has not yet passed through normalizeSpec's retirement
+          rewrite. */}
+      {config.appearance?.diverging || config.chartType === "divergingBar" ? (
         <>
           <div className="grid gap-2">
             <Label htmlFor="appearance-center">Center reference</Label>

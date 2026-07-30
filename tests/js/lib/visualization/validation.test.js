@@ -68,6 +68,27 @@ describe("validateBindings", () => {
     expect(findings).toEqual([]);
   });
 
+  it("never reports an implied role as MISSING_REQUIRED_ROLE", () => {
+    // Only y is bound; category is implied from the schema's Location field.
+    const findings = validateBindings("bar", { y: "Total Widgets" }, schema);
+    expect(codes(findings)).not.toContain("MISSING_REQUIRED_ROLE");
+    expect(
+      findings.filter((f) => f.code === "MISSING_REQUIRED_ROLE").map((f) => f.role),
+    ).not.toContain("category");
+  });
+
+  it("still reports an implied role the schema cannot resolve", () => {
+    const noGeography = {
+      ...schema,
+      fields: { ...schema.fields, Location: undefined },
+    };
+    delete noGeography.fields.Location;
+    const findings = validateBindings("bar", { y: "Total Widgets" }, noGeography);
+    expect(
+      findings.filter((f) => f.code === "MISSING_REQUIRED_ROLE").map((f) => f.role),
+    ).toContain("category");
+  });
+
   it("flags a field that is not in the module", () => {
     const findings = validateBindings("line", { x: "Year", y: "No Such Field" }, schema);
     expect(codes(findings)).toContain("UNKNOWN_FIELD");

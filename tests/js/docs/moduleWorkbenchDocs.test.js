@@ -67,7 +67,7 @@ describe("module workbench documentation", () => {
       "ChartTypeSection",
       "DateRangeSection",
       "GeographySection",
-      "AxisSection",
+      "OutcomeSection",
       "TransformSection",
       "CategoriesSection",
       "LabelsSection",

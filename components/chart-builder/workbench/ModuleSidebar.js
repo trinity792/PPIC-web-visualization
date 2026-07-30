@@ -24,9 +24,14 @@
  * Props:
  *   None (reads useChartConfig()).
  *
+ * Advanced Mode is scoped here rather than to the whole workbench, because the
+ * switch and everything it governs are both in this panel; the chart container
+ * has nothing to hide.
+ *
  * Data sources:
  *   - Chart configuration and module schema from ChartConfigProvider
  *   - lib/visualization/sidebarSections.js (which sections apply)
+ *   - components/chart-builder/advancedMode.js (the Advanced Mode flag)
  *
  * UI Kit reference:
  *   - Implements the "Editor Sidebar" pattern
@@ -37,11 +42,26 @@ import React from "react";
 import { Accordion } from "@/components/ui/accordion";
 
 import ValidationNotice from "@/components/chart-builder/ValidationNotice";
+import {
+  AdvancedModeProvider,
+  AdvancedModeToggle,
+} from "@/components/chart-builder/advancedMode";
 import { Section } from "@/components/chart-builder/sections/primitives";
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import { visibleSectionsFor } from "@/lib/visualization/sidebarSections";
 
 export default function ModuleSidebar() {
+  return (
+    <AdvancedModeProvider>
+      <SidebarPanel />
+    </AdvancedModeProvider>
+  );
+}
+
+// ── Tightly coupled sub-components ───────────────────────────────────
+
+/** The panel itself, split out only so the provider can wrap it. */
+function SidebarPanel() {
   const { config, schema } = useChartConfig();
   const sections = visibleSectionsFor(config, schema);
 
@@ -55,6 +75,7 @@ export default function ModuleSidebar() {
         className="static min-w-0 rounded-xl border bg-background p-4 shadow-xs lg:absolute lg:inset-0 lg:overflow-y-auto"
       >
         <div className="grid gap-2">
+          <AdvancedModeToggle id="module-advanced-mode" />
           <ValidationNotice />
           <Accordion
             type="multiple"

@@ -33,7 +33,6 @@ const TILE_ORDER = [
   "bar",
   "choroplethMap",
   "forest",
-  "divergingBar",
   "symbolMap",
   "dotPlot",
   "dumbbell",
@@ -44,12 +43,19 @@ const TILE_ORDER = [
   "dataTable",
 ];
 
-/** Declared order first, then any registered type the list forgot. */
+/**
+ * Declared order first, then any registered type the list forgot — except a
+ * `hidden` descriptor (Workstream B: the retired `divergingBar` id, kept
+ * registered for one more release so a bookmarked link still resolves through
+ * `RETIRED_CHART_TYPES`, but not offered as a tile now that Bar absorbs it
+ * through `appearance.diverging`). Without the `hidden` check, a descriptor
+ * dropped from `TILE_ORDER` alone would reappear here as a stray appended tile.
+ */
 function orderedChartTypes(allowed) {
   const known = new Set(TILE_ORDER);
   const ids = [
     ...TILE_ORDER.filter((id) => getChartType(id)),
-    ...CHART_TYPE_IDS.filter((id) => !known.has(id)),
+    ...CHART_TYPE_IDS.filter((id) => !known.has(id) && !getChartType(id)?.hidden),
   ];
   return allowed ? ids.filter((id) => allowed.has(id)) : ids;
 }

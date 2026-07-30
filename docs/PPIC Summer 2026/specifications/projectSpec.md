@@ -4,7 +4,7 @@ Content Type: project specification
 pinned: true
 description: "The single source of truth for the web-data-visualization project's specification, architecture, and API reference. A living document for programmers and researchers that uses PopHousing as the reference implementation future data modules should mirror."
 Date Published: June 23, 2026
-Last Updated: 07/29/2026 - 11:20 AM
+Last Updated: 07/30/2026 - 11:40 AM
 Status: Updating
 Footnote: Document generated and updated by Claude Opus 4.8 on command. Outlined and verified by Trinity Jones.
 ---
@@ -1478,7 +1478,7 @@ After the overhaul shipped, the editor was re-presented as a **step wizard** and
 | **Workbench shell** | [`workbench/ModuleWorkbench.js`](../../../components/chart-builder/workbench/ModuleWorkbench.js) | The `/[module]` shell: providers, the shared `ViewHydrator`, and a two-column grid. No step navigation. |
 | **Control rail** | [`workbench/ModuleSidebar.js`](../../../components/chart-builder/workbench/ModuleSidebar.js) | Renders whichever sections apply, in one accordion. On desktop it is absolutely positioned inside a `lg:relative` cell, so it contributes **zero intrinsic height** and the chart container alone sizes the row; overflow scrolls inside the rail. Below `lg` it returns to static flow. |
 | **Chart container** | [`workbench/ChartContainer.js`](../../../components/chart-builder/workbench/ChartContainer.js), [`workbench/ChartContainerFooter.js`](../../../components/chart-builder/workbench/ChartContainerFooter.js) | Title, body, and action bar. The body is the chart or the **entire cleaned dataset** (`?view=table&full=1`, fetched lazily on first open and cached), not the chart's narrowed table. `ChartContainerFooter` carries View Chart / View Data and the two export dropdowns, both disabled until the preview is `ready`. |
-| **Section registry** | [`sidebarSections.js`](../../../lib/visualization/sidebarSections.js), [`components/chart-builder/sections/*`](../../../components/chart-builder/sections/) | One ordered list of sections — Datasets, Chart Type, Date Range, Geographic Level, Axis, Transform, Labels, Appearance, Typography — each gated by at most two predicates (`key`: does this chart type use it; `when`: does this schema supply it). Both shells compose from it; the wizard's Edit step excludes Chart Type, which is its own step. |
+| **Section registry** | [`sidebarSections.js`](../../../lib/visualization/sidebarSections.js), [`components/chart-builder/sections/*`](../../../components/chart-builder/sections/) | One ordered list of sections — Datasets, Chart Type, Outcome, Date Range, Geographic Level, Transform, Labels, Appearance, Typography — each gated by at most two predicates (`key`: does this chart type use it; `when`: does this schema supply it). Both shells compose from it; the wizard's Edit step excludes Chart Type, which is its own step. Outcome (formerly Axis) sits directly after Chart Type as of 2026-07-30 — see [[visualization-specification]] *Outcome*. |
 | **Location options** | [`useLocationOptions.js`](../../../components/chart-builder/useLocationOptions.js), [`datasetLabels.js`](../../../lib/visualization/datasetLabels.js) | The geographic multi-select's option list, cached per module + subset and abortable; and the map from raw source ids to public dataset names. |
 
 **Withdrawn here:** the settings tiers, the code editor, the Slopegraph chart type, and — from the module surface only — presets, saved views, the multi-chart workspace, and the activity log.

@@ -112,7 +112,7 @@ describe("unconfigured previews", () => {
     );
   });
 
-  it("returns to the skeleton when a chart-type switch leaves a role unset", async () => {
+  it("a bar with only its measure set fetches: category is implied from geography", async () => {
     const user = userEvent.setup();
     mount({
       initialConfig: {
@@ -129,14 +129,17 @@ describe("unconfigured previews", () => {
     state.loadChartData.mockClear();
     await user.click(screen.getByRole("button", { name: "bar" }));
 
-    // A bar keeps the measure the reader chose and asks for a category, which
-    // the store must not fill in for them.
-    expect(screen.getByTestId("status")).toHaveTextContent("unconfigured");
+    // A bar keeps the measure the reader chose; category is implied from the
+    // geography already chosen (Workstream A), so both required roles resolve
+    // and the chart renders rather than sitting unconfigured.
     expect(JSON.parse(screen.getByTestId("bindings").textContent)).toEqual({
       y: "Total Population",
+      category: "Location",
     });
-    await Promise.resolve();
-    expect(state.loadChartData).not.toHaveBeenCalled();
+    await waitFor(() => expect(state.loadChartData).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(screen.getByTestId("status")).toHaveTextContent("ready"),
+    );
   });
 
   it("keeps auto-binding surfaces rendering straight through a switch", async () => {

@@ -109,6 +109,25 @@ describe("toPlotly divergingBar", () => {
     });
     expect(data[0].y).toEqual(["Central Coast", "Inland Empire"]);
   });
+
+  it("renders identically to a bar with appearance.diverging on (Workstream B)", () => {
+    const shared = {
+      bindings: { category: "category", y: "value" },
+      series: records,
+      labels: { title: "Median on-track score by region" },
+    };
+    const viaDivergingBar = toPlotly({
+      ...shared,
+      chartType: "divergingBar",
+      appearance: { center: 1, orientation: "horizontal" },
+    });
+    const viaBarFlag = toPlotly({
+      ...shared,
+      chartType: "bar",
+      appearance: { diverging: true, center: 1, orientation: "horizontal" },
+    });
+    expect(viaBarFlag).toEqual(viaDivergingBar);
+  });
 });
 
 describe("toPlotly forest", () => {

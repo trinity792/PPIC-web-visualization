@@ -31,6 +31,7 @@ import {
 
 import { tabValues } from "@/lib/tabular/toSeries";
 import { getChartType } from "@/lib/visualization/chartRegistry";
+import { impliedBindings } from "@/lib/visualization/impliedRoles";
 import {
   autoMapInlineBindings,
   suggestChartType,
@@ -239,6 +240,20 @@ function carriedBindings(chartTypeId, schema, previous = {}) {
   return bindings;
 }
 
+/**
+ * Implied roles filled in, without disturbing anything the reader chose.
+ *
+ * Spread first so an explicit binding always wins — a saved view or deep link
+ * naming its own `category` overrides the geography inference, and a chart-type
+ * switch that carried a compatible choice across keeps it. This is not seeding
+ * on the reader's behalf: an implied role has exactly one valid answer, declared
+ * by the chart type, that the reader can see and change (Date Range, Geographic
+ * Level) rather than one this store guessed among several.
+ */
+function withImpliedBindings(bindings, chartTypeId, schema) {
+  return { ...impliedBindings(chartTypeId, schema), ...bindings };
+}
+
 function defaultFilters(schema) {
   const stratification = {};
   for (const dimension of schema.filterDimensions || []) {
@@ -379,9 +394,13 @@ export function createChartConfig(schema, initialConfig = {}, options = DEFAULT_
     // With autoBind off nothing is seeded: a module opens with every encoding
     // unset, and a stored view supplies its own bindings through the merge
     // below. Any binding the caller did pass still carries, kind permitting.
-    bindings: autoBind
-      ? bindingsForPreset(preset, schema, initial.bindings)
-      : carriedBindings(preset.chartType, schema, initial.bindings),
+    bindings: withImpliedBindings(
+      autoBind
+        ? bindingsForPreset(preset, schema, initial.bindings)
+        : carriedBindings(preset.chartType, schema, initial.bindings),
+      preset.chartType,
+      schema,
+    ),
     period: {},
     filters: defaultFilters(schema),
     labels: {
@@ -452,7 +471,11 @@ export function reduceChartConfig(config, action, schema, options = DEFAULT_OPTI
         ...config,
         preset: preset.id,
         chartType: preset.chartType,
-        bindings: bindingsForPreset(preset, schema, config.bindings),
+        bindings: withImpliedBindings(
+          bindingsForPreset(preset, schema, config.bindings),
+          preset.chartType,
+          schema,
+        ),
         transform: preset.defaults?.transform || "actual",
         comparisonMode: preset.defaults?.comparisonMode || config.comparisonMode,
         appearance: {
@@ -485,15 +508,19 @@ export function reduceChartConfig(config, action, schema, options = DEFAULT_OPTI
       // reader's compatible choices across and fills in nothing. Whatever the
       // new type needs and did not inherit stays unset, which the preview reads
       // as "unconfigured" and draws as the skeleton rather than as an error.
-      const nextBindings = inlineTable
-        ? autoMapInlineBindings(chart.id, inlineTable, config.bindings)
-        : autoBind
-          ? bindingsForPreset(
-              preset || { chartType: chart.id, defaults: {} },
-              schema,
-              config.bindings,
-            )
-          : carriedBindings(chart.id, schema, config.bindings);
+      const nextBindings = withImpliedBindings(
+        inlineTable
+          ? autoMapInlineBindings(chart.id, inlineTable, config.bindings)
+          : autoBind
+            ? bindingsForPreset(
+                preset || { chartType: chart.id, defaults: {} },
+                schema,
+                config.bindings,
+              )
+            : carriedBindings(chart.id, schema, config.bindings),
+        chart.id,
+        schema,
+      );
       next = {
         ...config,
         chartType: chart.id,
