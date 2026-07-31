@@ -5,7 +5,7 @@
  * not re-tested here per the setup.js network safety net.)
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   categoryNamesOf,
@@ -383,6 +383,156 @@ describe("loadChartData — module grouping and tabs", () => {
       { location: "Alpha", category: "Alpha", value: 30, group: "On Track" },
       { location: "Alpha", category: "Alpha", value: 10, group: "Behind" },
     ]);
+  });
+});
+
+describe("loadChartData — symbolMap coordinates", () => {
+  // `pointsCache` (like `geometryCache`) is module-level state that outlives a
+  // test, so a second test asking for the same level would be served the first
+  // test's points and never exercise its own fetch. Each case gets a fresh
+  // module instance instead.
+  let loadChartDataFresh;
+
+  beforeEach(async () => {
+    vi.resetModules();
+    ({ loadChartData: loadChartDataFresh } = await import(
+      "@/components/chart-builder/chartData"
+    ));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const schema = {
+    id: "module-test",
+    apiPath: "/api/module-test",
+    subsets: { Counties: ["County"] },
+    filterDimensions: [],
+    fields: {
+      Location: { kind: "dimension", label: "Location", cardinality: "high" },
+      Metric: { kind: "measure", label: "Metric" },
+    },
+  };
+
+  const baseConfig = {
+    data: { source: "module" },
+    bindings: { geography: "Location", size: "Metric" },
+    period: { year: 2025 },
+    filters: { subset: "Counties", topN: 20 },
+    layers: [],
+    appearance: {},
+    transform: "actual",
+  };
+
+  // The symbol map's magnitude role is `size`; it declares no `y` at all. The
+  // measure param was read from `y` (then color, then start) only, so every
+  // symbol-map request went out with no `parameter` and the module API answered
+  // "Invalid or missing 'parameter'" — the error the reader actually reported.
+  it("asks the module API for the measure bound to size", async () => {
+    const fetchMock = vi.fn(async (url) => {
+      const parsed = new URL(url, "https://example.test");
+      if (parsed.pathname === "/api/geography") {
+        return { ok: true, json: async () => ({ "06001": [-121.9, 37.65] }) };
+      }
+      expect(parsed.searchParams.get("parameter")).toBe("Metric");
+      return { ok: true, json: async () => ({ records: [] }) };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await loadChartDataFresh({ ...baseConfig, chartType: "symbolMap" }, schema);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("still prefers the y binding where a chart type has one", async () => {
+    const fetchMock = vi.fn(async (url) => {
+      const parsed = new URL(url, "https://example.test");
+      expect(parsed.searchParams.get("parameter")).toBe("Metric");
+      return { ok: true, json: async () => ({ records: [] }) };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await loadChartDataFresh(
+      {
+        ...baseConfig,
+        chartType: "bar",
+        bindings: { category: "Location", y: "Metric", size: "Other" },
+      },
+      schema,
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("fetches points for a symbolMap config and joins records to coordinates by geoid", async () => {
+    const fetchMock = vi.fn(async (url) => {
+      const parsed = new URL(url, "https://example.test");
+      if (parsed.pathname === "/api/geography") {
+        expect(parsed.searchParams.get("type")).toBe("points");
+        expect(parsed.searchParams.get("level")).toBe("counties");
+        return { ok: true, json: async () => ({ "06001": [-121.9, 37.65] }) };
+      }
+      return {
+        ok: true,
+        json: async () => ({
+          records: [{ location: "Alameda", category: "Alameda", value: 100, geoid: "06001" }],
+        }),
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await loadChartDataFresh({ ...baseConfig, chartType: "symbolMap" }, schema);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result.series).toEqual([
+      {
+        location: "Alameda",
+        category: "Alameda",
+        value: 100,
+        geoid: "06001",
+        lon: -121.9,
+        lat: 37.65,
+      },
+    ]);
+    expect(result.unmatched).toEqual([]);
+  });
+
+  it("drops a record with no matching point instead of leaving undefined coordinates, and reports it as unmatched", async () => {
+    const fetchMock = vi.fn(async (url) => {
+      const parsed = new URL(url, "https://example.test");
+      if (parsed.pathname === "/api/geography") {
+        return { ok: true, json: async () => ({ "06001": [-121.9, 37.65] }) };
+      }
+      return {
+        ok: true,
+        json: async () => ({
+          records: [
+            { location: "Alameda", category: "Alameda", value: 100, geoid: "06001" },
+            { location: "Ghost County", category: "Ghost County", value: 5, geoid: "99999" },
+          ],
+        }),
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await loadChartDataFresh({ ...baseConfig, chartType: "symbolMap" }, schema);
+
+    expect(result.series).toHaveLength(1);
+    expect(result.series[0].location).toBe("Alameda");
+    expect(result.unmatched).toEqual(["Ghost County"]);
+  });
+
+  it("does not fetch points for a non-map chart type", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ records: [{ location: "Alpha", value: 1 }] }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await loadChartDataFresh({ ...baseConfig, chartType: "bar" }, schema);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const url = new URL(fetchMock.mock.calls[0][0], "https://example.test");
+    expect(url.pathname).not.toBe("/api/geography");
   });
 });
 

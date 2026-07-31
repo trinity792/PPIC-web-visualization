@@ -30,6 +30,10 @@ import {
 } from "react";
 
 import { tabValues } from "@/lib/tabular/toSeries";
+import {
+  geometrySubsetFor,
+  requiresGeometry,
+} from "@/lib/visualization/chartAvailability";
 import { getChartType } from "@/lib/visualization/chartRegistry";
 import { impliedBindings } from "@/lib/visualization/impliedRoles";
 import {
@@ -252,6 +256,26 @@ function carriedBindings(chartTypeId, schema, previous = {}) {
  */
 function withImpliedBindings(bindings, chartTypeId, schema) {
   return { ...impliedBindings(chartTypeId, schema), ...bindings };
+}
+
+/**
+ * A map-shaped chart moved to the level we hold geometry for.
+ *
+ * Both map types need this, not just the choropleth: a symbol map's points are
+ * derived from the same county polygons, so leaving a reader who was on Regions
+ * or Metros where they stood asks the geography API for a level it does not
+ * have and fails the whole load. Pinning the *select* (GeographySection) is not
+ * enough — the level lives in `filters.subset`, and nothing else writes it.
+ *
+ * The place selection is cleared with it, for the reason
+ * `GeographySection.setSubset` clears it: a region name is not a county name,
+ * so a carried-over selection would filter every row away.
+ */
+function withGeometrySubset(chartTypeId, schema, filters) {
+  if (!requiresGeometry(chartTypeId)) return filters;
+  const subset = geometrySubsetFor(schema);
+  if (!subset || filters?.subset === subset) return filters;
+  return { ...filters, subset, locations: [] };
 }
 
 function defaultFilters(schema) {
@@ -485,13 +509,7 @@ export function reduceChartConfig(config, action, schema, options = DEFAULT_OPTI
         // Keep the user's labels; the title stays derived (or their override)
         // rather than being reset to the preset's static name.
         labels: { ...config.labels },
-        filters: {
-          ...config.filters,
-          ...(preset.chartType === "choroplethMap" &&
-          schema.subsets?.Counties
-            ? { subset: "Counties" }
-            : {}),
-        },
+        filters: withGeometrySubset(preset.chartType, schema, config.filters),
       };
       break;
     }
@@ -527,12 +545,7 @@ export function reduceChartConfig(config, action, schema, options = DEFAULT_OPTI
         preset: preset?.id || config.preset,
         bindings: nextBindings,
         appearance: clone(chart.defaults || {}),
-        filters: {
-          ...config.filters,
-          ...(chart.id === "choroplethMap" && schema.subsets?.Counties
-            ? { subset: "Counties" }
-            : {}),
-        },
+        filters: withGeometrySubset(chart.id, schema, config.filters),
       };
       break;
     }

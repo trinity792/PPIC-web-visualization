@@ -111,14 +111,77 @@ describe("OutcomeSection", () => {
     },
   );
 
-  it("keeps Color in Outcome for chart types that did not move it", () => {
+  /**
+   * "Color" named two unrelated questions. Where a chart type constrains the
+   * role to a measure, the colour *is* the plotted value and the dropdown now
+   * reads Outcome; where it constrains it to a dimension, the four chart types
+   * that offer it render it in Appearance. Nothing is left saying "Color" here.
+   */
+  describe("the color role", () => {
+    it("reads Outcome where the chart type colours by a measure", () => {
+      state.config = lineConfig({
+        chartType: "choroplethMap",
+        preset: null,
+        bindings: { geography: "Location", color: "Value" },
+      });
+      render(<OutcomeSection />);
+      expect(screen.getByLabelText(/^Outcome/i)).toBeInTheDocument();
+      expect(screen.queryByLabelText(/^Color/i)).not.toBeInTheDocument();
+    });
+
+    it("reads Outcome on a heatmap too, alongside its two real axes", () => {
+      state.config = lineConfig({
+        chartType: "heatmap",
+        preset: null,
+        bindings: { x: "Year", y: "Location", color: "Value" },
+      });
+      render(<OutcomeSection />);
+      expect(screen.getByLabelText(/^Outcome/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/^X-Axis/)).toBeInTheDocument();
+      expect(screen.getByLabelText(/^Y-Axis/)).toBeInTheDocument();
+      expect(screen.queryByLabelText(/^Color/i)).not.toBeInTheDocument();
+    });
+
+    it("offers no color dropdown on a pie, whose slices colour themselves", () => {
+      state.config = lineConfig({
+        chartType: "pie",
+        preset: null,
+        bindings: { category: "Region", y: "Value" },
+      });
+      render(<OutcomeSection />);
+      expect(screen.queryByLabelText(/^Color/i)).not.toBeInTheDocument();
+    });
+
+    it("offers no color dropdown on a symbol map, whose markers share one colour", () => {
+      state.config = lineConfig({
+        chartType: "symbolMap",
+        preset: null,
+        bindings: { geography: "Location", size: "Value" },
+      });
+      render(<OutcomeSection />);
+      expect(screen.queryByLabelText(/^Color/i)).not.toBeInTheDocument();
+    });
+  });
+
+  it("asks a symbol map for a Bubble value, not a Bubble size", () => {
     state.config = lineConfig({
-      chartType: "pie",
+      chartType: "symbolMap",
       preset: null,
-      bindings: { category: "Region", y: "Value" },
+      bindings: { geography: "Location", size: "Value" },
     });
     render(<OutcomeSection />);
-    expect(screen.getByLabelText(/^Color/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Bubble value/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Bubble size/i)).not.toBeInTheDocument();
+  });
+
+  it("leaves a bubble chart asking for Bubble size, where size is a real choice", () => {
+    state.config = lineConfig({
+      chartType: "bubble",
+      preset: null,
+      bindings: { x: "Value", y: "Value", size: "Value", unit: "Location" },
+    });
+    render(<OutcomeSection />);
+    expect(screen.getByLabelText(/^Bubble size/i)).toBeInTheDocument();
   });
 
   it("renders the implied X-Axis hint naming Date Range, not a dropdown", () => {

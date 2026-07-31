@@ -183,6 +183,56 @@ describe("toPlotly symbolMap", () => {
     expect(data[0].marker.size).toEqual([100, 50]);
     expect(layout.geo).toEqual(expect.objectContaining({ fitbounds: "locations" }));
   });
+
+  // The marker colour was hard-coded, so the Color Palette control in
+  // Appearance changed nothing on this chart type.
+  it("takes its marker colour from the active palette", () => {
+    const figure = (appearance) =>
+      toPlotly({
+        chartType: "symbolMap",
+        bindings: { geography: "location", size: "value" },
+        series: [{ location: "Alameda", lat: 37.65, lon: -121.91, value: 100 }],
+        labels: {},
+        appearance,
+      });
+
+    const first = figure({ palette: "brand-categorical" });
+    const second = figure({ palette: "ui-kit-burnt-orange" });
+
+    for (const result of [first, second]) {
+      expect(result.data[0].marker.color).toMatch(/^#[0-9a-f]{6}$/i);
+    }
+    expect(second.data[0].marker.color).not.toBe(first.data[0].marker.color);
+  });
+
+  it("honours a per-series colour override for its measure", () => {
+    const { data } = toPlotly({
+      chartType: "symbolMap",
+      bindings: { geography: "location", size: "value" },
+      series: [{ location: "Alameda", lat: 37.65, lon: -121.91, value: 100 }],
+      labels: {},
+      appearance: { seriesColors: { value: "#123456" } },
+    });
+    expect(data[0].marker.color).toBe("#123456");
+  });
+
+  // Workstream D: a choropleth hides the base layers because its polygons are
+  // the map; a symbol map draws markers and nothing else, so hiding the base
+  // leaves dots on a blank page with no way to tell where they are.
+  it("draws its markers over a visible base map, unlike the choropleth", () => {
+    const { layout } = toPlotly({
+      chartType: "symbolMap",
+      bindings: { geography: "location", size: "value" },
+      series: [{ location: "Alameda", lat: 37.65, lon: -121.91, value: 100 }],
+      labels: {},
+      appearance: {},
+    });
+
+    expect(layout.geo.visible).toBe(true);
+    expect(layout.geo.showland).toBe(true);
+    // State boundaries are the context that says "California".
+    expect(layout.geo.showsubunits).toBe(true);
+  });
 });
 
 describe("toPlotly dataTable", () => {

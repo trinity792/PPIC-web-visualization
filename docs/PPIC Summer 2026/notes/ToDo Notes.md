@@ -8,6 +8,27 @@ Last Updated: 07/23/2026
 Status: Archive
 ---
 
+# To Do Notes
+- [ ] Add ability to change position of the horizontal line in diverging bar chart
+- [ ] Bring back multi chart ability to modules
+- [ ] Modify standalone visualization tool so that there are only 3 tabs: Import, Edit, Export. The edit sidebar should be the same as a module visualization tool
+- [ ] Remove extra vertical ticks on forest/whisker plot ![alt text](image.png)
+- [ ] On forest/whisker plot, line of no effect is non functioning (seems to have regressed since after the viz tool changes)
+- [ ] Remove vertical line going between groups on forest/whisker plot
+  - [ ] ![alt text](image-1.png)
+- [ ] Review the configuration errors for stale references:
+   - [Error] MISSING_PRESET_ROLE: "x" is required by the Trends over time preset. <- no presets
+- [ ] Provide more degrees of freedom for what values are allowed to be X axis or "Outcome"
+- [ ] Modify the transpose option so that the column type indicator moves as well
+- [ ] What is benchmark supposed to do?
+- [ ] What is series supposed to do?
+- [ ] Perform a full pass of each chart type to ensure the color palette options actually work.
+  - [ ] For the symbol map, there should be a toggle in the appearance section to enable a gradient with the ability to invert it (light to dark or dark to light)
+  - [ ] Chloropleth map color palette settings do nothing currently
+- [x] For symbol map, rename bubble size to bubble value
+- [x] Either rename "Color" in outcome or get rid of it.
+- [x] Color pallette option in symbol map don't work
+
 # Presentation Notes
 - [ ] Context can be trimmed to ~1 slide (audience already knows a bit about the project)
 - [ ] Able to have multiple slides showing 1 sequence with 1 screenshot per slide and same title

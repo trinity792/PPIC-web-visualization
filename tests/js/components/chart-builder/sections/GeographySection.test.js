@@ -68,6 +68,16 @@ describe("GeographySection", () => {
     unmount();
 
     state.config = baseConfig({ chartType: "choroplethMap" });
+    const second = render(<GeographySection />);
+    await user.click(screen.getByRole("combobox", { name: /geographic level/i }));
+    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+      "Counties",
+    ]);
+    second.unmount();
+
+    // A symbol map's points are derived from the same county polygons a
+    // choropleth draws, so it gets the same pin.
+    state.config = baseConfig({ chartType: "symbolMap" });
     render(<GeographySection />);
     await user.click(screen.getByRole("combobox", { name: /geographic level/i }));
     expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([

@@ -9,7 +9,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const state = vi.hoisted(() => ({
   dispatch: vi.fn(),
   config: { chartType: "line" },
-  schema: { id: "widgets" },
+  // A module that holds county geometry, so the two map tiles are offerable.
+  schema: { id: "widgets", subsets: { Counties: ["County"], Regions: ["Region"] } },
 }));
 vi.mock("@/components/chart-builder/chartConfigStore", () => ({
   useChartConfig: () => state,
@@ -36,7 +37,7 @@ describe("ChartTypeSection", () => {
   beforeEach(() => {
     state.dispatch.mockClear();
     state.config = { chartType: "line" };
-    state.schema = { id: "widgets" };
+    state.schema = { id: "widgets", subsets: { Counties: ["County"], Regions: ["Region"] } };
   });
 
   it("renders the mockup tiles plus Range in order, two columns per row", () => {
@@ -75,5 +76,24 @@ describe("ChartTypeSection", () => {
       "Pie / Donut",
       "Data Table",
     ]);
+  });
+
+  // Workstream D: a map tile on a module with no county geometry could only
+  // ever fail at the data layer — Building Permits offers Metros, Regions and
+  // States, none of which we hold shapes or derived points for.
+  it("drops both map tiles on a module with no level we hold geometry for", () => {
+    state.schema = { id: "permits", subsets: { Metros: ["Metro"], States: ["State"] } };
+    render(<ChartTypeSection />);
+    const labels = screen.getAllByRole("button").map((button) => button.textContent.trim());
+    expect(labels).not.toContain("Choropleth Map");
+    expect(labels).not.toContain("Symbol Map");
+    expect(labels).toContain("Line");
+  });
+
+  it("keeps both map tiles on a module that has a Counties level", () => {
+    render(<ChartTypeSection />);
+    const labels = screen.getAllByRole("button").map((button) => button.textContent.trim());
+    expect(labels).toContain("Choropleth Map");
+    expect(labels).toContain("Symbol Map");
   });
 });

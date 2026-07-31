@@ -21,8 +21,8 @@ import React from "react";
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/components/ui/utils";
+import { isChartTypeAvailable } from "@/lib/visualization/chartAvailability";
 import { getChartType } from "@/lib/visualization/chartRegistry";
-import { getModuleSchema } from "@/lib/visualization/moduleRegistry";
 
 import PreviewPane from "@/components/chart-builder/wizard/PreviewPane";
 import StepShell from "@/components/chart-builder/wizard/StepShell";
@@ -70,13 +70,7 @@ function VariantCard({ id, selected, onSelect }) {
 }
 
 export default function ChartTypeStep() {
-  const { config, dispatch } = useChartConfig();
-
-  // A module may restrict the chart types it supports (e.g. a snapshot-only module
-  // that offers ranking bars but not trend lines or maps). Absent the allowlist,
-  // every registered chart type is offered as before.
-  const supported = getModuleSchema(config.module)?.supportedChartTypes;
-  const allowed = supported ? new Set(supported) : null;
+  const { config, dispatch, schema } = useChartConfig();
 
   function selectType(chartType) {
     dispatch({ type: "SET_CHART_TYPE", chartType });
@@ -87,9 +81,12 @@ export default function ChartTypeStep() {
       <ScrollArea className="h-[calc(100svh-24rem)] w-full min-w-0 pr-2">
         <div className="grid gap-5">
           {FAMILIES.map((family) => {
-            const ids = family.ids.filter(
-              (id) => getChartType(id) && (!allowed || allowed.has(id)),
-            );
+            // Availability, not just registration: a module's
+            // `supportedChartTypes`, a retired `hidden` descriptor, and — for
+            // the map family — whether this surface has anything to join
+            // coordinates to. Pasted data has no coordinate contract, so Symbol
+            // Map leaves the gallery here rather than drawing an empty figure.
+            const ids = family.ids.filter((id) => isChartTypeAvailable(id, schema));
             if (!ids.length) return null;
             return (
               <div key={family.label} className="grid gap-3">

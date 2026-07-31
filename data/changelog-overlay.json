@@ -1,12 +1,132 @@
 {
   "__doc__": "Curated overlay for the Changelog tab. Keyed by short commit hash. Each entry supplies the human-judged fields git cannot infer, and may override the git-derived title/description. Run `node scripts/changelog/build-changelog.mjs` to merge this with `git log` into data/changelog.json (the file the app reads). intensity: low | moderate | high. area: free text. audited: whether Trinity has manually reviewed the change. Only commits listed here appear in the changelog.",
-  "PENDING-workbench": {
+  "75fb3c2": {
     "title": "Module workbench overhaul: single-screen module editor",
     "area": "Front-end components",
     "intensity": "high",
-    "audited": false,
+    "audited": true,
     "module": null,
     "description": "Split the chart editor into two surfaces. /[module] is now a single-screen workbench: a persistent control sidebar beside a chart container with View Chart / View Data and Export Chart / Export Data. /visualization-tool keeps the step wizard for bring-your-own-data, along with presets, saved views, the multi-chart workspace, trace layers, and the activity log. Both compose from one shared section registry. Added a view=locations API view and a geographic multi-select; withdrew the settings tiers, the code editor, and the Slopegraph chart type."
+  },
+  "df2d3b9": {
+    "title": "Added the Changelog tab and its curated overlay",
+    "area": "Documentation",
+    "intensity": "moderate",
+    "audited": true,
+    "module": null,
+    "description": "Split /logs into Pipeline Logs and Changelog. The Changelog is a hybrid of git log and hand-curated judgment: data/changelog-overlay.json supplies the area, intensity, audit state, and module that git cannot infer, and build-changelog.mjs merges the two into the file the app reads. Added the agent definitions and the conventions guide that describe the workflow."
+  },
+  "91f7853": {
+    "title": "Backfilled changelog entries for the graph editor work",
+    "area": "Documentation",
+    "intensity": "low",
+    "audited": true,
+    "module": null,
+    "description": "Added overlay entries for the graph-editor commits that predated the Changelog tab, and rebuilt the merged changelog."
+  },
+  "4b16072": {
+    "title": "Group column type, grouped categories, and tab-by-column",
+    "area": "Front-end components",
+    "intensity": "high",
+    "audited": true,
+    "module": null,
+    "description": "Added a semantic Group column type that imports from an exact Group header, a group role on the bar and forest chart types so categories draw in sectioned blocks, and the tab-by-column control that splits one chart into tabs over a dimension's values. Extended toPlotly, the inline shape builders, and the palette layer to carry all three."
+  },
+  "59ea89d": {
+    "title": "Graph editor refinements: tab options, palettes, and export",
+    "area": "Front-end components",
+    "intensity": "moderate",
+    "audited": true,
+    "module": null,
+    "description": "Rounded out the previous pass: tab values now come from a module's own declared dimension values (with a saved order) rather than from whatever the last response happened to contain, plus fixes across the palette registry, inline column mapping, table export, and column-type detection."
+  },
+  "898aa0e": {
+    "title": "Dataset freshness in the editor and a reworked export menu",
+    "area": "Front-end components",
+    "intensity": "moderate",
+    "audited": true,
+    "module": null,
+    "description": "Added GET /api/module-status, which reports the timestamp of the newest pipeline run that completed and wrote data, and a DatasetLastUpdated control that shows it in the editor. Reworked the export menu and the View Data step alongside it."
+  },
+  "9ca30ef": {
+    "title": "Wrote the Automations Guide",
+    "area": "Documentation",
+    "intensity": "low",
+    "audited": true,
+    "module": null,
+    "description": "A guide to the project's automation surfaces for a non-specialist reader, alongside notes on running local LLMs."
+  },
+  "9a3d5ff": {
+    "title": "Updated the AI Comparison Guide",
+    "area": "Documentation",
+    "intensity": "low",
+    "audited": true,
+    "module": null,
+    "description": "Refreshed the tool comparisons in the AI Comparison Guide."
+  },
+  "9340fcb": {
+    "title": "Planned the module workbench UI overhaul",
+    "area": "Documentation",
+    "intensity": "low",
+    "audited": true,
+    "module": null,
+    "description": "The implementation plan for splitting the chart editor into a single-screen module workbench and a bring-your-own-data wizard. Superseded by the as-built visualization specification once the work shipped."
+  },
+  "a7c9e1c": {
+    "title": "Matched the chart and data views to one height, and split the exports",
+    "area": "Front-end components",
+    "intensity": "moderate",
+    "audited": true,
+    "module": null,
+    "description": "The chart container now measures its chart view and pins the data view to the same height, so toggling between them no longer stretches the sidebar beside it. Export Chart and Export Data became separate controls: the dataset export is addressed from the config alone, so it stays available before a chart has rendered."
+  },
+  "d7b6fcd": {
+    "title": "The workbench stopped filling in encodings for the reader",
+    "area": "Front-end components",
+    "intensity": "high",
+    "audited": true,
+    "module": null,
+    "description": "Switching chart types used to re-seed every unfilled role from the preset defaults, so clicking through the tiles showed a succession of charts nobody had asked for, and roles that could not be seeded were reported as errors. A module now opens with nothing bound and draws a skeleton naming what is still to set; no request goes out until every required encoding is the reader's own choice."
+  },
+  "5f94fe4": {
+    "title": "Corrected the Automations Guide",
+    "area": "Documentation",
+    "intensity": "low",
+    "audited": true,
+    "module": null,
+    "description": "Fixed inaccurate steps in the Automations Guide."
+  },
+  "2d62527": {
+    "title": "Revision diffing for historical module data",
+    "area": "Backend scripts",
+    "intensity": "high",
+    "audited": true,
+    "module": null,
+    "description": "Added a shared revision_diff layer that records what actually changed when a pipeline rewrites its historical data, and wired it into the Projections, Housing Stress, and RHNA Progress historical merges and orchestrators. Front-end surfacing followed separately."
+  },
+  "5ed76a5": {
+    "title": "Transform controls for imported data",
+    "area": "Standalone viz tool",
+    "intensity": "moderate",
+    "audited": true,
+    "module": null,
+    "description": "A pasted table can now be indexed to 100 at a base period, choosing from the imported time column's own values. The section is offered only where indexing lands - a chart shape with a time axis and more than one period - and the reducer drops the transform if a later chart-type switch or re-import makes it inexpressible."
+  },
+  "a2e0aae": {
+    "title": "Outcome section, Bar absorbs Diverging Bar, and per-type skeletons",
+    "area": "Front-end components",
+    "intensity": "high",
+    "audited": true,
+    "module": null,
+    "description": "Three changes from user feedback. The Axis grid became Outcome: a chart type can now declare a role implied - a line's x is the schema's temporal field, a bar's category is its geographic level - so the duplicate Category dropdown is gone and the reader picks the measure. Diverging Bar stopped being its own chart type and became an appearance.diverging toggle on Bar, with stored views migrating automatically. The waiting skeleton now draws the shape of the chart type selected rather than bars every time. Advanced Mode returned as a single switch."
+  },
+  "feb4930": {
+    "title": "Surfaced data revisions in the pipeline logs",
+    "area": "Front-end components",
+    "intensity": "moderate",
+    "audited": true,
+    "module": null,
+    "description": "Wired the revision-diff records from the pipeline into the log cards, so a run that rewrote historical data says what changed in plain language rather than only that it ran."
   },
   "b58a5bd": {
     "title": "Project initialization",

@@ -24,6 +24,7 @@ import React from "react";
 
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import { cn } from "@/components/ui/utils";
+import { isChartTypeAvailable } from "@/lib/visualization/chartAvailability";
 import { CHART_TYPE_IDS, getChartType } from "@/lib/visualization/chartRegistry";
 
 // Mockup order, reading left-to-right across the two columns. Range sits with
@@ -44,30 +45,23 @@ const TILE_ORDER = [
 ];
 
 /**
- * Declared order first, then any registered type the list forgot — except a
- * `hidden` descriptor (Workstream B: the retired `divergingBar` id, kept
- * registered for one more release so a bookmarked link still resolves through
- * `RETIRED_CHART_TYPES`, but not offered as a tile now that Bar absorbs it
- * through `appearance.diverging`). Without the `hidden` check, a descriptor
- * dropped from `TILE_ORDER` alone would reappear here as a stray appended tile.
+ * Declared order first, then any registered type the list forgot, filtered by
+ * what this schema can actually draw (`isChartTypeAvailable`: the `hidden`
+ * marker on a retired descriptor, the module's `supportedChartTypes`, and
+ * whether a map type has any geometry to join to). Without the availability
+ * check, a descriptor dropped from `TILE_ORDER` alone would reappear here as a
+ * stray appended tile, and a map type would be offered on a module that holds
+ * no geometry for it.
  */
-function orderedChartTypes(allowed) {
+function orderedChartTypes(schema) {
   const known = new Set(TILE_ORDER);
-  const ids = [
-    ...TILE_ORDER.filter((id) => getChartType(id)),
-    ...CHART_TYPE_IDS.filter((id) => !known.has(id) && !getChartType(id)?.hidden),
-  ];
-  return allowed ? ids.filter((id) => allowed.has(id)) : ids;
+  const ids = [...TILE_ORDER, ...CHART_TYPE_IDS.filter((id) => !known.has(id))];
+  return ids.filter((id) => isChartTypeAvailable(id, schema));
 }
 
 export default function ChartTypeSection() {
   const { config, dispatch, schema } = useChartConfig();
-  // A module may restrict the chart types it supports (e.g. a snapshot-only
-  // module that offers ranking bars but not trend lines or maps).
-  const allowed = schema?.supportedChartTypes
-    ? new Set(schema.supportedChartTypes)
-    : null;
-  const ids = orderedChartTypes(allowed);
+  const ids = orderedChartTypes(schema);
 
   return (
     <div className="grid grid-cols-2 gap-2">

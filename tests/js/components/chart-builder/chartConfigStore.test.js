@@ -178,6 +178,64 @@ describe("manual encoding (autoBind: false)", () => {
   });
 });
 
+/**
+ * Workstream D. A map-shaped chart can only draw the one level we hold geometry
+ * for, and the level lives in `filters.subset` — pinning the Geographic Level
+ * select alone left the config on whatever level the reader was already on, and
+ * the geography API answers 400 for every level but Counties.
+ */
+describe("reduceChartConfig — the geometry level a map needs", () => {
+  const onRegions = createChartConfig(schema, {
+    chartType: "line",
+    filters: { subset: "Regions", locations: ["Bay Area"] },
+  });
+
+  it("moves a symbol map to the level we hold geometry for", () => {
+    const map = dispatch(onRegions, { type: "SET_CHART_TYPE", chartType: "symbolMap" });
+    expect(map.filters.subset).toBe("Counties");
+  });
+
+  it("moves a choropleth the same way", () => {
+    const map = dispatch(onRegions, { type: "SET_CHART_TYPE", chartType: "choroplethMap" });
+    expect(map.filters.subset).toBe("Counties");
+  });
+
+  it("clears the place selection with the level, since a region is not a county", () => {
+    const map = dispatch(onRegions, { type: "SET_CHART_TYPE", chartType: "symbolMap" });
+    expect(map.filters.locations).toEqual([]);
+  });
+
+  it("leaves a non-map chart type on whatever level the reader chose", () => {
+    const bar = dispatch(onRegions, { type: "SET_CHART_TYPE", chartType: "bar" });
+    expect(bar.filters.subset).toBe("Regions");
+    expect(bar.filters.locations).toEqual(["Bay Area"]);
+  });
+
+  it("keeps an already-correct selection rather than clearing it needlessly", () => {
+    const onCounties = createChartConfig(schema, {
+      chartType: "bar",
+      filters: { subset: "Counties", locations: ["Alameda"] },
+    });
+    const map = dispatch(onCounties, { type: "SET_CHART_TYPE", chartType: "symbolMap" });
+    expect(map.filters.subset).toBe("Counties");
+    expect(map.filters.locations).toEqual(["Alameda"]);
+  });
+
+  it("leaves the level alone on a module that has no geometry level to move to", () => {
+    const noGeometry = { ...schema, subsets: { Metros: ["Metro"], States: ["State"] } };
+    const config = createChartConfig(noGeometry, {
+      chartType: "line",
+      filters: { subset: "Metros", locations: [] },
+    });
+    const map = reduceChartConfig(
+      config,
+      { type: "SET_CHART_TYPE", chartType: "symbolMap" },
+      noGeometry,
+    );
+    expect(map.filters.subset).toBe("Metros");
+  });
+});
+
 describe("reduceChartConfig — v2 actions", () => {
   const base = createChartConfig(schema);
 

@@ -147,9 +147,15 @@ function buildSearchParams(config, schema, overrides = {}) {
     const size = overrides.sizeMeasure || config.bindings.size;
     if (size) params.set("sizeMeasure", size);
   } else {
+    // Whichever role carries the measure on this chart type. `size` is here for
+    // the symbol map, whose magnitude role is `size` and which declares no `y`
+    // at all — without it the request went out with no `parameter` and every
+    // module API answered "Invalid or missing 'parameter'". It sits after `y`
+    // so no chart type that binds both changes which measure it asks for.
     const parameter =
       overrides.parameter ||
       config.bindings.y ||
+      config.bindings.size ||
       config.bindings.color ||
       config.bindings.start;
     if (parameter) params.set("parameter", parameter);
@@ -733,6 +739,44 @@ async function loadGeometry(level, signal) {
   return body;
 }
 
+// A symbol map's coordinates are derived and just as static as the polygons
+// they come from; cache per level the same way loadGeometry does.
+const pointsCache = new Map();
+
+async function loadPoints(level, signal) {
+  if (pointsCache.has(level)) return pointsCache.get(level);
+  const response = await fetch(`/api/geography?level=${level}&type=points`, { signal });
+  const body = await response.json();
+  if (!response.ok) {
+    const error = new Error(body.error || "County coordinates could not be loaded.");
+    error.source = body.source;
+    throw error;
+  }
+  pointsCache.set(level, body);
+  return body;
+}
+
+/**
+ * Symbol map's GEOID -> [lon, lat] join. A record whose geoid has no
+ * matching point is dropped from the plotted series and named in
+ * `unmatched` instead — an unjoined record left with undefined coordinates
+ * would render as one fewer point on the map with nothing telling the
+ * reader why.
+ */
+function joinRecordsToPoints(records, points) {
+  const series = [];
+  const unmatched = [];
+  for (const record of records) {
+    const point = points[record.geoid];
+    if (!point) {
+      unmatched.push(record.location ?? record.category);
+      continue;
+    }
+    series.push({ ...record, lon: point[0], lat: point[1] });
+  }
+  return { series, unmatched };
+}
+
 /** Bar-chart change transform: fetch the two-period shape instead of category. */
 async function loadBarChangeData(config, schema, signal) {
   const response = await requestData(config, schema, signal, { view: "twoPeriod" });
@@ -829,18 +873,31 @@ async function loadModuleChartData(config, schema, signal) {
     config.chartType === "choroplethMap"
       ? loadGeometry(geometryLevelForSubset(config.filters.subset), signal)
       : Promise.resolve(null);
+  const pointsPromise =
+    config.chartType === "symbolMap"
+      ? loadPoints(geometryLevelForSubset(config.filters.subset), signal)
+      : Promise.resolve(null);
 
-  const [rawResponse, geometry] = await Promise.all([
+  const [rawResponse, geometry, points] = await Promise.all([
     responsePromise,
     geometryPromise,
+    pointsPromise,
   ]);
   const response = applyRanking(config, rawResponse);
-  const series =
+  let series =
     response.series ||
     response.records ||
     response.matrix ||
     [];
-  return { response, series, geometry, unmatched: response.unmatched || [] };
+  let unmatched = response.unmatched || [];
+
+  if (config.chartType === "symbolMap" && points) {
+    const joined = joinRecordsToPoints(series, points);
+    series = joined.series;
+    unmatched = [...unmatched, ...joined.unmatched];
+  }
+
+  return { response, series, geometry, unmatched };
 }
 
 function emptyModuleResult(config, context) {

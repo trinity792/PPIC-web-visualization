@@ -84,6 +84,12 @@ const AXIS_LABELS = {
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
+/** Does this chart type encode a measure as colour, rather than group by one? */
+function colorIsMeasure(chartType) {
+  const constraints = getChartType(chartType)?.roleConstraints?.color;
+  return Boolean(constraints?.includes(FIELD_KINDS.MEASURE));
+}
+
 /**
  * Fields the encoding dropdowns bind to: a module's curated catalog, or — for
  * the standalone bring-your-own-data tool — the pasted/uploaded table's columns
@@ -109,6 +115,10 @@ export function roleLabel(role, chartType) {
     };
     if (forestLabels[role]) return forestLabels[role];
   }
+  // A symbol map's `size` is not a size the reader picks — the marker areas are
+  // scaled from the measure — so it asks for the value being mapped, unlike a
+  // bubble chart where size is genuinely a third variable alongside x and y.
+  if (chartType === "symbolMap" && role === "size") return "Bubble value";
   // A chart type with any implied role has folded its axis choice into a
   // single "what is plotted" question — the Settings Reframing callout — so its
   // measure role reads as Outcome rather than Y-Axis. Descriptor-only: this does
@@ -118,6 +128,15 @@ export function roleLabel(role, chartType) {
   if (role === "y" && Object.keys(getChartType(chartType)?.impliedRoles || {}).length) {
     return "Outcome";
   }
+  // `color` is two different questions wearing one name. Where the chart type
+  // constrains it to a MEASURE (choropleth, heatmap) the colour *is* the
+  // plotted value, and calling that dropdown "Color" asks for an outcome by
+  // naming the mechanism that draws it — the same mistake the Outcome reframe
+  // removed from the x/category axes. Where it is constrained to a DIMENSION it
+  // really does choose colours, and those chart types render it in Appearance
+  // beside the palette rather than here. Read from the constraint rather than
+  // from a list of ids, so a future chart type is labelled correctly for free.
+  if (role === "color" && colorIsMeasure(chartType)) return "Outcome";
   if (AXIS_LABELS[role]) return AXIS_LABELS[role];
   const labels = {
     benchmark: "Benchmark",

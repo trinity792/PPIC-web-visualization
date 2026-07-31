@@ -4,7 +4,7 @@ Content Type: project specification
 pinned: true
 description: "The single source of truth for the web-data-visualization project's specification, architecture, and API reference. A living document for programmers and researchers that uses PopHousing as the reference implementation future data modules should mirror."
 Date Published: June 23, 2026
-Last Updated: 07/30/2026 - 03:10 PM
+Last Updated: 07/31/2026 - 01:20 PM
 Status: Updating
 Footnote: Document generated and updated by Claude Opus 4.8 on command. Outlined and verified by Trinity Jones.
 ---
@@ -12,7 +12,7 @@ Footnote: Document generated and updated by Claude Opus 4.8 on command. Outlined
 
 # Project Specification, Architecture & API Reference
 Web **Visualizations** Project
-Last Updated: July 13th, 2026
+Last Updated: July 31st, 2026
 
 ---
 
@@ -134,7 +134,7 @@ web-data-visualization/
 │       ├── projections/route.js          ← GET /api/projections            (Demographic Projections)
 │       ├── housing-stress/route.js        ← GET /api/housing-stress         (ACS Housing Stress)
 │       ├── building-permits/route.js      ← GET /api/building-permits       (Building Permits)
-│       └── geography/route.js            ← GET /api/geography (county GeoJSON, choropleth)
+│       └── geography/route.js            ← GET /api/geography?type=polygons|points (county GeoJSON for choropleths; derived representative points for symbol maps)
 ├── components/
 │   ├── Navbar.js                 ← shared site shell (Modules dropdown + top-level links)
 │   ├── ui/                       ← shadcn/Radix primitives (button, select, slider, dialog, table, …) + cn util; also nav-dropdown (hover menu) + under-construction placeholder
@@ -151,16 +151,18 @@ web-data-visualization/
 │   ├── data/demographic_projections.js  ← server-only data-access layer over the CSV  (Projections)
 │   ├── data/housing_stress.js           ← server-only data-access layer over the CSV  (Housing Stress)
 │   ├── data/building_permits.js         ← server-only data-access layer over the CSV  (Building Permits; monthly shaping)
-│   ├── data/geography.js                ← server-only county GeoJSON access  (choropleth)
+│   ├── data/geography.js                ← server-only county GeoJSON access  (choropleth) + loadRepresentativePoints() (symbol map)
 │   ├── data/query_shapes.js             ← shared row → line/category/two-period/pairs/matrix shaping (year-based)
 │   ├── data/apiParams.js                ← shared API-route query-param helpers
 │   ├── geography/californiaGeography.js ← CLIENT-SAFE JS mirror of the shared CBSA-metro → county/region maps
+│   ├── geography/representativePoint.js ← CLIENT-SAFE derivation of one interior point per GeoJSON Polygon/MultiPolygon (no authoritative point file exists for any level)
 │   ├── logs/logs.js                     ← server-only loader over logs/*.jsonl run records
 │   ├── logs/presentation.js             ← CLIENT-SAFE plain-language layer (phase names, cause, impact, timestamps)
 │   └── visualization/                   ← CLIENT-SAFE chart catalog + registries (no node:fs)
 │       ├── moduleSchemas/{pophousing,componentsOfChange,demographicProjections,housingStress,buildingPermits,byod}.js  ← per-module field catalog (byod = bring-your-own-data)
 │       ├── fieldTypes.js  formatters.js  transformRegistry.js  toPlotly.js
 │       ├── chartRegistry.js  presetRegistry.js  validation.js
+│       ├── chartAvailability.js         ← single owner of which chart types a surface can actually draw (hidden markers, supportedChartTypes, requiresGeometry)
 │       └── categoryRegistry.js          ← landing categories + built-in dashboard views
 ├── scripts/                      ← Python ETL (see Module Reference)
 │   ├── shared/                   ← cross-module mechanisms + reference data (downloads, data_cleaning, validation, visualizations, logging, geography)
@@ -1387,6 +1389,7 @@ The module is complete, its tests pass, and it has run end-to-end against live C
 - **Monthly axis vs. the year-based UI.** The shared sidebar/slider and `query_shapes.js` are year-integer based; the data-access layer carries its own monthly shaping, but wiring the shared slider/temporal control for a monthly range is deferred to the graph-editor overhaul.
 - **Presets & landing surface deferred.** Curated presets (region overview, overlay, indexed, year-to-date, two-period change, change map) and a landing-page `CATEGORIES` card are intentionally **not** built — deferred to the forthcoming graph-editor overhaul.
 - **Detailed page shows a placeholder.** Because the presets aren't built, opening the editor for this module errored. The schema carries `underConstruction: true`, so `app/[module]/page.js` renders the shared `UnderConstruction` placeholder for `/building-permits` instead of the workbench. The module stays in the registry and the Modules dropdown; remove the flag once the overhaul wires up its presets.
+- **No map chart types.** Its subsets are Metros, Regions, and States, none of which this project holds geometry for, so `lib/visualization/chartAvailability.js` gates Choropleth Map and Symbol Map off entirely for this module rather than offering a tile that could only draw an empty figure — see [[visualization-specification]].
 
 ---
 
@@ -1563,7 +1566,7 @@ The data-access layer reads and caches the contract CSV once per process, then d
 
 The **locations** view is the odd one out: it carries no measure, period, or stratification, because it answers "what places exist at this geographic level", not "what are their values". Every module route accepts `?view=locations&subset=<subset>` and answers with exactly `{ locations: string[], subset: string }` — nothing else, since the geographic multi-select needs nothing else. It resolves **before** each route's measure and period validation for that reason. Each module resolves its own subset rows first (levels, Building Permits' metro→region aggregation, RHNA's `Jurisdiction` column) and passes them to `buildLocationList`, which is why the shared builder does no level filtering of its own.
 
-The **geo** view is the one that reaches across modules: `queryGeoValues` builds category values then joins each Location to a county GEOID via [`lib/data/geography.js`](../../../lib/data/geography.js) `getFeatureIdLookup`, and [`/api/geography`](../../../app/api/geography/route.js) serves the raw GeoJSON `FeatureCollection` (stored under `data/data-cleaned/`, not `public/`) with an aggressive cache header. `featureidkey` (`properties.GEOID`) travels in the response so `toPlotly` can join data to polygons.
+The **geo** view is the one that reaches across modules: `queryGeoValues` builds category values then joins each Location to a county GEOID via [`lib/data/geography.js`](../../../lib/data/geography.js) `getFeatureIdLookup`, and [`/api/geography`](../../../app/api/geography/route.js) serves geometry from the same GeoJSON source (stored under `data/data-cleaned/`, not `public/`) with an aggressive cache header, gated by a `type` param: `type=polygons` (the default) returns the raw `FeatureCollection` a choropleth draws, and `type=points` returns `{ geoid: [lon, lat] }`, one derived representative point per feature, for a symbol map. Both share level validation and the `Cache-Control` header; an unrecognized `type` is a `400` with a named source, like every other param. `featureidkey` (`properties.GEOID`) travels in the polygons response so `toPlotly` can join data to shapes. See [[visualization-specification]] for how the points are derived and how chart-type availability (`lib/visualization/chartAvailability.js`) gates the map family per surface.
 
 ### Rendering: the `toPlotly` adapter
 
@@ -1608,7 +1611,7 @@ The **geo** view is the one that reaches across modules: `queryGeoValues` builds
 | Config state + validation | `chart-builder/chartConfigStore.js` (`useReducer` + context) | Holds the declarative config; re-runs `validation.js` on every change; feeds `seriesCount` back for complexity checks. |
 | Section composition | `lib/visualization/sidebarSections.js` → `workbench/ModuleSidebar.js` | The ordered section registry and its two gates (`key` = this chart type uses it, `when` = this schema supplies it). |
 | Datasets | `sections/DatasetsSection.js`, `lib/visualization/datasetLabels.js` | `schema.datasets`/`sources` → `filters.source`. Hidden unless a module offers two or more datasets, which as of 2026-07-28 is Components of Change alone. The Data vintage multi-select was removed and the stratification pins moved to Transform. |
-| Chart Type | `sections/ChartTypeSection.js` | `chartRegistry` labels, in a fixed design order; `schema.supportedChartTypes` narrows it. |
+| Chart Type | `sections/ChartTypeSection.js` | `chartRegistry` labels, in a fixed design order; `lib/visualization/chartAvailability.js` narrows it (schema `supportedChartTypes`, `hidden` markers, and `requiresGeometry` gated on an available geometry level or inline shape builder — see [[visualization-specification]]). |
 | Date Range | `sections/DateRangeSection.js` (`ui/slider`) | `schema.yearRange`; sets `period`. *(Year-granular; a monthly module like Building Permits filters at year resolution here — see The Building Permits Module caveats.)* |
 | Geographic Level (level, place multi-select, ordering, Top-N) | `sections/GeographySection.js`, `useLocationOptions.js`, `sections/categoryControls.js` | `schema.subsets` → `filters.subset`; `?view=locations` → the place list → `filters.locations`; `appearance.categoryOrder`/`hiddenCategories`; `SET_RANKING`. |
 | Categories (non-place fallback) | `sections/CategoriesSection.js` | `config.categoryNames` — the values the last load actually drew. |
@@ -1845,7 +1848,7 @@ Two records in the committed `logs/sample-runs.jsonl` fixture exercise both shap
 
 ## Testing
 
-*Project-wide standard; the current suite covers all five modules — PopHousing, Components of Change, Demographic Projections, ACS Housing Stress, and Building Permits (1,054 backend tests passing), alongside the frontend Vitest suite.*
+*Project-wide standard; the current suite covers all five modules — PopHousing, Components of Change, Demographic Projections, ACS Housing Stress, and Building Permits (1,054 backend tests passing), alongside the frontend Vitest suite (777 tests across 84 files) and a clean `npm run build`.*
 
 The pytest suite lives in `scripts/unit_tests/`, **mirroring the source tree** (each source file → a `test_{module}.py` in the same relative position). Full requirements are in [`PopHouse-Unit-Tests-Guide.md`](PopHouse-Unit-Tests-Guide.md). Highlights:
 
