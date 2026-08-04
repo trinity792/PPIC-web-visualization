@@ -573,7 +573,6 @@ describe("categoryNamesOf", () => {
       ],
     };
     expect(categoryNamesOf("bar", result)).toEqual(["Alameda", "Butte"]);
-    expect(categoryNamesOf("divergingBar", result)).toEqual(["Alameda", "Butte"]);
   });
 
   it("returns no category options for unrelated chart types", () => {

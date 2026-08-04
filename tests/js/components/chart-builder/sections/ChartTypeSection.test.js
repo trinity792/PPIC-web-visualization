@@ -15,6 +15,23 @@ const state = vi.hoisted(() => ({
 vi.mock("@/components/chart-builder/chartConfigStore", () => ({
   useChartConfig: () => state,
 }));
+vi.mock("@/lib/visualization/chartRegistry", async (importOriginal) => {
+  const actual = await importOriginal();
+  const experimental = {
+    id: "experimental",
+    label: "Experimental",
+    purpose: "A registered chart omitted from the curated design order.",
+    requiredRoles: [],
+    optionalRoles: [],
+    roleConstraints: {},
+    defaults: {},
+  };
+  return {
+    ...actual,
+    CHART_TYPE_IDS: [...actual.CHART_TYPE_IDS, experimental.id],
+    getChartType: (id) => (id === experimental.id ? experimental : actual.getChartType(id)),
+  };
+});
 
 import ChartTypeSection from "@/components/chart-builder/sections/ChartTypeSection";
 
@@ -31,6 +48,7 @@ const orderedLabels = [
   "Bubble",
   "Matrix Heatmap",
   "Data Table",
+  "Experimental",
 ];
 
 describe("ChartTypeSection", () => {
@@ -40,11 +58,30 @@ describe("ChartTypeSection", () => {
     state.schema = { id: "widgets", subsets: { Counties: ["County"], Regions: ["Region"] } };
   });
 
-  it("renders the mockup tiles plus Range in order, two columns per row", () => {
+  it("renders a flat grid by default", () => {
     render(<ChartTypeSection />);
     const buttons = screen.getAllByRole("button");
     expect(buttons.map((button) => button.textContent.trim())).toEqual(orderedLabels);
     expect(buttons[0].parentElement).toHaveClass("grid-cols-2");
+  });
+
+  it("renders family headings when grouped", () => {
+    render(<ChartTypeSection grouped />);
+    for (const family of ["Line", "Bar", "Pie", "Map", "Range", "Distribution", "Table"]) {
+      expect(
+        screen.getAllByText(family).some((node) => !node.closest("button")),
+        family,
+      ).toBe(true);
+    }
+  });
+
+  it("appends a registered type missing from the design order, in both modes", () => {
+    const flat = render(<ChartTypeSection />);
+    expect(screen.getByRole("button", { name: "Experimental" })).toBeInTheDocument();
+    flat.unmount();
+
+    render(<ChartTypeSection grouped />);
+    expect(screen.getByRole("button", { name: "Experimental" })).toBeInTheDocument();
   });
 
   it("does not append the hidden, retired Diverging Bar as a stray tile (Workstream B)", () => {

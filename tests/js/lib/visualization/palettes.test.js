@@ -10,8 +10,11 @@ import {
   DEFAULT_PALETTE,
   PALETTES,
   PPIC_CATEGORICAL_PALETTE_IDS,
+  customDivergingScale,
   UI_KIT_PALETTE_IDS,
-  paletteForScale,
+  palettesOfKind,
+  rampFor,
+  rampProps,
   resolveToken,
   seriesColor,
 } from "@/lib/visualization/palettes";
@@ -129,19 +132,201 @@ describe("seriesColor", () => {
   });
 });
 
-describe("paletteForScale", () => {
-  it("returns the legacy CHOROPLETH_BLUES stops for sequential", () => {
-    expect(paletteForScale("sequential")).toEqual([
-      [0, COLORS.blue1],
-      [1, COLORS.blue5],
+describe("rampFor", () => {
+  const legacyBlues = [
+    [0, COLORS.blue1],
+    [1, COLORS.blue5],
+  ];
+
+  it("returns the legacy blues for the default palette", () => {
+    expect(rampFor({}, { kind: "sequential" })).toEqual(legacyBlues);
+    expect(
+      rampFor({ palette: DEFAULT_PALETTE }, { kind: "sequential" }),
+    ).toEqual(legacyBlues);
+  });
+
+  it("returns the guide's published stops for an official ramp palette", () => {
+    // Guide p.13, Green - five shades, evenly spaced, hand-written here rather
+    // than read back out of PPIC_SEQUENTIAL.
+    expect(rampFor({ palette: "ppic-ramp-green" }, { kind: "sequential" })).toEqual([
+      [0, "#DEE5E2"],
+      [0.25, "#BDE3D0"],
+      [0.5, "#42BC89"],
+      [0.75, "#196348"],
+      [1, "#02391D"],
     ]);
   });
 
-  it("returns the legacy 'RdBu' Plotly colorscale for diverging", () => {
-    expect(paletteForScale("diverging")).toBe("RdBu");
+  it("interpolates the middle shade for a four-shade family", () => {
+    // Orange publishes four shades, so the guide gives it no true midpoint.
+    // #E9632A and #CA4F1A straddle it; their sRGB blend is #DA5922.
+    expect(rampFor({ palette: "ppic-ramp-orange" }, { kind: "sequential" })).toEqual([
+      [0, "#F9E1D9"],
+      [0.25, "#E9632A"],
+      [0.5, "#DA5922"],
+      [0.75, "#CA4F1A"],
+      [1, "#8F3811"],
+    ]);
   });
 
-  it("throws, naming the kind, for an unregistered scale kind", () => {
-    expect(() => paletteForScale("notAKind")).toThrow(/notAKind/);
+  it("returns the official choropleth colorway for the diverging palette", () => {
+    const scale = rampFor(
+      { palette: "ppic-diverging-choropleth" },
+      { kind: "diverging" },
+    );
+    expect(scale.at(0)).toEqual([0, "#8F3811"]);
+    expect(scale.at(-1)).toEqual([1, "#0F4880"]);
+    // The guide's own near-white neutral sits at the turn, not an interpolation.
+    expect(scale.map(([, hex]) => hex)).toContain("#ECE8E7");
+  });
+
+  it("still falls back to the legacy stops for a categorical palette", () => {
+    // The ui-kit families no longer carry a derived two-stop ramp; a choropleth
+    // is offered the official ramps instead. Picking one here is a config a
+    // reader cannot reach through the picker, so it must degrade, not throw.
+    expect(rampFor({ palette: "ui-kit-teal" }, { kind: "sequential" })).toEqual(
+      legacyBlues,
+    );
+  });
+
+  it("falls back rather than throwing for an unknown palette id", () => {
+    expect(() =>
+      rampFor({ palette: "not-registered" }, { kind: "sequential" }),
+    ).not.toThrow();
+    expect(
+      rampFor({ palette: "not-registered" }, { kind: "sequential" }),
+    ).toEqual(legacyBlues);
+  });
+
+  it("resolves every registered palette to a usable ramp", () => {
+    for (const id of Object.keys(PALETTES)) {
+      for (const kind of ["sequential", "diverging"]) {
+        const ramp = rampFor({ palette: id }, { kind });
+        if (typeof ramp === "string") continue; // the named RdBu fallback
+        expect(ramp.length, `${id} (${kind})`).toBeGreaterThanOrEqual(2);
+        expect(ramp.at(0)[0], `${id} (${kind})`).toBe(0);
+        expect(ramp.at(-1)[0], `${id} (${kind})`).toBe(1);
+        for (const [, color] of ramp) {
+          expect(color, `${id} (${kind})`).toMatch(/^#[0-9a-f]{6}$/i);
+        }
+      }
+    }
+  });
+
+  it("offers a ramp for every official shade family", () => {
+    const sequential = palettesOfKind("sequential");
+    for (const family of [
+      "orange", "green", "blue", "violet", "red", "seafoam", "lime", "navy", "gray",
+    ]) {
+      expect(sequential, family).toContain(`ppic-ramp-${family}`);
+    }
+  });
+});
+
+describe("customDivergingScale", () => {
+  it("spaces three published shades evenly", () => {
+    expect(customDivergingScale(["#8F3811", "#ECE8E7", "#0F4880"])).toEqual([
+      [0, "#8F3811"],
+      [0.5, "#ECE8E7"],
+      [1, "#0F4880"],
+    ]);
+  });
+
+  it("spaces five published shades evenly", () => {
+    const scale = customDivergingScale([
+      "#8F3811", "#E9632A", "#ECE8E7", "#44AFD0", "#0F4880",
+    ]);
+    expect(scale.map(([stop]) => stop)).toEqual([0, 0.25, 0.5, 0.75, 1]);
+  });
+
+  it("rejects a count that is neither three nor five", () => {
+    expect(customDivergingScale(["#8F3811", "#0F4880"])).toBeNull();
+    expect(
+      customDivergingScale(["#8F3811", "#E9632A", "#ECE8E7", "#0F4880"]),
+    ).toBeNull();
+  });
+
+  it("rejects a shade the guide does not publish", () => {
+    // No custom hex: a hand-edited config falls back rather than rendering a
+    // colour nobody could have picked in the editor.
+    expect(customDivergingScale(["#8F3811", "#123456", "#0F4880"])).toBeNull();
+  });
+
+  it("rejects a missing or malformed value", () => {
+    expect(customDivergingScale(undefined)).toBeNull();
+    expect(customDivergingScale("#8F3811")).toBeNull();
+  });
+
+  it("wins over the selected palette on a diverging scale", () => {
+    const stops = ["#8F3811", "#ECE8E7", "#0F4880"];
+    expect(
+      rampFor(
+        { palette: "ppic-diverging-choropleth", divergingStops: stops },
+        { kind: "diverging" },
+      ),
+    ).toEqual(customDivergingScale(stops));
+  });
+
+  it("is ignored on a sequential scale", () => {
+    // The key names a diverging ramp; a sequential chart keeps its palette.
+    expect(
+      rampFor(
+        { palette: "ppic-ramp-green", divergingStops: ["#8F3811", "#ECE8E7", "#0F4880"] },
+        { kind: "sequential" },
+      ).at(0),
+    ).toEqual([0, "#DEE5E2"]);
+  });
+
+  it("falls back to the palette when the stops are invalid", () => {
+    const scale = rampFor(
+      { palette: "ppic-diverging-choropleth", divergingStops: ["#8F3811"] },
+      { kind: "diverging" },
+    );
+    expect(scale.at(0)).toEqual([0, "#8F3811"]);
+    expect(scale.at(-1)).toEqual([1, "#0F4880"]);
+  });
+});
+
+describe("rampProps", () => {
+  it("pairs the ramp with an unreversed direction by default", () => {
+    expect(rampProps({ palette: "ppic-ramp-gray" }, { kind: "sequential" })).toEqual({
+      colorscale: [
+        [0, "#EFF0F2"],
+        [0.25, "#DDDDDD"],
+        [0.5, "#AFAEAD"],
+        [0.75, "#7B7B77"],
+        [1, "#191918"],
+      ],
+      reversescale: false,
+    });
+  });
+
+  it("reverses a stop-array ramp when asked", () => {
+    const forward = rampProps({ palette: "ppic-ramp-green" }, { kind: "sequential" });
+    const props = rampProps(
+      { palette: "ppic-ramp-green" },
+      { kind: "sequential", invert: true },
+    );
+    // The stops keep their own order; Plotly's reversescale flips the mapping,
+    // which is the one mechanism that also works on a named scale (below).
+    expect(props.colorscale).toEqual(forward.colorscale);
+    expect(props.reversescale).toBe(true);
+  });
+
+  it("reverses the named diverging fallback, which stops cannot express", () => {
+    // The regression this exists for: the default palette's diverging ramp is
+    // the *named* scale "RdBu". Reordering stops silently did nothing to it, so
+    // the Invert color scale switch was dead on a default-palette diverging
+    // heatmap or choropleth.
+    const props = rampProps({}, { kind: "diverging", invert: true });
+    expect(props.colorscale).toBe("RdBu");
+    expect(props.reversescale).toBe(true);
+  });
+
+  it("leaves the named diverging fallback forward when not inverted", () => {
+    expect(rampProps({}, { kind: "diverging" })).toEqual({
+      colorscale: "RdBu",
+      reversescale: false,
+    });
   });
 });

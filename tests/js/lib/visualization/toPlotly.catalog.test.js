@@ -45,7 +45,7 @@ describe("toPlotly pie/donut", () => {
   });
 });
 
-describe("toPlotly divergingBar", () => {
+describe("toPlotly diverging bar", () => {
   const records = [
     { category: "Bay Area", value: 1.2 },
     { category: "Inland Empire", value: 0.6 },
@@ -54,11 +54,11 @@ describe("toPlotly divergingBar", () => {
 
   it("anchors each bar at the center reference and diverges by side", () => {
     const { data, layout } = toPlotly({
-      chartType: "divergingBar",
+      chartType: "bar",
       bindings: { category: "category", y: "value" },
       series: records,
       labels: { title: "Median on-track score by region" },
-      appearance: { center: 1.0 },
+      appearance: { diverging: true, center: 1.0 },
     });
 
     expect(data).toHaveLength(1);
@@ -80,11 +80,11 @@ describe("toPlotly divergingBar", () => {
 
   it("defaults the center to 0 and flips to vertical on request", () => {
     const { data, layout } = toPlotly({
-      chartType: "divergingBar",
+      chartType: "bar",
       bindings: { category: "category", y: "value" },
       series: [{ category: "A", value: 5 }],
       labels: {},
-      appearance: { orientation: "vertical" },
+      appearance: { diverging: true, orientation: "vertical" },
     });
 
     const trace = data[0];
@@ -98,11 +98,12 @@ describe("toPlotly divergingBar", () => {
 
   it("applies advanced category visibility and drag order", () => {
     const { data } = toPlotly({
-      chartType: "divergingBar",
+      chartType: "bar",
       bindings: { category: "category", y: "value" },
       series: records,
       labels: {},
       appearance: {
+        diverging: true,
         categoryOrder: ["Central Coast", "Bay Area", "Inland Empire"],
         hiddenCategories: ["Bay Area"],
       },
@@ -110,23 +111,27 @@ describe("toPlotly divergingBar", () => {
     expect(data[0].y).toEqual(["Central Coast", "Inland Empire"]);
   });
 
-  it("renders identically to a bar with appearance.diverging on (Workstream B)", () => {
+  it("routes on appearance.diverging, not on a chart type (Workstream B)", () => {
+    // The `divergingBar` id was deleted 2026-08-03, so this can no longer
+    // compare the two spellings; what it pins now is that the flag alone is
+    // what reaches divergingBarSpec. The old-id-renders-the-same guarantee
+    // lives in moduleWorkbenchMigrations.test.js, where the id still arrives.
     const shared = {
       bindings: { category: "category", y: "value" },
       series: records,
       labels: { title: "Median on-track score by region" },
-    };
-    const viaDivergingBar = toPlotly({
-      ...shared,
-      chartType: "divergingBar",
-      appearance: { center: 1, orientation: "horizontal" },
-    });
-    const viaBarFlag = toPlotly({
-      ...shared,
       chartType: "bar",
+    };
+    const plain = toPlotly({ ...shared, appearance: { orientation: "horizontal" } });
+    const diverging = toPlotly({
+      ...shared,
       appearance: { diverging: true, center: 1, orientation: "horizontal" },
     });
-    expect(viaBarFlag).toEqual(viaDivergingBar);
+
+    // A plain bar starts at zero; a diverging one is anchored on the center.
+    expect(plain.data[0].base).toBeUndefined();
+    expect(diverging.data[0].base).toBe(1);
+    expect(diverging.layout.shapes?.length).toBeGreaterThan(0);
   });
 });
 

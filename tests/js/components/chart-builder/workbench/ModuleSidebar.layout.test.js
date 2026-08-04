@@ -34,7 +34,7 @@ function renderInShell() {
 }
 
 describe("ModuleSidebar layout", () => {
-  it("clamps the desktop scroll panel inside a relative grid cell", () => {
+  it("keeps the height clamp classes after the split", () => {
     renderInShell();
     const sidebar = screen.getByRole("complementary", { name: /chart controls/i });
     const cell = sidebar.parentElement;

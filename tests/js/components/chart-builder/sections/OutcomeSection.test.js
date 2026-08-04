@@ -8,7 +8,7 @@
 
 import React from "react";
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render as rtlRender, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -22,7 +22,15 @@ vi.mock("@/components/chart-builder/chartConfigStore", () => ({
 }));
 
 import OutcomeSection from "@/components/chart-builder/sections/OutcomeSection";
+import { AdvancedModeProvider } from "@/components/chart-builder/advancedMode";
 import { BYOD_SCHEMA } from "@/lib/visualization/moduleRegistry";
+
+function render(ui, options) {
+  return rtlRender(
+    <AdvancedModeProvider defaultAdvanced={false}>{ui}</AdvancedModeProvider>,
+    options,
+  );
+}
 
 const schema = {
   id: "widgets",
@@ -95,9 +103,8 @@ describe("OutcomeSection", () => {
   it("hides the implied X-Axis for a line and labels the measure Outcome", () => {
     render(<OutcomeSection />);
     expect(screen.queryByLabelText("X-Axis")).not.toBeInTheDocument();
-    for (const label of ["Outcome", "Series"]) {
-      expect(screen.getByLabelText(new RegExp(label, "i"))).toBeInTheDocument();
-    }
+    expect(screen.getByLabelText(/Outcome/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Series/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/^Color/i)).not.toBeInTheDocument();
   });
 
@@ -253,7 +260,7 @@ describe("OutcomeSection", () => {
     await user.click(screen.getByLabelText(/Outcome/i));
     expect(screen.queryByRole("option", { name: "Not set" })).not.toBeInTheDocument();
     await user.keyboard("{Escape}");
-    await user.click(screen.getByLabelText(/^Series/i));
+    await user.click(screen.getByLabelText(/^Group/i));
     expect(screen.getByRole("option", { name: "Not set" })).toBeInTheDocument();
   });
 
@@ -310,6 +317,97 @@ describe("OutcomeSection", () => {
     });
     render(<OutcomeSection allowLayers />);
     expect(screen.getByLabelText(/^X-Axis/)).toBeInTheDocument();
+  });
+
+  it("hides catalog-disallowed measures out of advanced mode", async () => {
+    const user = userEvent.setup();
+    render(<OutcomeSection />);
+    await user.click(screen.getByLabelText(/Outcome/i));
+    expect(
+      screen.queryByRole("option", { name: "Restricted metric" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers every measure of the accepted kind in advanced mode", async () => {
+    const user = userEvent.setup();
+    rtlRender(
+      <AdvancedModeProvider defaultAdvanced>
+        <OutcomeSection />
+      </AdvancedModeProvider>,
+    );
+    await user.click(screen.getByLabelText(/Outcome/i));
+    expect(screen.getByRole("option", { name: "Restricted metric" })).toBeInTheDocument();
+  });
+
+  it("never offers a dimension for the Outcome role, in either mode", async () => {
+    const user = userEvent.setup();
+    for (const advanced of [false, true]) {
+      const view = rtlRender(
+        <AdvancedModeProvider defaultAdvanced={advanced}>
+          <OutcomeSection />
+        </AdvancedModeProvider>,
+      );
+      await user.click(screen.getByLabelText(/Outcome/i));
+      expect(screen.queryByRole("option", { name: "Region" })).not.toBeInTheDocument();
+      view.unmount();
+    }
+  });
+
+  it("keeps a pasted line's X-Axis temporal-only, offering no dimension", async () => {
+    // The standalone tool stays temporal-only: `buildLineShape` coerces the x
+    // column to a number, so a categorical x draws an empty chart, and offering
+    // one suppresses inlineMapping's "retype it as Date" hint. Workstream D
+    // widened this and it was reverted — see chartRegistry.js's line descriptor.
+    const user = userEvent.setup();
+    state.schema = BYOD_SCHEMA;
+    const inlineLine = (columns) =>
+      lineConfig({
+        data: {
+          source: "inline",
+          inline: { columns, rows: [["18–24", "10"]] },
+        },
+        bindings: { y: "Amount" },
+      });
+
+    state.config = inlineLine([
+      { name: "Age group", type: "group" },
+      { name: "Amount", type: "number" },
+    ]);
+    const view = render(<OutcomeSection />);
+    await user.click(screen.getByLabelText(/^X-Axis/i));
+    expect(screen.queryByRole("option", { name: "Age group" })).not.toBeInTheDocument();
+    view.unmount();
+
+    // A date-typed column is what it does offer — the fix the hint points at.
+    state.config = inlineLine([
+      { name: "Wave", type: "date" },
+      { name: "Amount", type: "number" },
+    ]);
+    render(<OutcomeSection />);
+    await user.click(screen.getByLabelText(/^X-Axis/i));
+    expect(screen.getByRole("option", { name: "Wave" })).toBeInTheDocument();
+  });
+
+  it("offers no Benchmark dropdown on a line, a range, or a forest plot", () => {
+    for (const chartType of ["line", "dumbbell", "forest"]) {
+      state.config = lineConfig({ chartType, preset: null, bindings: {} });
+      const view = render(<OutcomeSection />);
+      expect(screen.queryByLabelText(/^Benchmark/i)).not.toBeInTheDocument();
+      view.unmount();
+    }
+  });
+
+  it("hides the Series dropdown out of advanced mode and shows it in", () => {
+    const basic = render(<OutcomeSection />);
+    expect(screen.queryByLabelText(/^Series/i)).not.toBeInTheDocument();
+    basic.unmount();
+
+    rtlRender(
+      <AdvancedModeProvider defaultAdvanced>
+        <OutcomeSection />
+      </AdvancedModeProvider>,
+    );
+    expect(screen.getByLabelText(/^Series/i)).toBeInTheDocument();
   });
 
   it("writes bar orientation to appearance", async () => {

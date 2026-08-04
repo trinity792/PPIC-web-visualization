@@ -11,7 +11,7 @@ import {
   reduceChartConfig,
 } from "@/components/chart-builder/chartConfigStore";
 import { SPEC_VERSION } from "@/lib/visualization/chartSpec";
-import { BYOD_SCHEMA } from "@/lib/visualization/moduleRegistry";
+import { BYOD_SCHEMA, getModuleSchema } from "@/lib/visualization/moduleRegistry";
 
 const schema = {
   id: "testmodule",
@@ -175,6 +175,54 @@ describe("manual encoding (autoBind: false)", () => {
     expect(line.bindings).toMatchObject({ x: "Year", y: "Total Widgets" });
     const bar = dispatch(line, { type: "SET_CHART_TYPE", chartType: "bar" });
     expect(bar.bindings).toMatchObject({ category: "Location", y: "Total Widgets" });
+  });
+
+  it("an autoBind:false store reports no preset findings on open", () => {
+    const pophousing = getModuleSchema("pophousing");
+    const config = createChartConfig(pophousing, {}, manual);
+    expect(config.validation.map((finding) => finding.code)).not.toContain(
+      "MISSING_PRESET_ROLE",
+    );
+    expect(config.validation.map((finding) => finding.code)).not.toContain(
+      "UNKNOWN_PRESET",
+    );
+  });
+
+  it("an autoBind:false store reports no preset findings after a chart-type switch", () => {
+    const pophousing = getModuleSchema("pophousing");
+    const initial = createChartConfig(pophousing, {}, manual);
+    const switched = reduceChartConfig(
+      initial,
+      { type: "SET_CHART_TYPE", chartType: "scatter" },
+      pophousing,
+      manual,
+    );
+    expect(switched.validation.map((finding) => finding.code)).not.toContain(
+      "MISSING_PRESET_ROLE",
+    );
+    expect(switched.validation.map((finding) => finding.code)).not.toContain(
+      "UNKNOWN_PRESET",
+    );
+  });
+
+  it("an autoBind:true store still reports preset findings", () => {
+    const pophousing = getModuleSchema("pophousing");
+    const initial = createChartConfig(pophousing);
+    const incomplete = reduceChartConfig(
+      initial,
+      { type: "SET_BINDING", role: "y", field: null },
+      pophousing,
+      { autoBind: true },
+    );
+    expect(incomplete.validation.map((finding) => finding.code)).toContain(
+      "MISSING_PRESET_ROLE",
+    );
+  });
+
+  it("a config still carries its preset id with autoBind off", () => {
+    const pophousing = getModuleSchema("pophousing");
+    const config = createChartConfig(pophousing, {}, manual);
+    expect(config.preset).toBe("trend-over-time");
   });
 });
 

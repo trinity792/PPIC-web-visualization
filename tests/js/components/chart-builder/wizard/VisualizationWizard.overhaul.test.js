@@ -31,9 +31,6 @@ vi.mock("@/components/chart-builder/MultiChartToolbar", () => ({
 vi.mock("@/components/chart-builder/wizard/steps/ImportStep", () => ({
   default: () => <div>Import content</div>,
 }));
-vi.mock("@/components/chart-builder/wizard/steps/ChartTypeStep", () => ({
-  default: () => <div>Chart Type content</div>,
-}));
 vi.mock("@/components/chart-builder/wizard/steps/EditStep", () => ({
   default: () => <div>Edit content</div>,
 }));
@@ -47,34 +44,45 @@ import VisualizationWizard, {
 import * as wizardModule from "@/components/chart-builder/wizard/VisualizationWizard";
 
 describe("standalone VisualizationWizard after module divergence", () => {
-  it("retains Import → Chart Type → Edit → Export and data-ready gating", async () => {
-    const user = userEvent.setup();
+  it("shows exactly three steps", () => {
     state.config = { data: { source: "inline", inline: null } };
-    const { rerender } = render(
-      <VisualizationWizard schema={state.schema} initialConfig={{}} />,
-    );
-    expect(DEFAULT_STEPS).toEqual(["import", "chartType", "edit", "export"]);
-    expect(screen.getAllByRole("button").slice(0, 4).map((button) => button.textContent)).toEqual([
-      "Import",
-      "Chart Type",
-      "Edit",
-      "Export",
-    ]);
-    expect(screen.getByRole("button", { name: "Chart Type" })).toBeDisabled();
+    render(<VisualizationWizard schema={state.schema} initialConfig={{}} />);
+    expect(DEFAULT_STEPS).toEqual(["import", "edit", "export"]);
+    expect(
+      screen.getAllByRole("button").slice(0, 3).map((button) => button.textContent),
+    ).toEqual(["Import", "Edit", "Export"]);
+  });
 
+  it("offers no Chart Type step", () => {
+    render(<VisualizationWizard schema={state.schema} initialConfig={{}} />);
+    expect(screen.queryByRole("button", { name: "Chart Type" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Chart Type content")).not.toBeInTheDocument();
+  });
+
+  it("disables Edit and Export until a table is imported", () => {
+    state.config = { data: { source: "inline", inline: null } };
+    render(<VisualizationWizard schema={state.schema} initialConfig={{}} />);
+    expect(screen.getByRole("button", { name: "Edit" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Export" })).toBeDisabled();
+  });
+
+  it("falls back to Import when the table is cleared", async () => {
+    const user = userEvent.setup();
     state.config = {
       data: {
         source: "inline",
         inline: { columns: [{ name: "Value", type: "number" }], rows: [[1]] },
       },
     };
-    rerender(<VisualizationWizard schema={state.schema} initialConfig={{}} />);
-    await user.click(screen.getByRole("button", { name: "Chart Type" }));
-    expect(screen.getByText("Chart Type content")).toBeInTheDocument();
+    const { rerender } = render(
+      <VisualizationWizard schema={state.schema} initialConfig={{}} />,
+    );
     await user.click(screen.getByRole("button", { name: "Edit" }));
     expect(screen.getByText("Edit content")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Export" }));
-    expect(screen.getByText("Export content")).toBeInTheDocument();
+
+    state.config = { data: { source: "inline", inline: null } };
+    rerender(<VisualizationWizard schema={state.schema} initialConfig={{}} />);
+    expect(await screen.findByText("Import content")).toBeInTheDocument();
   });
 
   it("removes the module-only steps export", () => {
@@ -85,9 +93,9 @@ describe("standalone VisualizationWizard after module divergence", () => {
     const files = [
       "components/chart-builder/wizard/VisualizationWizard.js",
       "components/chart-builder/wizard/steps/ImportStep.js",
-      "components/chart-builder/wizard/steps/ChartTypeStep.js",
       "components/chart-builder/wizard/steps/EditStep.js",
       "components/chart-builder/wizard/steps/ExportStep.js",
+      "components/chart-builder/sections/EditorSidebar.js",
     ];
     const source = files
       .map((file) => fs.readFileSync(path.join(process.cwd(), file), "utf8"))

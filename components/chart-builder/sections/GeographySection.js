@@ -64,10 +64,8 @@ const COLLAPSED_LOCATION_COUNT = 7;
  * Chart types whose categories are the places themselves, so ordering and
  * ranking belong in this section rather than in Categories.
  *
- * `divergingBar` is not listed (Workstream B): it retired to a `bar` variant
- * flag, so a diverging bar's `chartType` is "bar" and already matches here —
- * listing the retired id too would be redundant, not incorrect, since it is
- * never live in the editor once normalizeSpec has rewritten it.
+ * A diverging bar needs no entry of its own (Workstream B): it retired to a
+ * `bar` variant flag, so its `chartType` is "bar" and already matches here.
  */
 const PLACE_CATEGORY_CHART_TYPES = new Set(["line", "bar"]);
 

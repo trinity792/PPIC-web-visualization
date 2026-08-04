@@ -65,7 +65,6 @@ describe("isImpliedRole", () => {
   it("is descriptor-only, independent of any schema", () => {
     expect(isImpliedRole("line", "x")).toBe(true);
     expect(isImpliedRole("bar", "category")).toBe(true);
-    expect(isImpliedRole("divergingBar", "category")).toBe(true);
     expect(isImpliedRole("line", "y")).toBe(false);
     expect(isImpliedRole("forest", "category")).toBe(false);
   });

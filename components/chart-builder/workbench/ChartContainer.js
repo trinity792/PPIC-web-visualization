@@ -35,8 +35,11 @@ import DataTableView from "@/components/charts/DataTableView";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card } from "@/components/ui/card";
 
+import { useAdvancedMode } from "@/components/chart-builder/advancedMode";
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import { loadFullTable } from "@/components/chart-builder/chartData";
+import { useEditorCapabilities } from "@/components/chart-builder/editorCapabilities";
+import MultiChartToolbar from "@/components/chart-builder/MultiChartToolbar";
 import { usePreview } from "@/components/chart-builder/wizard/PreviewContext";
 import PreviewPane from "@/components/chart-builder/wizard/PreviewPane";
 import ChartContainerFooter from "@/components/chart-builder/workbench/ChartContainerFooter";
@@ -164,9 +167,12 @@ function FullDataTable({ status, table, error, schemaLabel }) {
  * stretches to it jump on every toggle.
  *
  * Re-measures when the preview status changes, since the skeleton, the spinner
- * and a rendered chart are not all the same height.
+ * and a rendered chart are not all the same height. Also re-measures when the
+ * chart grid itself changes shape (a chart added/removed, or the layout
+ * switched) — F4: a 2x2 grid measures a different height than a single chart,
+ * and that height must not stay pinned to whatever a prior grid measured.
  */
-function useChartViewHeight(viewMode, status) {
+function useChartViewHeight(viewMode, status, workspace) {
   const bodyRef = useRef(null);
   const [height, setHeight] = useState(null);
 
@@ -175,19 +181,21 @@ function useChartViewHeight(viewMode, status) {
     // 0 in jsdom, which has no layout; the CSS floor stands in.
     const measured = bodyRef.current?.offsetHeight;
     if (measured) setHeight(measured);
-  }, [viewMode, status]);
+  }, [viewMode, status, workspace?.charts?.length, workspace?.layout]);
 
   return { bodyRef, height };
 }
 
 export default function ChartContainer({ embedded = false }) {
-  const { schema } = useChartConfig();
+  const { schema, workspace } = useChartConfig();
   const { status, result, graphDivRef, graphDivRefs, previews } = usePreview();
+  const { advanced } = useAdvancedMode();
+  const capabilities = useEditorCapabilities();
   const [viewMode, setViewMode] = useState("chart");
   // Lifted above the toggle so the loaded dataset survives switching back to the
   // chart — the table unmounts, but the fetch must not repeat.
   const dataset = useFullTable(viewMode === "data");
-  const { bodyRef, height } = useChartViewHeight(viewMode, status);
+  const { bodyRef, height } = useChartViewHeight(viewMode, status, workspace);
 
   if (embedded) return <PreviewPane embedded />;
 
@@ -198,6 +206,8 @@ export default function ChartContainer({ embedded = false }) {
           {schema.label}
         </span>
       </h2>
+
+      {capabilities.multiChart && advanced ? <MultiChartToolbar /> : null}
 
       <div
         ref={bodyRef}

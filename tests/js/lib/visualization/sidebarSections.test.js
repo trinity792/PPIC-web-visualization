@@ -28,6 +28,25 @@ function config(chartType = "line") {
   return { chartType, filters: { subset: "Counties", locations: [] } };
 }
 
+/**
+ * Every section a line chart shows on the fixture schema above, hand-written in
+ * registry order. Transform is deliberately absent: this schema declares no
+ * `filterDimensions` and its one measure declares no `transforms`, so after
+ * Workstream D deleted the `benchmark` role there is nothing left to open the
+ * section with — see "drops the Transform header when the bound measure allows
+ * a single transform" below.
+ */
+const LINE_SECTIONS = [
+  "datasets",
+  "chart-type",
+  "axis",
+  "date-range",
+  "geography",
+  "labels",
+  "appearance",
+  "typography",
+];
+
 describe("visibleSectionsFor", () => {
   it("gates keyed sections with the chart descriptor's sidebarSections", () => {
     const line = visibleSectionsFor(config("line"), schema).map((item) => item.value);
@@ -35,11 +54,10 @@ describe("visibleSectionsFor", () => {
       (item) => item.value,
     );
 
-    expect(line).toEqual(
-      expect.arrayContaining(["axis", "transform", "labels", "appearance"]),
-    );
+    // Transform is not asserted here either way: it carries no `key`, so it is
+    // gated by `when` and belongs to the dedicated cases below, not to this one.
+    expect(line).toEqual(expect.arrayContaining(["axis", "labels", "appearance"]));
     expect(table).not.toContain("axis");
-    expect(table).not.toContain("transform");
     expect(table).toEqual(expect.arrayContaining(["labels", "appearance"]));
   });
 
@@ -62,6 +80,12 @@ describe("visibleSectionsFor", () => {
       schema,
     ).map((item) => item.value);
     expect(single).not.toContain("transform");
+
+    const line = visibleSectionsFor(
+      { ...config("line"), bindings: { x: "Year", y: "Value" } },
+      schema,
+    ).map((item) => item.value);
+    expect(line).not.toContain("transform");
 
     const many = visibleSectionsFor(
       { ...config("choroplethMap"), bindings: { color: "Value" } },
@@ -145,7 +169,13 @@ describe("visibleSectionsFor", () => {
   });
 
   it("applies only and exclude without changing registry order", () => {
+    // The registry's declared order, asserted against the hand-written list so a
+    // reordering of either shows up here rather than cancelling out.
     const registryOrder = SIDEBAR_SECTIONS.map((item) => item.value);
+    expect(registryOrder.filter((value) => LINE_SECTIONS.includes(value))).toEqual(
+      LINE_SECTIONS,
+    );
+
     const requested = ["appearance", "datasets", "axis", "chart-type"];
     const only = visibleSectionsFor(config(), schema, { only: requested }).map(
       (item) => item.value,
@@ -154,9 +184,10 @@ describe("visibleSectionsFor", () => {
       exclude: ["chart-type", "datasets"],
     }).map((item) => item.value);
 
-    expect(only).toEqual(registryOrder.filter((value) => requested.includes(value)));
+    // Requested out of order on purpose: the result is registry order regardless.
+    expect(only).toEqual(LINE_SECTIONS.filter((value) => requested.includes(value)));
     expect(excluded).toEqual(
-      registryOrder.filter((value) => !["chart-type", "datasets"].includes(value)),
+      LINE_SECTIONS.filter((value) => !["chart-type", "datasets"].includes(value)),
     );
   });
 });

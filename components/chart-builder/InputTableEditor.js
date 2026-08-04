@@ -46,8 +46,8 @@ import {
 import { cn } from "@/components/ui/utils";
 
 import { addDerivedColumn, compileFormula } from "@/lib/tabular/derivedColumns";
-import { inferColumnType } from "@/lib/tabular/columnTypes";
 import { GRADE_CLASSNAMES, gradeTable } from "@/lib/tabular/tableChecker";
+import { transposeTable } from "@/lib/tabular/transposeTable";
 
 const PAGE_SIZE = 100;
 const COLUMN_TYPE_OPTIONS = ["text", "group", "number", "date"];
@@ -68,9 +68,12 @@ function renameColumn(table, columnIndex, name) {
   return { ...table, columns };
 }
 
+// `forced: true` marks a type the reader picked, as opposed to one
+// `inferColumnType` guessed — the only thing that lets transpose (below) tell
+// a reader's decision from an inference. Nothing else reads it.
 function setColumnType(table, columnIndex, type) {
   const columns = table.columns.map((column, index) =>
-    index === columnIndex ? { ...column, type } : column,
+    index === columnIndex ? { ...column, type, forced: true } : column,
   );
   return { ...table, columns };
 }
@@ -110,26 +113,6 @@ function toggleHeaderRow(table) {
     name: firstRow[index] ?? column.name,
   }));
   return { ...table, columns, rows: [oldHeaderRow, ...restRows] };
-}
-
-/** Matrix-transpose the whole grid (header row included), then re-declare
- * the new row 0 as headers — the conventional spreadsheet "transpose". */
-function transpose(table) {
-  const header = table.columns.map((column) => column.name);
-  const grid = [header, ...table.rows];
-  const rowCount = grid.length;
-  const colCount = header.length;
-  const transposed = Array.from({ length: colCount }, (_, c) =>
-    Array.from({ length: rowCount }, (_, r) => grid[r][c] ?? ""),
-  );
-  const [newHeader, ...newRows] = transposed;
-  const columns = newHeader.map((name, index) => ({
-    name: name || `Column ${index + 1}`,
-    type: inferColumnType(newRows.map((row) => row[index]), {
-      columnName: name,
-    }).type,
-  }));
-  return { columns, rows: newRows, issues: [] };
 }
 
 export default function InputTableEditor({ table, onChange, onRevert }) {
@@ -187,7 +170,14 @@ export default function InputTableEditor({ table, onChange, onRevert }) {
           variant="outline"
           size="sm"
           className="gap-1.5"
-          onClick={() => commit(transpose(table))}
+          onClick={() => {
+            // Hidden columns are held as component-state indices, and a
+            // transpose invalidates every one of them — a hidden column
+            // reappearing is a smaller surprise than an unrelated column
+            // vanishing.
+            setHiddenColumns(new Set());
+            commit(transposeTable(table));
+          }}
         >
           <ArrowLeftRight aria-hidden="true" className="size-3.5" />
           Transpose
@@ -244,7 +234,16 @@ export default function InputTableEditor({ table, onChange, onRevert }) {
                           value={column.type}
                           onValueChange={(type) => commit(setColumnType(table, columnIndex, type))}
                         >
-                          <SelectTrigger size="sm" className="text-xs">
+                          <SelectTrigger
+                            size="sm"
+                            className="text-xs"
+                            // This select is the only indicator of a column's
+                            // type, so it needs a name that says which column
+                            // it belongs to — for a screen reader, and for the
+                            // transpose tests that assert the forced type
+                            // travels with the column (Workstream G).
+                            aria-label={`Column type for ${column.name}`}
+                          >
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>

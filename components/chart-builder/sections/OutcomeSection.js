@@ -54,6 +54,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 
+import { useAdvancedMode } from "@/components/chart-builder/advancedMode";
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import { tabValues } from "@/lib/tabular/toSeries";
 import {
@@ -139,7 +140,6 @@ export function roleLabel(role, chartType) {
   if (role === "color" && colorIsMeasure(chartType)) return "Outcome";
   if (AXIS_LABELS[role]) return AXIS_LABELS[role];
   const labels = {
-    benchmark: "Benchmark",
     facet: "Facet",
     category: "Category",
     geography: "Geography",
@@ -172,7 +172,7 @@ export function roleLabel(role, chartType) {
  * place its Color binding in Appearance; this changes only where the control is
  * rendered, not the binding stored in config.
  */
-function rolesFor(config, schema) {
+function rolesFor(config, schema, { advanced = false } = {}) {
   const chart = getChartType(config.chartType);
   if (!chart) return [];
   const declared = [...chart.requiredRoles, ...chart.optionalRoles].filter(
@@ -183,7 +183,12 @@ function rolesFor(config, schema) {
   return withGroup.filter(
     (role) =>
       !implied[role] &&
-      !(role === "color" && chart.colorBindingSection === "appearance"),
+      !(role === "color" && chart.colorBindingSection === "appearance") &&
+      // Workstream D: a Series binding is read only by the pasted-data path
+      // (toSeries.js/exportTable.js) — inert on a module — so it moves behind
+      // Advanced Mode rather than being deleted outright (the byod path
+      // genuinely needs it).
+      (role !== "series" || advanced),
   );
 }
 
@@ -196,15 +201,13 @@ function acceptedKinds(chart, role) {
 
 export default function OutcomeSection({ allowLayers = false }) {
   const { config, dispatch, schema } = useChartConfig();
+  const { advanced } = useAdvancedMode();
   const chart = getChartType(config.chartType);
-  const roles = rolesFor(config, schema);
+  const roles = rolesFor(config, schema, { advanced });
   const implied = impliedBindings(config.chartType, schema);
-  // Workstream B: a diverging bar is `appearance.diverging` on a plain `bar`
-  // now, not a separate chart type. `chartType === "divergingBar"` is kept
-  // alongside it only for a config that has not yet passed through
-  // normalizeSpec's retirement rewrite.
-  const diverging =
-    config.chartType === "divergingBar" || Boolean(config.appearance?.diverging);
+  // Workstream B: a diverging bar is `appearance.diverging` on a plain `bar`,
+  // not a separate chart type.
+  const diverging = Boolean(config.appearance?.diverging);
 
   // Inline (byod) fields carry no measure catalog, so only the kind filter
   // applies; module fields also honor the per-field catalog-role restriction.
@@ -227,7 +230,18 @@ export default function OutcomeSection({ allowLayers = false }) {
               ) {
                 return false;
               }
-              return !isMeasure(field) || !catalogRole || supportsRole(field, catalogRole);
+              // Workstream D: out of Advanced Mode, a measure must list this
+              // role among its catalog `chartRoles` — the curation decision
+              // made per module in the schema files. In Advanced Mode this
+              // becomes an escape hatch rather than a wall: every field of
+              // the accepted kind is offered, and `ROLE_NOT_IN_CATALOG`
+              // (validation.js) tells the reader why the curation existed.
+              return (
+                !isMeasure(field) ||
+                !catalogRole ||
+                supportsRole(field, catalogRole) ||
+                advanced
+              );
             })
             .sort(([, a], [, b]) =>
               role === "group" ? Number(Boolean(b.isGroup)) - Number(Boolean(a.isGroup)) : 0,
@@ -287,7 +301,7 @@ export default function OutcomeSection({ allowLayers = false }) {
           who wants a horizontal diverging bar sets orientation themselves, and
           the diverging presets keep supplying orientation: "horizontal" for
           the case where nobody wants to. */}
-      {["bar", "divergingBar"].includes(config.chartType) ? (
+      {config.chartType === "bar" ? (
         <div className="grid gap-2">
           <Label htmlFor="appearance-orientation">Orientation</Label>
           <Select
@@ -309,10 +323,7 @@ export default function OutcomeSection({ allowLayers = false }) {
 
       {/* Bar absorbs Diverging Bar (Workstream B): a variant flag, not a
           separate chart type, matching how `pie` already varies through
-          `hole`. Not offered for the legacy `divergingBar` id itself — a
-          config still carrying that id has not yet passed through
-          normalizeSpec's retirement rewrite, so there is nothing for the
-          switch to turn off. */}
+          `hole`. */}
       {config.chartType === "bar" ? (
         <div className="flex items-center justify-between gap-3">
           <Label htmlFor="appearance-diverging">Diverging bars</Label>

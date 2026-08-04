@@ -51,7 +51,6 @@
 
 import React from "react";
 
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
@@ -86,14 +85,6 @@ const INLINE_TRANSFORM_LABELS = {
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
-/** Whether a chart type takes a benchmark series, and so a benchmark label. */
-function takesBenchmark(chart) {
-  return [
-    ...(chart?.requiredRoles || []),
-    ...(chart?.optionalRoles || []),
-  ].includes("benchmark");
-}
-
 /**
  * Whether this section has any control to offer — the registry's `when` gate.
  *
@@ -102,18 +93,17 @@ function takesBenchmark(chart) {
  * available on a data table or a symbol map, where no transform applies.
  *
  * The transform radios then need a chart type that can express a transform
- * (scatter, pie, and the range family cannot) plus either a real choice of
- * transforms from `transformOptions` or a benchmark role to label instead. One
- * lone "Actual Value" radio reads as a broken control, so it is never drawn.
+ * (scatter, pie, and the range family cannot) plus a real choice of transforms
+ * from `transformOptions`. One lone "Actual Value" radio reads as a broken
+ * control, so it is never drawn — this is also why the deleted `benchmark`
+ * role (Workstream D) can no longer prop the section open on its own.
  */
 export function hasTransformControls(config, schema) {
   if (schema?.filterDimensions?.length) return true;
   const chart = getChartType(config.chartType);
   if (!chart?.transformCapable) return false;
-  const { transforms, inline } = transformOptions(config, schema);
-  // A benchmark is a module series (the "Difference from Benchmark" comparison
-  // fetches it); an imported table has none, so it cannot open the section.
-  return transforms.length > 1 || (!inline && takesBenchmark(chart));
+  const { transforms } = transformOptions(config, schema);
+  return transforms.length > 1;
 }
 
 // ── Section ──────────────────────────────────────────────────────────
@@ -135,11 +125,10 @@ export default function TransformSection() {
     : transforms[0];
   const labels = inline ? INLINE_TRANSFORM_LABELS : TRANSFORM_LABELS;
   const basePeriodLabel = inline ? "Base period" : "Base year";
-  // Both re-check `transformCapable`, because stratification alone can open the
+  // Re-checks `transformCapable`, because stratification alone can open the
   // section now: a scatter plot on a stratified module gets the pins without
   // acquiring transform radios it cannot honour.
   const transformable = Boolean(chart?.transformCapable);
-  const supportsBenchmark = transformable && !inline && takesBenchmark(chart);
   const hasChoice = transformable && transforms.length > 1;
 
   return (
@@ -208,24 +197,6 @@ export default function TransformSection() {
       ) : null}
 
       <StratificationFilters />
-
-      {supportsBenchmark ? (
-        <div className="grid gap-2">
-          <Label htmlFor="transform-benchmark">Benchmark label</Label>
-          <Input
-            id="transform-benchmark"
-            value={config.filters?.benchmark || ""}
-            placeholder="e.g. California"
-            onChange={(event) =>
-              dispatch({
-                type: "SET_FILTER",
-                key: "benchmark",
-                value: event.target.value,
-              })
-            }
-          />
-        </div>
-      ) : null}
     </div>
   );
 }

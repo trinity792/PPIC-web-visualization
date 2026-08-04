@@ -1,9 +1,8 @@
 /**
- * Tests for lib/export/exportTable.js - Phase 5's canonical displayed-data
- * export path. These are acceptance tests for the pending export phase: the
- * CSV/XLSX export, generated R/Stata code, and chart data share the exact same
- * table object. Generator coverage stays until the Phase 9 open question about
- * preserving code generation as an export-menu action is resolved.
+ * Tests for lib/export/exportTable.js - the canonical displayed-data export
+ * path. The CSV/XLSX export and the chart data share the exact same table
+ * object. The R/Stata generators read it too until they were deleted
+ * 2026-08-03; see .trash/code-editor.md.
  */
 
 import { describe, expect, it, vi } from "vitest";
@@ -16,8 +15,6 @@ import {
   toCsv,
   toXlsxBlob,
 } from "@/lib/export/exportTable";
-import { toRCode } from "@/lib/visualization/codebridge/toRCode";
-import { toStataCode } from "@/lib/visualization/codebridge/toStataCode";
 
 const baseSpec = {
   version: 2,
@@ -147,7 +144,10 @@ describe("displayTable", () => {
     ]);
   });
 
-  it("returns the same table object consumed by CSV and R/Stata generation", () => {
+  it("returns a table whose headers and rows survive CSV serialization", () => {
+    // This case also pinned the R/Stata generators, which read the same table
+    // and its filename. They were deleted 2026-08-03 (see .trash/code-editor.md);
+    // the CSV half is the contract that remains.
     const spec = {
       ...baseSpec,
       chartType: "scatter",
@@ -166,10 +166,7 @@ describe("displayTable", () => {
         "Alameda,90000,2200\r\n" +
         "Butte,54000,1200\r\n",
     );
-    expect(toRCode(spec, table).code).toContain(`read_csv("${table.filename}")`);
-    expect(toStataCode(spec, table).code).toContain(
-      `import delimited "${table.filename}", clear`,
-    );
+    expect(table.filename).toMatch(/\.csv$/);
   });
 });
 

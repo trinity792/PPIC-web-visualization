@@ -62,11 +62,19 @@ describe("isChartTypeAvailable", () => {
     expect(isChartTypeAvailable("symbolMap", BYOD_SCHEMA)).toBe(false);
   });
 
-  it("still honours supportedChartTypes and the hidden marker", () => {
+  it("still honours supportedChartTypes", () => {
     expect(isChartTypeAvailable("line", RHNA_PROGRESS_SCHEMA)).toBe(false);
     expect(isChartTypeAvailable("bar", RHNA_PROGRESS_SCHEMA)).toBe(true);
-    expect(isChartTypeAvailable("divergingBar", POPHOUSING_SCHEMA)).toBe(false);
   });
+
+  it("never offers an unregistered id, retired or invented", () => {
+    // `divergingBar`'s descriptor is deleted; a stored view carrying the id is
+    // rewritten to "bar" by normalizeSpec long before a gallery asks about it.
+    expect(isChartTypeAvailable("divergingBar", POPHOUSING_SCHEMA)).toBe(false);
+    expect(isChartTypeAvailable("slope", POPHOUSING_SCHEMA)).toBe(false);
+    expect(isChartTypeAvailable("notAChartType", POPHOUSING_SCHEMA)).toBe(false);
+  });
+
 });
 
 describe("availableChartTypes", () => {

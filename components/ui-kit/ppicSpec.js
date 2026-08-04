@@ -9,6 +9,11 @@
  * sections of the UI Kit, which document the source-of-truth guidance rather
  * than the app's adapted implementation.
  *
+ * The colour RAMPS moved to `lib/visualization/ppicRamps.js` and are
+ * re-exported below: `palettes.js` renders from them, and `lib/` must not
+ * import from `components/`. They are still the same guide-verbatim values;
+ * this module remains the place the UI Kit reads them from.
+ *
  * Consumers:
  *   - OfficialSpecShowcase.js
  *   - ColorMappingShowcase.js
@@ -17,6 +22,12 @@
  *   - DataTablesShowcase.js
  *   - ToolingShowcase.js
  */
+
+// The guide's colour ramps, owned by the renderer-side module (see above).
+export {
+  PPIC_CHOROPLETH_DIVERGENT,
+  PPIC_SEQUENTIAL,
+} from "@/lib/visualization/ppicRamps";
 
 // ── Main graphic colors (guide p.13) ─────────────────────────────────
 export const PPIC_MAIN_COLORS = [
@@ -36,19 +47,6 @@ export const PPIC_MAIN_COLORS = [
 export const PPIC_HEX = Object.fromEntries(
   PPIC_MAIN_COLORS.map((c) => [c.name, c.hex]),
 );
-
-// ── Sequential shade ramps, lightest → darkest (guide p.13) ──────────
-export const PPIC_SEQUENTIAL = [
-  { name: "Orange", stops: ["#F9E1D9", "#E9632A", "#CA4F1A", "#8F3811"] },
-  { name: "Green", stops: ["#DEE5E2", "#BDE3D0", "#42BC89", "#196348", "#02391D"] },
-  { name: "Blue", stops: ["#E4EDF1", "#D6F0FB", "#44AFD0", "#0F4880"] },
-  { name: "Violet", stops: ["#EEECEF", "#E5D6F0", "#A171B8", "#693692", "#3C0965"] },
-  { name: "Red", stops: ["#F2DDDC", "#DBA19F", "#9F1511", "#832522", "#470806"] },
-  { name: "Seafoam", stops: ["#DFE8E7", "#A2CDC8", "#02BDA7", "#0C6F63", "#02332D"] },
-  { name: "Lime", stops: ["#E7E6E0", "#EEED9C", "#CCCB74", "#9A9803", "#494908"] },
-  { name: "Navy", stops: ["#DFDFDF", "#C1CFE3", "#546D91", "#293B54", "#071323"] },
-  { name: "Gray", stops: ["#EFF0F2", "#DDDDDD", "#AFAEAD", "#7B7B77", "#191918"] },
-];
 
 // ── Categorical pairings for two groups (guide p.14) ─────────────────
 export const PPIC_TWO_GROUP_PAIRS = [
@@ -78,12 +76,6 @@ export const PPIC_GROUP_SCHEMES = [
   { count: 9, colors: ["Orange", "Navy", "Lime", "Blue", "Violet", "Seafoam", "Gray", "Red", "Dark Gray"] },
   { count: 10, colors: ["Orange", "Navy", "Lime", "Blue", "Violet", "Seafoam", "Gray", "Red", "Green", "Dark Gray"] },
 ];
-
-// ── Choropleth divergent colorway (guide p.29) ───────────────────────
-export const PPIC_CHOROPLETH_DIVERGENT = {
-  negative: ["#8F3811", "#CA4F1A", "#E9632A", "#FFCEBD"],
-  positive: ["#ECE8E7", "#CBE3ED", "#44AFD0", "#0F4880"],
-};
 
 // ── Typography roles (guide pp.11–12) ────────────────────────────────
 export const PPIC_TYPE_ROLES = [

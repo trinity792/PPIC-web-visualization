@@ -238,14 +238,24 @@ describe("TransformSection", () => {
       expect(hasTransformControls(config({ chartType: "dumbbell" }), schema)).toBe(false);
     });
 
-    it("reports nothing to render when a single transform is allowed and no benchmark", () => {
+    it("hides the Transform section for a single-transform measure with no stratification", () => {
       const single = { ...schema, fields: { Stock: { kind: "measure", transforms: ["actual"] } } };
       expect(hasTransformControls(config({ chartType: "choroplethMap" }), single)).toBe(
         false,
       );
-      // A line chart takes a benchmark label, so it keeps the section even
-      // with one transform.
-      expect(hasTransformControls(config(), single)).toBe(true);
+      expect(hasTransformControls(config(), single)).toBe(false);
+    });
+
+    it("keeps the Transform section when filterDimensions exist", () => {
+      const stratified = {
+        ...schema,
+        fields: { Stock: { kind: "measure", transforms: ["actual"] } },
+        filterDimensions: [
+          { column: "Sex", label: "Sex", values: ["All"], default: "All" },
+        ],
+      };
+      expect(hasTransformControls(config(), stratified)).toBe(true);
+      expect(hasTransformControls(config({ chartType: "scatter" }), stratified)).toBe(true);
     });
 
     it("reports controls whenever the measure offers a real choice", () => {
@@ -254,5 +264,14 @@ describe("TransformSection", () => {
       );
       expect(hasTransformControls(config(), schema)).toBe(true);
     });
+  });
+
+  it("offers no benchmark label input", () => {
+    for (const chartType of ["line", "dumbbell", "forest"]) {
+      state.config = config({ chartType });
+      const view = render(<TransformSection />);
+      expect(screen.queryByLabelText(/benchmark label/i)).not.toBeInTheDocument();
+      view.unmount();
+    }
   });
 });

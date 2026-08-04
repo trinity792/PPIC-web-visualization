@@ -2,16 +2,20 @@
 
 /**
  * ExportStep.js — wizard step "Export": the export surface (image PNG/SVG/JPG/
- * PDF, data CSV/XLSX, config JSON) driven by the shared ExportMenu, plus saved-
- * view actions. Reads the same loaded result and mounted graph div the preview
- * rendered (via usePreview), so exports come off the exact displayed figure.
+ * PDF, data CSV/XLSX, config JSON) driven by the shared ExportMenu. Reads the
+ * same loaded result and mounted graph div the preview rendered (via
+ * usePreview), so exports come off the exact displayed figure.
+ *
+ * Workstream F: saved-view actions (`FooterActions`) moved to the Edit step's
+ * `EditorSidebar`, gated on Advanced Mode alongside presets and the activity
+ * log, rather than mounting unconditionally here too — one gated home instead
+ * of two mountings with different visibility rules for the same actions.
  *
  * Props:
  *   (none)
  *
  * Data sources:
  *   - components/chart-builder/ExportMenu.js
- *   - components/chart-builder/ChartSidebar.js (FooterActions — saved views)
  *   - components/chart-builder/wizard/PreviewContext.js
  *   - GET /api/module-status (dataset "last updated", modules only)
  */
@@ -19,7 +23,6 @@
 import React from "react";
 
 import ExportMenu from "@/components/chart-builder/ExportMenu";
-import { FooterActions } from "@/components/chart-builder/ChartSidebar";
 import DatasetLastUpdated from "@/components/chart-builder/DatasetLastUpdated";
 
 import PreviewPane from "@/components/chart-builder/wizard/PreviewPane";
@@ -54,13 +57,6 @@ export default function ExportStep() {
               Finish building a valid chart to enable export.
             </p>
           )}
-        </div>
-
-        <div className="grid gap-2">
-          <div className="inline-block self-start border-b-2 border-ppic-brand pb-0.5 font-heading text-base font-semibold">
-            Saved views
-          </div>
-          <FooterActions />
         </div>
       </div>
     </StepShell>

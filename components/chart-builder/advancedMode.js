@@ -17,6 +17,8 @@
  *   AdvancedModeProvider — holds the flag for one editor shell
  *   useAdvancedMode()    — { advanced } for sections deciding what to render
  *   AdvancedModeToggle   — the switch itself; must sit inside the provider
+ *   AdvancedModeBoundary — provides only where no ancestor already does
+ *                          (Workstream F4; see its own doc comment)
  *
  * Data sources:
  *   - None (component state)
@@ -56,6 +58,31 @@ export function AdvancedModeProvider({ defaultAdvanced = false, children }) {
 
 export function useAdvancedMode() {
   return useContext(AdvancedModeContext) || ALWAYS_VISIBLE;
+}
+
+/**
+ * A provider that only provides when nothing already does.
+ *
+ * `ModuleSidebar` needs its own provider so `AdvancedModeToggle` works when the
+ * component is rendered on its own (as its unit tests do) — but on the real
+ * module workbench (Workstream F4), `ChartContainer` sits beside it as a
+ * sibling and needs the *same* flag, live, so toggling the switch in the
+ * sidebar shows or hides the multi-chart toolbar over in the chart container.
+ * A second, independently-stated provider nested inside the sidebar could
+ * never do that: it would shadow the ancestor for the sidebar's own subtree
+ * and leave the chart container reading a different instance entirely.
+ * `ModuleWorkbench` wraps both siblings in one real `AdvancedModeProvider`;
+ * this component detects that ancestor and steps aside, so the two mounting
+ * contexts — standalone and inside the workbench — share one code path.
+ */
+export function AdvancedModeBoundary({ defaultAdvanced = false, children }) {
+  const existing = useContext(AdvancedModeContext);
+  if (existing) return children;
+  return (
+    <AdvancedModeProvider defaultAdvanced={defaultAdvanced}>
+      {children}
+    </AdvancedModeProvider>
+  );
 }
 
 /**

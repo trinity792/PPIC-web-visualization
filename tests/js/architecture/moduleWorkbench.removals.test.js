@@ -24,7 +24,26 @@ function importers(pattern) {
   return sourceFiles.filter((file) => pattern.test(fs.readFileSync(file, "utf8")));
 }
 
+/**
+ * Strip block and line comments so a name can be *discussed* in a file without
+ * counting as wiring. Workstream F4 gave ModuleSidebar a comment explaining why
+ * MultiChartToolbar belongs beside the chart grid instead of in the rail, which
+ * a raw substring check read as the very thing the comment says it isn't doing.
+ */
+function code(file) {
+  return fs
+    .readFileSync(file, "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/(^|[^:])\/\/.*$/gm, "$1");
+}
+
 describe("overhaul removals", () => {
+  it("lib/visualization/settingsTiers.js no longer exists", () => {
+    expect(
+      fs.existsSync(path.join(root, "lib/visualization/settingsTiers.js")),
+    ).toBe(false);
+  });
+
   it("has no component importing the settings-tier visibility gate", () => {
     const componentFiles = sourceFiles.filter((file) => file.includes(`${path.sep}components${path.sep}`));
     const offenders = componentFiles.filter((file) =>
@@ -33,6 +52,16 @@ describe("overhaul removals", () => {
       ),
     );
     expect(offenders).toEqual([]);
+  });
+
+  it("lib/visualization/codebridge no longer exists", () => {
+    // The R/Stata generators outlived the code editor by two releases as a
+    // dormant "copy the code for this chart" export item that was never built.
+    // Asserted on the filesystem, like settingsTiers: the old import-graph
+    // guard would have passed against a directory nobody had deleted.
+    expect(
+      fs.existsSync(path.join(root, "lib/visualization/codebridge")),
+    ).toBe(false);
   });
 
   it("has no production import of the removed codebridge", () => {
@@ -45,7 +74,7 @@ describe("overhaul removals", () => {
       "components/chart-builder/workbench/ModuleSidebar.js",
     );
     expect(fs.existsSync(sidebar), "ModuleSidebar has not been created").toBe(true);
-    const source = fs.readFileSync(sidebar, "utf8");
+    const source = code(sidebar);
     for (const forbidden of [
       "PresetSection",
       "FooterActions",

@@ -118,25 +118,46 @@ describe("retired chart and state shape", () => {
       );
     });
 
-    it("renders identically before and after migration", () => {
+    it("renders a migrated view exactly as a hand-built diverging bar", () => {
+      // The literal "before" figure is no longer producible: the `divergingBar`
+      // descriptor and its `case` in toPlotly's adapter switch were deleted
+      // 2026-08-03. What still has to hold is the thing the deletion put at
+      // risk — that normalizeSpec's rewrite lands on a spec the renderer draws
+      // the same way, dashboard styling and all. So the target is written out
+      // by hand rather than produced from the retired id.
       const series = [
         { category: "Alameda", value: 1.2 },
         { category: "Butte", value: 0.6 },
       ];
       const bindings = { category: "category", y: "value" };
-      const before = toPlotly({
-        chartType: "divergingBar",
+      const expected = toPlotly({
+        chartType: "bar",
         bindings,
         series,
         labels: {},
-        appearance: oldDivergingBarView.appearance,
+        appearance: { diverging: true, ...oldDivergingBarView.appearance },
       });
       const normalized = normalizeSpec(
         { ...oldDivergingBarView, bindings },
         schema,
       );
       const after = toPlotly({ ...normalized, series });
-      expect(after).toEqual(before);
+      expect(after).toEqual(expected);
+    });
+
+    it("draws a center reference the migrated view would otherwise lose", () => {
+      // Guards the assertion above against passing vacuously: if normalizeSpec
+      // stopped setting `diverging`, `after` would render as a plain bar, and a
+      // plain bar has no anchor and no reference shape at all.
+      const series = [{ category: "Alameda", value: 1.2 }];
+      const bindings = { category: "category", y: "value" };
+      const normalized = normalizeSpec(
+        { ...oldDivergingBarView, bindings },
+        schema,
+      );
+      const { data, layout } = toPlotly({ ...normalized, series });
+      expect(data.at(-1).base).toBe(1);
+      expect(layout.shapes?.length).toBeGreaterThan(0);
     });
 
     it("announces the retirement via parseSpec", () => {

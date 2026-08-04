@@ -19,10 +19,10 @@ import { getChartType } from "@/lib/visualization/chartRegistry";
 
 const QUERY_SHAPES = Object.freeze({
   line: "line",
+  // A diverging bar is a `bar` with `appearance.diverging`, so it shares this
+  // single-period category view; toPlotly re-anchors the same
+  // {category, value} records around a center reference.
   bar: "category",
-  // Diverging bar shares the single-period category view; toPlotly re-anchors
-  // the same {category, value} records around a center reference.
-  divergingBar: "category",
   pie: "category",
   dumbbell: "twoPeriod",
   // Forest plot shares the two-endpoint (CI low/high) two-period shape.
@@ -582,7 +582,6 @@ function finiteRankingValue(record, chartType) {
 
 const GROUP_SECTIONING_RECORD_CHARTS = new Set([
   "bar",
-  "divergingBar",
   "dumbbell",
   "forest",
 ]);
@@ -858,10 +857,7 @@ async function loadModuleChartData(config, schema, signal) {
   if (config.chartType === "line") {
     return loadLineData(config, schema, signal);
   }
-  if (
-    (config.chartType === "bar" || config.chartType === "divergingBar") &&
-    isChangeTransform(config.transform)
-  ) {
+  if (config.chartType === "bar" && isChangeTransform(config.transform)) {
     return loadBarChangeData(config, schema, signal);
   }
   if (config.chartType === "choroplethMap" && isChangeTransform(config.transform)) {
@@ -973,7 +969,7 @@ export function seriesNamesOf(chartType, result) {
   if (chartType === "line") {
     return [...new Set(records.map((item) => item.location || item.label).filter(Boolean))];
   }
-  if (chartType === "bar" || chartType === "divergingBar") {
+  if (chartType === "bar") {
     return [...new Set(records.map((item) => item.color || item.series).filter(Boolean))];
   }
   if (chartType === "scatter" || chartType === "bubble") {
@@ -987,7 +983,7 @@ export function seriesNamesOf(chartType, result) {
 
 /** Loaded labels for the Advanced line/bar value manager. */
 export function categoryNamesOf(chartType, result) {
-  if (!result || !["line", "bar", "divergingBar"].includes(chartType)) return [];
+  if (!result || !["line", "bar"].includes(chartType)) return [];
   const records = Array.isArray(result.series)
     ? result.series
     : result.series?.records || [];

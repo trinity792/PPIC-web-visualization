@@ -47,6 +47,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 
+import { useAdvancedMode } from "@/components/chart-builder/advancedMode";
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import {
   CATALOG_ROLE_FOR_BINDING,
@@ -54,7 +55,8 @@ import {
 } from "@/lib/visualization/chartRegistry";
 import { isMeasure, supportsRole } from "@/lib/visualization/fieldTypes";
 import { bindableFields } from "@/lib/visualization/inlineMapping";
-import { resolveToken } from "@/lib/visualization/palettes";
+import { paletteKindFor, resolveToken } from "@/lib/visualization/palettes";
+import { RAMP_SHADE_GROUPS } from "@/lib/visualization/ppicRamps";
 
 const NONE = "__none__";
 
@@ -140,6 +142,120 @@ const DEFAULT_COLOR_BUCKETS = [
 ];
 
 /**
+ * A hand-picked diverging ramp: three stops (low / middle / high) or five,
+ * each chosen from the guide's published shades.
+ *
+ * Deliberately not a colour wheel, and deliberately not the ten main colours
+ * either: every one of those is saturated, so a three-point scheme built from
+ * them could never have the light middle a diverging ramp needs - the official
+ * choropleth colorway's own midpoint is a near-white shade. Drawing from the
+ * ramp stops makes the published scheme reproducible by hand.
+ */
+function DivergingStopsControls() {
+  const { config, dispatch } = useChartConfig();
+  const { appearance } = config;
+  const stops = Array.isArray(appearance.divergingStops) ? appearance.divergingStops : null;
+  const setStops = (next) =>
+    dispatch({ type: "SET_APPEARANCE", key: "divergingStops", value: next });
+
+  // Seeded from the official colorway rather than from nothing, so turning the
+  // control on shows a working ramp the reader edits instead of a blank one
+  // they have to assemble before the chart draws anything.
+  const seed = (count) =>
+    count === 3
+      ? ["#8F3811", "#ECE8E7", "#0F4880"]
+      : ["#8F3811", "#E9632A", "#ECE8E7", "#44AFD0", "#0F4880"];
+
+  const positionLabel = (index, count) => {
+    if (index === 0) return "Bottom";
+    if (index === count - 1) return "Upper";
+    if (count === 3) return "Middle";
+    return ["Bottom", "Lower middle", "Middle", "Upper middle", "Upper"][index];
+  };
+
+  return (
+    <div className="grid gap-2">
+      <div className="flex items-center justify-between gap-3">
+        <Label htmlFor="appearance-custom-diverging">Custom diverging colors</Label>
+        <Switch
+          id="appearance-custom-diverging"
+          checked={Boolean(stops)}
+          onCheckedChange={(checked) => setStops(checked ? seed(3) : undefined)}
+        />
+      </div>
+
+      {stops ? (
+        <>
+          <div className="grid gap-2">
+            <Label htmlFor="appearance-diverging-count">Points</Label>
+            <Select
+              value={String(stops.length)}
+              onValueChange={(value) => setStops(seed(Number(value)))}
+            >
+              <SelectTrigger id="appearance-diverging-count">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="3">3 (bottom, middle, upper)</SelectItem>
+                <SelectItem value="5">5</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid gap-1.5">
+            {stops.map((hex, index) => (
+              <div
+                key={index}
+                className="flex items-center gap-2 rounded-md border bg-card px-2 py-1.5"
+              >
+                <span className="flex-1 text-xs text-muted-foreground">
+                  {positionLabel(index, stops.length)}
+                </span>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label={`Choose the ${positionLabel(index, stops.length).toLowerCase()} color`}
+                      className="size-5 shrink-0 rounded-full border"
+                      style={{ backgroundColor: hex }}
+                    />
+                  </PopoverTrigger>
+                  <PopoverContent className="w-64 p-2">
+                    <div className="grid gap-2">
+                      {RAMP_SHADE_GROUPS.map((group) => (
+                        <div key={group.name} className="grid gap-1">
+                          <p className="text-[11px] text-muted-foreground">{group.name}</p>
+                          <div className="flex flex-wrap gap-1">
+                            {group.shades.map((shade) => (
+                              <button
+                                key={shade}
+                                type="button"
+                                aria-label={shade}
+                                className="size-5 rounded-full border"
+                                style={{ backgroundColor: shade }}
+                                onClick={() =>
+                                  setStops(
+                                    stops.map((current, i) => (i === index ? shade : current)),
+                                  )
+                                }
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+            ))}
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+/**
  * Dashboard-style styling for the diverging bar: a fixed value range, a
  * background track rail, minimal axis chrome, and threshold ("traffic-light")
  * bucket colors.
@@ -150,18 +266,6 @@ function DivergingStyleControls() {
   const setAppearance = (key, value) =>
     dispatch({ type: "SET_APPEARANCE", key, value });
 
-  const range = Array.isArray(appearance.valueRange) ? appearance.valueRange : [];
-  const setRange = (index, raw) => {
-    const next = [
-      range[0] == null ? "" : range[0],
-      range[1] == null ? "" : range[1],
-    ];
-    next[index] = raw === "" ? null : Number(raw);
-    // Clear the whole setting once both ends are blank (back to auto range).
-    if (next[0] == null && next[1] == null) setAppearance("valueRange", undefined);
-    else setAppearance("valueRange", next);
-  };
-
   const buckets = Array.isArray(appearance.colorBuckets) ? appearance.colorBuckets : null;
   const setBuckets = (next) => setAppearance("colorBuckets", next.length ? next : undefined);
   const updateBucket = (index, patch) =>
@@ -169,28 +273,6 @@ function DivergingStyleControls() {
 
   return (
     <>
-      <div className="grid gap-2">
-        <Label>Value axis range</Label>
-        <div className="flex items-center gap-2">
-          <Input
-            aria-label="Range minimum"
-            type="number"
-            inputMode="decimal"
-            placeholder="auto"
-            value={range[0] == null ? "" : String(range[0])}
-            onChange={(event) => setRange(0, event.target.value.trim())}
-          />
-          <span className="text-muted-foreground">to</span>
-          <Input
-            aria-label="Range maximum"
-            type="number"
-            inputMode="decimal"
-            placeholder="auto"
-            value={range[1] == null ? "" : String(range[1])}
-            onChange={(event) => setRange(1, event.target.value.trim())}
-          />
-        </div>
-      </div>
       <div className="flex items-center justify-between gap-3">
         <Label htmlFor="appearance-track-rail">Track rail</Label>
         <Switch
@@ -295,6 +377,59 @@ function DivergingStyleControls() {
   );
 }
 
+/**
+ * Manual value-axis scaling for a diverging bar (Workstream B). Lifted out of
+ * `DivergingStyleControls` and placed directly beneath the reference-line
+ * input: an explicit range now applies whether or not the track rail is on,
+ * so this is authoring the axis scale, not a dashboard-styling nicety.
+ */
+function ValueAxisRangeControls() {
+  const { config, dispatch } = useChartConfig();
+  const { appearance } = config;
+  const setAppearance = (key, value) =>
+    dispatch({ type: "SET_APPEARANCE", key, value });
+
+  const range = Array.isArray(appearance.valueRange) ? appearance.valueRange : [];
+  const setRange = (index, raw) => {
+    const next = [
+      range[0] == null ? "" : range[0],
+      range[1] == null ? "" : range[1],
+    ];
+    next[index] = raw === "" ? null : Number(raw);
+    // Clear the whole setting once both ends are blank (back to auto range).
+    if (next[0] == null && next[1] == null) setAppearance("valueRange", undefined);
+    else setAppearance("valueRange", next);
+  };
+
+  return (
+    <div className="grid gap-2">
+      <Label>Value axis range (manual)</Label>
+      <div className="flex items-center gap-2">
+        <Input
+          aria-label="Range minimum"
+          type="number"
+          inputMode="decimal"
+          placeholder="auto"
+          value={range[0] == null ? "" : String(range[0])}
+          onChange={(event) => setRange(0, event.target.value.trim())}
+        />
+        <span className="text-muted-foreground">to</span>
+        <Input
+          aria-label="Range maximum"
+          type="number"
+          inputMode="decimal"
+          placeholder="auto"
+          value={range[1] == null ? "" : String(range[1])}
+          onChange={(event) => setRange(1, event.target.value.trim())}
+        />
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Leaving both blank fits the axis to the data.
+      </p>
+    </div>
+  );
+}
+
 // ── Section ──────────────────────────────────────────────────────────
 
 export default function AppearanceSection() {
@@ -304,7 +439,18 @@ export default function AppearanceSection() {
   const setAppearance = (key, value) =>
     dispatch({ type: "SET_APPEARANCE", key, value });
 
+  const { advanced } = useAdvancedMode();
   const isRangeFamily = ["dumbbell", "dotPlot", "forest"].includes(config.chartType);
+  const isSymbolMap = config.chartType === "symbolMap";
+  // The Color scale (sequential/diverging) select belongs to the types that
+  // are always scale-driven; a symbol map reaches its ramp through the
+  // gradient switch instead.
+  const isAlwaysScale = getChartType(config.chartType)?.colorEncoding === "scale";
+  // Whether a colour ramp is in play, and which one — read off the chart type's
+  // own `colorEncoding` rather than a list of ids here, so a newly registered
+  // scale-driven type is offered ramp palettes by declaring itself.
+  const paletteKind = paletteKindFor(config.chartType, appearance);
+  const rampInPlay = paletteKind !== "categorical";
   const showsColorBinding = chart?.colorBindingSection === "appearance";
   const colorFields = showsColorBinding
     ? Object.entries(bindableFields(schema, config)).filter(([, field]) => {
@@ -347,7 +493,10 @@ export default function AppearanceSection() {
       ) : null}
 
       {/* ---- The shared appearance controls, in order ---- */}
-      <PalettePicker seriesNames={config.seriesNames || []} />
+      <PalettePicker
+        seriesNames={config.seriesNames || []}
+        kind={paletteKind}
+      />
 
       <div className="grid gap-2">
         <Label htmlFor="appearance-legend">Legend Position</Label>
@@ -434,10 +583,8 @@ export default function AppearanceSection() {
       {/* Diverging bars pivot around a reference value (0 by default; set 1.0 for
           a pace ratio, a survey-neutral midpoint, etc.). Gated on the
           `diverging` flag rather than a chart type (Workstream B: Bar absorbs
-          Diverging Bar) — `divergingBar` is kept alongside it only for a
-          config that has not yet passed through normalizeSpec's retirement
-          rewrite. */}
-      {config.appearance?.diverging || config.chartType === "divergingBar" ? (
+          Diverging Bar). */}
+      {config.appearance?.diverging ? (
         <>
           <div className="grid gap-2">
             <Label htmlFor="appearance-center">Center reference</Label>
@@ -453,11 +600,36 @@ export default function AppearanceSection() {
               }}
             />
           </div>
+          <div className="grid gap-2">
+            <Label htmlFor="appearance-reference-value">Reference line</Label>
+            <Input
+              id="appearance-reference-value"
+              type="number"
+              inputMode="decimal"
+              placeholder="Same as center reference"
+              value={appearance.referenceValue == null ? "" : String(appearance.referenceValue)}
+              onChange={(event) => {
+                const raw = event.target.value.trim();
+                setAppearance("referenceValue", raw === "" ? null : Number(raw));
+              }}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="appearance-reference-label">Reference line label</Label>
+            <Input
+              id="appearance-reference-label"
+              type="text"
+              placeholder="Optional"
+              value={appearance.referenceLabel || ""}
+              onChange={(event) => setAppearance("referenceLabel", event.target.value)}
+            />
+          </div>
+          <ValueAxisRangeControls />
           <DivergingStyleControls />
         </>
       ) : null}
 
-      {["heatmap", "choroplethMap"].includes(config.chartType) ? (
+      {isAlwaysScale ? (
         <div className="grid gap-2">
           <Label htmlFor="appearance-color-scale">Color scale</Label>
           <Select
@@ -472,6 +644,40 @@ export default function AppearanceSection() {
               <SelectItem value="diverging">Diverging</SelectItem>
             </SelectContent>
           </Select>
+        </div>
+      ) : null}
+
+      {/* Workstream C: a second, redundant colour encoding of the measure a
+          symbol map's marker area already carries — off keeps today's
+          single-palette-colour behaviour exactly. */}
+      {isSymbolMap ? (
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor="appearance-symbol-gradient">Color gradient</Label>
+          <Switch
+            id="appearance-symbol-gradient"
+            checked={Boolean(appearance.symbolGradient)}
+            onCheckedChange={(checked) => setAppearance("symbolGradient", checked)}
+          />
+        </div>
+      ) : null}
+
+      {/* Hand-picked diverging stops, behind Advanced Mode: a default reader
+          picks a published ramp, and only someone deliberately composing one
+          needs five swatch pickers on screen. */}
+      {rampInPlay && paletteKind === "diverging" && advanced ? (
+        <DivergingStopsControls />
+      ) : null}
+
+      {/* Shown wherever a ramp is actually in play: a heatmap, a choropleth,
+          or a symbol map with its gradient on. */}
+      {rampInPlay ? (
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor="appearance-invert-scale">Invert color scale</Label>
+          <Switch
+            id="appearance-invert-scale"
+            checked={Boolean(appearance.invertScale)}
+            onCheckedChange={(checked) => setAppearance("invertScale", checked)}
+          />
         </div>
       ) : null}
 

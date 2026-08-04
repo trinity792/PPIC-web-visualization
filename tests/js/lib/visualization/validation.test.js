@@ -113,6 +113,56 @@ describe("validateBindings", () => {
     expect(codes(findings)).toEqual(["UNKNOWN_CHART_TYPE"]);
     expect(findings[0].message).toContain("sparkline");
   });
+
+  it("warns rather than errors when a measure is bound outside its catalog roles", () => {
+    const findings = validateBindings(
+      "line",
+      { x: "Year", y: "Widget Rate" },
+      {
+        ...schema,
+        fields: {
+          ...schema.fields,
+          "Widget Rate": {
+            ...schema.fields["Widget Rate"],
+            chartRoles: ["color"],
+          },
+        },
+      },
+    );
+    const finding = findings.find((item) => item.code === "ROLE_NOT_IN_CATALOG");
+    expect(finding).toMatchObject({ level: "warn" });
+    expect(hasBlockingErrors(findings)).toBe(false);
+  });
+
+  it("reports nothing when the measure does list the role", () => {
+    const findings = validateBindings(
+      "line",
+      { x: "Year", y: "Total Widgets" },
+      schema,
+    );
+    expect(codes(findings)).not.toContain("ROLE_NOT_IN_CATALOG");
+  });
+
+  it("reports nothing about catalog roles in inline mode", () => {
+    const findings = validateBindings(
+      "line",
+      { x: "Period", y: "Amount" },
+      schema,
+      { schemaFields: false },
+    );
+    expect(codes(findings)).not.toContain("ROLE_NOT_IN_CATALOG");
+    expect(codes(findings)).not.toContain("FIELD_ROLE_NOT_SUPPORTED");
+  });
+
+  it("no longer reports a missing benchmark role", () => {
+    for (const chartType of ["line", "dumbbell", "forest"]) {
+      const findings = validateBindings(chartType, {}, schema);
+      expect(
+        findings.filter((finding) => finding.role === "benchmark"),
+        chartType,
+      ).toEqual([]);
+    }
+  });
 });
 
 describe("validateComparability", () => {
@@ -241,6 +291,41 @@ describe("validateConfig", () => {
 
   it("returns a clean result for a valid config", () => {
     expect(validateConfig(validLineConfig, schema)).toEqual([]);
+  });
+
+  it("reports missing preset roles by default", () => {
+    const findings = validateConfig(
+      { ...validLineConfig, bindings: { x: "Year" } },
+      schema,
+    );
+    expect(codes(findings)).toContain("MISSING_PRESET_ROLE");
+  });
+
+  it("reports no preset findings when presets are off", () => {
+    const missingRole = validateConfig(
+      { ...validLineConfig, bindings: { x: "Year" } },
+      schema,
+      { presets: false },
+    );
+    const unknownPreset = validateConfig(
+      { ...validLineConfig, preset: "not-a-preset" },
+      schema,
+      { presets: false },
+    );
+
+    for (const findings of [missingRole, unknownPreset]) {
+      expect(codes(findings)).not.toContain("MISSING_PRESET_ROLE");
+      expect(codes(findings)).not.toContain("UNKNOWN_PRESET");
+    }
+  });
+
+  it("still reports missing required roles when presets are off", () => {
+    const findings = validateConfig(
+      { ...validLineConfig, bindings: { x: "Year" } },
+      schema,
+      { presets: false },
+    );
+    expect(codes(findings)).toContain("MISSING_REQUIRED_ROLE");
   });
 
   it("de-duplicates identical findings by code and message", () => {
@@ -384,13 +469,7 @@ describe("validateInlineBindings", () => {
       columns: [...table.columns, { name: "Section", type: "group" }],
       rows: [["Fresno", "100", "North"]],
     };
-    for (const chartType of [
-      "bar",
-      "divergingBar",
-      "dumbbell",
-      "dotPlot",
-      "forest",
-    ]) {
+    for (const chartType of ["bar", "dumbbell", "dotPlot", "forest"]) {
       expect(
         validateInlineBindings(
           { chartType, bindings: { group: "Section" } },

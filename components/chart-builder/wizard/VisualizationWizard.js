@@ -40,18 +40,19 @@ import ViewHydrator from "@/components/chart-builder/wizard/ViewHydrator";
 import PreviewPane from "@/components/chart-builder/wizard/PreviewPane";
 import StepNav from "@/components/chart-builder/wizard/StepNav";
 import ImportStep from "@/components/chart-builder/wizard/steps/ImportStep";
-import ChartTypeStep from "@/components/chart-builder/wizard/steps/ChartTypeStep";
 import EditStep from "@/components/chart-builder/wizard/steps/EditStep";
 import ExportStep from "@/components/chart-builder/wizard/steps/ExportStep";
 
 const STEP_DEFS = {
   import: { id: "import", label: "Import" },
-  chartType: { id: "chartType", label: "Chart Type" },
   edit: { id: "edit", label: "Edit" },
   export: { id: "export", label: "Export" },
 };
 
-export const DEFAULT_STEPS = ["import", "chartType", "edit", "export"];
+// Workstream F5: the standalone wizard's Chart Type step folded into the Edit
+// step's sidebar (grouped ChartTypeSection), so it no longer occupies its own
+// step. Three steps now, not four.
+export const DEFAULT_STEPS = ["import", "edit", "export"];
 
 function EmbedChromeHider() {
   useEffect(() => {
@@ -98,8 +99,6 @@ function WizardInner({ steps }) {
     switch (currentId) {
       case "import":
         return <ImportStep />;
-      case "chartType":
-        return <ChartTypeStep />;
       case "edit":
         return <EditStep />;
       case "export":

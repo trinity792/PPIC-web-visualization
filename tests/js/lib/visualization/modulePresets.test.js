@@ -37,11 +37,10 @@ describe("schema.presets contract", () => {
       ...modulePresets().map(({ preset }) => preset.config.chartType),
     ]);
 
-    // A `hidden` descriptor (Workstream B: the retired `divergingBar` id) is
-    // reachable only through migration, never through a preset or a tile, so
-    // it is exempt rather than expected to keep a now-pointless preset alive.
+    // Every registered chart type needs a preset. The `hidden` skip that used
+    // to sit here existed for the retired `divergingBar` id; its descriptor is
+    // deleted, so there is nothing to exempt.
     for (const chartType of CHART_TYPE_IDS) {
-      if (getChartType(chartType)?.hidden) continue;
       expect(presetChartTypes, `chartType: ${chartType}`).toContain(chartType);
     }
   });

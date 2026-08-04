@@ -34,7 +34,12 @@
 
 import React, { useEffect } from "react";
 
+import { AdvancedModeProvider } from "@/components/chart-builder/advancedMode";
 import { ChartConfigProvider } from "@/components/chart-builder/chartConfigStore";
+import {
+  EditorCapabilitiesProvider,
+  WORKBENCH_CAPABILITIES,
+} from "@/components/chart-builder/editorCapabilities";
 import { PreviewProvider } from "@/components/chart-builder/wizard/PreviewContext";
 import ViewHydrator from "@/components/chart-builder/wizard/ViewHydrator";
 import ChartContainer from "@/components/chart-builder/workbench/ChartContainer";
@@ -101,10 +106,18 @@ export default function ModuleWorkbench({
                   row is exactly as tall as the chart and the stretched sidebar
                   cell inherits that. `items-start` would collapse the cell to
                   zero and the panel with it. */}
-              <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-[22rem_minmax(0,1fr)]">
-                <ModuleSidebar />
-                <ChartContainer />
-              </div>
+              {/* One shared Advanced Mode + capability instance for both
+                  siblings (F4): ModuleSidebar's own toggle must be able to
+                  show or hide ChartContainer's multi-chart toolbar. See the
+                  WORKBENCH_CAPABILITIES doc comment in editorCapabilities.js. */}
+              <EditorCapabilitiesProvider capabilities={WORKBENCH_CAPABILITIES}>
+                <AdvancedModeProvider>
+                  <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-[22rem_minmax(0,1fr)]">
+                    <ModuleSidebar />
+                    <ChartContainer />
+                  </div>
+                </AdvancedModeProvider>
+              </EditorCapabilitiesProvider>
             </div>
           </main>
         )}

@@ -49,10 +49,4 @@ describe("deriveLabels axis default for bar vs. diverging bar", () => {
     expect(labels.xAxis).toBe("Location");
     expect(labels.yAxis).toBe("On-track score");
   });
-
-  it("the legacy divergingBar id still defaults horizontal (pre-migration configs)", () => {
-    const labels = deriveLabels(config({ chartType: "divergingBar" }), schema);
-    expect(labels.xAxis).toBe("On-track score");
-    expect(labels.yAxis).toBe("Location");
-  });
 });

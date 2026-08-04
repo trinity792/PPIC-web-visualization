@@ -26,7 +26,7 @@ vi.mock("@/components/chart-builder/ValidationNotice", () => ({
 import ModuleSidebar from "@/components/chart-builder/workbench/ModuleSidebar";
 
 describe("ModuleSidebar composition", () => {
-  it("omits wizard-only and workspace-only controls", () => {
+  it("still omits presets, saved views, add chart, activity, and config import/export", () => {
     render(<ModuleSidebar />);
     for (const text of [
       /presets/i,

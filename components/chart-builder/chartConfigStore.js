@@ -389,13 +389,21 @@ function withExpressibleTransform(config, schema) {
   return { ...config, transform: "actual" };
 }
 
-function revalidate(rawConfig, schema) {
+// Workstream E: `presets: autoBind` — the module workbench (autoBind: false)
+// has no preset picker and never binds a field on the reader's behalf, so a
+// preset requirement it cannot show must not be reported either
+// (MISSING_PRESET_ROLE was surfacing on a surface with no way to satisfy it).
+// The wizard (autoBind: true) keeps today's behavior. `autoBind` is editor
+// state threaded as a parameter rather than stored on the config — the same
+// reasoning that keeps Advanced Mode out of `config`.
+function revalidate(rawConfig, schema, autoBind = true) {
   const config = withExpressibleTransform(rawConfig, schema);
   return {
     ...config,
     validation: validateConfig(config, schema, {
       seriesCount: config.seriesCount,
       geoUnmatched: config.geoUnmatched,
+      presets: autoBind,
     }),
   };
 }
@@ -469,7 +477,7 @@ export function createChartConfig(schema, initialConfig = {}, options = DEFAULT_
     merged.data?.source === "inline" ? merged.data?.inline : null,
     schema,
   );
-  return revalidate(merged, schema);
+  return revalidate(merged, schema, autoBind);
 }
 
 /**
@@ -863,11 +871,12 @@ export function reduceChartConfig(config, action, schema, options = DEFAULT_OPTI
       return config;
   }
 
-  return revalidate(next, schema);
+  return revalidate(next, schema, autoBind);
 }
 
-function addChart(workspace, schema) {
+function addChart(workspace, schema, options = DEFAULT_OPTIONS) {
   if (workspace.charts.length >= MAX_CHARTS) return workspace;
+  const { autoBind = true } = options || {};
   const current = activeChart(workspace);
   const id = chartId();
   const chartNumber = workspace.charts.length + 1;
@@ -878,6 +887,7 @@ function addChart(workspace, schema) {
       labels: { ...base.labels },
     },
     schema,
+    autoBind,
   );
   const charts = [
     ...workspace.charts,
@@ -947,7 +957,7 @@ function reduceWorkspace(workspace, action, schema, options = DEFAULT_OPTIONS) {
         : workspace;
 
     case "ADD_CHART":
-      return addChart(workspace, schema);
+      return addChart(workspace, schema, options);
 
     case "REMOVE_CHART":
       return removeChart(workspace, action.chartId || workspace.activeChartId);

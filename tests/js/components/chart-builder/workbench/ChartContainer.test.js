@@ -10,13 +10,23 @@ const state = vi.hoisted(() => ({
   preview: { status: "ready", result: { records: [{ Location: "Alameda" }] } },
   loadFullTable: vi.fn(),
   originalTable: vi.fn(),
+  advanced: false,
+  capabilities: { multiChart: true },
+  configStore: {
+    config: { chartType: "bar", filters: {}, bindings: {}, appearance: {}, data: {} },
+    schema: { id: "widgets", label: "Widgets", apiPath: "/api/widgets", fields: {} },
+    workspace: { layout: "1x1", charts: [{ id: "chart-1" }] },
+  },
 }));
 
 vi.mock("@/components/chart-builder/chartConfigStore", () => ({
-  useChartConfig: () => ({
-    config: { chartType: "bar", filters: {}, bindings: {}, appearance: {}, data: {} },
-    schema: { id: "widgets", label: "Widgets", apiPath: "/api/widgets", fields: {} },
-  }),
+  useChartConfig: () => state.configStore,
+}));
+vi.mock("@/components/chart-builder/advancedMode", () => ({
+  useAdvancedMode: () => ({ advanced: state.advanced }),
+}));
+vi.mock("@/components/chart-builder/editorCapabilities", () => ({
+  useEditorCapabilities: () => state.capabilities,
 }));
 vi.mock("@/components/chart-builder/wizard/PreviewContext", () => ({
   usePreview: () => ({
@@ -24,6 +34,8 @@ vi.mock("@/components/chart-builder/wizard/PreviewContext", () => ({
     preview: state.preview,
     status: state.preview.status,
     result: state.preview.result,
+    previews: [state.preview],
+    graphDivRefs: [],
   }),
 }));
 vi.mock("@/components/chart-builder/wizard/PreviewPane", () => ({
@@ -58,6 +70,9 @@ vi.mock("@/components/chart-builder/workbench/ChartContainerFooter", () => ({
     </footer>
   ),
 }));
+vi.mock("@/components/chart-builder/MultiChartToolbar", () => ({
+  default: () => <div data-testid="multi-chart-toolbar">Multi-chart toolbar</div>,
+}));
 
 import ChartContainer from "@/components/chart-builder/workbench/ChartContainer";
 
@@ -80,6 +95,24 @@ describe("ChartContainer", () => {
       columns: [{ name: "Location" }, { name: "Year" }, { name: "Value" }],
       rows: FULL_RECORDS.map((row) => Object.values(row)),
     });
+    state.advanced = false;
+    state.capabilities = { multiChart: true };
+    state.configStore = {
+      config: { chartType: "bar", filters: {}, bindings: {}, appearance: {}, data: {} },
+      schema: { id: "widgets", label: "Widgets", apiPath: "/api/widgets", fields: {} },
+      workspace: { layout: "1x1", charts: [{ id: "chart-1" }] },
+    };
+  });
+
+  it("shows no multi-chart toolbar out of advanced mode", () => {
+    render(<ChartContainer />);
+    expect(screen.queryByTestId("multi-chart-toolbar")).not.toBeInTheDocument();
+  });
+
+  it("shows the multi-chart toolbar in advanced mode", () => {
+    state.advanced = true;
+    render(<ChartContainer />);
+    expect(screen.getByTestId("multi-chart-toolbar")).toBeInTheDocument();
   });
 
   it("renders schema.label as the centered brand-underlined title", () => {
@@ -167,7 +200,7 @@ describe("ChartContainer", () => {
       Object.defineProperty(window.HTMLElement.prototype, "offsetHeight", {
         configurable: true,
         get() {
-          return value;
+          return typeof value === "function" ? value() : value;
         },
       });
       return () => {
@@ -213,6 +246,50 @@ describe("ChartContainer", () => {
 
       expect(body(container).style.height).toBe("");
       expect(body(container).className).toContain("min-h-130");
+    });
+
+    it("re-measures the body height when a chart is added", async () => {
+      let measured = 544;
+      const restore = stubOffsetHeight(() => measured);
+      try {
+        const user = userEvent.setup();
+        const { container, rerender } = render(<ChartContainer />);
+
+        measured = 812;
+        state.configStore = {
+          ...state.configStore,
+          workspace: {
+            layout: "1x2",
+            charts: [{ id: "chart-1" }, { id: "chart-2" }],
+          },
+        };
+        rerender(<ChartContainer />);
+        await user.click(screen.getByRole("button", { name: "View Data" }));
+        await screen.findByTestId("data-table");
+        expect(body(container).style.height).toBe("812px");
+      } finally {
+        restore();
+      }
+    });
+
+    it("keeps the data view pinned to the grid height in a 2x2 layout", async () => {
+      const restore = stubOffsetHeight(980);
+      try {
+        state.configStore = {
+          ...state.configStore,
+          workspace: {
+            layout: "2x2",
+            charts: [1, 2, 3, 4].map((id) => ({ id: `chart-${id}` })),
+          },
+        };
+        const user = userEvent.setup();
+        const { container } = render(<ChartContainer />);
+        await user.click(screen.getByRole("button", { name: "View Data" }));
+        await screen.findByTestId("data-table");
+        expect(body(container).style.height).toBe("980px");
+      } finally {
+        restore();
+      }
     });
   });
 });

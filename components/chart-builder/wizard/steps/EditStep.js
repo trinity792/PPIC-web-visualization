@@ -3,111 +3,106 @@
 /**
  * EditStep.js — the standalone Visualization Tool's "Edit" step.
  *
- * Renders every section in the shared registry (`lib/visualization/sidebarSections.js`)
- * except Chart Type, which is the wizard's own step. Composing from the same
- * registry the module workbench uses is the point: a control added for one
- * surface appears on the other without being re-authored, and the two cannot
- * drift into different answers for the same setting.
+ * Workstream F: mounts the shared `EditorSidebar` (`sections/EditorSidebar.js`),
+ * the same accordion-plus-gated-tools component the module workbench mounts —
+ * a control added for one surface now appears on the other without being
+ * re-authored, and the two cannot drift into different answers for the same
+ * setting. What used to be a bespoke preset accordion, an unconditional
+ * export button, and an always-visible activity log are now the shared
+ * component's `presets` / `savedViews` / `activityLog` capability blocks,
+ * gated on Advanced Mode like everything else there.
  *
- * What is here and not in the module sidebar is what decision 6 keeps for the
- * standalone tool: presets, the line-layer action, config export, and the editor
- * activity log. (Config *import* sits on the Import step, where a saved config
- * arrives alongside the data.) What used to be here and is gone entirely: the
- * GUI ⇄ Code toggle (decision 5).
+ * What still sets this shell apart from the module workbench:
+ *   - its own capability set (`STANDALONE_CAPABILITIES`) — presets, saved
+ *     views, trace layers, and the activity log are standalone-tool-only,
+ *     with no module-workbench equivalent (see `ModuleSidebar`'s doc comment
+ *     for why per capability); multi-chart applies to both.
+ *   - Chart Type renders grouped into families (`sectionProps`), matching the
+ *     layout of the wizard's now-retired Chart Type step (F5): it is no
+ *     longer its own step, so it must read the same way inline.
+ *   - the shared Outcome section's line-layer action (`allowLayers`).
+ *   - `CategoriesSection`, mounted directly: bring-your-own-data has no
+ *     geography at all, so `GeographySection` — which normally owns this
+ *     fallback for a schema that does have subsets — never renders to carry it.
  *
- * Advanced Mode is back, but as one boolean rather than the old three tiers, and
- * scoped to this step so the switch and everything it governs stay together.
- * Today it hides exactly one block: Ranked values.
+ * What used to be here and is gone entirely: the GUI ⇄ Code toggle (decision 5).
+ *
+ * Advanced Mode is one boolean, scoped to this step so the switch and
+ * everything it gates stay together.
  *
  * Props:
  *   (none — reads useChartConfig())
  *
  * Data sources:
- *   - components/chart-builder/sections/SidebarSections.js (the shared registry)
- *   - components/chart-builder/sections/PresetSection.js
- *   - components/chart-builder/ConfigActions.js
+ *   - components/chart-builder/sections/EditorSidebar.js (the shared sidebar)
+ *   - components/chart-builder/sections/CategoriesSection.js
  */
 
 import React from "react";
 
-import { ExportConfigButton } from "@/components/chart-builder/ConfigActions";
-import EditorActivityLog from "@/components/chart-builder/EditorActivityLog";
-import ValidationNotice from "@/components/chart-builder/ValidationNotice";
 import {
   AdvancedModeProvider,
   AdvancedModeToggle,
 } from "@/components/chart-builder/advancedMode";
-import CategoriesSection from "@/components/chart-builder/sections/CategoriesSection";
-import PresetSection from "@/components/chart-builder/sections/PresetSection";
-import SidebarSections from "@/components/chart-builder/sections/SidebarSections";
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
-import { Accordion } from "@/components/ui/accordion";
+import {
+  EditorCapabilitiesProvider,
+  STANDALONE_CAPABILITIES,
+} from "@/components/chart-builder/editorCapabilities";
+import CategoriesSection from "@/components/chart-builder/sections/CategoriesSection";
+import EditorSidebar from "@/components/chart-builder/sections/EditorSidebar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
-import { Section } from "@/components/chart-builder/sections/primitives";
 import PreviewPane from "@/components/chart-builder/wizard/PreviewPane";
 import StepShell from "@/components/chart-builder/wizard/StepShell";
 
-// Chart Type is the wizard's own step here, so the Edit step renders every
-// other registered section (overhaul decision 10).
-const SECTION_FILTER = { exclude: ["chart-type"] };
-
-// Comparison layers are a standalone-tool feature, so the shared Outcome
-// section is opted into its "Add line" action here and nowhere else.
-const SECTION_PROPS = { axis: { allowLayers: true } };
+// Presets, saved views, trace layers, and the activity log are all
+// standalone-tool-only: a preset seeds bindings from a module's curated field
+// catalog that bring-your-own-data does not have (applying one would clear
+// the bindings autoMapInlineBindings just derived from the pasted columns),
+// and the rest have simply never had a module-side equivalent.
+// Chart Type now renders inline, grouped into families — the retired step's
+// own layout, folded in (F5). Comparison layers are a standalone-tool
+// feature, so only this surface opts the shared Outcome section into it.
+const SECTION_PROPS = {
+  "chart-type": { grouped: true },
+  axis: { allowLayers: true },
+};
 
 export default function EditStep() {
   return (
-    <AdvancedModeProvider>
-      <EditStepBody />
-    </AdvancedModeProvider>
+    <EditorCapabilitiesProvider capabilities={STANDALONE_CAPABILITIES}>
+      <AdvancedModeProvider>
+        <EditStepBody />
+      </AdvancedModeProvider>
+    </EditorCapabilitiesProvider>
   );
 }
 
 // ── Tightly coupled sub-components ───────────────────────────────────
 
-/** The step's own content, split out only so the provider can wrap it. */
+/** The step's own content, split out only so the providers can wrap it. */
 function EditStepBody() {
   const { schema } = useChartConfig();
   // Bring-your-own-data has no geography, so GeographySection — which normally
   // owns the category ordering fallback — never renders. Mount it directly.
   const needsCategories = Object.keys(schema?.subsets || {}).length === 0;
-  // A preset seeds bindings from a module's curated field catalog. Bring-your-
-  // own-data has an empty catalog, so applying one would clear the bindings
-  // `autoMapInlineBindings` just derived from the pasted columns — which is the
-  // same job, done from the data that actually exists.
-  const supportsPresets = !schema?.inlineOnly;
 
   return (
     <StepShell title="Edit" preview={<PreviewPane />}>
       <div className="grid min-h-0 min-w-0 gap-3">
-        {/* Import lives on the Import step, where a config arrives alongside the
-            data; export lives here, with the chart being built. */}
+        {/* Import lives on the Import step, where a config arrives alongside
+            the data; export config lives inside EditorSidebar below now,
+            gated with the rest of the saved-view tools. */}
         <div className="flex flex-wrap items-center justify-end gap-3">
           <AdvancedModeToggle id="standalone-advanced-mode" />
-          <ExportConfigButton />
         </div>
-        <ValidationNotice />
         <ScrollArea className="h-[calc(100svh-24rem)] w-full min-w-0 pr-2">
           <div className="grid gap-3">
-            {/* Presets are the wizard's "ask me a question" entry point; the
-                module sidebar drops them (decision 6). */}
-            {supportsPresets ? (
-              <Accordion
-                type="multiple"
-                defaultValue={["presets"]}
-                className="grid gap-1"
-              >
-                <Section value="presets" label="Presets">
-                  <PresetSection />
-                </Section>
-              </Accordion>
-            ) : null}
-            <SidebarSections {...SECTION_FILTER} sectionProps={SECTION_PROPS} />
+            <EditorSidebar sectionProps={SECTION_PROPS} />
             {needsCategories ? <CategoriesSection /> : null}
           </div>
         </ScrollArea>
-        <EditorActivityLog />
       </div>
     </StepShell>
   );

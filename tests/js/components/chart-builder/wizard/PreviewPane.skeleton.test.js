@@ -140,7 +140,6 @@ describe("PreviewPane skeleton shapes", () => {
   const EXPECTED_SHAPE = {
     line: "line",
     bar: "bars",
-    divergingBar: "bars",
     choroplethMap: "map",
     heatmap: "grid",
     dumbbell: "gantt",

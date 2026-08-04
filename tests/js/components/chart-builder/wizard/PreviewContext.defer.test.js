@@ -56,6 +56,12 @@ function Probe() {
       >
         feed back
       </button>
+      <button
+        type="button"
+        onClick={() => dispatch({ type: "ADD_CHART" })}
+      >
+        add second chart
+      </button>
     </div>
   );
 }
@@ -128,6 +134,15 @@ describe("deferred initial render", () => {
   it("loads immediately when not deferred, which is the standalone wizard", async () => {
     mount();
 
+    await waitFor(() => expect(state.loadChartData).toHaveBeenCalled());
+  });
+
+  it("arms the deferred preview when a second chart is added", async () => {
+    const user = userEvent.setup();
+    mount({ deferInitialRender: true });
+    expect(state.loadChartData).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "add second chart" }));
     await waitFor(() => expect(state.loadChartData).toHaveBeenCalled());
   });
 });

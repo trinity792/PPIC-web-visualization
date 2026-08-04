@@ -3,10 +3,13 @@
 /**
  * ModuleSidebar.js — the module workbench's persistent control rail.
  *
- * Renders the validation notice and every applicable section from the shared
- * registry. It deliberately carries none of the wizard-only tooling (presets,
- * saved views, the multi-chart toolbar, the activity log): those stay in the
- * standalone Visualization Tool.
+ * Workstream F split this in two: this file owns only the height clamp (the
+ * `<aside>` and its classes below) — the panel *contents* (the section
+ * accordion, and the capability-gated tools) live in the shared
+ * `sections/EditorSidebar.js`, which the wizard's Edit step mounts too. The
+ * capability set it supplies is `WORKBENCH_CAPABILITIES`, owned by
+ * `editorCapabilities.js` because `ModuleWorkbench` provides the same set for
+ * the whole grid and two copies of one fact drift silently.
  *
  * Height behavior (the requirement: "sidebar the same length as the chart view,
  * with vertical scroll"). On desktop the panel is absolutely positioned inside a
@@ -24,9 +27,14 @@
  * Props:
  *   None (reads useChartConfig()).
  *
- * Advanced Mode is scoped here rather than to the whole workbench, because the
- * switch and everything it governs are both in this panel; the chart container
- * has nothing to hide.
+ * Advanced Mode and the capability set come from the `*Boundary` variants
+ * (`AdvancedModeBoundary`, `EditorCapabilitiesBoundary`), not the plain
+ * providers: since F4 the chart container has something to hide too
+ * (`MultiChartToolbar`), and it is this panel's sibling under
+ * `ModuleWorkbench` rather than its descendant. `ModuleWorkbench` wraps both
+ * in one real provider so the toggle here and the toolbar there read the same
+ * flag; the boundary only steps in and creates its own when this component is
+ * mounted on its own, as its unit tests do.
  *
  * Data sources:
  *   - Chart configuration and module schema from ChartConfigProvider
@@ -39,22 +47,23 @@
 
 import React from "react";
 
-import { Accordion } from "@/components/ui/accordion";
-
-import ValidationNotice from "@/components/chart-builder/ValidationNotice";
 import {
-  AdvancedModeProvider,
+  AdvancedModeBoundary,
   AdvancedModeToggle,
 } from "@/components/chart-builder/advancedMode";
-import { Section } from "@/components/chart-builder/sections/primitives";
-import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
-import { visibleSectionsFor } from "@/lib/visualization/sidebarSections";
+import {
+  EditorCapabilitiesBoundary,
+  WORKBENCH_CAPABILITIES,
+} from "@/components/chart-builder/editorCapabilities";
+import EditorSidebar from "@/components/chart-builder/sections/EditorSidebar";
 
 export default function ModuleSidebar() {
   return (
-    <AdvancedModeProvider>
-      <SidebarPanel />
-    </AdvancedModeProvider>
+    <EditorCapabilitiesBoundary capabilities={WORKBENCH_CAPABILITIES}>
+      <AdvancedModeBoundary>
+        <SidebarPanel />
+      </AdvancedModeBoundary>
+    </EditorCapabilitiesBoundary>
   );
 }
 
@@ -62,9 +71,6 @@ export default function ModuleSidebar() {
 
 /** The panel itself, split out only so the provider can wrap it. */
 function SidebarPanel() {
-  const { config, schema } = useChartConfig();
-  const sections = visibleSectionsFor(config, schema);
-
   return (
     <div className="min-w-0 lg:relative">
       <aside
@@ -76,18 +82,7 @@ function SidebarPanel() {
       >
         <div className="grid gap-2">
           <AdvancedModeToggle id="module-advanced-mode" />
-          <ValidationNotice />
-          <Accordion
-            type="multiple"
-            defaultValue={sections.map((section) => section.value)}
-            className="grid gap-1"
-          >
-            {sections.map(({ value, label, Component }) => (
-              <Section key={value} value={value} label={label}>
-                <Component />
-              </Section>
-            ))}
-          </Accordion>
+          <EditorSidebar />
         </div>
       </aside>
     </div>

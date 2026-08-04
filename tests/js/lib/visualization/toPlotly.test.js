@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 
 import { BASE_PLOTLY_COLORS, COLORS } from "@/lib/constants";
 import { buildShapes } from "@/lib/tabular/toSeries";
-import { paletteForScale, resolveToken } from "@/lib/visualization/palettes";
+import { resolveToken } from "@/lib/visualization/palettes";
 import {
   fitFootnoteLayout,
   groupedCategorySections,
@@ -475,7 +475,12 @@ describe("toPlotly choropleth (unchanged for 'actual')", () => {
       appearance: {},
     });
     expect(data[0].z).toEqual([5]);
-    expect(data[0].colorscale).toEqual(paletteForScale("sequential"));
+    // Hand-written rather than read back through the resolver: the legacy
+    // CHOROPLETH_BLUES stops are the no-visible-change guarantee.
+    expect(data[0].colorscale).toEqual([
+      [0, COLORS.blue1],
+      [1, COLORS.blue5],
+    ]);
   });
 
   it("switches to the diverging ramp when appearance.colorScale is 'diverging'", () => {
@@ -551,13 +556,13 @@ describe("toPlotly decimal-places (measure formatting)", () => {
   const countField2 = { kind: "measure", unit: "count" };
 
   const divergingSpec = (appearance = {}, field = ratioField) => ({
-    chartType: "divergingBar",
+    chartType: "bar",
     bindings: { category: "region", y: "value" },
     series: [
       { region: "A", value: 1.234 },
       { region: "B", value: 0.5 },
     ],
-    appearance,
+    appearance: { diverging: true, ...appearance },
     field,
   });
 
@@ -608,17 +613,19 @@ describe("toPlotly decimal-places (measure formatting)", () => {
   });
 });
 
-describe("toPlotly divergingBar (dashboard-style styling)", () => {
+describe("toPlotly diverging bar (dashboard-style styling)", () => {
   const ratioField = { kind: "measure", unit: "ratio" };
+  // A diverging bar is `bar` + `appearance.diverging`; the `divergingBar` id
+  // was deleted 2026-08-03 and only survives as a RETIRED_CHART_TYPES entry.
   const baseSpec = (appearance = {}) => ({
-    chartType: "divergingBar",
+    chartType: "bar",
     bindings: { category: "region", y: "value" },
     series: [
       { region: "Ahead", value: 1.2 },
       { region: "Nearly", value: 0.8 },
       { region: "Behind", value: 0.4 },
     ],
-    appearance: { center: 1, ...appearance },
+    appearance: { diverging: true, center: 1, ...appearance },
     field: ratioField,
   });
 
@@ -667,5 +674,112 @@ describe("toPlotly divergingBar (dashboard-style styling)", () => {
     // Category axis (y) keeps its labels — only its line/ticks are dropped.
     expect(layout.yaxis.showline).toBe(false);
     expect(layout.yaxis.showticklabels).not.toBe(false);
+  });
+
+  it("draws the reference line at center when referenceValue is unset", () => {
+    const { layout } = toPlotly(baseSpec({ center: 1, referenceValue: null }));
+    const reference = layout.shapes.find((shape) => shape.line?.dash === "dash");
+    expect(reference).toMatchObject({ x0: 1, x1: 1 });
+  });
+
+  it("draws the reference line at referenceValue when both are set", () => {
+    const { data, layout } = toPlotly(
+      baseSpec({ center: 1, referenceValue: 0 }),
+    );
+    const reference = layout.shapes.find((shape) => shape.line?.dash === "dash");
+    expect(reference).toMatchObject({ x0: 0, x1: 0 });
+    expect(data.at(-1).base).toBe(1);
+  });
+
+  it("keeps the bar anchor on center when referenceValue moves", () => {
+    for (const referenceValue of [-1, 0, 2]) {
+      const { data } = toPlotly(baseSpec({ center: 1, referenceValue }));
+      expect(data.at(-1).base).toBe(1);
+    }
+  });
+
+  it("keeps the above/below colour split on center", () => {
+    const { data } = toPlotly({
+      ...baseSpec({ center: 1, referenceValue: 0 }),
+      series: [{ region: "Between", value: 0.5 }],
+    });
+    expect(data.at(-1).marker.color).toEqual([COLORS.orange3]);
+  });
+
+  it("treats referenceValue 0 as a setting, not an absence", () => {
+    const { layout } = toPlotly(baseSpec({ center: 1, referenceValue: 0 }));
+    const reference = layout.shapes.find((shape) => shape.line?.dash === "dash");
+    expect(reference.x0).toBe(0);
+  });
+
+  it("annotates the reference line when referenceLabel is set", () => {
+    const labelled = toPlotly(
+      baseSpec({ center: 1, referenceValue: 0.75, referenceLabel: "Target" }),
+    );
+    const blank = toPlotly(
+      baseSpec({ center: 1, referenceValue: 0.75, referenceLabel: "" }),
+    );
+
+    expect(labelled.layout.annotations).toEqual(
+      expect.arrayContaining([expect.objectContaining({ text: "Target" })]),
+    );
+    expect(blank.layout.annotations || []).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ text: "Target" })]),
+    );
+  });
+
+  it("honours an explicit valueRange without the track rail", () => {
+    const { layout } = toPlotly(
+      baseSpec({ trackRail: false, valueRange: [0, 2] }),
+    );
+    expect(layout.xaxis).toMatchObject({ range: [0, 2], autorange: false });
+  });
+
+  it("falls back to the data extent only when the rail is on and no range is set", () => {
+    const withoutRail = toPlotly(baseSpec({ trackRail: false, valueRange: null }));
+    const withRail = toPlotly(baseSpec({ trackRail: true, valueRange: null }));
+
+    expect(withoutRail.layout.xaxis.range).toBeUndefined();
+    expect(withRail.layout.xaxis).toMatchObject({
+      range: [0.4, 1.2],
+      autorange: false,
+    });
+  });
+});
+
+describe("toPlotly reference-line compatibility", () => {
+  it("a vertical reference without bounds still spans the paper", () => {
+    const { layout } = toPlotly({
+      chartType: "bar",
+      bindings: { category: "category", y: "value" },
+      series: [{ category: "A", value: 2 }],
+      appearance: { diverging: true, center: 1 },
+      labels: {},
+    });
+    const reference = layout.shapes.find((shape) => shape.line?.dash === "dash");
+    expect(reference).toMatchObject({ y0: 0, y1: 1, yref: "paper" });
+  });
+
+  it("a scatter's diagonal reference is unchanged", () => {
+    const { layout } = toPlotly({
+      chartType: "scatter",
+      bindings: { x: "x", y: "y", unit: "label" },
+      series: [{ x: 1, y: 2, label: "A" }],
+      referenceLines: [{ type: "diagonal" }],
+      appearance: {},
+      labels: {},
+    });
+    expect(layout.shapes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          x0: 0,
+          y0: 0,
+          x1: 1,
+          y1: 1,
+          xref: "paper",
+          yref: "paper",
+        }),
+      ]),
+    );
   });
 });

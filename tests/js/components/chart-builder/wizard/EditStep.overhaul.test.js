@@ -1,53 +1,93 @@
-/** Phase 10 source-composition contract for the shared standalone Edit step. */
+/** Workstream F: the wizard Edit step mounts the shared editor sidebar. */
 
-/* global process */
+import React from "react";
 
-import fs from "node:fs";
-import path from "node:path";
+import { cleanup, render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { describe, expect, it } from "vitest";
+const state = vi.hoisted(() => ({
+  config: { chartType: "line", validation: [], filters: {}, bindings: {}, layers: [] },
+  schema: { id: "byod", inlineOnly: true, fields: {}, subsets: {} },
+}));
 
-const editPath = path.join(
-  process.cwd(),
-  "components/chart-builder/wizard/steps/EditStep.js",
-);
-const source = fs.readFileSync(editPath, "utf8");
+vi.mock("@/components/chart-builder/chartConfigStore", () => ({
+  useChartConfig: () => state,
+}));
+vi.mock("@/components/chart-builder/ValidationNotice", () => ({ default: () => null }));
+vi.mock("@/components/chart-builder/wizard/PreviewPane", () => ({
+  default: () => <div>Preview</div>,
+}));
+vi.mock("@/components/chart-builder/wizard/StepShell", () => ({
+  default: ({ title, children }) => (
+    <section>
+      <h1>{title}</h1>
+      {children}
+    </section>
+  ),
+}));
+vi.mock("@/components/chart-builder/sections/PresetSection", () => ({ default: () => null }));
+vi.mock("@/components/chart-builder/ChartSidebar", () => ({ FooterActions: () => null }));
+vi.mock("@/components/chart-builder/LayerEditor", () => ({ default: () => null }));
+vi.mock("@/components/chart-builder/EditorActivityLog", () => ({ default: () => null }));
+vi.mock("@/components/chart-builder/ConfigActions", () => ({
+  ImportConfigButton: () => null,
+  ExportConfigButton: () => null,
+}));
+vi.mock("@/lib/visualization/sidebarSections", () => {
+  const ChartTypeProbe = ({ grouped }) =>
+    grouped ? "Line family Bar family Map family" : "Flat chart types";
+  const sections = [
+    { value: "datasets", label: "Datasets", Component: () => null },
+    { value: "chart-type", label: "Chart Type", Component: ChartTypeProbe },
+    { value: "axis", label: "Outcome", Component: () => null },
+    { value: "labels", label: "Labels", Component: () => null },
+    { value: "appearance", label: "Appearance", Component: () => null },
+  ];
+  return {
+    visibleSectionsFor: (_config, _schema, { only, exclude } = {}) =>
+      sections.filter(
+        (section) =>
+          (!only || only.includes(section.value)) &&
+          (!exclude || !exclude.includes(section.value)),
+      ),
+  };
+});
 
-describe("EditStep overhaul composition", () => {
-  it("uses the shared registry and excludes only Chart Type", () => {
-    expect(source).toMatch(/sidebarSections/);
-    expect(source).toMatch(/exclude\s*:\s*\[\s*["']chart-type["']\s*\]/);
-    expect(source).not.toMatch(/only\s*=/);
+import EditStep from "@/components/chart-builder/wizard/steps/EditStep";
+import ModuleSidebar from "@/components/chart-builder/workbench/ModuleSidebar";
+
+const SECTION_NAMES = ["Datasets", "Chart Type", "Outcome", "Labels", "Appearance"];
+
+function sectionNames() {
+  return screen
+    .getAllByRole("button")
+    .map((button) => button.textContent.trim())
+    .filter((name) => SECTION_NAMES.includes(name));
+}
+
+describe("EditStep shared sidebar", () => {
+  beforeEach(() => {
+    state.config = { chartType: "line", validation: [], filters: {}, bindings: {}, layers: [] };
+    state.schema = { id: "byod", inlineOnly: true, fields: {}, subsets: {} };
   });
 
-  it("removes GUI/Code and tier controls", () => {
-    // Advanced Mode is back as a single boolean (see below); what stays gone is
-    // the code editor and the three-tier visibility registry.
-    for (const removed of [
-      "EditorModeToggle",
-      "CodeEditorPanel",
-      "SET_TIER",
-      "settingsTiers",
-    ]) {
-      expect(source, removed).not.toContain(removed);
-    }
+  it("renders the Chart Type section in the sidebar", () => {
+    render(<EditStep />);
+    expect(screen.getByRole("button", { name: "Chart Type" })).toBeInTheDocument();
   });
 
-  it("hosts the Advanced Mode switch over its own sections", () => {
-    expect(source).toMatch(
-      /import\s*\{[^}]*AdvancedModeProvider[^}]*\}\s*from\s*["'][^"']*advancedMode["']/,
-    );
-    expect(source).toContain("<AdvancedModeProvider>");
-    expect(source).toMatch(/<AdvancedModeToggle[^>]*\/>/);
+  it("groups chart types into families", () => {
+    render(<EditStep />);
+    expect(screen.getByText(/Line family Bar family Map family/)).toBeInTheDocument();
   });
 
-  it("opts the shared Outcome section into the standalone Add line action", () => {
-    expect(source).toMatch(/OutcomeSection|allowLayers/);
-    expect(source).toContain("allowLayers");
-  });
+  it("renders the same section list as a module sidebar", () => {
+    render(<EditStep />);
+    const wizardSections = sectionNames();
+    cleanup();
 
-  it("keeps standalone config export alongside the shared sections", () => {
-    expect(source).toMatch(/import\s*\{[^}]*ExportConfigButton[^}]*\}\s*from/);
-    expect(source).toMatch(/<ExportConfigButton\s*\/?\s*>/);
+    state.schema = { id: "widgets", inlineOnly: false, fields: {}, subsets: {} };
+    render(<ModuleSidebar />);
+    expect(sectionNames()).toEqual(wizardSections);
   });
 });
