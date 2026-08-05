@@ -623,5 +623,53 @@
     "audited": true,
     "module": null,
     "description": "Relocated config import/export to the dataset and edit steps, implemented per-series legend visibility controls with an eye toggle in the appearance panel, and refined footnote styling with softer presentation. Improved export panel layout and capped embed dialog height."
+  },
+  "09e6a0f": {
+    "title": "Symbol-map support and visualization-spec rewrite",
+    "area": "Front-end components",
+    "intensity": "high",
+    "audited": true,
+    "module": null,
+    "description": "Extended the geography API to return representative points for each region, enabling symbol-map chart support. Rewrote the visualization specification, added chart-availability logic, and implemented feedback on outcome roles and implicit bindings."
+  },
+  "fabf6bc": {
+    "title": "Removed code-generation bridge and cleaned up chart type selection",
+    "area": "Front-end components",
+    "intensity": "low",
+    "audited": true,
+    "module": null,
+    "description": "Deleted the code-bridge layer that mapped chart configs to R and Stata code generation, along with the ChartTypeStep wizard step. Cleaned up dead code across the chart editor."
+  },
+  "154eee8": {
+    "title": "Appearance panel and palette overhaul with editor capabilities framework",
+    "area": "Front-end components",
+    "intensity": "high",
+    "audited": true,
+    "module": null,
+    "description": "Restructured the appearance section with new palette controls, added PPIC color ramp definitions, created an editor-capabilities framework to surface or hide features per chart type, and restored advanced mode as a single toggle. Added table transposition utilities and comprehensive test coverage."
+  },
+  "6ed0650": {
+    "title": "Automations guide expanded with fourth infrastructure option; GitHub Actions reference added",
+    "area": "Documentation",
+    "intensity": "moderate",
+    "audited": true,
+    "module": null,
+    "description": "Expanded the Automations Guide with a fourth infrastructure option (MoWo in a Corner: a self-hosted runner on dedicated hardware). Added comprehensive GitHub Actions workflow reference guide; updated pyproject.toml and markdown conventions."
+  },
+  "84843ad": {
+    "title": "Added point-value display toggle for range and dot plots",
+    "area": "Front-end components",
+    "intensity": "moderate",
+    "audited": true,
+    "module": null,
+    "description": "Added a show-point-values toggle to the Appearance panel for range and dot plots, letting users display or hide individual data-point values on the rendered chart."
+  },
+  "2351a2a": {
+    "title": "Export menu and image library overhaul",
+    "area": "Front-end components",
+    "intensity": "high",
+    "audited": true,
+    "module": null,
+    "description": "Restructured the export menu with expanded chart export options, improved layout and styling, added image quality presets, and enhanced the exportImage library with new formatting and rendering capabilities."
   }
 }
