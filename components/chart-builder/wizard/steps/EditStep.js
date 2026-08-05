@@ -90,14 +90,14 @@ function EditStepBody() {
 
   return (
     <StepShell title="Edit" preview={<PreviewPane />}>
-      <div className="grid min-h-0 min-w-0 gap-3">
+      <div className="grid min-h-0 min-w-0 gap-3 lg:h-full lg:grid-rows-[auto_minmax(0,1fr)]">
         {/* Import lives on the Import step, where a config arrives alongside
             the data; export config lives inside EditorSidebar below now,
             gated with the rest of the saved-view tools. */}
         <div className="flex flex-wrap items-center justify-end gap-3">
           <AdvancedModeToggle id="standalone-advanced-mode" />
         </div>
-        <ScrollArea className="h-[calc(100svh-24rem)] w-full min-w-0 pr-2">
+        <ScrollArea className="h-[calc(100svh-24rem)] w-full min-w-0 pr-2 lg:h-full">
           <div className="grid gap-3">
             <EditorSidebar sectionProps={SECTION_PROPS} />
             {needsCategories ? <CategoriesSection /> : null}

@@ -683,14 +683,16 @@ export default function AppearanceSection() {
 
       {isRangeFamily ? (
         <>
-          <div className="flex items-center justify-between gap-3">
-            <Label htmlFor="appearance-value-axis">Show values on plot</Label>
-            <Switch
-              id="appearance-value-axis"
-              checked={appearance.showValueAxis !== false}
-              onCheckedChange={(checked) => setAppearance("showValueAxis", checked)}
-            />
-          </div>
+          {advanced ? (
+            <div className="flex items-center justify-between gap-3">
+              <Label htmlFor="appearance-hide-x-axis">Hide X-Axis</Label>
+              <Switch
+                id="appearance-hide-x-axis"
+                checked={appearance.showValueAxis === false}
+                onCheckedChange={(checked) => setAppearance("showValueAxis", !checked)}
+              />
+            </div>
+          ) : null}
           <div className="flex items-center justify-between gap-3">
             <Label htmlFor="appearance-point-labels">Show point values</Label>
             <Switch
@@ -699,6 +701,23 @@ export default function AppearanceSection() {
               onCheckedChange={(checked) => setAppearance("showPointLabels", checked)}
             />
           </div>
+          {config.chartType === "dumbbell" && appearance.showPointLabels ? (
+            <div className="flex items-center justify-between gap-3 pl-4">
+              <Label
+                htmlFor="appearance-point-labels-first-line"
+                className="text-sm font-normal"
+              >
+                First Line Only
+              </Label>
+              <Switch
+                id="appearance-point-labels-first-line"
+                checked={Boolean(appearance.pointLabelsFirstLineOnly)}
+                onCheckedChange={(checked) =>
+                  setAppearance("pointLabelsFirstLineOnly", checked)
+                }
+              />
+            </div>
+          ) : null}
         </>
       ) : null}
 

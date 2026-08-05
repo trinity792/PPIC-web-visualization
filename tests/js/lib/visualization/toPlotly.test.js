@@ -465,6 +465,84 @@ describe("toPlotly grouped category sections", () => {
 
 });
 
+describe("toPlotly Range point values", () => {
+  const records = Array.from({ length: 10 }, (_, index) => ({
+    category: `Category ${index + 1}`,
+    Lower: index,
+    Upper: index + 2,
+    Estimate: index + 1,
+  }));
+  const spec = {
+    chartType: "dumbbell",
+    bindings: {
+      category: "category",
+      start: "Lower",
+      end: "Upper",
+      point: "Estimate",
+    },
+    series: records,
+    labels: {},
+  };
+
+  it("places every displayed value above its point and reserves a full-height row", () => {
+    const withoutValues = toPlotly({ ...spec, appearance: {} });
+    const withValues = toPlotly({
+      ...spec,
+      appearance: { showPointLabels: true },
+    });
+    const valueTraces = withValues.data.filter((trace) => trace.texttemplate);
+
+    expect(valueTraces.map((trace) => trace.name)).toEqual([
+      "Lower",
+      "Upper",
+      "Estimate",
+    ]);
+    expect(valueTraces.every((trace) => trace.textposition === "top center")).toBe(true);
+    expect(withoutValues.layout.height).toBeUndefined();
+    expect(withValues.layout.height).toBe(740);
+  });
+
+  it("can restrict every point-value trace to the visually top line", () => {
+    const { data } = toPlotly({
+      ...spec,
+      appearance: {
+        showPointLabels: true,
+        pointLabelsFirstLineOnly: true,
+      },
+    });
+    const valueTraces = data.filter((trace) => trace.texttemplate);
+
+    for (const trace of valueTraces) {
+      expect(trace.texttemplate).toHaveLength(records.length);
+      expect(trace.texttemplate.filter(Boolean)).toEqual(["%{x:,}"]);
+      expect(trace.texttemplate.at(-1)).toBe("%{x:,}");
+    }
+  });
+
+  it("uses the first numeric row as the top line on a grouped Range plot", () => {
+    const { data } = toPlotly({
+      ...spec,
+      bindings: { ...spec.bindings, group: "group" },
+      series: records.map((record, index) => ({
+        ...record,
+        group: index < 5 ? "First group" : "Second group",
+      })),
+      appearance: {
+        showPointLabels: true,
+        pointLabelsFirstLineOnly: true,
+      },
+    });
+    const valueTraces = data.filter((trace) => trace.texttemplate);
+
+    for (const trace of valueTraces) {
+      expect(trace.texttemplate[0]).toBe("%{x:,}");
+      expect(trace.texttemplate.slice(1).every((template) => template === "")).toBe(
+        true,
+      );
+    }
+  });
+});
+
 describe("toPlotly choropleth (unchanged for 'actual')", () => {
   it("renders raw values with the legacy sequential ramp", () => {
     const { data } = toPlotly({

@@ -11,6 +11,12 @@
  * long content — e.g. the R/Stata code editor in Edit mode — scrolling inside a
  * bounded, user-sized panel instead of overflowing the sidebar.
  *
+ * On desktop, only the preview contributes intrinsic height to the row. The
+ * controls card is absolutely positioned inside its stretched column, so it
+ * fills whatever height the preview requests without making the preview follow
+ * a long control list in the opposite direction. Overflow stays inside the
+ * sidebar. The stacked mobile layout remains natural-height.
+ *
  * Props:
  *   title     {string}    — underlined heading for the left controls card
  *   children  {ReactNode} — left-column controls
@@ -95,12 +101,12 @@ export default function StepShell({
   }
 
   return (
-    <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-start">
+    <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-stretch">
       <div
         className="relative w-full shrink-0 lg:w-[var(--sb-w)]"
         style={{ "--sb-w": `${width}px` }}
       >
-        <Card className="flex min-h-[calc(100svh-16rem)] min-w-0 flex-col p-5">
+        <Card className="flex min-h-[calc(100svh-16rem)] min-w-0 flex-col p-5 lg:absolute lg:inset-0 lg:min-h-0 lg:overflow-y-auto">
           {title ? (
             <div className="mb-4 text-center">
               <h2 className="inline-block border-b-2 border-ppic-brand pb-1 font-heading text-xl font-semibold">

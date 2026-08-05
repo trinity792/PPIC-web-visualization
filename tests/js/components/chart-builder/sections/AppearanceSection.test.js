@@ -136,6 +136,57 @@ describe("AppearanceSection", () => {
     expect(labels.indexOf(extra)).toBeGreaterThan(labels.indexOf("Footnote"));
   });
 
+  it("indents First Line Only beneath the active Range point-value toggle", () => {
+    state.config = config("dumbbell", { showPointLabels: true });
+    render(<AppearanceSection />);
+    const labels = labelOrder();
+    const firstLineToggle = screen.getByLabelText("First Line Only");
+
+    expect(labels.indexOf("First Line Only")).toBe(
+      labels.indexOf("Show point values") + 1,
+    );
+    expect(firstLineToggle.closest("div")).toHaveClass("pl-4");
+    fireEvent.click(firstLineToggle);
+    expect(state.dispatch).toHaveBeenCalledWith({
+      type: "SET_APPEARANCE",
+      key: "pointLabelsFirstLineOnly",
+      value: true,
+    });
+  });
+
+  it("hides First Line Only until Range point values are enabled", () => {
+    state.config = config("dumbbell", { showPointLabels: false });
+    render(<AppearanceSection />);
+
+    expect(screen.queryByLabelText("First Line Only")).not.toBeInTheDocument();
+  });
+
+  it("moves Hide X-Axis to Advanced Mode and keeps point values in basic mode", () => {
+    state.config = config("dumbbell");
+    const basic = renderBasic();
+
+    expect(screen.queryByLabelText("Hide X-Axis")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Show point values")).toBeInTheDocument();
+    basic.unmount();
+
+    renderAdvanced();
+    expect(screen.getByLabelText("Hide X-Axis")).toBeInTheDocument();
+  });
+
+  it("inverts Hide X-Axis into the existing showValueAxis setting", () => {
+    state.config = config("dumbbell", { showValueAxis: true });
+    renderAdvanced();
+    const toggle = screen.getByLabelText("Hide X-Axis");
+
+    expect(toggle).not.toBeChecked();
+    fireEvent.click(toggle);
+    expect(state.dispatch).toHaveBeenCalledWith({
+      type: "SET_APPEARANCE",
+      key: "showValueAxis",
+      value: false,
+    });
+  });
+
   it("shows Center reference for a bar with appearance.diverging on, below Footnote (Workstream B)", () => {
     const { unmount } = render(<AppearanceSection />);
     expect(screen.queryByLabelText(/Center reference/i)).not.toBeInTheDocument();

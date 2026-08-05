@@ -47,6 +47,8 @@ The chart container carries the module title, the chart, and an action bar: **Vi
 
 Three steps: **Import → Edit → Export**. Import is where a table is pasted, uploaded, and corrected; the other two steps are disabled until it holds data. The Edit step renders the same sidebar the workbench does, Chart Type included - it is a registry section on both surfaces, and the wizard only asks for it grouped into families rather than as a flat grid.
 
+On desktop, the chart container alone determines the shared row's height. The control card is absolutely positioned inside its stretched column, so when an adaptive chart requests more height the sidebar follows, while a long control list scrolls internally and cannot enlarge the chart. The stacked mobile layout keeps natural heights.
+
 What still differs is not the step list but what each surface can *support*. Four tools have no module-side meaning, and a fifth (multi-chart) has one but only out of the way. That is `components/chart-builder/editorCapabilities.js`: a `{ presets, savedViews, layers, activityLog, multiChart }` set each shell supplies, read by `useEditorCapabilities()`.
 
 | Tool | Workbench | Standalone | Why |
@@ -105,7 +107,7 @@ Both shells also wrap their sidebar and container in one `EditorCapabilitiesProv
 | `PreviewProvider` | `chart-builder/wizard/PreviewContext.js` | Loads data for every chart slot, builds Plotly props, and holds the mounted graph div so exports come off the displayed figure. Takes `deferInitialRender` - see *Landing on a module builds nothing*. |
 | `ViewHydrator` | `chart-builder/wizard/ViewHydrator.js` | Resolves `?view=` once on mount: a saved-view id, a serialized workspace, or a serialized single config. Shared so a link behaves the same wherever it is opened. |
 | `EditorSidebar` | `chart-builder/sections/EditorSidebar.js` | The panel *contents* both surfaces mount: the Advanced Mode toggle, the validation notice, the section accordion, and the capability-gated tool blocks. Takes `{ only, exclude, sectionProps }`. |
-| `ModuleSidebar` | `chart-builder/workbench/ModuleSidebar.js` | The workbench's `<aside>` and nothing else. It owns the height clamp that only makes sense inside `ModuleWorkbench`'s two-column grid, and renders `EditorSidebar` inside. The wizard's Edit step mounts `EditorSidebar` directly, with no clamp, because its column scrolls with the page. |
+| `ModuleSidebar` | `chart-builder/workbench/ModuleSidebar.js` | The workbench's `<aside>` and nothing else. It owns the absolute-position height clamp that only makes sense inside `ModuleWorkbench`'s two-column grid, and renders `EditorSidebar` inside. The wizard's Edit step mounts `EditorSidebar` directly; its shared `StepShell` stretches the control card to the chart container's height instead. |
 | `editorCapabilities.js` | `chart-builder/editorCapabilities.js` | Which tools a surface can support at all - see *The two surfaces*. |
 | `SIDEBAR_SECTIONS` | `lib/visualization/sidebarSections.js` | The ordered section registry both shells compose from. |
 
@@ -852,8 +854,9 @@ The first five controls are shared by every chart type. Everything below **Footn
 
 | Control | Config key | Available on | Wired to | What it does |
 |---|---|---|---|---|
-| Show values on plot | `appearance.showValueAxis` | Rng, Dot, For | `rangeLayout`, `dotPlotSpec` | Hides the value axis, its ticks and its gridlines. |
-| Show point values | `appearance.showPointLabels` | Rng, Dot, For | each trace's `texttemplate` | Prints each dot's number beside it. |
+| Hide X-Axis | `appearance.showValueAxis` (inverted) | Rng, Dot, For, in Advanced Mode | `rangeLayout`, `dotPlotSpec` | Hides the x-axis, including its title, ticks, gridlines, and axis line. The switch is on when `showValueAxis` is `false`. |
+| Show point values | `appearance.showPointLabels` | Rng, Dot, For | each trace's `texttemplate` | Prints each dot's number above it. Range plots also grow vertically as needed to keep complete labeled rows from colliding. |
+| First Line Only | `appearance.pointLabelsFirstLineOnly` | Rng, once point values are on | Range traces' `texttemplate` arrays | Restricts every displayed point value to the visually top Range row. |
 | Show values for *(per series)* | `appearance.pointLabelSeries` | Dot, once point values are on and series names are known | `dotPlotSpec`'s `labelsOn` | Hides individual series' labels, so a chart can label just one. |
 | Show endpoint labels | `appearance.showEndpointLabels` | Rng in slope mode | the trace's `text` | **No control** - config-only. |
 | Interval ends | `appearance.endpointStyle` | For | `FOREST_ENDPOINT_SYMBOL` | Vertical bars, dots, diamonds, or none. |

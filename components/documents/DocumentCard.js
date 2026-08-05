@@ -67,6 +67,7 @@ const STATUS_COLORS = {
   "In Progress": COLORS.blue2,
   "Not Started": COLORS.gray3,
   Updating: COLORS.blue5,
+  Draft: COLORS.maroonRed2
 };
 
 function formatDate(doc) {
