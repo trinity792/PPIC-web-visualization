@@ -15,7 +15,7 @@ Topic: Convention Guide
 Content Type: agent instructions
 pinned: false
 Date Published: July 04, 2026
-Last Updated: 07/04/2026 - 09:20 AM
+Last Updated: 08/04/2026 - 03:10 PM
 Status: Updating
 ---
 
@@ -55,6 +55,7 @@ pinned: false
 description: "A one-sentence summary of what this document covers and who it is for."
 Date Published: June 30, 2026
 Last Updated: 06/30/2026 - 10:17 AM
+Status: Updating
 ---
 ```
 
@@ -68,6 +69,7 @@ Last Updated: 06/30/2026 - 10:17 AM
 | `description` | Yes | Quoted string | A one-sentence summary shown on catalog cards and used for search. Include the audience when relevant (e.g., "for programmers continuing work on the project"). |
 | `Date Published` | Yes | `Month DD, YYYY` | When the document was first created. |
 | `Last Updated` | Yes | `MM/DD/YYYY - HH:MM AM/PM` | When the document was last meaningfully edited. Update this on every substantive change. |
+| `Status` | Yes | `Draft`, `Updating`, `Finalized`, `Archive` | How much the reader should trust the document and whether it is still moving. Drives the status filter on the `/documents` catalog. |
 
 ### Rules
 
@@ -75,6 +77,20 @@ Last Updated: 06/30/2026 - 10:17 AM
 - `Last Updated` uses a different date format than `Date Published`. This is intentional (the longer format reads naturally on cards; the shorter format is compact for frequent updates). Do not normalize them to one format.
 - Update `Last Updated` whenever content changes. Do not update it for whitespace-only or formatting-only edits.
 - `Content Type` should match the document's actual shape, not its subject. A document about unit tests that describes how to write them is a `guide`; a document that specifies exactly which tests to write is a `unit tests plan`.
+- `Status` takes one of exactly four values. Nothing else belongs in the field, because the `/documents` catalog builds its status filter from whatever values it finds, so an improvised value silently adds a filter option that matches one document.
+
+#### The Four Status Values
+
+| Value | Meaning | Reader takeaway |
+|---|---|---|
+| `Draft` | A first pass. Sections may be missing, unreviewed, or wrong. | Read it for direction, do not act on the details yet. |
+| `Updating` | Accurate as written, but actively changing as the work it describes proceeds. | Trust it, and check back, because it will grow. |
+| `Finalized` | Complete and reviewed. Further edits are corrections, not development. | Trust it and act on it. |
+| `Archive` | Superseded or historical. Kept as a record of what was true. | Do not act on it. Find what replaced it. |
+
+The line between `Draft` and `Updating` is whether the document is trustworthy yet, not whether it is finished. A document that is half-written is `Draft`. A document that is correct and complete for the work done so far, and will gain sections as more work lands, is `Updating`.
+
+Anything more specific than these four belongs in the body, not the field. A document that is finalized except for one unresolved section says so in a `> [!warning]` callout at the top of that section, rather than inventing a `Finalized (mostly)` status that fragments the catalog filter.
 
 ---
 
@@ -429,8 +445,11 @@ pinned: false
 description: "Refactoring plan for migrating the legacy X module into the V3 architecture."
 Date Published: June 30, 2026
 Last Updated: 06/30/2026 - 10:17 AM
+Status: Draft
 ---
 ```
+
+A refactoring plan starts as `Draft` while it is being written against the legacy module, moves to `Updating` once the migration is underway and the plan reflects what was actually built, and ends at `Finalized` when the module ships.
 
 ### Agent Instructions
 
@@ -442,6 +461,7 @@ pinned: false
 description: "Top-level orientation for AI agents working on the PPIC V3 migration."
 Date Published: June 22, 2026
 Last Updated: 06/30/2026 - 10:17 AM
+Status: Updating
 ---
 ```
 
@@ -455,6 +475,7 @@ pinned: true
 description: "Comparative guide to AI tools for research and policy workflows."
 Date Published: June 30, 2026
 Last Updated: 07/02/2026 - 12:04 PM
+Status: Finalized
 ---
 ```
 
@@ -468,6 +489,7 @@ pinned: true
 description: "The single source of truth for the project's specification, architecture, and API reference."
 Date Published: June 23, 2026
 Last Updated: 07/03/2026 - 08:45 PM
+Status: Updating
 ---
 ```
 

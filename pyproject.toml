@@ -1,3 +1,29 @@
+# PEP 735 dependency groups. These declare what the pipelines need without
+# turning this repo into an installable package (no [project] table, so pip
+# never tries to build/discover packages here). Install with:
+#   .venv/bin/pip install --group runtime --group dev
+# Versions are pinned exactly because there is no lockfile — bump deliberately.
+[dependency-groups]
+runtime = [
+    "pandas==3.0.3",
+    "numpy==2.4.6",
+    "requests==2.34.2",
+    "beautifulsoup4==4.15.0",   # imported as bs4 by the DoF/Census scrapers
+    "plotly==6.8.0",
+    "openpyxl==3.1.5",          # pandas .xlsx engine; imported only by pandas
+    "xlrd==2.0.2",              # pandas legacy .xls engine; same
+    "tzdata; sys_platform == 'win32'",  # Windows ships no IANA tz database, and
+]                                       # run_records.py builds ZoneInfo at import
+
+dev = [
+    "pytest==9.1.1",
+    "ruff==0.15.18",
+]
+geo = [
+    "geopandas",                # optional: lazy import in choropleth_map.py /
+]                               # components_of_change/visualizations.py, which
+                                # fall back to a non-dissolved map when absent
+
 [tool.pytest.ini_options]
 testpaths = ["scripts/unit_tests"]
 pythonpath = ["."]
