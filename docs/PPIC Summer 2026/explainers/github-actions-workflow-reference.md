@@ -1,12 +1,12 @@
 ---
 Topic: Technical
-Content Type: guide
+Content Type: reference
 pinned: false
 description: "Worked GitHub Actions workflow files implementing the Planned Process from the Automations Guide, annotated step by step, for the developer setting up automation on this repo."
 Date Published: August 04, 2026
-Last Updated: 08/04/2026 - 04:45 PM
+Last Updated: 08/04/2026 - 05:30 PM
 Status: Draft
-Footnote: Written by Claude Opus 5 against the live repository. Every YAML block was parsed and the report and detection shell steps were executed against a scratch git repo before publication. Action version pins were checked against the GitHub Marketplace on 08/04/2026 - Verification in Progress by Trinity
+Footnote: Written by Claude Opus 5 against the live repository. Every YAML block was parsed and the report and detection shell steps were executed against a scratch git repo before publication. Action version pins were checked against the GitHub Marketplace on 08/04/2026 - Content verified by Trinity Jones
 ---
 
 # GitHub Actions Workflow Reference
@@ -97,7 +97,7 @@ Each step in the guide has a direct counterpart in workflow syntax. The mapping 
 
 | Planned Process step | GitHub Actions construct | Notes |
 |---|---|---|
-| Step 1: Check for new data | `on: schedule` with a `cron` expression | In this repo, detection lives inside the pipeline rather than ahead of it. |
+| Step 1: Check for new data | `on: schedule` with a `cron` expression, plus `on: workflow_dispatch` for a manual trigger | In this repo, detection lives inside the pipeline rather than ahead of it. |
 | Step 2: Pipeline run | A `run:` step invoking `python -m scripts.orchestrators.<module>_pipeline` | The orchestrators are already CLI-invocable, so this is a single line. |
 | Step 3: Review | A pull request opened by the workflow | Authenticated with a PAT, not `GITHUB_TOKEN`. Two alternatives are recorded in Appendix A. |
 | Step 4: Storage | `actions/upload-artifact` for run evidence, plus a stub for external destinations | Currently the Git repo, as today. |
@@ -159,6 +159,35 @@ Two properties of GitHub's scheduler are worth internalizing because both cause 
 ### Choosing a cadence
 
 Match the schedule to the source agency's publication rhythm, then add slack. Census BPS releases monthly but the exact day moves, so a weekly poll costs about four runs a month and catches the release within a week. Annual sources like DOF E-5 can run weekly during the publication window and monthly otherwise. Polling more often than the source publishes wastes minutes; polling less often delays readers.
+
+### Running a refresh by hand
+
+The schedule is not the only way in. A researcher who notices that a source agency has published, and does not want to wait for the next scheduled poll, can trigger the refresh themselves. This is the same `workflow_dispatch` button, used deliberately rather than for testing.
+
+The whole flow, end to end:
+
+1. The researcher notices a source dataset has been updated.
+2. They open the repository's **Actions** tab in a browser and select the module's workflow, such as "Building Permits refresh."
+3. They click **Run workflow**, leave `dry_run` unchecked, and confirm.
+4. A few minutes later a pull request appears, titled "Data refresh: Building Permits," with the change report as its description.
+5. They read the diff, look at the Vercel preview deployment linked on the pull request, and merge if it looks right.
+6. Vercel rebuilds against `main` and the new numbers are on the site.
+
+> [!important] This needs a browser and nothing else
+> There is no clone to make, no Python to install, no terminal, and no local copy of the repository involved at any point. The pipeline executes on a GitHub-hosted runner that clones the repository itself, from GitHub, at the moment the job starts. The only prerequisite is a GitHub account with write access to the repository, which is the same access the reviewer needs in order to merge.
+
+Steps 4 through 6 are identical to what happens after a scheduled run. A manual trigger changes *when* the pipeline runs, not what it does or how it is reviewed, so nothing about the review gate has to be duplicated for this path.
+
+#### Why a local copy does not shorten this
+
+The instinct to clone the repository first, perhaps onto a laptop or an external drive, is understandable and does not help. A workflow file is not a script. `module-pipeline.yml` is a set of instructions for GitHub's runner service, not something that can be executed by opening it, and the runner that reads it fetches its own copy of the repository from GitHub rather than looking at any clone you happen to have.
+
+The practical consequence is worth stating plainly, because it is the failure mode most likely to waste an afternoon: **a manual run publishes what is on `main`, not what is on your disk.** Uncommitted local changes, a stale clone, or an unpushed branch have no effect on the result. If a fix needs to reach a refresh, it has to be merged to `main` first.
+
+Running the pipelines locally is still perfectly possible, and is exactly what Option A in the Automations Guide describes. It is a different process with different prerequisites, though: Python on the machine, pip 25.1 or newer, `pip install --group runtime`, and a reviewer comfortable reading `git diff` in a terminal. For a researcher who wants updated numbers on the site, the browser path asks for less and produces a better review artifact.
+
+> [!note] Manual triggering complements the schedule rather than replacing it
+> A human noticing a publication is a perfectly good Step 1, and for irregular sources it is often faster than any cron. It is not a reason to drop the schedule, because it depends on someone remembering to look. Keep both: the cron as the floor, the button for when someone already knows.
 
 ---
 
@@ -289,7 +318,7 @@ If the pipeline raises, the step exits non-zero and the job fails. The orchestra
 
 **The review gate is a pull request**, opened by the workflow and authenticated with a personal access token stored as the repository secret `DATA_REFRESH_TOKEN`. That is the decision, and the reasoning behind the token half of it is in [Authenticating the pull request](#authenticating-the-pull-request).
 
-Two other constructs can serve as the checkpoint: an environment approval gate, and an issue plus a manual dispatch. Neither was chosen, because the pull request is the only one of the three where the reviewer sees the actual numbers before approving them, which is the entire point of the checkpoint the guide asks for. It is also the only one that gets a Vercel preview deployment for free, so the reviewer can look at the rendered charts rather than a CSV diff. Both alternatives are worked out in full in [Appendix A](#appendix-a-review-gates-not-chosen), because the reasons could change.
+Two other constructs can serve as the checkpoint: an environment approval gate, and an issue plus a manual dispatch. Neither was chosen, because the pull request is the only one of the three where the reviewer sees the actual numbers before approving them, which is the entire point of the checkpoint the guide asks for. It is also the only one that gets a Vercel preview deployment for free, so the reviewer can look at the rendered charts rather than a CSV diff. Both alternatives are worked out in full in [Appendix A](#the-human-checkpoint), because the reasons could change.
 
 Whichever gate is in use, the reviewer needs the change report the guide describes. That comes first.
 
@@ -393,14 +422,7 @@ The reviewer sees a diff of the actual CSV, the change report as the PR descript
 
 The `token:` line above is the only part of this section's YAML that required a decision, and it is the part most likely to be wrong on a first attempt.
 
-### Why not `GITHUB_TOKEN`
-
-Every workflow run is issued a `GITHUB_TOKEN` automatically. It has no setup cost and would otherwise be the obvious choice. It is not usable here.
-
-> [!danger] A PR opened with `GITHUB_TOKEN` will not trigger your test workflow
-> GitHub deliberately refuses to trigger workflows from events raised by `GITHUB_TOKEN`, in order to prevent a workflow from triggering itself indefinitely. The practical consequence is that the bot's pull request shows no checks at all: `tests.yml` never fires, and you would be merging data without pytest or vitest having run against it. The review gate would then be a human reading a CSV diff with no automated verification underneath it, which is weaker than what the manual process gives you today.
-
-The alternative fix is to run the tests inside the refresh workflow itself, before the PR step, so the results are already in the change report. That works, but it couples the test suite to the data pipeline, re-runs the frontend tests on every data refresh whether or not any frontend code changed, and still leaves the pull request showing no checks to anyone who looks at it later. A token that can trigger workflows is the cleaner answer, and it is also what branch protection rules expect to see.
+The automatically-provided `GITHUB_TOKEN` is the obvious candidate and cannot be used, because GitHub refuses to trigger workflows from events it raises, so `tests.yml` would never run against the bot's pull request. That reasoning is in [Appendix A](#the-credential-github_token). What follows is what to use instead.
 
 ### The personal access token
 
@@ -719,17 +741,38 @@ These follow from the workflows above rather than from the infrastructure questi
 
 **What happens to `data/archive/` under automation?** The archive currently accumulates on the maintainer's machine and is gitignored. On a hosted runner it is written and immediately discarded. If the archive matters as a record, it needs a destination; if it does not, `archive_and_save()` is doing work that no longer serves a purpose in the automated path.
 
-**Who reviews, and do they have a GitHub account?** The pull request assumes the reviewer is a repository collaborator who can read a diff. The guide says "a researcher or project owner," which may not describe the same person. If the approver turns out to be someone without a GitHub account, the issue-plus-dispatch approach in [Appendix A](#appendix-a-review-gates-not-chosen) is the fallback, and the decision should be revisited rather than worked around.
+**Who reviews, and do they have a GitHub account?** The pull request assumes the reviewer is a repository collaborator who can read a diff. The same write access also gates [running a refresh by hand](#running-a-refresh-by-hand), so one permission grant covers both halves of the researcher-driven flow. The guide says "a researcher or project owner," which may not describe the same person. If the approver turns out to be someone without a GitHub account, the issue-plus-dispatch approach in [Appendix A](#the-human-checkpoint) is the fallback, and the decision should be revisited rather than worked around.
 
 **Should a failing pipeline block the schedule?** As written, a module that fails every Tuesday opens an issue every Tuesday. A backoff, or a check that suppresses duplicate issues, is straightforward to add but needs a policy decision about how loud repeated failure should be.
 
 ---
 
-## Appendix A: Review Gates Not Chosen
+## Appendix A: Decisions and Rejected Alternatives
 
-Two constructs other than the pull request can serve as the human checkpoint in [Step 3](#step-3-review). Neither was chosen. Both are worked out here rather than discarded, because the deciding factor is who the reviewer turns out to be, and that is not settled.
+[Step 3](#step-3-review) states two decisions without arguing for them at length: the review gate is a pull request, and it authenticates with a personal access token rather than the token GitHub provides for free. This appendix holds the reasoning and the options that were rejected, so the body of the document can state what to build rather than relitigate it.
 
-### Comparison
+Both decisions are recorded rather than discarded because both have a plausible trigger for revisiting. Neither is permanent.
+
+| Decision | Chosen | Rejected | Revisit when |
+|---|---|---|---|
+| Credential for opening the PR | Fine-grained PAT, `DATA_REFRESH_TOKEN` | `GITHUB_TOKEN` | Never for `GITHUB_TOKEN`; move to a GitHub App when the PPIC organization exists |
+| Human checkpoint | Pull request | Environment approval gate | The repo goes private on the Free tier, which disables the gate anyway |
+| Human checkpoint | Pull request | Issue plus manual dispatch | The approver turns out not to have a GitHub account |
+
+### The credential: `GITHUB_TOKEN`
+
+Every workflow run is issued a `GITHUB_TOKEN` automatically. It has no setup cost, belongs to no person, expires when the job ends, and would otherwise be the obvious choice. It is not usable here.
+
+> [!danger] A PR opened with `GITHUB_TOKEN` will not trigger your test workflow
+> GitHub deliberately refuses to trigger workflows from events raised by `GITHUB_TOKEN`, in order to prevent a workflow from triggering itself indefinitely. The practical consequence is that the bot's pull request shows no checks at all: `tests.yml` never fires, and you would be merging data without pytest or vitest having run against it. The review gate would then be a human reading a CSV diff with no automated verification underneath it, which is weaker than what the manual process gives you today.
+
+The alternative fix is to run the tests inside the refresh workflow itself, before the PR step, so the results are already in the change report. That works, but it couples the test suite to the data pipeline, re-runs the frontend tests on every data refresh whether or not any frontend code changed, and still leaves the pull request showing no checks to anyone who looks at it later. A token that can trigger workflows is the cleaner answer, and it is also what branch protection rules expect to see.
+
+This is the one decision here with no realistic path back. `GITHUB_TOKEN` remains correct for everything in these workflows that is not opening a pull request: checkout, the failure-notification issue, and the artifact downloads in the two rejected gates below all use it.
+
+### The human checkpoint
+
+Two constructs other than the pull request can serve as the checkpoint. The comparison below is the short version; the two subsections after it are the working YAML.
 
 | | Pull request (chosen) | Environment gate | Issue plus dispatch |
 |---|---|---|---|
@@ -742,7 +785,7 @@ Two constructs other than the pull request can serve as the human checkpoint in 
 
 The issue-plus-dispatch approach stays on the table for one specific future: if a researcher who does not use GitHub becomes the approver, it is the only one of the three that works without making them a repository collaborator. The Automations Guide describes the reviewer as "a researcher or project owner," so this is a plausible end state rather than a hypothetical one. Revisit if the approver changes.
 
-### An environment approval gate
+#### An environment approval gate
 
 Split the work into two jobs. The first builds the candidate and uploads it; the second waits for a named reviewer to click Approve in the Actions UI before it pushes.
 
@@ -812,7 +855,7 @@ The tradeoff is that the reviewer approves without seeing the data. They get the
 > [!warning] Required reviewers on environments are a paid feature for private repos
 > On the Free tier, environment protection rules work on public repositories only. If the repo goes private under Option C, this approach stops gating until the org is on Team or Enterprise. The pull request has no such restriction, which is a second reason it was chosen.
 
-### An issue plus manual dispatch
+#### An issue plus manual dispatch
 
 The most decoupled option. The pipeline run opens an issue containing the report and uploads the candidate as an artifact. Publishing is a separate workflow you trigger by hand, naming the run whose artifact you approved.
 

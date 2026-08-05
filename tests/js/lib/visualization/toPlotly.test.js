@@ -21,6 +21,74 @@ const countField = {
   transforms: ["actual", "indexed", "numericChange", "percentChange"],
 };
 
+describe("toPlotly legend wrapping", () => {
+  const withoutSideLegendPadding = (text) => text.replace(/&#8195;/g, "");
+  const lineSpec = (seriesName, overrides = {}) => ({
+    chartType: "line",
+    bindings: { x: "Year", y: "Value" },
+    series: [{ location: seriesName, years: [2024], values: [10] }],
+    labels: {},
+    appearance: {},
+    ...overrides,
+  });
+
+  it("wraps legend labels and titles at word boundaries", () => {
+    const { data, layout } = toPlotly({
+      ...lineSpec("Enrollment by detailed student population"),
+      labels: { legend: "Enrollment category shown in this chart" },
+    });
+
+    expect(data[0].name).toContain("<br>");
+    expect(withoutSideLegendPadding(data[0].name).split("<br>")).toEqual([
+      "Enrollment by",
+      "detailed student",
+      "population",
+    ]);
+    expect(layout.legend.title.text).toContain("<br>");
+  });
+
+  it("leaves a width reserve around side-legend lines for Plotly's clip path", () => {
+    const { data } = toPlotly({
+      ...lineSpec("South San Joaquin Valley"),
+      series: [
+        { location: "South San Joaquin Valley", years: [2024], values: [10] },
+        { location: "North San Joaquin Valley", years: [2024], values: [9] },
+      ],
+    });
+
+    expect(data.map((trace) => trace.name)).toEqual([
+      "South San Joaquin&#8195;&#8195;<br>Valley&#8195;&#8195;",
+      "North San Joaquin&#8195;&#8195;<br>Valley&#8195;&#8195;",
+    ]);
+  });
+
+  it("breaks long unspaced values without breaking series visibility matching", () => {
+    const seriesName = "EnrollmentByDetailedStudentPopulation";
+    const { data } = toPlotly({
+      ...lineSpec(seriesName),
+      appearance: { hiddenSeries: [seriesName] },
+    });
+
+    expect(data[0].name).toContain("<br>");
+    expect(
+      data[0].name
+        .split("<br>")
+        .map((line) =>
+          withoutSideLegendPadding(line).replace("&#8203;", "").length,
+        ),
+    ).toEqual([18, 18, 1]);
+    expect(data[0].visible).toBe(false);
+  });
+
+  it("honors manual line breaks and escapes legend markup", () => {
+    const { data } = toPlotly(lineSpec("First line\nSecond <line>"));
+
+    expect(data[0].name).toBe(
+      "First line&#8195;&#8195;<br>Second &lt;line&gt;&#8195;&#8195;",
+    );
+  });
+});
+
 describe("toPlotly footnote", () => {
   const spec = {
     chartType: "line",

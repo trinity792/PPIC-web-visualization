@@ -63,7 +63,7 @@ const ICONS = {
 
 const STATUS_COLORS = {
   Archive: COLORS.gray6,
-  Finalized: COLORS.blue1,
+  Finalized: COLORS.officialBlue,
   "In Progress": COLORS.blue2,
   "Not Started": COLORS.gray3,
   Updating: COLORS.blue5,

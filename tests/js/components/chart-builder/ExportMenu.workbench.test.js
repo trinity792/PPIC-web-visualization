@@ -7,6 +7,9 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const exportImage = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const renderImagePreview = vi.hoisted(() =>
+  vi.fn().mockResolvedValue("data:image/png;base64,cHJldmlldw=="),
+);
 const tables = vi.hoisted(() => ({
   displayTable: vi.fn(),
   originalTable: vi.fn(),
@@ -22,6 +25,8 @@ vi.mock("@/lib/export/exportImage", () => ({
   IMAGE_QUALITIES: [{ id: "max", label: "Maximum", scale: 4, jpegQuality: 1 }],
   exportImage,
   exportCombinedImage: vi.fn(),
+  renderImagePreview,
+  renderCombinedImagePreview: vi.fn(),
 }));
 vi.mock("@/lib/export/exportTable", () => tables);
 
@@ -76,7 +81,9 @@ function renderButton(button) {
 
 describe("ExportMenu named buttons", () => {
   beforeEach(() => {
-    for (const mock of [exportImage, ...Object.values(tables)]) mock.mockClear();
+    for (const mock of [exportImage, renderImagePreview, ...Object.values(tables)]) {
+      mock.mockClear();
+    }
     tables.displayTable.mockReturnValue({
       filename: "widgets.csv",
       columns: [{ name: "Location" }],
@@ -97,7 +104,8 @@ describe("ExportMenu named buttons", () => {
     );
 
     await user.click(screen.getByRole("button", { name: /export (chart|image)/i }));
-    await user.click(screen.getByRole("menuitem", { name: "PNG" }));
+    await screen.findByRole("img", { name: /export preview/i });
+    await user.click(screen.getByRole("button", { name: /download png/i }));
     expect(exportImage).toHaveBeenCalledWith(
       graphDiv,
       expect.objectContaining({ format: "png" }),

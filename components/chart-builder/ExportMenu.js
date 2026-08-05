@@ -3,18 +3,17 @@
 /**
  * ExportMenu.js — the editor's export controls.
  *
- * Two independent dropdown buttons, each exported on its own so a shell can
+ * Two independent export controls, each exported on its own so a shell can
  * place them wherever it likes:
  *
- *   • ExportChartButton — PNG/SVG/JPG/PDF at a chosen quality, plus an embed
- *     dialog with a live iframe preview of the whole workspace.
+ *   • ExportChartButton — a live image-preview dialog with format and quality
+ *     controls for PNG/SVG/JPG/PDF, plus an embed dialog for the workspace.
  *   • ExportDataButton  — the chart's displayed table, or the module's entire
  *     cleaned dataset (fetched full, ignoring the chart's filters), as CSV or
  *     Excel.
  *
- * The default export composes both, with the shared image-quality control above
- * them; that is what the wizard's Export step renders. The module workbench's
- * chart-container footer mounts the two buttons directly instead.
+ * The default export composes both buttons. Image quality lives with the image
+ * preview so the wizard and module workbench expose the same complete flow.
  *
  * Props (both buttons):
  *   graphDivRef  {Object}       — ref to the active mounted Plotly graph div
@@ -30,9 +29,6 @@
  *                                 dataset is addressable from config + schema,
  *                                 so it stays exportable from an unconfigured
  *                                 chart.
- *   quality      {Object|null}  — image-quality preset; ExportChartButton keeps
- *                                 its own state when this is not supplied
- *
  * Data sources:
  *   - `lib/export/{exportImage,exportTable}.js`; embed link via
  *     `components/chart-builder/savedViews.js` serializeWorkspace
@@ -46,14 +42,23 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  ArrowLeft,
   Check,
   Code2,
   ExternalLink,
   FileDown,
   FileSpreadsheet,
   Image as ImageIcon,
+  Laptop,
+  Lock,
+  LockOpen,
+  LoaderCircle,
+  Monitor,
+  Scan,
   SlidersHorizontal,
+  Smartphone,
   Table,
+  Tablet,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -74,6 +79,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/components/ui/utils";
 
@@ -85,6 +92,8 @@ import {
   exportImage,
   IMAGE_FORMATS,
   IMAGE_QUALITIES,
+  renderCombinedImagePreview,
+  renderImagePreview,
 } from "@/lib/export/exportImage";
 import {
   copyText,
@@ -96,6 +105,7 @@ import {
   toXlsxBlob,
 } from "@/lib/export/exportTable";
 import { logEditorEvent } from "@/lib/logs/editorLog";
+import { CHART_HEIGHTS } from "@/lib/constants";
 
 /**
  * ======================================================================
@@ -121,6 +131,52 @@ function imageFilename(config, format) {
 
 function combinedImageFilename(config, format) {
   return `${exportBase(config)}-charts.${format.ext || format.id}`;
+}
+
+const IMAGE_SIZE_PRESETS = Object.freeze([
+  { id: "phone", label: "Phone", width: 390, icon: Smartphone },
+  { id: "tablet", label: "Tablet", width: 768, icon: Tablet },
+  { id: "laptop", label: "Laptop", width: 1440, icon: Laptop },
+  { id: "monitor", label: "Monitor", width: 1920, icon: Monitor },
+]);
+const DEFAULT_IMAGE_SIZE = Object.freeze({ width: 1100, height: CHART_HEIGHTS.default });
+const MIN_IMAGE_DIMENSION = 240;
+const MAX_IMAGE_DIMENSION = 3840;
+const RESPONSIVE_GRID_BREAKPOINT = 1024;
+
+function pixelDimension(value) {
+  if (String(value).trim() === "") return null;
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < MIN_IMAGE_DIMENSION) return null;
+  if (number > MAX_IMAGE_DIMENSION) return null;
+  return Math.round(number);
+}
+
+function graphPixelSize(graphDiv) {
+  const bounds = graphDiv?.getBoundingClientRect?.();
+  const width =
+    Number(graphDiv?._fullLayout?.width) ||
+    Number(bounds?.width) ||
+    Number(graphDiv?.clientWidth);
+  const height =
+    Number(graphDiv?._fullLayout?.height) ||
+    Number(bounds?.height) ||
+    Number(graphDiv?.clientHeight);
+  return {
+    width: pixelDimension(width) || DEFAULT_IMAGE_SIZE.width,
+    height: pixelDimension(height) || DEFAULT_IMAGE_SIZE.height,
+  };
+}
+
+function exportGridDimensions(layout, count, width, responsive = false) {
+  if (count <= 1) return { cols: 1, rows: 1 };
+  if (responsive && width < RESPONSIVE_GRID_BREAKPOINT) {
+    return { cols: 1, rows: count };
+  }
+  if (layout === "1x2") return { cols: 2, rows: 1 };
+  if (layout === "2x1") return { cols: 1, rows: count };
+  if (layout === "2x2") return { cols: 2, rows: Math.ceil(count / 2) };
+  return { cols: 1, rows: count };
 }
 
 // The suffix each exportable data source appends to the download filename.
@@ -247,18 +303,179 @@ export function ExportChartButton({
   loaded,
   previews = null,
   graphDivRefs = null,
-  quality = null,
   disabled = false,
 }) {
   const { config, workspace } = useChartConfig();
+  const [imageOpen, setImageOpen] = useState(false);
+  const [formatId, setFormatId] = useState(IMAGE_FORMATS[0].id);
+  const [qualityId, setQualityId] = useState(IMAGE_QUALITIES[0].id);
+  const [imageWidth, setImageWidth] = useState(String(DEFAULT_IMAGE_SIZE.width));
+  const [imageHeight, setImageHeight] = useState(String(DEFAULT_IMAGE_SIZE.height));
+  const [aspectLocked, setAspectLocked] = useState(true);
+  const [aspectRatio, setAspectRatio] = useState(
+    DEFAULT_IMAGE_SIZE.width / DEFAULT_IMAGE_SIZE.height,
+  );
+  const [sizeSelection, setSizeSelection] = useState("editor");
+  const [imagePreview, setImagePreview] = useState({
+    status: "idle",
+    src: null,
+    error: null,
+  });
   const [embedOpen, setEmbedOpen] = useState(false);
   const [embedCopied, setEmbedCopied] = useState(false);
-  // When no quality is supplied (the button mounted on its own), keep the
-  // highest-quality preset rather than exposing a second control.
-  const activeQuality = quality || IMAGE_QUALITIES[0];
+  const activeFormat =
+    IMAGE_FORMATS.find((format) => format.id === formatId) || IMAGE_FORMATS[0];
+  const activeQuality =
+    IMAGE_QUALITIES.find((option) => option.id === qualityId) || IMAGE_QUALITIES[0];
+  const exportWidth = pixelDimension(imageWidth);
+  const exportHeight = pixelDimension(imageHeight);
+  const dimensionsValid = exportWidth != null && exportHeight != null;
+  const outputWidth = dimensionsValid
+    ? Math.round(exportWidth * activeQuality.scale)
+    : null;
+  const outputHeight = dimensionsValid
+    ? Math.round(exportHeight * activeQuality.scale)
+    : null;
   const embed = useMemo(() => embedInfo(config, workspace), [config, workspace]);
   const exportCharts = useExportCharts(previews, config, loaded);
   const multi = exportCharts.length > 1;
+  const devicePresetSelected = IMAGE_SIZE_PRESETS.some(
+    (preset) => preset.id === sizeSelection,
+  );
+  const editorUsesStackedGrid =
+    sizeSelection === "editor" &&
+    typeof window !== "undefined" &&
+    window.innerWidth < RESPONSIVE_GRID_BREAKPOINT;
+  const responsiveGrid = devicePresetSelected || editorUsesStackedGrid;
+
+  function mountedGraphDivs() {
+    return multi
+      ? exportCharts.map((chart) => graphDivRefs?.current?.[chart.id] || null)
+      : [graphDivRef?.current || null];
+  }
+
+  function measuredExportSize({ width = null, responsive = false } = {}) {
+    const sizes = mountedGraphDivs().filter(Boolean).map(graphPixelSize);
+    const chartSizes = sizes.length ? sizes : [DEFAULT_IMAGE_SIZE];
+    const cellWidth = Math.max(...chartSizes.map((size) => size.width));
+    const cellHeight = Math.max(...chartSizes.map((size) => size.height));
+    const gridWidth = width ?? (responsive ? 0 : Number.POSITIVE_INFINITY);
+    const { cols, rows } = exportGridDimensions(
+      workspace?.layout,
+      exportCharts.length,
+      gridWidth,
+      responsive,
+    );
+    return {
+      width: width ?? cellWidth * cols,
+      height: cellHeight * rows,
+    };
+  }
+
+  function applyDimensions({ width, height }, selection) {
+    const nextWidth = Math.round(width);
+    const nextHeight = Math.round(height);
+    setImageWidth(String(nextWidth));
+    setImageHeight(String(nextHeight));
+    setAspectRatio(nextWidth / nextHeight);
+    setAspectLocked(true);
+    setSizeSelection(selection);
+  }
+
+  function applyEditorDimensions() {
+    const stacked =
+      typeof window !== "undefined" &&
+      window.innerWidth < RESPONSIVE_GRID_BREAKPOINT;
+    applyDimensions(measuredExportSize({ responsive: stacked }), "editor");
+  }
+
+  function applyDevicePreset(preset) {
+    applyDimensions(
+      measuredExportSize({ width: preset.width, responsive: true }),
+      preset.id,
+    );
+  }
+
+  function onDimensionChange(axis, value) {
+    const parsed = pixelDimension(value);
+    setSizeSelection(null);
+    if (axis === "width") {
+      setImageWidth(value);
+      if (aspectLocked && parsed != null) {
+        setImageHeight(String(Math.round(parsed / aspectRatio)));
+      }
+      return;
+    }
+    setImageHeight(value);
+    if (aspectLocked && parsed != null) {
+      setImageWidth(String(Math.round(parsed * aspectRatio)));
+    }
+  }
+
+  function toggleAspectLock() {
+    if (!aspectLocked && dimensionsValid) {
+      setAspectRatio(exportWidth / exportHeight);
+    }
+    setAspectLocked((locked) => !locked);
+  }
+
+  // Opening the dialog renders the same chart canvas used by the eventual
+  // download, at preview density to avoid allocating a 4x monitor-sized bitmap.
+  // A stale render is ignored if the dialog closes or dimensions change.
+  useEffect(() => {
+    if (!imageOpen) return undefined;
+    if (!dimensionsValid) {
+      setImagePreview({ status: "idle", src: null, error: null });
+      return undefined;
+    }
+    let cancelled = false;
+    setImagePreview({ status: "loading", src: null, error: null });
+
+    const graphDivs = multi
+      ? exportCharts.map((chart) => graphDivRefs?.current?.[chart.id] || null)
+      : null;
+    const previewPromise = multi
+      ? renderCombinedImagePreview(graphDivs, {
+          layout: workspace?.layout,
+          responsive: responsiveGrid,
+          scale: 1,
+          width: exportWidth,
+          height: exportHeight,
+        })
+      : renderImagePreview(graphDivRef?.current, {
+          scale: 1,
+          width: exportWidth,
+          height: exportHeight,
+        });
+
+    Promise.resolve(previewPromise)
+      .then((src) => {
+        if (!cancelled) setImagePreview({ status: "ready", src, error: null });
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setImagePreview({
+          status: "error",
+          src: null,
+          error: error.message || "The export preview could not be rendered.",
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    dimensionsValid,
+    exportCharts,
+    exportHeight,
+    exportWidth,
+    graphDivRef,
+    graphDivRefs,
+    imageOpen,
+    multi,
+    responsiveGrid,
+    workspace?.layout,
+  ]);
 
   // Reset the "Copied!" confirmation shortly after it shows.
   useEffect(() => {
@@ -268,6 +485,7 @@ export function ExportChartButton({
   }, [embedCopied]);
 
   async function onExportImage(format) {
+    if (!dimensionsValid) return;
     try {
       if (multi) {
         // Live-read each mounted graph div (the previews snapshot may predate a
@@ -277,8 +495,11 @@ export function ExportChartButton({
         );
         await exportCombinedImage(graphDivs, {
           layout: workspace?.layout,
+          responsive: responsiveGrid,
           format: format.id,
           scale: activeQuality.scale,
+          width: exportWidth,
+          height: exportHeight,
           transparent: format.supportsAlpha,
           quality: activeQuality.jpegQuality,
           filename: combinedImageFilename(config, format),
@@ -287,6 +508,8 @@ export function ExportChartButton({
         await exportImage(graphDivRef?.current, {
           format: format.id,
           scale: activeQuality.scale,
+          width: exportWidth,
+          height: exportHeight,
           transparent: format.supportsAlpha,
           quality: activeQuality.jpegQuality,
           filename: imageFilename(config, format),
@@ -300,6 +523,7 @@ export function ExportChartButton({
           : `Exported chart as ${format.label}`,
         source: "ExportMenu",
       });
+      setImageOpen(false);
     } catch (error) {
       logEditorEvent({
         severity: "error",
@@ -324,34 +548,268 @@ export function ExportChartButton({
 
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" disabled={disabled}>
-            <ImageIcon aria-hidden="true" />
-            Export image
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-52">
-          <DropdownMenuLabel>Image</DropdownMenuLabel>
-          {IMAGE_FORMATS.map((format) => (
-            <DropdownMenuItem key={format.id} onSelect={() => onExportImage(format)}>
-              <ImageIcon aria-hidden="true" />
-              {format.label}
-            </DropdownMenuItem>
-          ))}
-          <DropdownMenuSeparator />
-          <DropdownMenuLabel>Embed</DropdownMenuLabel>
-          <DropdownMenuItem
-            onSelect={(event) => {
-              event.preventDefault();
-              setEmbedOpen(true);
-            }}
-          >
-            <Code2 aria-hidden="true" />
-            Embed code…
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={disabled}
+        onClick={() => {
+          applyEditorDimensions();
+          setImageOpen(true);
+        }}
+      >
+        <ImageIcon aria-hidden="true" />
+        Export image
+      </Button>
+
+      <Dialog
+        open={imageOpen}
+        onOpenChange={(open) => {
+          setImageOpen(open);
+          if (!open) {
+            setImagePreview({ status: "idle", src: null, error: null });
+          }
+        }}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-5xl">
+          <DialogHeader>
+            <DialogTitle>Export image</DialogTitle>
+            <DialogDescription>
+              Review the finished image, then choose its format and resolution.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-3">
+            <div className="flex min-h-64 items-center justify-center overflow-auto rounded-lg border bg-muted/30 p-3">
+              {imagePreview.status === "loading" ? (
+                <div
+                  role="status"
+                  className="flex items-center gap-2 text-sm text-muted-foreground"
+                >
+                  <LoaderCircle aria-hidden="true" className="size-5 animate-spin" />
+                  Rendering export preview…
+                </div>
+              ) : null}
+              {imagePreview.status === "ready" ? (
+                <figure className="grid max-w-full gap-2">
+                  <figcaption className="text-center text-xs text-muted-foreground">
+                    {exportWidth} × {exportHeight} px chart layout
+                  </figcaption>
+                  <img
+                    src={imagePreview.src}
+                    alt="Export preview"
+                    className="max-h-[55vh] max-w-full object-contain shadow-sm"
+                  />
+                </figure>
+              ) : null}
+              {imagePreview.status === "error" ? (
+                <p role="alert" className="max-w-lg text-center text-sm text-destructive">
+                  {imagePreview.error}
+                </p>
+              ) : null}
+              {!dimensionsValid ? (
+                <p role="alert" className="max-w-lg text-center text-sm text-destructive">
+                  Enter a width and height from {MIN_IMAGE_DIMENSION} to{" "}
+                  {MAX_IMAGE_DIMENSION} pixels.
+                </p>
+              ) : null}
+            </div>
+
+            <div className="grid gap-4 rounded-lg border bg-card p-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:col-span-2">
+                <div className="grid gap-1">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Chart size
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    Match the live chart or preview it at a responsive device width.
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap gap-1.5">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={sizeSelection === "editor" ? "default" : "outline"}
+                    aria-label="Match editor dimensions"
+                    aria-pressed={sizeSelection === "editor"}
+                    className="h-8 gap-1.5 px-2.5 text-xs"
+                    onClick={applyEditorDimensions}
+                  >
+                    <Scan aria-hidden="true" className="size-3.5" />
+                    Match editor
+                  </Button>
+                  {IMAGE_SIZE_PRESETS.map((preset) => {
+                    const active = sizeSelection === preset.id;
+                    const PresetIcon = preset.icon;
+                    return (
+                      <Button
+                        key={preset.id}
+                        type="button"
+                        size="sm"
+                        variant={active ? "default" : "outline"}
+                        aria-label={`${preset.label} responsive chart at ${preset.width} pixels wide`}
+                        aria-pressed={active}
+                        className="h-8 gap-1.5 px-2.5 text-xs"
+                        onClick={() => applyDevicePreset(preset)}
+                      >
+                        <PresetIcon aria-hidden="true" className="size-3.5" />
+                        {preset.label}
+                      </Button>
+                    );
+                  })}
+                </div>
+
+                <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-2">
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="export-image-width">Width (px)</Label>
+                    <Input
+                      id="export-image-width"
+                      type="number"
+                      inputMode="numeric"
+                      min={MIN_IMAGE_DIMENSION}
+                      max={MAX_IMAGE_DIMENSION}
+                      value={imageWidth}
+                      aria-invalid={pixelDimension(imageWidth) == null}
+                      onChange={(event) =>
+                        onDimensionChange("width", event.target.value)
+                      }
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant={aspectLocked ? "secondary" : "outline"}
+                    className="size-9"
+                    aria-label={
+                      aspectLocked ? "Unlock aspect ratio" : "Lock aspect ratio"
+                    }
+                    aria-pressed={aspectLocked}
+                    title={
+                      aspectLocked ? "Aspect ratio linked" : "Aspect ratio unlocked"
+                    }
+                    onClick={toggleAspectLock}
+                  >
+                    {aspectLocked ? (
+                      <Lock aria-hidden="true" className="size-3.5" />
+                    ) : (
+                      <LockOpen aria-hidden="true" className="size-3.5" />
+                    )}
+                  </Button>
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="export-image-height">Height (px)</Label>
+                    <Input
+                      id="export-image-height"
+                      type="number"
+                      inputMode="numeric"
+                      min={MIN_IMAGE_DIMENSION}
+                      max={MAX_IMAGE_DIMENSION}
+                      value={imageHeight}
+                      aria-invalid={pixelDimension(imageHeight) == null}
+                      onChange={(event) =>
+                        onDimensionChange("height", event.target.value)
+                      }
+                    />
+                  </div>
+                </div>
+
+                <p className="text-xs text-muted-foreground">
+                  {aspectLocked
+                    ? "Width and height are linked to preserve the chart’s proportions."
+                    : "Aspect ratio is unlocked; the chart will reflow into the custom size."}
+                </p>
+
+                {dimensionsValid ? (
+                  <p className="text-xs text-muted-foreground">
+                    {activeQuality.label} quality downloads at {outputWidth} ×{" "}
+                    {outputHeight} px ({activeQuality.scale}× density).
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="grid content-start gap-2">
+                <span className="text-xs font-medium text-muted-foreground">
+                  Image format
+                </span>
+                <ToggleGroup
+                  type="single"
+                  value={formatId}
+                  onValueChange={(value) => value && setFormatId(value)}
+                  aria-label="Image export format"
+                  className="w-full gap-1 rounded-full bg-muted p-1"
+                >
+                  {IMAGE_FORMATS.map((format) => (
+                    <ToggleGroupItem
+                      key={format.id}
+                      value={format.id}
+                      aria-label={`${format.label} format`}
+                      className={cn(
+                        "h-7 rounded-full border-0 px-3 text-xs font-medium text-muted-foreground shadow-none",
+                        "first:rounded-full last:rounded-full",
+                        "hover:bg-background/70 hover:text-foreground",
+                        "data-[state=on]:bg-ppic-brand data-[state=on]:font-semibold data-[state=on]:text-white data-[state=on]:shadow-sm",
+                      )}
+                    >
+                      {format.label}
+                    </ToggleGroupItem>
+                  ))}
+                </ToggleGroup>
+              </div>
+
+              <div className="grid content-start gap-2">
+                <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                  <SlidersHorizontal aria-hidden="true" className="size-3.5" />
+                  Image quality
+                </span>
+                <ToggleGroup
+                  type="single"
+                  value={qualityId}
+                  onValueChange={(value) => value && setQualityId(value)}
+                  aria-label="Image export quality"
+                  className="w-full gap-1 rounded-full bg-muted p-1"
+                >
+                  {IMAGE_QUALITIES.map((option) => (
+                    <ToggleGroupItem
+                      key={option.id}
+                      value={option.id}
+                      className={cn(
+                        "h-7 rounded-full border-0 px-3 text-xs font-medium text-muted-foreground shadow-none",
+                        "first:rounded-full last:rounded-full",
+                        "hover:bg-background/70 hover:text-foreground",
+                        "data-[state=on]:bg-ppic-brand data-[state=on]:font-semibold data-[state=on]:text-white data-[state=on]:shadow-sm",
+                      )}
+                    >
+                      {option.label}
+                    </ToggleGroupItem>
+                  ))}
+                </ToggleGroup>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setImageOpen(false);
+                setEmbedOpen(true);
+              }}
+            >
+              <Code2 aria-hidden="true" />
+              Embed chart
+            </Button>
+            <Button
+              type="button"
+              onClick={() => onExportImage(activeFormat)}
+              disabled={!dimensionsValid || imagePreview.status !== "ready"}
+            >
+              <FileDown aria-hidden="true" />
+              Download {activeFormat.label}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={embedOpen}
@@ -361,7 +819,21 @@ export function ExportChartButton({
         }}
       >
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
-          <DialogHeader>
+          <DialogHeader className="items-start">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="-ml-2"
+              onClick={() => {
+                setEmbedOpen(false);
+                setEmbedCopied(false);
+                setImageOpen(true);
+              }}
+            >
+              <ArrowLeft aria-hidden="true" />
+              Back to export options
+            </Button>
             <DialogTitle>Embed chart</DialogTitle>
             <DialogDescription>
               Copy this iframe into a page that can embed PPIC chart URLs.
@@ -619,56 +1091,15 @@ export default function ExportMenu({
   previews = null,
   graphDivRefs = null,
 }) {
-  // Default to the highest-quality preset (index 0). The control sits above the
-  // buttons rather than inside the image menu, so the choice is visible before
-  // the menu is opened.
-  const [qualityId, setQualityId] = useState(IMAGE_QUALITIES[0].id);
-  const quality =
-    IMAGE_QUALITIES.find((option) => option.id === qualityId) || IMAGE_QUALITIES[0];
-
   return (
-    <div className="flex flex-col items-center gap-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-          <SlidersHorizontal aria-hidden="true" className="size-3.5" />
-          Image quality
-        </span>
-        <ToggleGroup
-          type="single"
-          value={qualityId}
-          // type="single" emits "" when the active item is re-clicked; ignore it
-          // so a quality is always selected.
-          onValueChange={(value) => value && setQualityId(value)}
-          aria-label="Image export quality"
-          className="gap-1 rounded-full bg-muted p-1"
-        >
-          {IMAGE_QUALITIES.map((option) => (
-            <ToggleGroupItem
-              key={option.id}
-              value={option.id}
-              className={cn(
-                "h-7 rounded-full border-0 px-3 text-xs font-medium text-muted-foreground shadow-none",
-                "first:rounded-full last:rounded-full",
-                "hover:bg-background/70 hover:text-foreground",
-                "data-[state=on]:bg-ppic-brand data-[state=on]:font-semibold data-[state=on]:text-white data-[state=on]:shadow-sm",
-              )}
-            >
-              {option.label}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <ExportChartButton
-          graphDivRef={graphDivRef}
-          loaded={loaded}
-          previews={previews}
-          graphDivRefs={graphDivRefs}
-          quality={quality}
-        />
-        <ExportDataButton loaded={loaded} previews={previews} />
-      </div>
+    <div className="flex flex-wrap items-center justify-center gap-2">
+      <ExportChartButton
+        graphDivRef={graphDivRef}
+        loaded={loaded}
+        previews={previews}
+        graphDivRefs={graphDivRefs}
+      />
+      <ExportDataButton loaded={loaded} previews={previews} />
     </div>
   );
 }

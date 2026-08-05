@@ -6,13 +6,19 @@
 
 import React from "react";
 
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const exportImageMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const exportCombinedImageMock = vi.hoisted(() =>
   vi.fn().mockResolvedValue(undefined),
+);
+const renderImagePreviewMock = vi.hoisted(() =>
+  vi.fn().mockResolvedValue("data:image/png;base64,cHJldmlldw=="),
+);
+const renderCombinedImagePreviewMock = vi.hoisted(() =>
+  vi.fn().mockResolvedValue("data:image/png;base64,Y29tYmluZWQ="),
 );
 const exportTableMocks = vi.hoisted(() => ({
   displayTable: vi.fn(),
@@ -26,10 +32,10 @@ const exportTableMocks = vi.hoisted(() => ({
 
 vi.mock("@/lib/export/exportImage", () => ({
   IMAGE_FORMATS: [
-    { id: "png", label: "PNG", supportsAlpha: true, vector: false },
-    { id: "svg", label: "SVG", supportsAlpha: true, vector: true },
-    { id: "jpeg", label: "JPG", supportsAlpha: false, vector: false },
-    { id: "pdf", label: "PDF", supportsAlpha: false, vector: true },
+    { id: "png", label: "PNG", supportsAlpha: true, vector: false, ext: "png" },
+    { id: "svg", label: "SVG", supportsAlpha: true, vector: true, ext: "svg" },
+    { id: "jpeg", label: "JPG", supportsAlpha: false, vector: false, ext: "jpg" },
+    { id: "pdf", label: "PDF", supportsAlpha: false, vector: true, ext: "pdf" },
   ],
   IMAGE_QUALITIES: [
     { id: "max", label: "Maximum", scale: 4, jpegQuality: 1 },
@@ -37,6 +43,8 @@ vi.mock("@/lib/export/exportImage", () => ({
   ],
   exportImage: exportImageMock,
   exportCombinedImage: exportCombinedImageMock,
+  renderImagePreview: renderImagePreviewMock,
+  renderCombinedImagePreview: renderCombinedImagePreviewMock,
 }));
 
 vi.mock("@/lib/export/exportTable", () => exportTableMocks);
@@ -87,7 +95,10 @@ const loadedResult = {
 };
 
 function renderMenu() {
-  const graphDiv = { id: "graph-div" };
+  const graphDiv = {
+    id: "graph-div",
+    _fullLayout: { width: 960, height: 520 },
+  };
   render(
     <ChartConfigProvider schema={schema} initialConfig={initialConfig}>
       <ExportMenu graphDivRef={{ current: graphDiv }} loaded={loadedResult} />
@@ -98,7 +109,10 @@ function renderMenu() {
 
 // Two-chart workspace passed via the preview props ExportStep supplies.
 function renderMultiMenu() {
-  const graphDivs = { c1: { id: "gd-1" }, c2: { id: "gd-2" } };
+  const graphDivs = {
+    c1: { id: "gd-1", _fullLayout: { width: 600, height: 380 } },
+    c2: { id: "gd-2", _fullLayout: { width: 600, height: 380 } },
+  };
   const previews = [
     { id: "c1", name: "Chart 1", config: initialConfig, result: loadedResult },
     { id: "c2", name: "Trend", config: initialConfig, result: loadedResult },
@@ -144,16 +158,38 @@ describe("ExportMenu", () => {
   beforeEach(() => {
     exportImageMock.mockClear();
     exportCombinedImageMock.mockClear();
+    renderImagePreviewMock.mockClear();
+    renderCombinedImagePreviewMock.mockClear();
     for (const fn of Object.values(exportTableMocks)) fn.mockClear();
     primeTableMocks();
   });
 
-  it("exports the mounted chart as an image through exportImage", async () => {
+  it("opens an image preview before exporting the mounted chart", async () => {
     const user = userEvent.setup();
     const { graphDiv } = renderMenu();
 
+    expect(
+      screen.queryByRole("radiogroup", { name: /image export quality/i }),
+    ).not.toBeInTheDocument();
+    expect(renderImagePreviewMock).not.toHaveBeenCalled();
+
     await user.click(screen.getByRole("button", { name: /export image/i }));
-    await user.click(screen.getByRole("menuitem", { name: /png/i }));
+    const preview = await screen.findByRole("img", { name: /export preview/i });
+
+    expect(
+      screen.getByRole("radiogroup", { name: /image export quality/i }),
+    ).toBeInTheDocument();
+    expect(preview).toHaveAttribute("src", expect.stringContaining("image/png"));
+    expect(renderImagePreviewMock).toHaveBeenCalledWith(
+      graphDiv,
+      expect.objectContaining({ scale: 1, width: 960, height: 520 }),
+    );
+    expect(
+      screen.getByRole("button", { name: /match editor dimensions/i }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(exportImageMock).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: /download png/i }));
 
     expect(exportImageMock).toHaveBeenCalledWith(
       graphDiv,
@@ -166,11 +202,17 @@ describe("ExportMenu", () => {
     renderMenu();
 
     await user.click(screen.getByRole("button", { name: /export image/i }));
-    await user.click(screen.getByRole("menuitem", { name: /png/i }));
+    await screen.findByRole("img", { name: /export preview/i });
+    await user.click(screen.getByRole("button", { name: /download png/i }));
 
     expect(exportImageMock).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ format: "png", scale: 4 }),
+      expect.objectContaining({
+        format: "png",
+        scale: 4,
+        width: 960,
+        height: 520,
+      }),
     );
   });
 
@@ -178,14 +220,88 @@ describe("ExportMenu", () => {
     const user = userEvent.setup();
     renderMenu();
 
-    // The quality control sits above the export buttons, not inside a menu.
-    await user.click(screen.getByText("Standard"));
     await user.click(screen.getByRole("button", { name: /export image/i }));
-    await user.click(screen.getByRole("menuitem", { name: /png/i }));
+    await screen.findByRole("img", { name: /export preview/i });
+    await user.click(screen.getByRole("radio", { name: "Standard" }));
+    await screen.findByRole("img", { name: /export preview/i });
+    expect(screen.getByText(/standard quality downloads at/i)).toHaveTextContent(
+      "1920 × 1040 px",
+    );
+    await user.click(screen.getByRole("button", { name: /download png/i }));
 
     expect(exportImageMock).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ format: "png", scale: 2 }),
+      expect.objectContaining({
+        format: "png",
+        scale: 2,
+        width: 960,
+        height: 520,
+      }),
+    );
+  });
+
+  it("updates the preview for device presets and custom pixel dimensions", async () => {
+    const user = userEvent.setup();
+    renderMenu();
+
+    await user.click(screen.getByRole("button", { name: /export image/i }));
+    await screen.findByRole("img", { name: /export preview/i });
+    await user.click(
+      screen.getByRole("button", {
+        name: /phone responsive chart at 390 pixels wide/i,
+      }),
+    );
+
+    await waitFor(() =>
+      expect(renderImagePreviewMock).toHaveBeenLastCalledWith(
+        expect.anything(),
+        expect.objectContaining({ scale: 1, width: 390, height: 520 }),
+      ),
+    );
+    expect(screen.getByText("390 × 520 px chart layout")).toBeInTheDocument();
+
+    const width = screen.getByLabelText(/width \(px\)/i);
+    const height = screen.getByLabelText(/height \(px\)/i);
+    await user.clear(width);
+    await user.type(width, "780");
+
+    await waitFor(() => expect(height).toHaveValue(1040));
+    expect(
+      screen.getByText(/width and height are linked to preserve/i),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /unlock aspect ratio/i }));
+    await user.clear(width);
+    await user.type(width, "1200");
+    await user.clear(height);
+    await user.type(height, "700");
+
+    await waitFor(() =>
+      expect(renderImagePreviewMock).toHaveBeenLastCalledWith(
+        expect.anything(),
+        expect.objectContaining({ scale: 1, width: 1200, height: 700 }),
+      ),
+    );
+    expect(
+      await screen.findByText("1200 × 700 px chart layout"),
+    ).toBeInTheDocument();
+  });
+
+  it("downloads the format selected beside the preview", async () => {
+    const user = userEvent.setup();
+    renderMenu();
+
+    await user.click(screen.getByRole("button", { name: /export image/i }));
+    await screen.findByRole("img", { name: /export preview/i });
+    await user.click(screen.getByRole("radio", { name: /jpg format/i }));
+    await user.click(screen.getByRole("button", { name: /download jpg/i }));
+
+    expect(exportImageMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        format: "jpeg",
+        filename: "widgets-line.jpg",
+      }),
     );
   });
 
@@ -240,7 +356,8 @@ describe("ExportMenu", () => {
     renderMenu();
 
     await user.click(screen.getByRole("button", { name: /export image/i }));
-    await user.click(screen.getByRole("menuitem", { name: /embed code/i }));
+    await screen.findByRole("img", { name: /export preview/i });
+    await user.click(screen.getByRole("button", { name: /embed chart/i }));
     await user.click(screen.getByRole("button", { name: /copy embed code/i }));
 
     const code = exportTableMocks.copyText.mock.calls.at(-1)[0];
@@ -257,7 +374,8 @@ describe("ExportMenu", () => {
     renderMenu();
 
     await user.click(screen.getByRole("button", { name: /export image/i }));
-    await user.click(screen.getByRole("menuitem", { name: /embed code/i }));
+    await screen.findByRole("img", { name: /export preview/i });
+    await user.click(screen.getByRole("button", { name: /embed chart/i }));
     await user.click(screen.getByRole("button", { name: /copy embed code/i }));
 
     expect(await screen.findByRole("button", { name: /copied!/i })).toBeInTheDocument();
@@ -268,7 +386,8 @@ describe("ExportMenu", () => {
     renderMenu();
 
     await user.click(screen.getByRole("button", { name: /export image/i }));
-    await user.click(screen.getByRole("menuitem", { name: /embed code/i }));
+    await screen.findByRole("img", { name: /export preview/i });
+    await user.click(screen.getByRole("button", { name: /embed chart/i }));
 
     const preview = screen.getByTitle("Embed preview");
     const src = preview.getAttribute("src");
@@ -278,6 +397,26 @@ describe("ExportMenu", () => {
     const openLink = screen.getByRole("link", { name: /open in new tab/i });
     expect(openLink).toHaveAttribute("href", src);
     expect(openLink).toHaveAttribute("target", "_blank");
+  });
+
+  it("returns from embed to the export preview without losing its options", async () => {
+    const user = userEvent.setup();
+    renderMenu();
+
+    await user.click(screen.getByRole("button", { name: /export image/i }));
+    await screen.findByRole("img", { name: /export preview/i });
+    await user.click(screen.getByRole("radio", { name: /jpg format/i }));
+    await user.click(screen.getByRole("radio", { name: "Standard" }));
+    await user.click(screen.getByRole("button", { name: /embed chart/i }));
+
+    expect(screen.getByRole("heading", { name: /embed chart/i })).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: /back to export options/i }),
+    );
+
+    await screen.findByRole("img", { name: /export preview/i });
+    expect(screen.getByRole("radio", { name: /jpg format/i })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Standard" })).toBeChecked();
   });
 });
 
@@ -296,6 +435,8 @@ describe("ExportMenu — module full-source export", () => {
   beforeEach(() => {
     exportImageMock.mockClear();
     exportCombinedImageMock.mockClear();
+    renderImagePreviewMock.mockClear();
+    renderCombinedImagePreviewMock.mockClear();
     for (const fn of Object.values(exportTableMocks)) fn.mockClear();
     primeTableMocks();
     globalThis.fetch = vi.fn().mockResolvedValue({
@@ -355,6 +496,8 @@ describe("ExportMenu — multi-chart workspace", () => {
   beforeEach(() => {
     exportImageMock.mockClear();
     exportCombinedImageMock.mockClear();
+    renderImagePreviewMock.mockClear();
+    renderCombinedImagePreviewMock.mockClear();
     for (const fn of Object.values(exportTableMocks)) fn.mockClear();
     primeTableMocks();
   });
@@ -364,7 +507,20 @@ describe("ExportMenu — multi-chart workspace", () => {
     const { graphDivs } = renderMultiMenu();
 
     await user.click(screen.getByRole("button", { name: /export image/i }));
-    await user.click(screen.getByRole("menuitem", { name: /png/i }));
+    await screen.findByRole("img", { name: /export preview/i });
+
+    expect(renderCombinedImagePreviewMock).toHaveBeenCalledWith(
+      [graphDivs.c1, graphDivs.c2],
+      expect.objectContaining({
+        layout: "1x1",
+        responsive: false,
+        scale: 1,
+        width: 600,
+        height: 760,
+      }),
+    );
+
+    await user.click(screen.getByRole("button", { name: /download png/i }));
 
     expect(exportImageMock).not.toHaveBeenCalled();
     expect(exportCombinedImageMock).toHaveBeenCalledWith(
