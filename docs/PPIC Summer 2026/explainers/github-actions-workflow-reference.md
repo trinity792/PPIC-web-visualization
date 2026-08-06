@@ -4,7 +4,7 @@ Content Type: reference
 pinned: false
 description: "Worked GitHub Actions workflow files implementing the Planned Process from the Automations Guide, annotated step by step, for the developer setting up automation on this repo."
 Date Published: August 04, 2026
-Last Updated: 08/04/2026 - 05:30 PM
+Last Updated: 08/04/2026 - 06:50 PM
 Status: Draft
 Footnote: Written by Claude Opus 5 against the live repository. Every YAML block was parsed and the report and detection shell steps were executed against a scratch git repo before publication. Action version pins were checked against the GitHub Marketplace on 08/04/2026 - Content verified by Trinity Jones
 ---
@@ -911,3 +911,356 @@ This approach's appeal is that review can happen entirely outside GitHub: the is
 
 > [!note] Neither alternative uses `DATA_REFRESH_TOKEN`
 > Both push directly with `GITHUB_TOKEN` rather than opening a pull request, so the recursion rule that forces the PAT in the chosen design does not apply. That also means neither triggers `tests.yml`: there is no pull request for it to run against, and the push to `main` fires `tests.yml` only after the data has already been published. Adopting either one would mean moving the test suite into the build job to keep the verification the pull request gets for free.
+
+---
+
+# Setup Walkthrough: Manual Refresh with External Archive
+
+Everything above describes what to build and why. This part is the order to build it in, for one specific configuration: refreshes triggered by hand rather than on a schedule, with run evidence and superseded data pulled down to an external drive.
+
+> [!info] How to read this part
+> Eight stages, each ending in a checkpoint that either passes or tells you what broke. Run the checkpoint before moving on. A stage whose checkpoint fails will not be rescued by the next one, and the failure gets harder to locate with every stage you stack on top of it. Commands assume macOS or Linux; Windows equivalents are noted where they differ.
+
+---
+
+## What This Configuration Actually Does
+
+The single most important constraint, because it determines what the external drive can and cannot be:
+
+> [!danger] Published data cannot leave Git
+> `lib/data/building_permits.js` and its siblings read their CSVs with `node:fs` from `path.join(process.cwd(), "data", "data-cleaned", ...)`. On Vercel, `process.cwd()` is the deployed bundle, which is built from the Git repository. A CSV that is not committed does not exist as far as the site is concerned, and Vercel cannot read a drive plugged into anyone's laptop. Moving `data/data-cleaned/` onto the external device would take the site down. The device holds what Git deliberately does not.
+
+With that settled, the division of responsibility is clean:
+
+| Artifact | Lives in Git? | Goes to the drive? | Why |
+|---|---|---|---|
+| `data/data-cleaned/<module>/*.csv` | Yes, committed by the PR | No | The site reads it at build time. |
+| `data/archive/<module>/*.csv` | No, gitignored | Yes | Superseded versions. This is the growth the Automations Guide flags. |
+| `data/data-raw/<module>/` | No, gitignored | Yes | Source downloads, useful for reproducing a bad run. |
+| `logs/pipeline-runs.jsonl` | No, gitignored | Yes | The run record behind each change report. |
+| `change-report.md` | No, generated per run | Yes | What the reviewer saw when they approved. |
+
+The drive is a durable home for the three gitignored things that a GitHub-hosted runner creates and then destroys when the job ends. It is not in the publishing path, so a forgotten sync delays your archive, not the website.
+
+---
+
+## Before You Start
+
+Four things, none of which involve the drive yet.
+
+| Requirement | How to check | If missing |
+|---|---|---|
+| Write access to the repository | You can see the Actions tab's "Run workflow" button | Ask the repo owner |
+| Python 3.12 | `python3 --version` | Install from python.org |
+| pip 25.1 or newer | `pip --version` | `python3 -m pip install --upgrade pip` |
+| GitHub CLI | `gh --version` | `brew install gh`, then `gh auth login` |
+
+The GitHub CLI is optional for stages 1 through 6, which can all be done in a browser. It becomes necessary at stage 8, because downloading an artifact to a specific directory is not something the web UI does well.
+
+---
+
+## Stage 1: Confirm the Pipeline Runs Locally
+
+Do this before writing any YAML. A pipeline that fails on your machine will fail on the runner too, and it is far easier to debug locally where you can add a print statement.
+
+```bash
+cd /path/to/web-data-visualization
+python3 -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+python -m pip install --upgrade pip
+pip install --group runtime
+```
+
+Then run one module end to end:
+
+```bash
+python -m scripts.orchestrators.building_permits_pipeline
+```
+
+> [!success] Checkpoint 1
+> ```bash
+> pip --version            # must report 25.1 or higher, or --group silently fails
+> python -c "import pandas, numpy, requests, bs4, openpyxl, xlrd; print('imports ok')"
+> python -c "from zoneinfo import ZoneInfo; print(ZoneInfo('America/Los_Angeles'))"
+> ```
+> Expected:
+> ```text
+> pip 25.1 from ... (python 3.12)
+> imports ok
+> America/Los_Angeles
+> ```
+> The pipeline itself should end with either `Written to: data/data-cleaned/building-permits/BuildingPermits_Current.csv` or `No new data detected; file unchanged.` Both are passes. A `ZoneInfoNotFoundError` on the third line means `tzdata` did not install, which happens on Windows if the `sys_platform` marker was dropped.
+
+---
+
+## Stage 2: Add the Workflow Files
+
+Create `.github/workflows/` and add `module-pipeline.yml` exactly as given in [Step 2](#step-2-the-pipeline-run) through [Step 5](#step-5-push-and-commit).
+
+The caller is where this configuration differs from the body of the document. No `schedule` block:
+
+```yaml
+# .github/workflows/building-permits.yml
+name: Building Permits refresh
+
+on:
+  # No schedule. Refreshes are triggered by hand from the Actions tab.
+  # To automate later, add:
+  #   schedule:
+  #     - cron: "17 16 * * 2"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Run the pipeline and publish the report without opening a PR"
+        type: boolean
+        default: false
+
+concurrency:
+  group: data-refresh-building-permits
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    uses: ./.github/workflows/module-pipeline.yml
+    secrets: inherit
+    permissions:
+      contents: write
+      issues: write
+    with:
+      module_id: building-permits
+      module_label: Building Permits
+      orchestrator: scripts.orchestrators.building_permits_pipeline
+      data_path: data/data-cleaned/building-permits
+      dry_run: ${{ inputs.dry_run == true }}
+```
+
+One change to `module-pipeline.yml` is needed for this configuration. [Step 4](#step-4-storage) uploads everything as a single artifact, which is fine for debugging but forces the drive sync to unpack and redistribute it afterwards. Replace that step with three artifacts, one per destination:
+
+```yaml
+      - name: Upload the run record
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ inputs.module_id }}-run-${{ github.run_id }}
+          path: |
+            logs/
+            change-report.md
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload superseded dataset versions
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ inputs.module_id }}-archive-${{ github.run_id }}
+          path: data/archive/${{ inputs.module_id }}/
+          retention-days: 90
+          if-no-files-found: ignore
+
+      - name: Upload raw source downloads
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ inputs.module_id }}-raw-${{ github.run_id }}
+          path: data/data-raw/${{ inputs.module_id }}/
+          retention-days: 30
+          if-no-files-found: ignore
+```
+
+The split is what makes the drive sync a plain download. `upload-artifact` uses the least common ancestor of its `path` entries as the artifact root, so an artifact given the single path `data/archive/<module>/` contains the CSV files at its top level, with no `data/archive/` prefix wrapped around them. Pointing `-D` at the matching directory on the drive puts them exactly where they belong. The run-record artifact keeps two paths, so its root is the workspace and it preserves `logs/` and `change-report.md` as separate entries.
+
+Two of the settings differ from the single-artifact version on purpose. `if-no-files-found: ignore` rather than `warn`, because a run that finds no new data legitimately archives nothing and there is no reason to colour the run yellow for it. And `retention-days: 90` on the archive, because that artifact is the only copy of a superseded dataset until it reaches the drive, whereas a run log is disposable once the run is understood.
+
+Commit and push these to `main`. They will not appear in the Actions tab from a branch.
+
+> [!success] Checkpoint 2
+> ```bash
+> python -c "import yaml,sys; [yaml.safe_load(open(f)) for f in sys.argv[1:]]; print('yaml ok')" \
+>   .github/workflows/*.yml
+> gh workflow list
+> ```
+> Expected: `yaml ok`, then a list including `Building Permits refresh`. If `gh workflow list` does not show it, the file is not on the default branch yet. Note that `yaml ok` proves the file parses, not that GitHub accepts it; a schema error still surfaces as a failed run.
+
+---
+
+## Stage 3: Create and Store the Token
+
+Under **Settings > Developer settings > Personal access tokens > Fine-grained tokens**, create a token scoped to this repository only, with `Contents: Read and write` and `Pull requests: Read and write`. Set the shortest expiry you will tolerate re-doing.
+
+Store it on the repository, not on your machine:
+
+```bash
+gh secret set DATA_REFRESH_TOKEN
+# paste the token when prompted; it will not echo
+```
+
+> [!success] Checkpoint 3
+> ```bash
+> gh secret list
+> ```
+> Expected: a row reading `DATA_REFRESH_TOKEN  Updated less than a minute ago`. The value is unreadable after this point, by you or anyone else, which is the intended behaviour. Write down whose token it is and its expiry date somewhere that is not the repository.
+
+---
+
+## Stage 4: Configure Repository Settings
+
+Two settings, both under **Settings > Actions > General > Workflow permissions**: select "Read and write permissions", and tick "Allow GitHub Actions to create and approve pull requests."
+
+> [!success] Checkpoint 4
+> No command for this one. Reload the settings page and confirm both are still set. The second checkbox in particular reverts silently if the first is not saved before it is ticked, and its absence produces a permissions error at the very end of an otherwise successful run.
+
+---
+
+## Stage 5: First Dry Run
+
+This exercises the pipeline, the report, and the artifact upload without opening a pull request.
+
+```bash
+gh workflow run building-permits.yml -f dry_run=true
+sleep 5
+gh run list --workflow=building-permits.yml --limit 1
+gh run watch          # pick the running job; streams until it finishes
+```
+
+Or in the browser: **Actions > Building Permits refresh > Run workflow**, tick `dry_run`, confirm.
+
+> [!success] Checkpoint 5
+> ```bash
+> gh run list --workflow=building-permits.yml --limit 1
+> ```
+> Expected: a row with a green `completed  success`. Then open the run in the browser and confirm the summary page shows the "Building Permits change report" heading with a row count and a diff block. That report rendering is the thing this stage is really testing, because it is what the reviewer will read.
+>
+> Confirm no pull request was opened: `gh pr list --label data-refresh` should return nothing. If a PR appeared, `dry_run` is not reaching the reusable workflow, which usually means the `inputs.dry_run == true` expression was mistyped in the caller.
+
+---
+
+## Stage 6: First Real Refresh
+
+Same command without the flag:
+
+```bash
+gh workflow run building-permits.yml
+gh run watch
+```
+
+If the source has published nothing since the last commit, the pipeline succeeds and opens no pull request, which is correct behaviour and not a failure. To force something reviewable on a first pass, run against a module whose data is genuinely stale.
+
+Once a pull request exists, review it as the reviewer would: read the change report in the description, open the **Files changed** tab, and check the Vercel preview link.
+
+> [!success] Checkpoint 6
+> ```bash
+> gh pr list --label data-refresh
+> gh pr checks <pr-number>
+> ```
+> Expected: one open PR titled `Data refresh: Building Permits`, and `gh pr checks` listing the `python` and `frontend` jobs from `tests.yml`.
+>
+> **If `gh pr checks` reports no checks, `DATA_REFRESH_TOKEN` is not being used.** That is the `GITHUB_TOKEN` recursion rule described in [Appendix A](#the-credential-github_token), and it means either the secret name is misspelled or `secrets: inherit` is missing from the caller. Do not merge until checks appear; a PR with no checks is exactly the unverified merge this design exists to prevent.
+
+Merge it, then confirm the site picked it up.
+
+> [!success] Checkpoint 6b
+> Wait for the Vercel deployment to finish, then load the module's page and confirm the newest date in the chart matches what the change report said was added. This is the only checkpoint that verifies the whole chain end to end.
+
+---
+
+## Stage 7: Prepare the External Device
+
+Now the drive. Format it and lay out a structure the sync routine can rely on.
+
+```bash
+DRIVE="/Volumes/PPIC-DATA"          # Windows: DRIVE="D:/PPIC-DATA"
+mkdir -p "$DRIVE"/{archive,raw,refresh-runs}
+printf 'PPIC data-visualization archive\nHolds gitignored pipeline output. Not the published dataset.\n' \
+  > "$DRIVE/README.txt"
+```
+
+> [!warning] Filesystem format matters more than capacity
+> exFAT is the obvious choice for a drive moving between the MacBook and the Windows laptop, and it is fine for this use, which is only ever copying CSVs and log files. Do not put a Git clone or a `node_modules` on it: exFAT has no symlink support and does not preserve Unix permissions, so `npm install` and `git` both misbehave in ways that are tedious to diagnose. Keep the drive to archive storage and leave working copies on internal disks.
+
+> [!success] Checkpoint 7
+> ```bash
+> ls -la "$DRIVE"
+> df -h "$DRIVE" | tail -1
+> touch "$DRIVE/.writetest" && rm "$DRIVE/.writetest" && echo "writable"
+> ```
+> Expected: the three directories plus `README.txt`, a free-space figure, and `writable`. The write test matters because a drive that mounts read-only, which happens with NTFS on macOS, fails silently at the copy step much later.
+
+---
+
+## Stage 8: Capture the First Archive
+
+Artifacts expire, so this is the stage with an actual deadline attached. Because stage 2 split the upload into one artifact per destination, each one downloads straight to where it belongs. There is nothing to unpack, move, or clean up afterwards.
+
+```bash
+DRIVE="/Volumes/PPIC-DATA"
+MODULE="building-permits"
+RUN_ID=$(gh run list --workflow="${MODULE}.yml" --limit 1 --json databaseId --jq '.[0].databaseId')
+
+# Superseded dataset versions, straight into the consolidated tree.
+gh run download "$RUN_ID" -n "${MODULE}-archive-${RUN_ID}" -D "$DRIVE/archive/$MODULE" \
+  || echo "no archive artifact for run $RUN_ID (nothing changed)"
+
+# Raw source downloads.
+gh run download "$RUN_ID" -n "${MODULE}-raw-${RUN_ID}" -D "$DRIVE/raw/$MODULE" \
+  || echo "no raw artifact for run $RUN_ID"
+
+# Log and change report, kept per run.
+gh run download "$RUN_ID" -n "${MODULE}-run-${RUN_ID}" -D "$DRIVE/refresh-runs/$RUN_ID"
+```
+
+The `|| echo` on the first two is not defensive padding. A run that finds no new data archives nothing, so `if-no-files-found: ignore` means the artifact is never created and `gh run download` exits non-zero looking for it. Without the guard, a normal no-op refresh ends the routine with what looks like a failure.
+
+The drive ends up holding two shapes for two questions. `archive/<module>/` is one growing tree of every superseded CSV across all runs, answering "what did this dataset look like in May." `refresh-runs/<id>/` is a per-run bundle holding the log and the change report, answering "what happened on this run." Keeping them apart means the archive is browsable by module and date rather than buried under run IDs.
+
+> [!tip] Downloading every artifact at once
+> `gh run download "$RUN_ID"` with no `-n` fetches all three, extracting each into a subdirectory named after the artifact. That is the quick way to inspect a run, but it does not sort anything onto the drive correctly, so it is a debugging convenience rather than a substitute for the three lines above.
+
+> [!success] Checkpoint 8
+> ```bash
+> ls "$DRIVE/archive/$MODULE"
+> ls "$DRIVE/refresh-runs/$RUN_ID"
+> du -sh "$DRIVE/archive"
+> ```
+> Expected: one or more archived CSVs sitting directly in `archive/building-permits/` with no nested `data/` directory above them, a bundle containing `logs/` and `change-report.md`, and a size figure to compare against next month. A nested `data/archive/` inside the destination means the artifact was uploaded with more than one `path` entry, which pushes the least common ancestor back up to the workspace root.
+>
+> An empty archive is not necessarily an error. `archive_and_save()` only writes an archive copy when it is about to overwrite an existing file, so a run that found no new data archives nothing. Confirm against the change report: if it said `New data detected: False`, no archive artifact is correct.
+
+> [!warning] Two runs on the same day overwrite each other's archive entry
+> The archive filename carries day-level granularity and no run ID, so two refreshes of the same module on the same day produce the same filename and the second silently replaces the first. This is invisible on the drive, because the second download simply overwrites the first file. It has not mattered while refreshes are monthly and manual. It would matter immediately under a daily schedule, and the fix is a finer timestamp in `archive_and_save()`.
+
+---
+
+## The Ongoing Routine
+
+Once the setup is done, a refresh is six steps and needs no drive at all until the last one.
+
+| # | Action | Where |
+|---|---|---|
+| 1 | Notice the source agency published | Anywhere |
+| 2 | Actions tab, "Run workflow" on the module | Browser |
+| 3 | Wait for the pull request, read the change report | Browser |
+| 4 | Check the diff and the Vercel preview | Browser |
+| 5 | Merge; the site redeploys itself | Browser |
+| 6 | Plug in the drive and run the stage 8 block | Terminal |
+
+Only step 6 touches the drive, and it can be batched. Nothing breaks if it is done monthly rather than per refresh, as long as it happens inside the artifact retention window: ninety days for archives, thirty for run records and raw downloads. Past that the archive copy is gone for good, since the runner that made it no longer exists.
+
+> [!tip] Worth turning stage 8 into a script
+> Three download lines you retype every month is three chances to typo a path or a run ID. `scripts/shared/storage/sync_to_drive.sh` taking `MODULE` and `DRIVE` as arguments would make the routine one command, and per the project's conventions it belongs in the repo rather than in someone's shell history.
+
+---
+
+## If Something Fails
+
+| Symptom | Most likely cause | Check |
+|---|---|---|
+| Workflow missing from Actions tab | Not on the default branch | `gh workflow list` after pushing to `main` |
+| `--group` unrecognised | pip older than 25.1 | `pip --version` |
+| `ZoneInfoNotFoundError` | `tzdata` missing on Windows | Confirm the `sys_platform` marker survived |
+| Run succeeds, no PR | Nothing changed, or `dry_run` still set | Read `New data detected` in the report |
+| PR opens with no checks | `GITHUB_TOKEN` in use, not the PAT | Secret name, and `secrets: inherit` on the caller |
+| PR step fails on permissions | Repository setting not saved | Re-tick both boxes in stage 4 |
+| Site unchanged after merge | Vercel build failed | Vercel dashboard, not GitHub |
+| `gh run download` finds nothing | Artifact expired, wrong run ID, or nothing was archived | Retention is 30 days for runs and raw, 90 for archives |
+| Archived CSVs land under a nested `data/` | Artifact uploaded with more than one `path` | One path per artifact keeps the LCA at that directory |
+| Copy to drive silently does nothing | Drive mounted read-only | Re-run the stage 7 write test |

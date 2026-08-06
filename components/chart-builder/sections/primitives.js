@@ -72,7 +72,23 @@ export function SectionCard({ children, className, ...props }) {
 export function Section({ value, label, children }) {
   return (
     <AccordionItem value={value} className="border-b-0">
-      <AccordionTrigger className="py-3 hover:no-underline">
+      {/* Only the chevron collapses the section. The trigger still spans the
+          row — it is what carries the label and the section's accessible name,
+          and moving the label out would leave a nameless button and a second
+          heading per section — but the button itself is hit-tested away, so a
+          click on the label, or on the gap beside it, lands on nothing instead
+          of closing the section the reader was reaching into. The chevron opts
+          back in: clicks on it bubble up to the button, which is what toggles.
+          Keyboard use is untouched, since pointer-events governs the mouse
+          only, and the button is still focusable and still fires on Enter.
+          The chevron is padded out to a 24px box so the smaller target stays
+          comfortably clickable. */}
+      <AccordionTrigger
+        className={cn(
+          "pointer-events-none items-center py-3 hover:no-underline",
+          "[&>svg]:pointer-events-auto [&>svg]:size-6 [&>svg]:translate-y-0 [&>svg]:cursor-pointer [&>svg]:rounded-md [&>svg]:p-0.5 [&>svg]:hover:bg-muted [&>svg]:hover:text-foreground",
+        )}
+      >
         {/* Radix already wraps the trigger in a heading element, so the label
             renders as a span rather than nesting one heading inside another. */}
         <SectionHeading as="span">{label}</SectionHeading>

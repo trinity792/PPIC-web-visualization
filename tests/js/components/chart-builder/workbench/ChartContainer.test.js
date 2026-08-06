@@ -104,16 +104,17 @@ describe("ChartContainer", () => {
     };
   });
 
-  it("shows no multi-chart toolbar out of advanced mode", () => {
-    render(<ChartContainer />);
-    expect(screen.queryByTestId("multi-chart-toolbar")).not.toBeInTheDocument();
-  });
-
-  it("shows the multi-chart toolbar in advanced mode", () => {
-    state.advanced = true;
-    render(<ChartContainer />);
-    expect(screen.getByTestId("multi-chart-toolbar")).toBeInTheDocument();
-  });
+  // The workspace controls belong to ModuleWorkbench's bar above the grid, not
+  // to the card that previews one chart — and they are no longer hidden behind
+  // Advanced Mode, so neither flag may put them back here.
+  it.each([false, true])(
+    "leaves the multi-chart toolbar to the workspace bar (advanced=%s)",
+    (advanced) => {
+      state.advanced = advanced;
+      render(<ChartContainer />);
+      expect(screen.queryByTestId("multi-chart-toolbar")).not.toBeInTheDocument();
+    },
+  );
 
   it("renders schema.label as the centered brand-underlined title", () => {
     render(<ChartContainer />);

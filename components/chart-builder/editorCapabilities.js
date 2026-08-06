@@ -13,9 +13,9 @@
  *
  * The two surfaces' sets live here rather than in the shells that supply them.
  * `WORKBENCH_CAPABILITIES` in particular has two consumers — `ModuleWorkbench`
- * provides it for the whole two-column grid, and `ModuleSidebar`'s boundary
- * re-supplies it when the rail is mounted alone — and two hand-written copies
- * of one fact drift without failing anything.
+ * provides it for the workspace bar and the two-column grid below it, and
+ * `ModuleSidebar`'s boundary re-supplies it when the rail is mounted alone —
+ * and two hand-written copies of one fact drift without failing anything.
  *
  * Exports:
  *   EditorCapabilitiesProvider  — { capabilities } wraps one editor shell
@@ -52,7 +52,8 @@ export const NO_CAPABILITIES = Object.freeze({
  * change that, it is a rule and not a complexity tier. No saved views (a module
  * chart is reproducible from its URL) and no trace layers (the comparable job
  * is a Series binding or a Geographic Level selection). No activity log, which
- * only ever recorded wizard-only events. Multi-chart is the one it supports.
+ * only ever recorded wizard-only events. Multi-chart is the one it supports,
+ * through the workspace bar `ModuleWorkbench` puts above the grid.
  */
 export const WORKBENCH_CAPABILITIES = Object.freeze({
   ...NO_CAPABILITIES,

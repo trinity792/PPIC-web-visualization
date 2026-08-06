@@ -4,7 +4,10 @@
  * MultiChartToolbar.js — workspace controls for chart grids and history.
  *
  * Props:
- *   None — reads workspace/history state from ChartConfigProvider.
+ *   className {string} — chrome for the row supplied by the shell that places
+ *     it: the wizard tucks it under its step nav with a top rule, the module
+ *     workbench gives it its own bar above the two-column grid. Workspace and
+ *     history state come from ChartConfigProvider, not props.
  *
  * Data sources:
  *   - components/chart-builder/chartConfigStore.js workspace state
@@ -12,6 +15,8 @@
  * UI Kit reference:
  *   - Button, Select, and ToggleGroup primitives; no bespoke control surface.
  */
+
+/* eslint-disable react/prop-types */
 
 import React from "react";
 
@@ -46,7 +51,7 @@ function layoutCapacity(layout) {
   return 1;
 }
 
-export default function MultiChartToolbar() {
+export default function MultiChartToolbar({ className = "" }) {
   const { canRedo, canUndo, dispatch, schema, workspace } = useChartConfig();
   const charts = workspace?.charts || [];
   const activeId = workspace?.activeChartId || charts[0]?.id;
@@ -57,7 +62,12 @@ export default function MultiChartToolbar() {
   );
 
   return (
-    <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t pt-3">
+    <div
+      className={cn(
+        "flex flex-wrap items-center justify-between gap-3",
+        className,
+      )}
+    >
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
         <Button
           type="button"

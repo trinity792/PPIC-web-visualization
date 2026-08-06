@@ -35,11 +35,8 @@ import DataTableView from "@/components/charts/DataTableView";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card } from "@/components/ui/card";
 
-import { useAdvancedMode } from "@/components/chart-builder/advancedMode";
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import { loadFullTable } from "@/components/chart-builder/chartData";
-import { useEditorCapabilities } from "@/components/chart-builder/editorCapabilities";
-import MultiChartToolbar from "@/components/chart-builder/MultiChartToolbar";
 import { usePreview } from "@/components/chart-builder/wizard/PreviewContext";
 import PreviewPane from "@/components/chart-builder/wizard/PreviewPane";
 import ChartContainerFooter from "@/components/chart-builder/workbench/ChartContainerFooter";
@@ -189,8 +186,6 @@ function useChartViewHeight(viewMode, status, workspace) {
 export default function ChartContainer({ embedded = false }) {
   const { schema, workspace } = useChartConfig();
   const { status, result, graphDivRef, graphDivRefs, previews } = usePreview();
-  const { advanced } = useAdvancedMode();
-  const capabilities = useEditorCapabilities();
   const [viewMode, setViewMode] = useState("chart");
   // Lifted above the toggle so the loaded dataset survives switching back to the
   // chart — the table unmounts, but the fetch must not repeat.
@@ -206,8 +201,6 @@ export default function ChartContainer({ embedded = false }) {
           {schema.label}
         </span>
       </h2>
-
-      {capabilities.multiChart && advanced ? <MultiChartToolbar /> : null}
 
       <div
         ref={bodyRef}

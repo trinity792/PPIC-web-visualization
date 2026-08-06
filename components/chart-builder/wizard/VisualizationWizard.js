@@ -124,7 +124,7 @@ function WizardInner({ steps }) {
           onSelect={setCurrentId}
           isEnabled={isEnabled}
         />
-        <MultiChartToolbar />
+        <MultiChartToolbar className="mt-3 border-t pt-3" />
       </div>
       {renderStep()}
     </div>

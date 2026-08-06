@@ -240,7 +240,14 @@ function SectionCard({ children, className }) {
 function EditorSection({ value, label, children }) {
   return (
     <AccordionItem value={value} className="border-b-0">
-      <AccordionTrigger className="py-3 hover:no-underline">
+      {/* Chevron-only hitbox, mirroring the editor sidebar: the label is inside
+          the trigger for its accessible name, but only the arrow is clickable. */}
+      <AccordionTrigger
+        className={cn(
+          "pointer-events-none items-center py-3 hover:no-underline",
+          "[&>svg]:pointer-events-auto [&>svg]:size-6 [&>svg]:translate-y-0 [&>svg]:cursor-pointer [&>svg]:rounded-md [&>svg]:p-0.5 [&>svg]:hover:bg-muted [&>svg]:hover:text-foreground",
+        )}
+      >
         <SectionHeading>{label}</SectionHeading>
       </AccordionTrigger>
       <AccordionContent className="pb-4">{children}</AccordionContent>

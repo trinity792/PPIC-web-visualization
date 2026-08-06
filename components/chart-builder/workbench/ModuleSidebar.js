@@ -29,12 +29,12 @@
  *
  * Advanced Mode and the capability set come from the `*Boundary` variants
  * (`AdvancedModeBoundary`, `EditorCapabilitiesBoundary`), not the plain
- * providers: since F4 the chart container has something to hide too
- * (`MultiChartToolbar`), and it is this panel's sibling under
- * `ModuleWorkbench` rather than its descendant. `ModuleWorkbench` wraps both
- * in one real provider so the toggle here and the toolbar there read the same
- * flag; the boundary only steps in and creates its own when this component is
- * mounted on its own, as its unit tests do.
+ * providers: since F4 this panel is one of several siblings under
+ * `ModuleWorkbench` — the workspace bar and the chart container are the others
+ * — rather than the only consumer. `ModuleWorkbench` wraps them all in one real
+ * provider so every sibling reads the same two flags; the boundary only steps
+ * in and creates its own when this component is mounted on its own, as its unit
+ * tests do.
  *
  * Data sources:
  *   - Chart configuration and module schema from ChartConfigProvider
