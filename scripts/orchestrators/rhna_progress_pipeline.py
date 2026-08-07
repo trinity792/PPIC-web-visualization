@@ -79,15 +79,22 @@ Helpers
 
 
 def _latest_snapshot_by_cycle(existing):
-    """Map each stored Cycle to its newest Snapshot Date (YYYY-MM-DD), for change detection."""
+    """
+    Map each stored Cycle to its newest Snapshot Date, for change detection.
+
+    The full timestamp is kept, not `.date()`. `_is_newer` compares this against the CKAN
+    resource's own last_modified timestamp, so truncating to a date made every same-day
+    re-run look like new data ("2026-08-07 15:48:50" > "2026-08-07") and re-download every
+    cycle. Test file: scripts/unit_tests/orchestrators/test_rhna_progress_pipeline.py
+    """
     if existing is None or existing.empty or "Cycle" not in existing.columns:
         return {}
     latest = {}
-    snapshots = pd.to_datetime(existing["Snapshot Date"], errors="coerce")
+    snapshots = pd.to_datetime(existing["Snapshot Date"], format="ISO8601", errors="coerce")
     for cycle, group in snapshots.groupby(existing["Cycle"]):
         newest = group.max()
         if pd.notna(newest):
-            latest[int(cycle)] = str(newest.date())
+            latest[int(cycle)] = newest.isoformat(sep=" ")
     return latest
 
 

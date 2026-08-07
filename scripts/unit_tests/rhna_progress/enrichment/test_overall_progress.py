@@ -196,3 +196,21 @@ def test_derive_overall_progress_broadcasts_same_values_to_all_income_rows():
     assert len(result) == 5
     assert result["Overall Progress"].nunique() == 1
     assert result["Overall Category"].nunique() == 1
+
+
+def test_mark_most_recent_parses_a_column_mixing_date_only_and_timestamp_values():
+    # The seed is date-only, live captures carry a full timestamp, and both sit in the column
+    # at once. Inferring the format from the first value raised ValueError on the rest.
+    frame = pd.DataFrame(
+        {
+            "Jurisdiction": ["Alameda", "Alameda"],
+            "Cycle": [6, 6],
+            "Snapshot Date": pd.Series(
+                ["2026-07-15", "2026-08-07 15:48:49.003781"], dtype=object
+            ),
+        }
+    )
+
+    result = mark_most_recent(frame)
+
+    assert result["Most Recent"].tolist() == [False, True]

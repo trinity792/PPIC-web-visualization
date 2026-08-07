@@ -154,3 +154,74 @@ def test_detect_new_snapshot_returns_true_for_changed_measure():
 
     assert detect_new_snapshot(existing, combined, GRAIN_KEYS) is True
 
+
+
+def test_combine_snapshots_collapses_a_recaptured_snapshot_across_dtypes():
+    # The 2026-08-07 corruption: `existing` comes back from CSV as strings while a fresh
+    # capture carries pd.Timestamp, so the same logical snapshot compared unequal and every
+    # row doubled. Both representations of one snapshot must collapse to a single row.
+    stamp = "2026-08-07 15:48:49.003781"
+    existing = long_frame([long_row(snapshot_date=stamp)])
+    recaptured = long_frame([long_row(snapshot_date=pd.Timestamp(stamp))])
+
+    combined = combine_snapshots(existing, None, recaptured)
+
+    assert len(combined) == 1
+    assert combined["Most Recent"].tolist() == [True]
+
+
+def test_combine_snapshots_keeps_genuinely_distinct_snapshots():
+    # Guards against the fix over-collapsing: two different captures stay two rows.
+    existing = long_frame([long_row(snapshot_date="2026-08-07 15:48:49.003781")])
+    newer = long_frame([long_row(snapshot_date=pd.Timestamp("2026-08-21 09:15:00.000000"))])
+
+    combined = combine_snapshots(existing, None, newer)
+
+    assert len(combined) == 2
+    # Only the later capture is flagged current.
+    assert combined["Most Recent"].tolist() == [False, True]
+
+
+def test_combine_snapshots_does_not_rewrite_the_stored_snapshot_representation():
+    # The frontend sorts Snapshot Date with localeCompare, so the stored strings must survive
+    # unchanged, and the transient parse key must not reach the output. `existing` is forced to
+    # object dtype because that is what load_canonical_dataset's plain read_csv produces, and
+    # mixed representations there are what defeated the original dedupe.
+    # Built directly rather than via long_row, which wraps Snapshot Date in pd.Timestamp and
+    # so cannot express the plain strings load_canonical_dataset's read_csv actually returns.
+    def stored_frame(snapshot_dates):
+        return pd.DataFrame(
+            {
+                "Jurisdiction": ["Alameda"] * len(snapshot_dates),
+                "Cycle": [6] * len(snapshot_dates),
+                "Snapshot Date": pd.Series(snapshot_dates, dtype=object),
+                "Income Level": ["Total"] * len(snapshot_dates),
+                "Units": [50] * len(snapshot_dates),
+            }
+        )
+
+    existing = stored_frame(["2026-07-15", "2026-08-07 15:48:49.003781"])
+    recaptured = stored_frame([pd.Timestamp("2026-08-07 15:48:49.003781")])
+
+    combined = combine_snapshots(existing, None, recaptured)
+
+    assert "_snapshot_parsed" not in combined.columns
+    # Assert the serialized text, which is what reaches the CSV and the frontend's
+    # localeCompare sort. The surviving row for the re-captured snapshot is the fresh
+    # pd.Timestamp (keep="last" prefers it), but it must serialize identically.
+    assert combined["Snapshot Date"].astype(str).tolist() == [
+        "2026-07-15",
+        "2026-08-07 15:48:49.003781",
+    ]
+
+
+def test_combine_snapshots_handles_a_seed_dated_without_a_time():
+    # Mixed representations in one column (date-only seed + full-timestamp captures) used to
+    # raise inside mark_most_recent's pd.to_datetime.
+    seed = long_frame([long_row(snapshot_date="2026-07-15")])
+    captured = long_frame([long_row(snapshot_date="2026-08-07 15:48:49.003781")])
+
+    combined = combine_snapshots(None, seed, captured)
+
+    assert len(combined) == 2
+    assert combined["Most Recent"].tolist() == [False, True]
