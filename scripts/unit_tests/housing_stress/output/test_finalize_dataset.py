@@ -128,12 +128,21 @@ def test_archive_and_save_writes_when_current_file_is_missing(tmp_path):
     archive_directory = tmp_path / "archive" / "housing-stress"
     source = _prepared_frame()
 
-    result = archive_and_save(source, current_path, archive_directory)
+    result = archive_and_save(
+        source,
+        current_path,
+        archive_directory,
+        module_id="housing-stress",
+    )
 
     assert result == current_path
     assert current_path.is_file()
     pd.testing.assert_frame_equal(pd.read_csv(current_path), source)
     assert not archive_directory.exists()
+
+
+def test_archive_and_save_is_the_shared_helper(shared_archive_and_save):
+    assert archive_and_save is shared_archive_and_save
 
 
 def test_archive_and_save_skips_identical_dataset_without_touching_file(
@@ -146,7 +155,12 @@ def test_archive_and_save_skips_identical_dataset_without_touching_file(
     original_bytes = current_path.read_bytes()
     original_modified_time = current_path.stat().st_mtime_ns
 
-    result = archive_and_save(source, current_path, archive_directory)
+    result = archive_and_save(
+        source,
+        current_path,
+        archive_directory,
+        module_id="housing-stress",
+    )
 
     assert result is None
     assert current_path.read_bytes() == original_bytes
@@ -161,7 +175,12 @@ def test_archive_and_save_archives_prior_file_when_data_changes(tmp_path):
     new = _prepared_frame(year="2023", number_30="30")
     old.to_csv(current_path, index=False)
 
-    result = archive_and_save(new, current_path, archive_directory)
+    result = archive_and_save(
+        new,
+        current_path,
+        archive_directory,
+        module_id="housing-stress",
+    )
 
     assert result == current_path
     archives = list(archive_directory.glob("*.csv"))
@@ -170,7 +189,10 @@ def test_archive_and_save_archives_prior_file_when_data_changes(tmp_path):
     pd.testing.assert_frame_equal(pd.read_csv(current_path), new)
 
 
-def test_archive_and_save_uses_mm_dd_yy_timestamp(tmp_path):
+def test_archive_and_save_uses_module_prefixed_iso_name(
+    tmp_path,
+    frozen_archive_clock,
+):
     current_path = tmp_path / "HousingStress_Current.csv"
     archive_directory = tmp_path / "archive"
     _prepared_frame(year="2022").to_csv(current_path, index=False)
@@ -179,12 +201,10 @@ def test_archive_and_save_uses_mm_dd_yy_timestamp(tmp_path):
         _prepared_frame(year="2023"),
         current_path,
         archive_directory,
+        module_id="housing-stress",
     )
 
     archives = list(archive_directory.glob("*.csv"))
-    assert len(archives) == 1
-    assert archives[0].stem.startswith("HousingStress_Current_")
-    timestamp = archives[0].stem.removeprefix("HousingStress_Current_")
-    month, day, year = timestamp.split("-")
-    assert len(month) == len(day) == len(year) == 2
-    assert month.isdigit() and day.isdigit() and year.isdigit()
+    assert [path.name for path in archives] == [
+        "housing-stress_HousingStress_2026-08-07.csv"
+    ]

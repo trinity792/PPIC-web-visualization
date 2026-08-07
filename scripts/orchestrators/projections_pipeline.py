@@ -392,7 +392,7 @@ def build_projections_dataset(config=None, logger=None):
 
         output_path = None
         if dof_new or census_new:
-            output_path = archive_and_save(prepared, paths["current_data_path"], paths["archive_directory"])
+            output_path = archive_and_save(prepared, paths["current_data_path"], paths["archive_directory"], module_id="projections")
     except Exception as error:
         _raise_phase_error("Phase 5 — Finalize & Save", error)
 

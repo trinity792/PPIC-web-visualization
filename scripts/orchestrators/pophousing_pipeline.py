@@ -56,11 +56,11 @@ from scripts.pophousing.merging.historical_modern_merge import (
     merge_historical_and_modern_data,
     resolve_source_overlap,
 )
-from scripts.pophousing.output.finalize_dataset import prepare_housing_output, write_housing_output
+from scripts.pophousing.output.finalize_dataset import prepare_housing_output
 from scripts.pophousing.validation.aggregation_validators import validate_normalized_housing_rates
 from scripts.pophousing.validation.final_dataset_validator import validate_final_housing_dataset
 from scripts.pophousing.validation.historical_data_validator import validate_historical_housing_data
-from scripts.shared.archives.file_retention import archive_or_delete_files
+from scripts.shared.archives.dataset_archive import archive_and_save
 from scripts.shared.downloads.http_downloads import HTTPDownloadError
 from scripts.shared.logging.dataframe_logging import log_data_quality_check
 from scripts.shared.logging.pipeline_logging import log_processing_step
@@ -296,15 +296,22 @@ def main(logger=None):
                 "Final data validation failed: "
                 + "; ".join(final_validation_messages)
             )
-        if paths["current_data_path"].is_file():
-            archive_or_delete_files(
-                [paths["current_data_path"]], paths["archive_directory"]
-            )
-        write_housing_output(finalized_housing_df, paths["current_data_path"])
+        # Copies (never moves) the prior canonical file before writing the new one atomically,
+        # so the canonical CSV exists and is valid at every instant, and no-ops when the data is
+        # unchanged (refactor guide, shared-archive-and-save Workstream D). The return value is
+        # the output path on a write and None on a no-op, and the summary reports it verbatim:
+        # reporting the path unconditionally was accurate while this module always wrote, but
+        # now it would record a write that never happened in logs/pipeline-runs.jsonl.
+        output_path = archive_and_save(
+            finalized_housing_df,
+            paths["current_data_path"],
+            paths["archive_directory"],
+            module_id="pophousing",
+        )
 
         numeric_years = pd.to_numeric(finalized_housing_df["Year"])
         summary = {
-            "output_path": paths["current_data_path"],
+            "output_path": output_path,
             "row_count": len(finalized_housing_df),
             "year_range": (
                 int(numeric_years.min()),

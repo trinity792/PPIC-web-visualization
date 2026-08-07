@@ -261,7 +261,7 @@ def build_building_permits_dataset(config=None, logger=None):
 
         output_path = None
         if new_data:
-            output_path = archive_and_save(prepared, paths["current_data_path"], paths["archive_directory"])
+            output_path = archive_and_save(prepared, paths["current_data_path"], paths["archive_directory"], module_id="building-permits")
     except BuildingPermitsPipelinePhaseError:
         raise
     except Exception as error:

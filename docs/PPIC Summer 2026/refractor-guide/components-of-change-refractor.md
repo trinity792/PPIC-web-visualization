@@ -171,7 +171,7 @@ Imports `pandas`. `validate_required_columns` returns missing columns, `validate
 
 ### `shared/archives/file_retention.py`
 
-Imports `re`, `shutil`, `time`, and `pathlib`. `archive_or_delete_files(file_paths, archive_directory)` moves each file into the archive with a numeric suffix on collision, skipping files that no longer exist. The Components output step calls it to preserve the prior CSV before overwrite, replacing the legacy inline `os.rename` date-stamp archive.
+Imports `re`, `shutil`, `time`, and `pathlib`. `archive_or_delete_files(file_paths, archive_directory)` moves each file into the archive with a numeric suffix on collision, skipping files that no longer exist. This is retention machinery for expired *source downloads*, not the dataset write path: the Components output step used to call it to preserve the prior CSV before overwrite, but that borrowed a move where a copy was needed (see `output/finalize_dataset.py` below) and now goes through the shared `archive_and_save` helper instead.
 
 ### `shared/geography/california_geography.py`
 
@@ -263,12 +263,12 @@ Imports `pandas`, the population-change calculator, and the shared duplicate/req
 
 ### `output/finalize_dataset.py`
 
-Imports `pathlib`, `pandas`, and the shared `archive_or_delete_files`.
+Imports `pathlib`, `pandas`, and the shared `archive_and_save` (`scripts.shared.archives.dataset_archive`).
 
 - `assign_geographic_level(dataframe, geography_config)` defaults every row to `Other`, then vectorized `.isin` checks promote state abbreviations to `State`, region names to `Region`, and county names to `County`, and moves `Geographic Level` to the front. Derived from the three-times-duplicated `np.select` block in the legacy visualizers, now a single vectorized pass sourcing its lists from config.
 - `prepare_components_output(dataframe, output_columns, sort_columns=None)` validates the output columns exist, casts year to int, selects and orders the columns, and stable-sorts. Derived from the column-reordering the legacy tool did inline before each save.
-- `write_components_output(dataframe, output_path)` writes to a `.tmp` file and atomically `replace`s it into place, cleaning up on failure. The atomic write is new and is what makes the archive-then-overwrite step safe.
-- `archive_and_save(dataframe, current_data_path, archive_directory)` archives the prior CSV when present, then writes the new one. Derived from the legacy archive-and-save block, now run once in the orchestrator instead of inside each chart.
+- `write_components_output(dataframe, output_path)` writes to a `.tmp` file and atomically `replace`s it into place, cleaning up on failure. No longer part of the archive-and-save path (see below); kept for its own test coverage and as a plain atomic-write utility.
+- `archive_and_save` - no longer implemented here. It previously archived the prior CSV by handing it to `archive_or_delete_files`, which **moved** it — leaving no valid canonical CSV on disk between the move and the following write, the one real data-loss window the shared-archive-and-save refactor closed. It is now the shared helper at `scripts/shared/archives/dataset_archive.py`, imported directly and called with `module_id="components-of-change"`: it **copies** (never moves) the prior file into the archive under a module-prefixed ISO name (`components-of-change_ComponentsOfChange_2026-08-07.csv`, replacing the old undated `ComponentsOfChange_Current.csv` / `_1` / `_2` counter-suffix scheme) before atomically writing the new data, and it no-ops when the data is byte-identical - idempotency this module never had before. See [[shared-archive-and-save-plan]].
 
 ### `validation/dataset_validator.py`
 

@@ -1,5 +1,8 @@
+from pathlib import Path
+
 import pandas as pd
 import pytest
+
 from scripts.projections.output.finalize_dataset import (
     archive_and_save,
     assign_geographic_level,
@@ -153,12 +156,21 @@ def test_archive_and_save_writes_when_current_file_is_missing(tmp_path):
     source = pd.DataFrame([_output_row("Alameda", 2025)])
 
     # Act
-    result = archive_and_save(source, current_path, archive_directory)
+    result = archive_and_save(
+        source,
+        current_path,
+        archive_directory,
+        module_id="projections",
+    )
 
     # Assert
     assert result == current_path
     assert current_path.is_file()
     pd.testing.assert_frame_equal(pd.read_csv(current_path), source)
+
+
+def test_archive_and_save_is_the_shared_helper(shared_archive_and_save):
+    assert archive_and_save is shared_archive_and_save
 
 
 def test_archive_and_save_skips_byte_identical_dataset(tmp_path):
@@ -171,7 +183,12 @@ def test_archive_and_save_skips_byte_identical_dataset(tmp_path):
     original_modified_time = current_path.stat().st_mtime_ns
 
     # Act
-    result = archive_and_save(source, current_path, archive_directory)
+    result = archive_and_save(
+        source,
+        current_path,
+        archive_directory,
+        module_id="projections",
+    )
 
     # Assert
     assert result is None
@@ -189,7 +206,12 @@ def test_archive_and_save_archives_old_file_when_data_changes(tmp_path):
     old.to_csv(current_path, index=False)
 
     # Act
-    result = archive_and_save(new, current_path, archive_directory)
+    result = archive_and_save(
+        new,
+        current_path,
+        archive_directory,
+        module_id="projections",
+    )
 
     # Assert
     assert result == current_path
@@ -199,7 +221,10 @@ def test_archive_and_save_archives_old_file_when_data_changes(tmp_path):
     pd.testing.assert_frame_equal(pd.read_csv(current_path), new)
 
 
-def test_archive_and_save_uses_mm_dd_yy_archive_timestamp(tmp_path):
+def test_archive_and_save_uses_module_prefixed_iso_name(
+    tmp_path,
+    frozen_archive_clock,
+):
     # Arrange
     current_path = tmp_path / "DemographicProjections_Current.csv"
     archive_directory = tmp_path / "archive"
@@ -213,18 +238,14 @@ def test_archive_and_save_uses_mm_dd_yy_archive_timestamp(tmp_path):
         pd.DataFrame([_output_row("Alameda", 2025)]),
         current_path,
         archive_directory,
+        module_id="projections",
     )
 
     # Assert
     archives = list(archive_directory.glob("*.csv"))
-    assert len(archives) == 1
-    assert archives[0].stem.startswith("DemographicProjections_Current_")
-    timestamp = archives[0].stem.removeprefix(
-        "DemographicProjections_Current_"
-    )
-    month, day, year = timestamp.split("-")
-    assert len(month) == len(day) == len(year) == 2
-    assert month.isdigit() and day.isdigit() and year.isdigit()
+    assert [path.name for path in archives] == [
+        "projections_DemographicProjections_2026-08-07.csv"
+    ]
 
 
 def test_archive_and_save_does_not_modify_dataframe(tmp_path):
@@ -234,7 +255,12 @@ def test_archive_and_save_does_not_modify_dataframe(tmp_path):
     original = source.copy(deep=True)
 
     # Act
-    archive_and_save(source, current_path, tmp_path / "archive")
+    archive_and_save(
+        source,
+        current_path,
+        tmp_path / "archive",
+        module_id="projections",
+    )
 
     # Assert
     pd.testing.assert_frame_equal(source, original)
@@ -248,7 +274,12 @@ def test_archive_and_save_leaves_no_temp_file(tmp_path):
     source = pd.DataFrame([_output_row("Alameda", 2025)])
 
     # Act
-    archive_and_save(source, current_path, tmp_path / "archive")
+    archive_and_save(
+        source,
+        current_path,
+        tmp_path / "archive",
+        module_id="projections",
+    )
 
     # Assert
     assert list(tmp_path.glob("*.tmp")) == []
@@ -259,8 +290,6 @@ def test_archive_and_save_keeps_original_intact_on_write_failure(tmp_path, monke
     # the next run's history). The prior good copy stays intact and no temp
     # fragment is left behind.
     # Arrange
-    import scripts.projections.output.finalize_dataset as finalize
-
     current_path = tmp_path / "DemographicProjections_Current.csv"
     archive_directory = tmp_path / "archive"
     old = pd.DataFrame([_output_row("Alameda", 2024)])
@@ -268,14 +297,19 @@ def test_archive_and_save_keeps_original_intact_on_write_failure(tmp_path, monke
     old.to_csv(current_path, index=False)
     original_bytes = current_path.read_bytes()
 
-    def _boom(src, dst):
+    def _boom(_temporary_path, _target_path):
         raise OSError("simulated crash during replace")
 
-    monkeypatch.setattr(finalize.os, "replace", _boom)
+    monkeypatch.setattr(Path, "replace", _boom)
 
     # Act / Assert
     with pytest.raises(OSError, match="simulated crash"):
-        archive_and_save(new, current_path, archive_directory)
+        archive_and_save(
+            new,
+            current_path,
+            archive_directory,
+            module_id="projections",
+        )
 
     # The original file is untouched and no .tmp fragment survives.
     assert current_path.read_bytes() == original_bytes

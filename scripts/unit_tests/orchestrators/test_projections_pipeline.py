@@ -157,7 +157,11 @@ def _configure_success(monkeypatch, tmp_path, changes=(True, True)):
         call_log.append("archive_and_save")
         return paths["current_data_path"]
 
-    monkeypatch.setattr(pipeline, "archive_and_save", save)
+    monkeypatch.setattr(
+        pipeline,
+        "archive_and_save",
+        Mock(side_effect=save),
+    )
     return paths, finalized, call_log
 
 
@@ -350,6 +354,22 @@ def test_build_projections_dataset_requires_state_total_phase(
     # Assert
     pipeline.add_state_total.assert_called_once()
     pipeline.add_regional_data.assert_called_once()
+
+
+def test_pipeline_passes_projections_module_id_to_shared_helper(
+    monkeypatch,
+    tmp_path,
+):
+    paths, finalized, _ = _configure_success(monkeypatch, tmp_path)
+
+    pipeline.build_projections_dataset()
+
+    pipeline.archive_and_save.assert_called_once_with(
+        finalized,
+        paths["current_data_path"],
+        paths["archive_directory"],
+        module_id="projections",
+    )
 
 
 def test_build_projections_dataset_does_not_write_without_new_data(

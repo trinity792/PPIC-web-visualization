@@ -285,7 +285,7 @@ def build_housing_stress_dataset(config=None, logger=None):
 
         output_path = None
         if new_data:
-            output_path = archive_and_save(prepared, paths["current_data_path"], paths["archive_directory"])
+            output_path = archive_and_save(prepared, paths["current_data_path"], paths["archive_directory"], module_id="housing-stress")
     except HousingStressPipelinePhaseError:
         raise
     except Exception as error:

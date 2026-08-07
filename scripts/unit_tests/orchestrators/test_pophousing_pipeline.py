@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import pandas as pd
@@ -5,7 +6,6 @@ import pytest
 
 from scripts.orchestrators import pophousing_pipeline as pipeline
 from scripts.pophousing.acquisition.dof_e5_downloader import E5DiscoveryError
-from scripts.shared.archives.file_retention import archive_or_delete_files
 from scripts.shared.downloads.http_downloads import HTTPDownloadError
 
 
@@ -42,7 +42,7 @@ def _configure_success(monkeypatch, tmp_path):
     paths = {
         "download_directory": tmp_path / "downloads",
         "archive_directory": tmp_path / "archive",
-        "current_data_path": tmp_path / "current.csv",
+        "current_data_path": tmp_path / "PopHousing_Current.csv",
         "historical_data_path": tmp_path / "historical.csv",
         "historical_baseline_metadata_path": tmp_path / "historical.meta.json",
         "deletion_log_directory": tmp_path / "logs",
@@ -50,13 +50,13 @@ def _configure_success(monkeypatch, tmp_path):
     # The committed baseline must exist for the cold-start guard to pass.
     paths["historical_data_path"].write_text("Year\n2020\n")
 
-    def patch_call(name, result):
+    def patch_call(name, result, *, raising=True):
         def function(*args, **kwargs):
             call_log.append(name)
             calls.setdefault(name, []).append((args, kwargs))
             return result
 
-        monkeypatch.setattr(pipeline, name, function)
+        monkeypatch.setattr(pipeline, name, function, raising=raising)
 
     monkeypatch.setattr(pipeline, "get_paths", lambda: paths)
     monkeypatch.setattr(
@@ -106,8 +106,14 @@ def _configure_success(monkeypatch, tmp_path):
     patch_call("standardize_san_francisco_classification", frames["sf"])
     patch_call("prepare_housing_output", frames["finalized"])
     patch_call("validate_final_housing_dataset", (True, []))
-    patch_call("archive_or_delete_files", [])
-    patch_call("write_housing_output", paths["current_data_path"])
+    # The implementation-under-test will import this shared seam. raising=False
+    # keeps the pre-implementation suite collectable while making the new call
+    # assertions fail in the intended red phase.
+    patch_call(
+        "archive_and_save",
+        paths["current_data_path"],
+        raising=False,
+    )
     return call_log, calls, frames, paths
 
 
@@ -135,7 +141,7 @@ def test_pipeline_calls_phases_in_order(monkeypatch, tmp_path):
         "standardize_san_francisco_classification",
         "prepare_housing_output",
         "validate_final_housing_dataset",
-        "write_housing_output",
+        "archive_and_save",
     ]
 
 
@@ -356,18 +362,107 @@ def test_pipeline_phase6_validation_failure_does_not_write(monkeypatch, tmp_path
     with pytest.raises(RuntimeError, match="Phase 6.*invalid final data"):
         pipeline.main()
 
-    assert "write_housing_output" not in calls
+    assert "archive_and_save" not in calls
 
 
-def test_pipeline_phase6_archive_before_write(monkeypatch, tmp_path):
-    call_log, _, _, paths = _configure_success(monkeypatch, tmp_path)
+def test_pipeline_passes_pophousing_module_id_to_shared_helper(
+    monkeypatch,
+    tmp_path,
+):
+    _, calls, frames, paths = _configure_success(monkeypatch, tmp_path)
     paths["current_data_path"].write_text("old")
 
     pipeline.main()
 
-    assert call_log.index("archive_or_delete_files") < call_log.index(
-        "write_housing_output"
+    assert calls["archive_and_save"] == [
+        (
+            (
+                frames["finalized"],
+                paths["current_data_path"],
+                paths["archive_directory"],
+            ),
+            {"module_id": "pophousing"},
+        )
+    ]
+
+
+def test_pipeline_imports_the_shared_archive_helper(shared_archive_and_save):
+    assert pipeline.archive_and_save is shared_archive_and_save
+
+
+def test_pipeline_does_not_import_the_retired_write_seams():
+    # Phase 6 used to move the canonical file with archive_or_delete_files and then
+    # rewrite it with write_housing_output. Both are off the call path now, and this
+    # is what stops either being wired back in unnoticed. archive_or_delete_files
+    # keeps its real job in scripts/pophousing/archives/e5_retention.py.
+    assert not hasattr(pipeline, "write_housing_output")
+    assert not hasattr(pipeline, "archive_or_delete_files")
+
+
+def test_pipeline_archives_by_copy_and_keeps_canonical_until_atomic_swap(
+    monkeypatch,
+    tmp_path,
+    shared_archive_and_save,
+    frozen_archive_clock,
+):
+    _, _, frames, paths = _configure_success(monkeypatch, tmp_path)
+    prior = frames["finalized"].copy()
+    prior["Total Population"] = 100
+    prior.to_csv(paths["current_data_path"], index=False)
+    prior_bytes = paths["current_data_path"].read_bytes()
+    original_replace = Path.replace
+    observed_before_swap = []
+
+    def inspect_before_swap(temporary_path, target_path):
+        observed_before_swap.append(
+            (
+                paths["current_data_path"].is_file(),
+                paths["current_data_path"].read_bytes(),
+            )
+        )
+        return original_replace(temporary_path, target_path)
+
+    monkeypatch.setattr(pipeline, "archive_and_save", shared_archive_and_save)
+    monkeypatch.setattr(Path, "replace", inspect_before_swap)
+
+    pipeline.main()
+
+    assert observed_before_swap == [(True, prior_bytes)]
+    archive_path = (
+        paths["archive_directory"]
+        / "pophousing_PopHousing_2026-08-07.csv"
     )
+    assert archive_path.read_bytes() == prior_bytes
+    pd.testing.assert_frame_equal(
+        pd.read_csv(paths["current_data_path"]),
+        frames["finalized"],
+    )
+
+
+def test_pipeline_does_not_rewrite_output_when_data_is_unchanged(
+    monkeypatch,
+    tmp_path,
+    shared_archive_and_save,
+):
+    _, _, frames, paths = _configure_success(monkeypatch, tmp_path)
+    frames["finalized"].to_csv(paths["current_data_path"], index=False)
+    original_bytes = paths["current_data_path"].read_bytes()
+    fixed_timestamp = 1_700_000_000_123_456_789
+    os.utime(
+        paths["current_data_path"],
+        ns=(fixed_timestamp, fixed_timestamp),
+    )
+    monkeypatch.setattr(pipeline, "archive_and_save", shared_archive_and_save)
+
+    result = pipeline.main()
+
+    # None, not the path: the run record has to say no write happened, or
+    # logs/pipeline-runs.jsonl reports a write on every idempotent run. The live
+    # run on 2026-08-07 recorded exactly that before this was fixed.
+    assert result["output_path"] is None
+    assert paths["current_data_path"].read_bytes() == original_bytes
+    assert paths["current_data_path"].stat().st_mtime_ns == fixed_timestamp
+    assert not paths["archive_directory"].exists()
 
 
 def test_pipeline_success_returns_summary(monkeypatch, tmp_path):
@@ -393,18 +488,29 @@ def test_pipeline_does_not_prompt_for_input(monkeypatch, tmp_path):
     pipeline.main()
 
 
-def test_pipeline_no_orphaned_archive_on_write_failure(monkeypatch, tmp_path):
-    _, _, _, paths = _configure_success(monkeypatch, tmp_path)
-    paths["current_data_path"].write_text("old data")
-    monkeypatch.setattr(pipeline, "archive_or_delete_files", archive_or_delete_files)
-    monkeypatch.setattr(
-        pipeline,
-        "write_housing_output",
-        lambda *args: (_ for _ in ()).throw(OSError("write failed")),
-    )
+def test_pipeline_write_failure_keeps_canonical_and_cleans_temp_file(
+    monkeypatch,
+    tmp_path,
+    shared_archive_and_save,
+    frozen_archive_clock,
+):
+    _, _, frames, paths = _configure_success(monkeypatch, tmp_path)
+    prior = frames["finalized"].copy()
+    prior["Total Population"] = 100
+    prior.to_csv(paths["current_data_path"], index=False)
+    prior_bytes = paths["current_data_path"].read_bytes()
+
+    def fail_replace(_temporary_path, _target_path):
+        raise OSError("write failed")
+
+    monkeypatch.setattr(pipeline, "archive_and_save", shared_archive_and_save)
+    monkeypatch.setattr(Path, "replace", fail_replace)
 
     with pytest.raises(RuntimeError, match="Phase 6.*write failed"):
         pipeline.main()
 
-    archived_files = list(Path(paths["archive_directory"]).iterdir())
-    assert len(archived_files) == 1 and archived_files[0].read_text() == "old data"
+    assert paths["current_data_path"].read_bytes() == prior_bytes
+    assert list(tmp_path.glob("*.tmp")) == []
+    archived_files = list(paths["archive_directory"].glob("*.csv"))
+    assert len(archived_files) == 1
+    assert archived_files[0].read_bytes() == prior_bytes

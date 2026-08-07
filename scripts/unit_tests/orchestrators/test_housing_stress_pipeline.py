@@ -148,6 +148,22 @@ def test_build_housing_stress_dataset_runs_major_phases(monkeypatch, tmp_path):
     configured["mocks"]["archive_and_save"].assert_called_once()
 
 
+def test_pipeline_passes_housing_stress_module_id_to_shared_helper(
+    monkeypatch,
+    tmp_path,
+):
+    configured = _configure_success(monkeypatch, tmp_path)
+
+    pipeline.build_housing_stress_dataset()
+
+    configured["mocks"]["archive_and_save"].assert_called_once_with(
+        configured["prepared"],
+        configured["paths"]["current_data_path"],
+        configured["paths"]["archive_directory"],
+        module_id="housing-stress",
+    )
+
+
 def test_pipeline_wraps_acquisition_failure_with_phase(monkeypatch, tmp_path):
     configured = _configure_success(monkeypatch, tmp_path)
     configured["mocks"]["resolve_latest_vintage"].side_effect = RuntimeError("Census unavailable")

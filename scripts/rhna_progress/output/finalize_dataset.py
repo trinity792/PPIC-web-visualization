@@ -7,7 +7,7 @@ Data sources:
 
 Outputs:
     - data/data-cleaned/RHNA-progress-report/RHNAProgress_Current.csv — updated canonical dataset
-    - data/archive/RHNA-progress-report/RHNAProgress_{TIMESTAMP}.csv — archived prior output
+    - data/archive/RHNA-progress-report/rhna-progress_RHNAProgress_{YYYY-MM-DD}.csv — archived prior output
 
 Usage:
     Called by the RHNA Progress pipeline orchestrator; not run standalone.
@@ -16,9 +16,9 @@ Test Folders:
     - scripts/unit_tests/rhna_progress/output/
 """
 
-from datetime import datetime
-
 import pandas as pd
+
+from scripts.shared.archives.dataset_archive import archive_and_save
 
 _INT_COLUMNS = ("Units", "RHNA", "Cycle", "Total Days", "Elapsed Days", "Tiers Met", "Tiers With Goal")
 _FLOAT_COLUMNS = (
@@ -74,32 +74,21 @@ Conditional Atomic Write
 
 def write_dataset(df, paths, new_snapshot):
     """
-    Atomically write RHNAProgress_Current.csv (staged .tmp + os.replace) only when new_snapshot is True; refresh the archive per retention. Returns the output path or None.
+    Save RHNAProgress_Current.csv only when new_snapshot is True, via the shared archive helper.
+
+    The early return above is the "is this new" guard; by the time the shared helper runs, the
+    caller has already established the data is new, so already_compared=True skips its own
+    hash check and always archives + writes. Returns the output path or None.
 
     Test file: scripts/unit_tests/rhna_progress/output/test_finalize_dataset.py
     """
     if not new_snapshot:
         return None
 
-    current_path = paths["current_data_path"]
-    archive_directory = paths["archive_directory"]
-    new_csv = df.to_csv(index=False)
-
-    if current_path.exists():
-        archive_directory.mkdir(parents=True, exist_ok=True)
-        prefix = current_path.stem.split("_")[0]
-        timestamp = datetime.now().strftime("%m-%d-%y")
-        archive_path = archive_directory / f"{prefix}_{timestamp}.csv"
-        archive_path.write_bytes(current_path.read_bytes())
-
-    current_path.parent.mkdir(parents=True, exist_ok=True)
-    # Stage to a temp file and atomically replace so a crash mid-write can never leave a
-    # truncated CSV that would poison the accumulated snapshot series on the next load.
-    temporary_path = current_path.with_name(f"{current_path.name}.tmp")
-    try:
-        temporary_path.write_text(new_csv)
-        temporary_path.replace(current_path)
-    finally:
-        if temporary_path.exists():
-            temporary_path.unlink()
-    return current_path
+    return archive_and_save(
+        df,
+        paths["current_data_path"],
+        paths["archive_directory"],
+        module_id="rhna-progress",
+        already_compared=True,
+    )

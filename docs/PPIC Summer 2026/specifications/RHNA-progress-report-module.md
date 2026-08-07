@@ -4,7 +4,7 @@ Content Type: module specification
 pinned: false
 description: "Technical module specification for the RHNA Progress Report module"
 Date Published: July 15, 2026
-Last Updated: 07/29/2026 - 11:20 AM
+Last Updated: 08/07/2026 - 04:55 PM
 Status: Updating
 Footnote: Document generated and updated by Claude Opus 4.8 on command. Outlined and verified by Trinity Jones.
 ---
@@ -249,6 +249,15 @@ The rest of this document is the per-script, per-function reference. Because thi
 ---
 
 ## Flagged Issues and Fragilities
+
+> [!danger] Every run after the first on a given day appends a duplicate snapshot
+> **Confirmed on the live runs of 2026-08-07**, which produced two identical 5,390-row snapshots 5 minutes apart (`2026-08-07 15:48:49.003781` and `2026-08-07 15:48:50.699427`) alongside the legitimate `2026-07-15` one. The dataset grows by one full snapshot per run, without bound, and the duplicates are indistinguishable from real captures because `Snapshot Date` is part of the grain.
+>
+> The cause is a granularity mismatch across two functions. `_latest_snapshot_by_cycle` (`orchestrators/rhna_progress_pipeline.py:90`) stores the last-seen snapshot **truncated to a date**, `latest[int(cycle)] = str(newest.date())`, while `_is_newer` (`acquisition/ckan_downloader.py:93`) compares the resource's **full timestamp** against it. `pd.Timestamp("2026-08-07 15:48:50") > pd.Timestamp("2026-08-07")` is true for the rest of the day, so both cycles re-download and re-append on every subsequent run.
+>
+> Either side is a valid fix: keep the full timestamp when storing, or compare at date granularity. Storing the full timestamp is the smaller change and preserves the ability to capture two genuinely different HCD revisions on one day. A regression test should assert that two runs in one day, against an unchanged source, leave the row count unchanged. Note that `data/data-cleaned/RHNA-progress-report/RHNAProgress_Current.csv` currently carries the two duplicate 2026-08-07 snapshots and wants cleaning once the gate is fixed.
+>
+> Unrelated to the shared archive refactor, which touched only this module's `output/finalize_dataset.py`. Found while verifying that work; see [[shared-archive-and-save-plan]].
 
 > [!bug] Things to watch
 > - **The committed `Current.csv` is offline-seeded.** Its `Snapshot Date` is the stand-in `2026-07-15`, and `Snapshot Date` equals `Source Last Updated`'s date because both came from the seeding script, not a live pull. The first live run replaces both with real CKAN timestamps; until then, dashboard "last updated" reads `July 15, 2026`.

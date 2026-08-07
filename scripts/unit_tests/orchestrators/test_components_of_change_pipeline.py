@@ -1,3 +1,5 @@
+from unittest.mock import Mock
+
 import pandas as pd
 import pytest
 
@@ -121,6 +123,29 @@ def test_components_pipeline_saves_when_new_data_exists(monkeypatch, tmp_path):
     pipeline.build_components_dataset()
 
     assert "archive_and_save" in call_log
+
+
+def test_components_pipeline_passes_module_id_to_shared_helper(
+    monkeypatch,
+    tmp_path,
+):
+    _, frames = _configure_success(monkeypatch, tmp_path)
+    archive_and_save = Mock(return_value=tmp_path / "current.csv")
+    monkeypatch.setattr(pipeline, "archive_and_save", archive_and_save)
+    monkeypatch.setattr(
+        pipeline,
+        "detect_new_source_data",
+        lambda *args, **kwargs: True,
+    )
+
+    pipeline.build_components_dataset()
+
+    archive_and_save.assert_called_once_with(
+        frames["finalized"],
+        tmp_path / "current.csv",
+        tmp_path / "archive",
+        module_id="components-of-change",
+    )
 
 
 def test_components_pipeline_validation_failure_stops_before_save(monkeypatch, tmp_path):

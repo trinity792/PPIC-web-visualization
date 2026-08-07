@@ -8,7 +8,7 @@ Data sources:
 Outputs:
     - pandas.DataFrame — canonical output with Geographic Level first
     - {current_data_path}.csv — atomically written current Components dataset
-    - data/archive/components-of-change/{FILENAME}.csv — archived prior current dataset when present
+    - data/archive/components-of-change/components-of-change_ComponentsOfChange_{YYYY-MM-DD}.csv — archived prior current dataset when present
 
 Usage:
     python scripts/components_of_change/output/finalize_dataset.py
@@ -21,7 +21,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from scripts.shared.archives.file_retention import archive_or_delete_files
+from scripts.shared.archives.dataset_archive import archive_and_save  # noqa: F401 - re-exported for callers
 
 """
 ========================================================================================================================
@@ -68,9 +68,8 @@ def write_components_output(dataframe, output_path):
     return output_path
 
 
-def archive_and_save(dataframe, current_data_path, archive_directory):
-    """Archive the prior canonical CSV when present, then write the new Components dataset. Test file: scripts/unit_tests/components_of_change/output/test_finalize_dataset.py"""
-    current_data_path = Path(current_data_path)
-    if current_data_path.is_file():
-        archive_or_delete_files([current_data_path], archive_directory)
-    return write_components_output(dataframe, current_data_path)
+# archive_and_save is the shared helper (scripts.shared.archives.dataset_archive), imported
+# above rather than reimplemented here — see docs/PPIC Summer 2026/refractor-guide/
+# shared-archive-and-save-plan.md, Workstream D. It replaces the former
+# archive_or_delete_files + write_components_output pair, which moved (rather than copied)
+# the prior canonical file, leaving no valid canonical CSV on disk between the two steps.

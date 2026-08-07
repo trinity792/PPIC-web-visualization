@@ -261,7 +261,7 @@ Owns the reference constants and one accessor:
 ### `scripts/housing_stress/output/finalize_dataset.py`
 
 - **`prepare_output(df, schema_config)`** - checks contract columns, casts `Year` to int and the measures to numeric/float, orders columns, and sorts. Raises on a missing contract column.
-- **`archive_and_save(df, current_path, archive_directory)`** - compares the new CSV against the existing file by streamed SHA-256; on a match returns `None` (no write, file left byte- and mtime-identical), otherwise copies the old file into the archive with an `mm-dd-yy` stamp and writes the new bytes **atomically** (staged `.tmp` + `os.replace`). *Replaces* the legacy pattern where saving was a side effect of chart rendering.
+- **`archive_and_save`** - no longer implemented here. It is the shared helper at `scripts/shared/archives/dataset_archive.py`, imported directly and called with `module_id="housing-stress"` from the live pipeline and `module_id="housing-stress-backfill"` from the backfill driver — the two share this directory, and the distinct module ids are what keep the live archive and the deep-history seed archive from colliding on the same filename. Archive names now look like `housing-stress_HousingStress_2026-08-07.csv`, replacing the old `mm-dd-yy` stamp. Behavior is unchanged: compares the new CSV against the existing file by streamed SHA-256; on a match returns `None` (no write, file left byte- and mtime-identical), otherwise copies the old file into the archive and writes the new bytes **atomically** (staged `.tmp` + `Path.replace`). See [[shared-archive-and-save-plan]].
 
 ### `scripts/orchestrators/housing_stress_pipeline.py`
 

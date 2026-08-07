@@ -1,0 +1,7 @@
+{
+  "coverage": "California jurisdictions",
+  "cadence": "Biweekly",
+  "granularity": "Jurisdiction, Cycle, Snapshot Date, Income Level",
+  "source": "California HCD RHNA Progress Report (data.ca.gov)",
+  "source_last_updated": "2026-08-07T15:48:50.721005"
+}

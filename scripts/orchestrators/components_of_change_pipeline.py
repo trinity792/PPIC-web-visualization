@@ -211,7 +211,7 @@ def build_components_dataset(config=None, logger=None):
             raise ValueError("Components data validation failed: " + "; ".join(validation_messages))
         output_path = None
         if new_dof_data_found or new_census_data_found:
-            output_path = archive_and_save(finalized_df, paths["current_data_path"], paths["archive_directory"])
+            output_path = archive_and_save(finalized_df, paths["current_data_path"], paths["archive_directory"], module_id="components-of-change")
     except Exception as error:
         _raise_phase_error("Phase 5", error)
 

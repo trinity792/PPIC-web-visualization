@@ -221,6 +221,22 @@ def test_pipeline_reports_acquired_months_as_contract_strings(
     assert result["acquired_months"] == ["2026-04", "2026-05"]
 
 
+def test_pipeline_passes_building_permits_module_id_to_shared_helper(
+    monkeypatch,
+    tmp_path,
+):
+    configured = _configure_success(monkeypatch, tmp_path)
+
+    pipeline.build_building_permits_dataset()
+
+    configured["mocks"]["archive_and_save"].assert_called_once_with(
+        configured["prepared"],
+        configured["paths"]["current_data_path"],
+        configured["paths"]["archive_directory"],
+        module_id="building-permits",
+    )
+
+
 def test_pipeline_result_contains_state_and_metro_levels(
     monkeypatch,
     tmp_path,

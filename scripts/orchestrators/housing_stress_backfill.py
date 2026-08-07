@@ -9,9 +9,11 @@ the accumulated series to the immutable deep-history seed (HousingStress_Histori
 live pipeline then unions that seed with its per-run vintage, so deep years survive a rebuild
 of the current file.
 
-Rebuild-on-demand safety: writing the seed archives the existing seed first (via
-archive_and_save), so a failed rebuild leaves the prior good seed recoverable in the archive
-rather than destroyed.
+Rebuild-on-demand safety: writing the seed archives the existing seed first (via the shared
+archive_and_save helper, module_id="housing-stress-backfill", producing archive names like
+housing-stress-backfill_HousingStress_2026-08-07.csv - distinct from the live pipeline's
+housing-stress_HousingStress_{YYYY-MM-DD}.csv in the same directory), so a failed rebuild
+leaves the prior good seed recoverable in the archive rather than destroyed.
 
 Data sources:
     - ACS 1-year table-based Summary File (B25140 + race iterations) via the downloader
@@ -189,7 +191,7 @@ def backfill_housing_stress_history(config=None, logger=None, start_year=None, e
         raise ValueError(f"Backfill final validation failed: {messages}")
 
     log_dataframe_info(logger, prepared, "Backfilled Housing Stress deep-history seed")
-    output_path = archive_and_save(prepared, paths["historical_data_path"], paths["archive_directory"])
+    output_path = archive_and_save(prepared, paths["historical_data_path"], paths["archive_directory"], module_id="housing-stress-backfill")
 
     return {
         "dataset": prepared,

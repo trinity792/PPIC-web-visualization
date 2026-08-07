@@ -34,6 +34,7 @@ def _row(year):
 
 def _configure(monkeypatch, tmp_path):
     paths = {
+        "current_data_path": tmp_path / "HousingStress_Current.csv",
         "historical_data_path": tmp_path / "HousingStress_Historical.csv",
         "archive_directory": tmp_path / "archive",
         "download_directory": tmp_path / "raw",
@@ -93,6 +94,27 @@ def test_backfill_builds_each_year_skips_excluded_and_unpublished(monkeypatch, t
     assert set(result["dataset"]["Year"]) == {2018, 2021}
     # The seed is written to the immutable history path via archive_and_save.
     assert backfill.archive_and_save.call_args.args[1] == paths["historical_data_path"]
+    assert not paths["current_data_path"].exists()
+
+
+def test_backfill_passes_distinct_module_id_for_seed_archive(
+    monkeypatch,
+    tmp_path,
+):
+    paths = _configure(monkeypatch, tmp_path)
+
+    backfill.backfill_housing_stress_history(
+        start_year=2018,
+        end_year=2018,
+        acquire_frames_fn=lambda _year: {"ca": {}, "state": {}},
+    )
+
+    backfill.archive_and_save.assert_called_once()
+    args = backfill.archive_and_save.call_args.args
+    kwargs = backfill.archive_and_save.call_args.kwargs
+    assert args[1] == paths["historical_data_path"]
+    assert args[1] != paths["current_data_path"]
+    assert kwargs == {"module_id": "housing-stress-backfill"}
 
 
 def test_backfill_bootstraps_pre_cutoff_years_from_legacy_csv(monkeypatch, tmp_path):

@@ -1,7 +1,10 @@
+from unittest.mock import Mock
+
 import pandas as pd
 import pytest
-from scripts.rhna_progress.output.finalize_dataset import finalize_dataset, write_dataset
 
+import scripts.rhna_progress.output.finalize_dataset as finalize_module
+from scripts.rhna_progress.output.finalize_dataset import finalize_dataset, write_dataset
 from scripts.unit_tests.rhna_progress.helpers import OUTPUT_COLUMNS, long_frame, long_row, schema_config
 
 
@@ -79,7 +82,10 @@ def test_write_dataset_atomically_writes_when_new_snapshot(tmp_path):
     ]
 
 
-def test_write_dataset_archives_prior_current_file_when_data_changes(tmp_path):
+def test_write_dataset_archives_prior_current_file_with_module_prefixed_iso_name(
+    tmp_path,
+    frozen_archive_clock,
+):
     paths = {
         "current_data_path": tmp_path / "RHNAProgress_Current.csv",
         "archive_directory": tmp_path / "archive",
@@ -92,10 +98,65 @@ def test_write_dataset_archives_prior_current_file_when_data_changes(tmp_path):
 
     assert result == paths["current_data_path"]
     archives = list(paths["archive_directory"].glob("*.csv"))
-    assert len(archives) == 1
-    assert archives[0].stem.startswith("RHNAProgress_")
+    assert [path.name for path in archives] == [
+        "rhna-progress_RHNAProgress_2026-08-07.csv"
+    ]
     assert pd.read_csv(archives[0])["Units"].tolist() == [10]
     assert pd.read_csv(paths["current_data_path"])["Units"].tolist() == [20]
+
+
+def test_write_dataset_archives_even_when_new_snapshot_is_byte_identical(
+    tmp_path,
+    frozen_archive_clock,
+):
+    paths = {
+        "current_data_path": tmp_path / "RHNAProgress_Current.csv",
+        "archive_directory": tmp_path / "archive",
+    }
+    dataframe = long_frame(
+        [long_row(snapshot_date="2026-07-15", units=20)]
+    )
+    dataframe.to_csv(paths["current_data_path"], index=False)
+    original_bytes = paths["current_data_path"].read_bytes()
+
+    result = write_dataset(dataframe, paths, new_snapshot=True)
+
+    assert result == paths["current_data_path"]
+    archives = list(paths["archive_directory"].glob("*.csv"))
+    assert [path.name for path in archives] == [
+        "rhna-progress_RHNAProgress_2026-08-07.csv"
+    ]
+    assert archives[0].read_bytes() == original_bytes
+    assert paths["current_data_path"].read_bytes() == original_bytes
+
+
+def test_write_dataset_delegates_with_already_compared_and_module_id(
+    tmp_path,
+    monkeypatch,
+):
+    paths = {
+        "current_data_path": tmp_path / "RHNAProgress_Current.csv",
+        "archive_directory": tmp_path / "archive",
+    }
+    dataframe = long_frame()
+    shared_helper = Mock(return_value=paths["current_data_path"])
+    monkeypatch.setattr(
+        finalize_module,
+        "archive_and_save",
+        shared_helper,
+        raising=False,
+    )
+
+    result = write_dataset(dataframe, paths, new_snapshot=True)
+
+    assert result == paths["current_data_path"]
+    shared_helper.assert_called_once_with(
+        dataframe,
+        paths["current_data_path"],
+        paths["archive_directory"],
+        module_id="rhna-progress",
+        already_compared=True,
+    )
 
 
 def test_write_dataset_leaves_original_intact_when_atomic_replace_fails(
@@ -121,4 +182,3 @@ def test_write_dataset_leaves_original_intact_when_atomic_replace_fails(
 
     assert paths["current_data_path"].read_bytes() == original_bytes
     assert not paths["current_data_path"].with_suffix(".csv.tmp").exists()
-

@@ -147,7 +147,7 @@ All 199 unit tests passed while a real run crashed — the canonical example of 
 
 ### Efficiency pass (also 2026-07-03)
 
-The first module to get a real performance pass: `assign_geographic_level` vectorized (3.29s → 0.21s on 1.72M rows); `archive_and_save` streams a SHA-256 hash + `shutil.copy2` instead of reading two full files into strings (peak ~189MB → ~2MB); the canonical CSV is read once and threaded through; the DoF cleaner uses `usecols=` to drop a redundant 4.6M-row copy. The frontend `loadProjectionsData()` parsing the whole ~87MB CSV per server process remains the open efficiency item.
+The first module to get a real performance pass: `assign_geographic_level` vectorized (3.29s → 0.21s on 1.72M rows); `archive_and_save` streams a SHA-256 hash + copies the file (instead of reading two full files into strings) for the byte-identity check (peak ~189MB → ~2MB); the canonical CSV is read once and threaded through; the DoF cleaner uses `usecols=` to drop a redundant 4.6M-row copy. The streamed-hash `archive_and_save` was later hoisted into the shared helper at `scripts/shared/archives/dataset_archive.py` (see [[shared-archive-and-save-plan]]), so this ~189MB→~2MB improvement is now shared behavior across all six writer modules, not a Projections-specific optimization. The frontend `loadProjectionsData()` parsing the whole ~87MB CSV per server process remains the open efficiency item.
 
 ### Fragilities carried forward
 
