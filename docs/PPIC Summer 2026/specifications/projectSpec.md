@@ -48,7 +48,7 @@ Two design goals run through the entire codebase and should be treated as requir
 - **It is documented for non-developers.** A researcher should be able to understand the structure and a future contributor should be able to extend it.
 
 > [!flag] Workspace boundary
-> The VS Code workspace contains two folders. `web-data-visualization/` is the new project root — **all work happens here.** `Previous Tool/` is **read-only legacy reference** (the V1 notebooks and V2 Shiny app/pipeline) and must never be modified.
+> `web-data-visualization/` is the project root — **all work happens here.**
 
 ---
 ## Modules
@@ -1743,7 +1743,7 @@ Every `.py` file follows [`docs/agent/python_conventions.md`](../agent/python_co
 ### Working agreements (`AGENTS.md`)
 - Make the smallest working change; match existing patterns; don't touch unrelated files.
 - **Ask first**: new dependencies, editing `lib/config.py` or a module-specific root config, changing schemas/output formats, restructuring `scripts/` or `lib/`.
-- **Never**: modify `Previous Tool/`, commit raw/cleaned data, rewrite working pipeline logic without instruction, or silence warnings with a blanket `warnings.filterwarnings("ignore")`.
+- **Never**: commit raw/cleaned data, rewrite working pipeline logic without instruction, or silence warnings with a blanket `warnings.filterwarnings("ignore")`.
 - Run `python -m pytest` after backend changes.
 
 ---

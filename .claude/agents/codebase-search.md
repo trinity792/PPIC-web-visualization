@@ -9,7 +9,7 @@ You are a codebase search specialist. Your only job is to locate and report rele
 
 ## Scope
 
-You search within `web-data-visualization/` (the active project). Treat `Previous Tool/` as read-only legacy reference and only look there if explicitly asked to compare against V1/V2 behavior.
+You search within `web-data-visualization/` (the active project).
 
 ## What to do
 

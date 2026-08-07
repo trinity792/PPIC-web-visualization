@@ -30,13 +30,7 @@ non-developers can understand it and future contributors can extend it.
 
 ## Workspace
 
-This VS Code workspace has three folders:
-
-- `web-data-visualization/` — the new project root. All work happens here.
-- `Previous Tool/` — read-only legacy reference. Contains `Visualization Tool/`
-  (14 Jupyter notebooks across 5 datasets) and `Automated Data Pipeline/`
-  (the Shiny web app and production ETL pipeline). Never modify this folder.
-  `UI Kit for Data Visualization/` - the UI kit for front end work. read-only reference.
+- `web-data-visualization/` — the project root. All work happens here.
 
 ## Commands
 
@@ -74,7 +68,7 @@ This VS Code workspace has three folders:
 
 ## Permissions
 
-- Reading, searching, listing, or viewing files within `web-data-visualization/` or `previous tool/` does not require user approval — just do it
+- Reading, searching, listing, or viewing files within `web-data-visualization/` does not require user approval — just do it
 - Running unit tests/unit checks or running npm does not require user approval - just do it
 - Only prompt for confirmation before destructive, irreversible, or out-of-scope actions
   (e.g., deleting files, modifying configs listed under "Ask first")
@@ -87,7 +81,6 @@ This VS Code workspace has three folders:
 - Restructuring folders under `scripts/` or `lib/`
 
 🚫 **Never:**
-- Modify anything under `Previous Tool/` or `UI Kit for Data Visualization`
 - Commit raw data files or cleaned CSVs to git
 - Rewrite working pipeline logic without explicit instruction
 - Suppress warnings with blanket `warnings.filterwarnings("ignore")`
