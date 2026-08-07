@@ -251,6 +251,6 @@ HousingStress_Current_07-14-26.csv            -> housing-stress_HousingStress_20
 HousingStress_Historical_07-13-26.csv         -> housing-stress-backfill_HousingStress_2026-07-13.csv
 ```
 
-### Carried out of this work, for its own commit
+### Carried out of this work, into its own commits
 
-- [ ] **RHNA duplicates every row on a same-day re-run, which double-renders the charts.** Found while verifying this refactor, unrelated to it. Two defects compound: a re-download gate that compares a date against a timestamp, and a grain dedupe that fails to collapse the re-captured rows. The duplicated data reached `main` in the same commit as this refactor and was reverted out of `data/data-cleaned/RHNA-progress-report/RHNAProgress_Current.csv` once the frontend impact was confirmed; the code defects are still live. Full diagnosis, the latent `mark_most_recent` crash, and the regression tests to add are recorded in [[RHNA-progress-report-module]] under Flagged Issues.
+- [x] **RHNA duplicated every row on a same-day re-run, which double-rendered the charts.** Found while verifying this refactor, unrelated to it: three compounding defects in change detection, grain de-duplication, and date parsing. Fixed in `10d75e8` and `be0f1e9`, verified by a clean live capture followed by an idempotent re-run that acquired nothing and wrote nothing. Full diagnosis in [[RHNA-progress-report-module]] under Flagged Issues.
