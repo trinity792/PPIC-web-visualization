@@ -4,17 +4,20 @@ Content Type: refractor plan
 pinned: false
 description: "Plan for hoisting the five duplicated archive_and_save() implementations into a single shared helper, unifying their naming, change detection, and copy semantics, for the developer doing the refactor."
 Date Published: August 04, 2026
-Last Updated: 08/04/2026 - 07:20 PM
-Status: Proposed
-Footnote: Drafted by Claude Opus 5 from a read of all five implementations and their tests. No code changed. Every current-state claim below cites the file and line it came from.
+Last Updated: 08/07/2026 - 03:40 PM
+Status: Archive
+Footnote: Drafted by Claude Opus 5 from a read of all five implementations and their tests. No code changed. Every current-state claim below cites the file and line it came from. Content verified by Trinity Jones
 ---
 
 # Shared `archive_and_save`: Refactor Plan
 
 A cross-cutting refactor rather than a module migration: five near-but-not-quite-identical archive-and-write implementations collapse into one shared mechanism, and the archive filename changes to `{module}_{prefix}_{YYYY-MM-DD}.csv`.
 
-> [!info] Who this document is for and what it does not do
-> The developer performing the refactor. It is a plan, not an as-built: nothing described here has been implemented, and no file has been modified. Read [Current State](#current-state) before [Target Design](#target-design), because the five implementations differ more than their shared name suggests and the differences drive most of the decisions.
+> [!warning] Superseded, kept as a record
+> This is the August 4 plan. It was replaced by [[shared-archive-and-save-plan]], which is the plan that was actually implemented and is now the as-built guide for the shared helper. **Do not act on anything below.** The filename format, the `module_id` rule, the `housing_stress` backfill resolution, and the treatment of `pophousing` as a sixth write path all reached their final form in the successor document. This one is preserved because its Open Questions and their answers are the record of how those decisions were reached.
+
+> [!info] Who this document was for and what it did not do
+> The developer performing the refactor. It was a plan, not an as-built: nothing described here had been implemented when it was written, and no file had been modified. It read [Current State](#current-state) before [Target Design](#target-design), because the five implementations differed more than their shared name suggested and the differences drove most of the decisions.
 
 ---
 
@@ -144,7 +147,7 @@ where `prefix` is `current_path.stem.split("_")[0]`, matching what `building_per
 | `building_permits` | String comparison becomes streamed hash | None. Same result, less memory. |
 | `rhna_progress` | String comparison becomes streamed hash; signature changes from `paths` dict to explicit arguments | Low. Caller already gates on `new_snapshot`. |
 | `projections` | Archive name loses `_Current`, gains module prefix and ISO date | None beyond the rename. |
-| `housing_stress` | Same as projections | None beyond the rename. |
+| `housing_stress` | Archive name loses `_Current`, gains module prefix and ISO date; **the backfill's seed archive needs its own `module_id`** | Second-highest. The rename itself is free, but the prefix rule maps `HousingStress_Current.csv` and `HousingStress_Historical.csv` onto one filename, so the backfill must pass `module_id="housing-stress-backfill"` or the seed archive is silently overwritten. See [§ 3](#3-housing_stress). |
 | `components_of_change` | **Move becomes copy**; gains byte-level change detection; archives gain dates; counter-suffix disambiguation disappears | Highest. Four changes at once, and the only module whose write path is genuinely re-specified. |
 
 ---
@@ -165,7 +168,16 @@ Update `scripts/unit_tests/building_permits/output/test_finalize_dataset.py`, in
 
 ### 3. `housing_stress`
 
-Same shape. Call site is `scripts/orchestrators/housing_stress_pipeline.py:288`, plus `housing_stress_backfill.py:192`, which passes `paths["historical_data_path"]` rather than the current path. The backfill call needs checking: archiving a *historical* file under the same naming convention may or may not be intended.
+Two call sites rather than one, and they archive different files. `scripts/orchestrators/housing_stress_pipeline.py:288` passes `current_data_path` and is the same shape as `building_permits`. `scripts/orchestrators/housing_stress_backfill.py:192` passes `paths["historical_data_path"]`, the deep-history seed `HousingStress_Historical.csv`, and is the only call site in any module that archives a historical seed rather than a live output.
+
+The backfill keeps its archiving, resolved. The "immutable" label on that file (`scripts/housing_stress/config/paths.py:39-41`) scopes to the live pipeline, not to all writers: the comment reads "read-only to the live pipeline so a bad current write cannot poison the baseline," and the pipeline only ever loads it (`housing_stress_pipeline.py:172`). The backfill is the seed's sole owner and only writer, and because a rebuild pulls live from Census, the archive is the one thing standing between a partial or degraded rebuild and an irreplaceable artifact. It has already served that purpose once: `data/archive/housing-stress/` holds `HousingStress_Historical_07-13-26.csv`, the 2022-2024 live-only seed preserved on the run that expanded it to the full 2012-2024 series via the legacy bootstrap. The seed is committed to git, so history is a second recovery path, but only the archive covers the window between commits, which is exactly when a rebuild runs.
+
+> [!danger] The prefix rule collapses both housing_stress archives onto one filename
+> `prefix` is defined as `current_path.stem.split("_")[0]`, which yields `HousingStress` for **both** `HousingStress_Current.csv` and `HousingStress_Historical.csv`. Paired with a single `module_id="housing-stress"`, the live pipeline and the backfill would both write `housing-stress_HousingStress_{YYYY-MM-DD}.csv`, so the seed archive is silently overwritten by the live archive on any day both run, and the two are indistinguishable by name in general. Today they are distinguishable (`_Current_` versus `_Historical_`), so this would be a regression rather than a rename.
+
+The fix is to apply the `module_id` rule literally rather than per-module. The backfill's own `execute_pipeline_run` call (`housing_stress_backfill.py:226`) already passes `module_id="housing-stress-backfill"`, so passing that same string to `archive_and_save` yields `housing-stress-backfill_HousingStress_{YYYY-MM-DD}.csv`, distinct from the pipeline's `housing-stress_HousingStress_{YYYY-MM-DD}.csv` and self-describing about which driver produced it. This is what the helper's docstring already prescribes ("the same string the orchestrator passes to `execute_pipeline_run()`"), and it is the reason the argument is passed explicitly instead of derived from `archive_directory.name`, which would collapse the two.
+
+Beyond `scripts/unit_tests/housing_stress/output/test_finalize_dataset.py`, this commit also touches `scripts/unit_tests/orchestrators/test_housing_stress_backfill.py`, which mocks `backfill.archive_and_save` at line 73 and asserts the archived path at line 95. Both survive the import change, but the assertion should gain a companion check that the backfill passes `module_id="housing-stress-backfill"`, since that string is now what keeps the two archives apart.
 
 ### 4. `projections`
 
@@ -249,7 +261,10 @@ python -m pytest                                                  # before the f
 ## Open Questions
 
 **Does anything outside the repository read `ComponentsOfChange_Current_1.csv` by name?** The counter-suffix scheme disappears under the shared helper. A search across `.py`, `.js`, `.jsx`, and `.md` found the pattern only in `test_file_retention.py`, which exercises the generic uniquifier rather than this module, so nothing in the repository depends on it. The archive directory is gitignored, though, so a local script or a personal notebook could depend on it in a way the repository cannot show.
+- Response: Not that I'm aware of.
 
 **Should `housing_stress_backfill.py` archive at all?** It passes `paths["historical_data_path"]`, so it archives the *historical* seed rather than the live output. That file is described elsewhere in the project as immutable. Whether it should ever be archived, and under what name, is a question for whoever wrote the backfill.
+- Response: Keep the archiving. It is the only rebuild-safety net for an irreplaceable artifact, the "immutable" label refers to the live pipeline rather than the backfill, and the archive directory already contains a version it saved. Pass module_id="housing-stress-backfill" at that call site so the seed archive and the live archive can't collide
 
 **Should existing archive files be renamed?** The plan changes new files only. Existing archives keep their old names, so a directory will hold both conventions for a while and will not sort cleanly across the boundary. A one-off rename script is possible but has to run wherever the archives physically live, which under the manual-refresh setup is an external drive rather than the repository.
+- Response: Right now there's no external drive, I'll add it in later so rename now.

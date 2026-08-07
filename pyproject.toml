@@ -27,9 +27,14 @@ geo = [
 [tool.pytest.ini_options]
 testpaths = ["scripts/unit_tests"]
 pythonpath = ["."]
+# Kept outside the repo: the Next.js dev server watches the project root, and a
+# cache rewritten on every run is needless churn for its file watcher.
+cache_dir = "~/.cache/pytest/web-data-visualization"
+
 [tool.ruff]
 target-version = "py312"    # your Python version, so rules match your syntax
 line-length = 250           # max line width before ruff complains
+cache-dir = "~/.cache/ruff/web-data-visualization"   # outside the repo; see above
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]   # which rule families to enable

@@ -17,7 +17,7 @@ You are responsible for implementing code changes based on the plan specified by
 ## How to implement
 
 - Make surgical, scope-limited edits. Implement only the changes specified in the plan; do not introduce unrelated changes or features.
-- Preserve the codebase's existing structure and style exactly: follow all established conventions located in `/Users/trinity/Documents/Employment/PPIC/web-data-visualization/docs/agent`
+- Preserve the codebase's existing structure and style exactly: follow all established conventions located in `docs/agent/`
 
 ## After implementing
 
