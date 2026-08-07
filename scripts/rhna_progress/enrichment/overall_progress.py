@@ -18,7 +18,7 @@ Test Folders:
 import numpy as np
 import pandas as pd
 
-from scripts.rhna_progress.enrichment.pace_metrics import bucket_pace_score
+from scripts.rhna_progress.enrichment.pace_metrics import bucket_pace_score, parse_date_column
 
 _JURISDICTION_KEYS = ["Jurisdiction", "Cycle", "Snapshot Date"]
 
@@ -94,24 +94,10 @@ def derive_overall_progress(df, schema_config):
     return result
 
 
-def parse_snapshot_dates(values):
-    """
-    Parse a Snapshot Date column that may mix representations, into datetimes.
-
-    The column legitimately holds three shapes at once: the seed's date-only "2026-07-15",
-    a saved capture read back from CSV as the string "2026-08-07 15:48:49.003781", and a
-    fresh capture still carrying a pd.Timestamp. format="ISO8601" accepts all three; the
-    default inference picks a format from the first value and then raises on the others.
-
-    Test file: scripts/unit_tests/rhna_progress/enrichment/test_overall_progress.py
-    """
-    return pd.to_datetime(values, format="ISO8601")
-
-
 def mark_most_recent(df):
     """Set Most Recent = True on all rows sharing the maximum Snapshot Date within each (Jurisdiction, Cycle); False otherwise. Test file: scripts/unit_tests/rhna_progress/enrichment/test_overall_progress.py"""
     result = df.copy()
-    snapshot_ts = parse_snapshot_dates(result["Snapshot Date"])
+    snapshot_ts = parse_date_column(result["Snapshot Date"])
     latest = snapshot_ts.groupby([result["Jurisdiction"], result["Cycle"]]).transform("max")
     result["Most Recent"] = (snapshot_ts == latest).to_numpy()
     return result

@@ -22,7 +22,8 @@ import warnings
 import pandas as pd
 
 from scripts.rhna_progress.config.schemas import get_schema_config
-from scripts.rhna_progress.enrichment.overall_progress import mark_most_recent, parse_snapshot_dates
+from scripts.rhna_progress.enrichment.overall_progress import mark_most_recent
+from scripts.rhna_progress.enrichment.pace_metrics import parse_date_column
 from scripts.shared.logging.revision_diff import DEFAULT_SAMPLE_LIMIT, diff_revisions
 
 _SNAPSHOT_COLUMN = "Snapshot Date"
@@ -88,7 +89,7 @@ def combine_snapshots(existing, seed, new_snapshots):
     # afterwards so the stored representation is untouched (the frontend sorts Snapshot Date
     # with localeCompare, so it must stay a stable string).
     dedupe_keys = [_SNAPSHOT_SORT_KEY if column == _SNAPSHOT_COLUMN else column for column in grain]
-    combined[_SNAPSHOT_SORT_KEY] = parse_snapshot_dates(combined[_SNAPSHOT_COLUMN])
+    combined[_SNAPSHOT_SORT_KEY] = parse_date_column(combined[_SNAPSHOT_COLUMN])
     combined = combined.drop_duplicates(subset=dedupe_keys, keep="last")
     combined = combined.sort_values(dedupe_keys, ignore_index=True).drop(columns=_SNAPSHOT_SORT_KEY)
     return mark_most_recent(combined)

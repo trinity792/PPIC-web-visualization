@@ -38,7 +38,7 @@ from scripts.rhna_progress.config.paths import get_paths
 from scripts.rhna_progress.config.schemas import get_schema_config
 from scripts.rhna_progress.config.sources import get_source_config
 from scripts.rhna_progress.enrichment.overall_progress import derive_overall_progress, mark_most_recent
-from scripts.rhna_progress.enrichment.pace_metrics import derive_pace_metrics, derive_time_elapsed
+from scripts.rhna_progress.enrichment.pace_metrics import derive_pace_metrics, derive_time_elapsed, parse_date_column
 from scripts.rhna_progress.geography.geographic_levels import assign_county_and_region, classify_geographic_level
 from scripts.rhna_progress.geography.jurisdiction_crosswalk import load_jurisdiction_crosswalk
 from scripts.rhna_progress.merging.historical_merge import (
@@ -90,7 +90,7 @@ def _latest_snapshot_by_cycle(existing):
     if existing is None or existing.empty or "Cycle" not in existing.columns:
         return {}
     latest = {}
-    snapshots = pd.to_datetime(existing["Snapshot Date"], format="ISO8601", errors="coerce")
+    snapshots = parse_date_column(existing["Snapshot Date"], errors="coerce")
     for cycle, group in snapshots.groupby(existing["Cycle"]):
         newest = group.max()
         if pd.notna(newest):

@@ -201,3 +201,34 @@ def test_validate_final_uses_grain_keys_from_schema_config():
     assert config["final_validation_config"]["income_levels"] == INCOME_LEVELS
     assert config["final_validation_config"]["tier_income_levels"] == TIER_LEVELS
 
+
+
+def test_validate_final_reads_a_full_timestamp_snapshot_against_the_deadline():
+    # The 2026-08-07 failure: the column mixed the date-only seed with full-timestamp live
+    # captures, so pd.to_datetime inferred "%Y-%m-%d" from the first value and coerced every
+    # live row's snapshot to NaT. classify_status then could not see that the deadline had
+    # passed and reported a bogus "expected 'Far Off Track'" against a correct "Behind".
+    rows = [
+        long_row(snapshot_date="2026-07-15", units=1, rhna=100, percent_elapsed=1.5),
+        long_row(snapshot_date="2026-08-07 15:48:49.003781", units=1, rhna=100, percent_elapsed=1.5),
+    ]
+    frame = pd.DataFrame(rows, columns=OUTPUT_COLUMNS)
+    # Every accumulated date column mixes shapes, not just Snapshot Date: the seed writes
+    # "2021-10-15" where a live capture writes "2021-10-15 00:00:00". Both columns have to be
+    # parsed tolerantly or the deadline comparison silently sees NaT.
+    frame["Snapshot Date"] = pd.Series(
+        ["2026-07-15", "2026-08-07 15:48:49.003781"], dtype=object
+    )
+    # Deadline long past for both rows, so the four-quadrant rule must say "Behind".
+    frame["Planning Period End"] = pd.Series(
+        ["2021-10-15", "2021-10-15 00:00:00"], dtype=object
+    )
+    frame["Status"] = "Behind"
+
+    _, messages = validate_final(frame, schema_config())
+
+    # The frame is deliberately minimal (Total rows only), so the unrelated Total-vs-tier-sum
+    # check fires. Assert the exact remaining set rather than just `is_valid`, so this test
+    # cannot quietly pass while some new message appears.
+    assert [m for m in messages if "four-quadrant" in m] == []
+    assert all("do not equal tier sums" in m for m in messages)

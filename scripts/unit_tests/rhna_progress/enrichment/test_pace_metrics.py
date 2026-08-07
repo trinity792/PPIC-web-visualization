@@ -3,6 +3,7 @@ from datetime import date
 import pandas as pd
 import pytest
 from scripts.rhna_progress.enrichment.pace_metrics import (
+    parse_date_column,
     derive_pace_metrics,
     derive_time_elapsed,
 )
@@ -150,3 +151,30 @@ def test_derive_pace_metrics_does_not_mutate_input():
     derive_pace_metrics(source, schema_config())
 
     pd.testing.assert_frame_equal(source, original)
+
+
+def test_parse_date_column_accepts_every_shape_an_accumulated_column_holds():
+    # Date-only (seed), full timestamp read back from CSV (live capture), midnight-suffixed
+    # (a Planning Period round-tripped through a Timestamp), and a live pd.Timestamp.
+    values = pd.Series(
+        [
+            "2026-07-15",
+            "2026-08-07 15:48:49.003781",
+            "2021-10-15 00:00:00",
+            pd.Timestamp("2026-08-07 15:48:49.003781"),
+        ],
+        dtype=object,
+    )
+
+    parsed = parse_date_column(values)
+
+    assert parsed.isna().sum() == 0
+    assert parsed.iloc[0] == pd.Timestamp("2026-07-15")
+    assert parsed.iloc[1] == parsed.iloc[3]
+
+
+def test_parse_date_column_does_not_silently_coerce_by_default():
+    # errors="coerce" is what turned a parse failure into a wrong answer rather than a
+    # visible one, so the default must raise.
+    with pytest.raises(ValueError):
+        parse_date_column(pd.Series(["not a date"]))

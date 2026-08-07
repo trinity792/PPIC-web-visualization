@@ -20,7 +20,7 @@ import zipfile
 
 import pandas as pd
 
-from scripts.rhna_progress.enrichment.pace_metrics import classify_status
+from scripts.rhna_progress.enrichment.pace_metrics import classify_status, parse_date_column
 
 _WORD_NS = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 _HEADER_LABELS = {"field name", "field", "column name", "column", "name"}
@@ -180,8 +180,8 @@ def validate_final(df, schema_config):
     if bad_regions:
         messages.append(f"Region value(s) outside the shared nine: {sorted(bad_regions)}")
 
-    snapshot = pd.to_datetime(df["Snapshot Date"], errors="coerce")
-    deadline = pd.to_datetime(df["Planning Period End"], errors="coerce")
+    snapshot = parse_date_column(df["Snapshot Date"], errors="coerce")
+    deadline = parse_date_column(df["Planning Period End"], errors="coerce")
     units = pd.to_numeric(df["Units"], errors="coerce")
     rhna = pd.to_numeric(df["RHNA"], errors="coerce")
     score = pd.to_numeric(df["On Track Score"], errors="coerce")
