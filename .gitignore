@@ -7,6 +7,7 @@ __pycache__/
 *.py[cod]
 
 .venv/
+web-viz-venv/
 .vscode/
 .DS_Store
 .obsidian/
