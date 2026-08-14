@@ -1,12 +1,12 @@
 "use client";
 
 /**
- * PalettePicker.js — named-palette select plus per-series color override rows.
+ * PalettePicker.js — palette select plus per-item legend controls.
  *
  * Props:
- *   seriesNames {string[]} — last-loaded trace/series names, for the
- *                            per-series override rows (defaults to []: only
- *                            the palette select renders until data has loaded)
+ *   seriesNames {string[]} — last-loaded discrete legend names (defaults to
+ *                            []: only the palette select renders until data
+ *                            has loaded)
  *
  * Data sources:
  *   - Chart configuration from ChartConfigProvider
@@ -20,9 +20,10 @@
 
 import React from "react";
 
-import { Eye, EyeOff, RotateCcw } from "lucide-react";
+import { Eye, EyeOff, RotateCcw, Search } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -74,6 +75,8 @@ const FALLBACK_RAMP = Object.freeze({
   diverging: "diverging-redblue",
 });
 
+const COLLAPSED_ITEM_LIMIT = 5;
+
 /**
  * A palette's own stops, drawn as the gradient the chart will use. A named
  * Plotly scale (the legacy "RdBu") has no stops to read, so it shows a neutral
@@ -109,9 +112,10 @@ function RampSwatch({ scale }) {
  */
 export default function PalettePicker({ seriesNames = [], kind = "categorical" }) {
   const { config, dispatch } = useChartConfig();
-  // Per-series overrides only make sense once a load has reported the series
-  // that were actually drawn.
-  const showSeriesColors = seriesNames.length > 0;
+  const [expanded, setExpanded] = React.useState(false);
+  const [query, setQuery] = React.useState("");
+  // Item controls only make sense once a load has reported a discrete legend.
+  const showLegendItems = seriesNames.length > 0;
   const rampMode = kind !== "categorical";
   const options = palettesOfKind(kind).map((id) => [id, PALETTES[id]]);
   // `appearance.palette` is one key shared by every chart type, so a reader who
@@ -125,6 +129,20 @@ export default function PalettePicker({ seriesNames = [], kind = "categorical" }
     : rampMode
       ? FALLBACK_RAMP[kind]
       : DEFAULT_PALETTE;
+  const hasOverflow = seriesNames.length > COLLAPSED_ITEM_LIMIT;
+  const activeQuery = hasOverflow ? query.trim().toLocaleLowerCase() : "";
+  const legendLabels = config.appearance.legendLabels || {};
+  const matchingNames = activeQuery
+    ? seriesNames.filter((seriesName) =>
+        `${seriesName} ${legendLabels[seriesName] || ""}`
+          .toLocaleLowerCase()
+          .includes(activeQuery),
+      )
+    : seriesNames;
+  const visibleNames =
+    activeQuery || expanded
+      ? matchingNames
+      : matchingNames.slice(0, COLLAPSED_ITEM_LIMIT);
 
   return (
     <div className="grid gap-3">
@@ -150,14 +168,49 @@ export default function PalettePicker({ seriesNames = [], kind = "categorical" }
         </Select>
       </div>
 
-      {showSeriesColors ? (
+      {showLegendItems ? (
         <div className="grid gap-2">
-          <Label>Series colors</Label>
+          <Label>Legend items</Label>
+          {hasOverflow ? (
+            <div className="relative">
+              <Search
+                aria-hidden="true"
+                className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+              />
+              <Input
+                type="search"
+                value={query}
+                aria-label="Search legend items"
+                placeholder="Search legend items"
+                className="pl-8"
+                onChange={(event) => setQuery(event.target.value)}
+              />
+            </div>
+          ) : null}
           <div className="grid gap-1.5">
-            {seriesNames.map((seriesName) => (
-              <SeriesColorRow key={seriesName} seriesName={seriesName} />
+            {visibleNames.map((seriesName) => (
+              <LegendItemRow key={seriesName} seriesName={seriesName} />
             ))}
+            {activeQuery && !visibleNames.length ? (
+              <p className="py-2 text-sm text-muted-foreground">
+                No legend items found.
+              </p>
+            ) : null}
           </div>
+          {hasOverflow && !activeQuery ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="justify-start"
+              aria-expanded={expanded}
+              onClick={() => setExpanded((current) => !current)}
+            >
+              {expanded
+                ? "Show less"
+                : `Show more (${seriesNames.length - COLLAPSED_ITEM_LIMIT})`}
+            </Button>
+          ) : null}
         </div>
       ) : null}
     </div>
@@ -166,9 +219,10 @@ export default function PalettePicker({ seriesNames = [], kind = "categorical" }
 
 // ── Tightly coupled sub-components ───────────────────────────────────
 
-function SeriesColorRow({ seriesName }) {
+function LegendItemRow({ seriesName }) {
   const { config, dispatch } = useChartConfig();
   const override = config.appearance.seriesColors?.[seriesName];
+  const labelOverride = config.appearance.legendLabels?.[seriesName] || "";
   const hidden = (config.appearance.hiddenSeries || []).includes(seriesName);
 
   function setColor(token) {
@@ -181,11 +235,20 @@ function SeriesColorRow({ seriesName }) {
 
   return (
     <div className="flex items-center justify-between gap-2 rounded-md border bg-card px-2 py-1.5">
-      <span
-        className={`min-w-0 flex-1 truncate text-sm ${hidden ? "text-muted-foreground line-through" : ""}`}
-      >
-        {seriesName}
-      </span>
+      <Input
+        value={labelOverride}
+        aria-label={`Legend label for ${seriesName}`}
+        placeholder={seriesName}
+        title={`Original label: ${seriesName}`}
+        className={`h-8 min-w-0 flex-1 ${hidden ? "text-muted-foreground line-through" : ""}`}
+        onChange={(event) =>
+          dispatch({
+            type: "SET_LEGEND_LABEL",
+            seriesName,
+            label: event.target.value,
+          })
+        }
+      />
       <button
         type="button"
         onClick={toggleHidden}

@@ -671,12 +671,12 @@ export function reduceChartConfig(config, action, schema, options = DEFAULT_OPTI
 
     case "SET_SERIES_COUNT": {
       // Loaded-data size, fed back in so complexity validation can run, plus
-      // any geographic-join fallout (geoUnmatched) and the live trace names
-      // (seriesNames, used by the palette per-series override rows) — all
-      // load-derived values are computed keys (chartSpec.js COMPUTED_KEYS),
-      // never serialized config.
+      // any geographic-join fallout (geoUnmatched), live trace names, and
+      // discrete legend names — all load-derived values are computed keys
+      // (chartSpec.js COMPUTED_KEYS), never serialized config.
       const geoUnmatched = action.geoUnmatched || [];
       const seriesNames = action.seriesNames || [];
+      const legendNames = action.legendNames || [];
       const categoryNames = action.categoryNames || [];
       const hasTabMetadata = Object.hasOwn(action, "tabOptions");
       const tabOptions = hasTabMetadata
@@ -691,6 +691,7 @@ export function reduceChartConfig(config, action, schema, options = DEFAULT_OPTI
         : config.filters?.tabValue ?? null;
       const previousUnmatched = config.geoUnmatched || [];
       const previousSeriesNames = config.seriesNames || [];
+      const previousLegendNames = config.legendNames || [];
       const previousCategoryNames = config.categoryNames || [];
       const countUnchanged = config.seriesCount === action.count;
       const geoUnchanged =
@@ -699,6 +700,9 @@ export function reduceChartConfig(config, action, schema, options = DEFAULT_OPTI
       const seriesUnchanged =
         seriesNames.length === previousSeriesNames.length &&
         seriesNames.every((name, index) => name === previousSeriesNames[index]);
+      const legendsUnchanged =
+        legendNames.length === previousLegendNames.length &&
+        legendNames.every((name, index) => name === previousLegendNames[index]);
       const categoriesUnchanged =
         categoryNames.length === previousCategoryNames.length &&
         categoryNames.every((name, index) => name === previousCategoryNames[index]);
@@ -712,6 +716,7 @@ export function reduceChartConfig(config, action, schema, options = DEFAULT_OPTI
         countUnchanged &&
         geoUnchanged &&
         seriesUnchanged &&
+        legendsUnchanged &&
         categoriesUnchanged &&
         tabsUnchanged
       ) {
@@ -722,6 +727,7 @@ export function reduceChartConfig(config, action, schema, options = DEFAULT_OPTI
         seriesCount: action.count,
         geoUnmatched,
         seriesNames,
+        legendNames,
         categoryNames,
         ...(hasTabMetadata
           ? {
@@ -810,6 +816,22 @@ export function reduceChartConfig(config, action, schema, options = DEFAULT_OPTI
       break;
     }
 
+    case "SET_LEGEND_LABEL": {
+      // The map remains keyed by the raw data/trace name. Clearing an input
+      // removes its override so the legend resumes following the source data.
+      const legendLabels = { ...(config.appearance.legendLabels || {}) };
+      if (typeof action.label === "string" && action.label.trim()) {
+        legendLabels[action.seriesName] = action.label;
+      } else {
+        delete legendLabels[action.seriesName];
+      }
+      next = {
+        ...config,
+        appearance: { ...config.appearance, legendLabels },
+      };
+      break;
+    }
+
     case "SET_SERIES_VISIBILITY": {
       // { seriesName, hidden } — persists which legend items are hidden so the
       // choice survives re-render and export (unlike Plotly's interactive
@@ -855,6 +877,7 @@ export function reduceChartConfig(config, action, schema, options = DEFAULT_OPTI
         seriesCount: config.seriesCount,
         geoUnmatched: config.geoUnmatched,
         seriesNames: config.seriesNames,
+        legendNames: config.legendNames,
         categoryNames: config.categoryNames,
         tabOptions: config.tabOptions,
       };

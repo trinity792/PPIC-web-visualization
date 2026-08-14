@@ -299,6 +299,46 @@ describe("toPlotly hidden series", () => {
   });
 });
 
+describe("toPlotly legend label overrides", () => {
+  it("renames trace legends after applying raw-name visibility", () => {
+    const { data } = toPlotly({
+      chartType: "line",
+      bindings: { x: "Year", y: "Value" },
+      series: [
+        { location: "California", years: [2024], values: [10] },
+        { location: "Texas", years: [2024], values: [8] },
+      ],
+      labels: {},
+      appearance: {
+        hiddenSeries: ["Texas"],
+        legendLabels: {
+          California: "Golden State",
+          Texas: "Lone Star State",
+        },
+      },
+    });
+
+    expect(data[0].name).toBe("Golden State");
+    expect(data[1].name).toBe("Lone Star State");
+    expect(data[1].visible).toBe(false);
+  });
+
+  it("renames individual pie legend entries", () => {
+    const { data } = toPlotly({
+      chartType: "pie",
+      bindings: { category: "Segment", y: "Value" },
+      series: [
+        { Segment: "Owner", Value: 60 },
+        { Segment: "Renter", Value: 40 },
+      ],
+      labels: {},
+      appearance: { legendLabels: { Owner: "Homeowner" } },
+    });
+
+    expect(data[0].labels).toEqual(["Homeowner", "Renter"]);
+  });
+});
+
 describe("toPlotly line spacing", () => {
   const spec = {
     chartType: "line",

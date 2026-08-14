@@ -11,6 +11,7 @@ import {
   categoryNamesOf,
   changeRecords,
   isChangeTransform,
+  legendNamesOf,
   loadChartData,
   rankChartRecords,
   rankLineSeries,
@@ -560,6 +561,44 @@ describe("seriesNamesOf", () => {
       ],
     };
     expect(seriesNamesOf("bar", result)).toEqual(["Owner", "Renter"]);
+  });
+});
+
+describe("legendNamesOf", () => {
+  it("returns pie slices and categorical trace names", () => {
+    expect(
+      legendNamesOf(
+        { chartType: "pie", bindings: { category: "Segment" } },
+        { series: [{ Segment: "Owner" }, { Segment: "Renter" }] },
+      ),
+    ).toEqual(["Owner", "Renter"]);
+    expect(
+      legendNamesOf(
+        { chartType: "bar", bindings: { color: "Tenure" } },
+        { series: [{ Tenure: "Owner" }, { Tenure: "Renter" }] },
+      ),
+    ).toEqual(["Owner", "Renter"]);
+  });
+
+  it("uses endpoint labels for a Range chart", () => {
+    expect(
+      legendNamesOf(
+        {
+          chartType: "dumbbell",
+          bindings: { start: "Women", end: "Men" },
+        },
+        { series: [{ category: "Alameda", start: 1, end: 2 }] },
+      ),
+    ).toEqual(["Women", "Men"]);
+  });
+
+  it("does not expose continuous color scales as renameable items", () => {
+    expect(
+      legendNamesOf(
+        { chartType: "heatmap", bindings: {} },
+        { series: { x: [2020], y: ["Alameda"], z: [[1]] } },
+      ),
+    ).toEqual([]);
   });
 });
 

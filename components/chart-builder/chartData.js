@@ -981,6 +981,88 @@ export function seriesNamesOf(chartType, result) {
   return [];
 }
 
+function legendValue(row, binding, fallbacks = []) {
+  for (const key of [binding, ...fallbacks]) {
+    if (!key || row?.[key] == null || String(row[key]).trim() === "") continue;
+    return String(row[key]);
+  }
+  return null;
+}
+
+/**
+ * Distinct names rendered as discrete legend items. Unlike `seriesNamesOf`,
+ * this follows each Plotly builder's actual legend contract: pies use slice
+ * labels, Range charts use endpoint names, and continuous color scales have no
+ * individually renameable entries.
+ */
+export function legendNamesOf(config, result) {
+  if (!result) return [];
+  const chartType = config?.chartType;
+  const bindings = config?.bindings || {};
+  const appearance = config?.appearance || {};
+  const records = Array.isArray(result.series)
+    ? result.series
+    : result.series?.records || [];
+  const unique = (values) => [...new Set(values.filter(Boolean).map(String))];
+
+  if (chartType === "line") {
+    const baseNames = records.map((item) => item.location || item.label);
+    const derivedNames = (config.layers || [])
+      .filter((layer) => layer.type === "derivedComparison" && layer.transform)
+      .flatMap((layer) =>
+        baseNames.filter(Boolean).map((name) => `${name} · ${layer.label}`),
+      );
+    return unique([...baseNames, ...derivedNames]);
+  }
+  if (chartType === "bar") {
+    return unique(
+      records.map(
+        (row) => legendValue(row, bindings.color, ["color", "series"]) || "Value",
+      ),
+    );
+  }
+  if (chartType === "scatter" || chartType === "bubble") {
+    return unique(
+      records.map(
+        (row) =>
+          legendValue(row, bindings.color, ["group", "color"]) || "Observations",
+      ),
+    );
+  }
+  if (chartType === "pie") {
+    return unique(
+      records.map((row) =>
+        legendValue(row, bindings.category, ["category", "label", "location"]),
+      ),
+    );
+  }
+  if (chartType === "dotPlot") return unique(result.series?.x || []);
+  if (chartType === "dumbbell") {
+    const distinctEndpoints =
+      Boolean(bindings.start) &&
+      Boolean(bindings.end) &&
+      bindings.start !== bindings.end;
+    const startName = distinctEndpoints
+      ? bindings.start
+      : result.response?.startYear ??
+        config.period?.startYear ??
+        bindings.start ??
+        "Start";
+    const endName = distinctEndpoints
+      ? bindings.end
+      : result.response?.endYear ??
+        config.period?.endYear ??
+        bindings.end ??
+        "End";
+    const pointName = bindings.point ? [bindings.point] : [];
+    return unique([startName, endName, ...pointName]);
+  }
+  if (chartType === "forest" && appearance.pointStyle !== "none") {
+    return [String(bindings.point || "Estimate")];
+  }
+  return [];
+}
+
 /** Loaded labels for the Advanced line/bar value manager. */
 export function categoryNamesOf(chartType, result) {
   if (!result || !["line", "bar"].includes(chartType)) return [];

@@ -46,6 +46,7 @@ import {
   categoryNamesOf,
   hasChartData,
   isChangeTransform,
+  legendNamesOf,
   loadChartData,
   seriesCountOf,
   seriesNamesOf,
@@ -193,6 +194,7 @@ export function PreviewProvider({ children, deferInitialRender = false }) {
             count: seriesCountOf(config.chartType, next),
             geoUnmatched: next.unmatched || [],
             seriesNames: seriesNamesOf(config.chartType, next),
+            legendNames: legendNamesOf(config, next),
             categoryNames: categoryNamesOf(config.chartType, next),
             ...(Object.hasOwn(next, "tabOptions")
               ? { tabOptions: next.tabOptions, tabValue: next.tabValue }

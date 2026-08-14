@@ -552,7 +552,7 @@ describe("reduceChartConfig — v2 actions", () => {
     expect(cleared.format["Total Widgets"]).toBeUndefined();
   });
 
-  it("SET_PALETTE and SET_SERIES_COLOR write appearance color state", () => {
+  it("writes palette, series color, and legend-label appearance state", () => {
     const withPalette = dispatch(base, { type: "SET_PALETTE", palette: "ui-kit-blue" });
     expect(withPalette.appearance.palette).toBe("ui-kit-blue");
     const withOverride = dispatch(withPalette, {
@@ -567,6 +567,21 @@ describe("reduceChartConfig — v2 actions", () => {
       token: null,
     });
     expect(cleared.appearance.seriesColors).toEqual({});
+
+    const renamed = dispatch(cleared, {
+      type: "SET_LEGEND_LABEL",
+      seriesName: "California",
+      label: "Golden State",
+    });
+    expect(renamed.appearance.legendLabels).toEqual({
+      California: "Golden State",
+    });
+    const reset = dispatch(renamed, {
+      type: "SET_LEGEND_LABEL",
+      seriesName: "California",
+      label: "",
+    });
+    expect(reset.appearance.legendLabels).toEqual({});
   });
 
   it("SET_SERIES_VISIBILITY toggles hiddenSeries membership", () => {
@@ -648,11 +663,13 @@ describe("reduceChartConfig — v2 actions", () => {
       count: 2,
       geoUnmatched: ["Alpine"],
       seriesNames: ["Alameda", "Butte"],
+      legendNames: ["Owner", "Renter"],
       categoryNames: ["Fresno", "Kern"],
     });
     expect(withData.seriesCount).toBe(2);
     expect(withData.geoUnmatched).toEqual(["Alpine"]);
     expect(withData.seriesNames).toEqual(["Alameda", "Butte"]);
+    expect(withData.legendNames).toEqual(["Owner", "Renter"]);
     expect(withData.categoryNames).toEqual(["Fresno", "Kern"]);
   });
 

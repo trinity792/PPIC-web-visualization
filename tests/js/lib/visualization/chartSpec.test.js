@@ -100,8 +100,14 @@ describe("printSpec", () => {
   });
 
   it("strips computed keys", () => {
-    const withComputed = { ...v2Spec, seriesCount: 4, validation: [{ code: "X" }] };
+    const withComputed = {
+      ...v2Spec,
+      seriesCount: 4,
+      legendNames: ["California"],
+      validation: [{ code: "X" }],
+    };
     expect(printSpec(withComputed, schema)).not.toContain("seriesCount");
+    expect(printSpec(withComputed, schema)).not.toContain("legendNames");
     expect(printSpec(withComputed, schema)).not.toContain("validation");
   });
 });

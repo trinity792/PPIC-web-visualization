@@ -580,7 +580,7 @@ export default function AppearanceSection() {
 
       {/* ---- The shared appearance controls, in order ---- */}
       <PalettePicker
-        seriesNames={config.seriesNames || []}
+        seriesNames={config.legendNames || config.seriesNames || []}
         kind={paletteKind}
       />
 
