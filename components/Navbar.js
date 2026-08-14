@@ -40,6 +40,7 @@ export default function Navbar() {
         <div className="flex items-center gap-4 sm:gap-6">
           <Link
             href="/"
+            aria-label="PPIC home"
             className="font-display text-3xl font-black tracking-[0.08em] sm:text-5xl"
           >
             PPIC
@@ -65,6 +66,9 @@ export default function Navbar() {
             </Button>
           </form>
           <div className="flex flex-wrap items-center gap-x-8 gap-y-2 font-body text-sm">
+            <Link href="/" className="hover:underline">
+              Home
+            </Link>
             <NavDropdown label="Modules" items={MODULE_LINKS} />
             <Link href="/visualization-tool" className="hover:underline">
               Visualization Tool
