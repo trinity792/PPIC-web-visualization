@@ -1,5 +1,13 @@
 {
   "__doc__": "Curated overlay for the Changelog tab. Keyed by short commit hash. Each entry supplies the human-judged fields git cannot infer, and may override the git-derived title/description. Run `node scripts/changelog/build-changelog.mjs` to merge this with `git log` into data/changelog.json (the file the app reads). intensity: low | moderate | high. area: free text. audited: whether Trinity has manually reviewed the change. Only commits listed here appear in the changelog.",
+  "PENDING-relative-log-paths": {
+    "title": "Run records now log repository-relative paths only",
+    "area": "Backend scripts",
+    "intensity": "moderate",
+    "audited": false,
+    "module": null,
+    "description": "Added relativize_path() to run_records.py and applied it to the error file, every frame of the error traceback, and all summary values, so a failure record no longer publishes the machine path it was written on. Paths outside the repository fall back to the repo-relative fragment or the bare filename, and the 58 records already in pipeline-runs.jsonl and sample-runs.jsonl were rewritten through the same rule."
+  },
   "75fb3c2": {
     "title": "Module workbench overhaul: single-screen module editor",
     "area": "Front-end components",

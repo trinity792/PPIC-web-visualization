@@ -2,10 +2,12 @@ import json
 
 import pandas as pd
 
+from lib.config import PROJECT_ROOT
 from scripts.shared.logging.run_records import (
     append_run_record,
     build_run_record,
     execute_pipeline_run,
+    relativize_path,
 )
 
 MODULE_META = {"module_id": "demo", "module_label": "Demo Module", "phase_total": 5}
@@ -61,6 +63,66 @@ def test_build_run_record_error_extracts_phase_and_traceback():
     assert record["error"]["function"] == "test_build_run_record_error_extracts_phase_and_traceback"
     assert record["error"]["line"] is not None
     assert "Traceback" in record["error"]["traceback"]
+
+
+def test_relativize_path_trims_paths_inside_the_repository():
+    # Act
+    relative = relativize_path(PROJECT_ROOT / "data" / "data-cleaned" / "demo.csv")
+
+    # Assert
+    assert relative == "data/data-cleaned/demo.csv"
+
+
+def test_relativize_path_cuts_an_older_repository_location_at_the_repo_name():
+    # Arrange — a path recorded before the repository moved to its current parent
+    moved = f"/Users/someone/Documents/PPIC/{PROJECT_ROOT.name}/scripts/orchestrators/demo.py"
+
+    # Act
+    relative = relativize_path(moved)
+
+    # Assert
+    assert relative == "scripts/orchestrators/demo.py"
+
+
+def test_relativize_path_keeps_only_the_filename_for_foreign_paths():
+    # Act
+    relative = relativize_path("/private/tmp/claude-501/-Users-someone-Employment/gen_logs.py")
+
+    # Assert
+    assert relative == "gen_logs.py"
+
+
+def test_relativize_path_leaves_relative_text_unchanged():
+    # Act / Assert — a message is not a path, and a relative path is already what we want
+    assert relativize_path("Phase 2 failed: server timed out") == "Phase 2 failed: server timed out"
+    assert relativize_path("data/data-cleaned/demo.csv") == "data/data-cleaned/demo.csv"
+
+
+def test_build_run_record_error_relativizes_file_and_traceback():
+    # Arrange
+    try:
+        raise ValueError("Phase 3 failed: something broke")
+    except ValueError as error:
+        # Act
+        record = build_run_record("demo", "Demo Module", 5, error=error)
+
+    # Assert — this test file's own frame is recorded without a machine path
+    assert record["error"]["file"] == "scripts/unit_tests/shared/logging/test_run_records.py"
+    assert str(PROJECT_ROOT) not in record["error"]["traceback"]
+    assert 'File "scripts/unit_tests/shared/logging/test_run_records.py"' in record["error"]["traceback"]
+
+
+def test_build_run_record_relativizes_summary_output_path():
+    # Arrange
+    output_path = PROJECT_ROOT / "data" / "data-cleaned" / "demo" / "Demo_Current.csv"
+
+    # Act
+    record = build_run_record(
+        "demo", "Demo Module", 5, summary={"output_path": output_path, "row_count": 4}
+    )
+
+    # Assert
+    assert record["result"]["output_path"] == "data/data-cleaned/demo/Demo_Current.csv"
 
 
 def test_build_run_record_timestamp_carries_pacific_offset():

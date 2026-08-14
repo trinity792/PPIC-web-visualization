@@ -23,6 +23,7 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from lib.config import PROJECT_ROOT
 from scripts.shared.logging.pipeline_logging import (
     close_logging,
     log_message,
@@ -34,12 +35,59 @@ DEFAULT_RUN_LOG_FILENAME = "pipeline-runs.jsonl"
 PHASE_PATTERN = re.compile(r"Phase\s+(\d+)")
 # Summary keys that mark a run as recovered (a fallback path was taken) rather than clean.
 FALLBACK_FLAG_PATTERN = re.compile(r"(_failed|_used_manual|source_failed)$")
+# The `File "..."` frame paths a formatted traceback carries.
+TRACEBACK_FILE_PATTERN = re.compile(r'File "([^"]+)"')
 
 """
 ========================================================================================================================
 Run Records
 ========================================================================================================================
 """
+
+
+def relativize_path(path_text):
+    """
+    Render an absolute path as a repository-relative one so no machine path reaches the log.
+
+    Run records are read on the /logs page and shared outside this machine, so an absolute path
+    would publish a maintainer's home directory (and their name) with every failure. Paths
+    recorded before the repository moved still carry an older parent, so a path that is not
+    under the current root is cut at the repository directory name when it appears; anything
+    else — a temp directory, a site-packages frame — keeps only its filename, which is what
+    makes a foreign frame recognizable without saying where it lived.
+
+    Args:
+        path_text: a path, or any value that may be one.
+
+    Returns:
+        str — a repository-relative path, a trailing path fragment, or the text unchanged
+        when it is not an absolute path.
+
+    Test file: scripts/unit_tests/shared/logging/test_run_records.py
+    """
+    text = str(path_text)
+    path = Path(text)
+    if not path.is_absolute():
+        return text
+
+    try:
+        return str(path.resolve().relative_to(PROJECT_ROOT))
+    except (ValueError, OSError):
+        pass
+
+    parts = path.parts
+    if PROJECT_ROOT.name in parts:
+        # rindex, so a nested copy of the repository name resolves to the innermost one.
+        cut = len(parts) - 1 - parts[::-1].index(PROJECT_ROOT.name)
+        return str(Path(*parts[cut + 1 :])) if cut + 1 < len(parts) else PROJECT_ROOT.name
+    return path.name
+
+
+def _relativize_traceback(traceback_text):
+    """Rewrite every `File "..."` frame path in a formatted traceback. Test file: scripts/unit_tests/shared/logging/test_run_records.py"""
+    return TRACEBACK_FILE_PATTERN.sub(
+        lambda match: f'File "{relativize_path(match.group(1))}"', traceback_text
+    )
 
 
 def _now_pacific():
@@ -72,12 +120,14 @@ def _error_details(error):
     return {
         "type": type(error).__name__,
         "message": str(error),
-        "file": last_frame.filename if last_frame else None,
+        "file": relativize_path(last_frame.filename) if last_frame else None,
         "function": last_frame.name if last_frame else None,
         "line": last_frame.lineno if last_frame else None,
-        "traceback": "".join(
-            traceback.format_exception(type(error), error, error.__traceback__)
-        ).strip(),
+        "traceback": _relativize_traceback(
+            "".join(
+                traceback.format_exception(type(error), error, error.__traceback__)
+            ).strip()
+        ),
     }
 
 
@@ -128,7 +178,14 @@ def build_run_record(
 
 
 def _json_safe(value):
-    """Return value unchanged if JSON-serializable, else a compact stand-in. Test file: scripts/unit_tests/shared/logging/test_run_records.py"""
+    """Return value unchanged if JSON-serializable, else a compact stand-in, with paths relativized. Test file: scripts/unit_tests/shared/logging/test_run_records.py"""
+    # Summaries carry output paths as either str or Path (`output_path`), so both are cut down.
+    if isinstance(value, (str, Path)):
+        return relativize_path(value)
+    if isinstance(value, dict):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
     try:
         json.dumps(value)
         return value
