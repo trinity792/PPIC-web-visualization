@@ -999,7 +999,6 @@ export function legendNamesOf(config, result) {
   if (!result) return [];
   const chartType = config?.chartType;
   const bindings = config?.bindings || {};
-  const appearance = config?.appearance || {};
   const records = Array.isArray(result.series)
     ? result.series
     : result.series?.records || [];
@@ -1037,7 +1036,7 @@ export function legendNamesOf(config, result) {
     );
   }
   if (chartType === "dotPlot") return unique(result.series?.x || []);
-  if (chartType === "dumbbell") {
+  if (chartType === "dumbbell" || chartType === "forest") {
     const distinctEndpoints =
       Boolean(bindings.start) &&
       Boolean(bindings.end) &&
@@ -1054,11 +1053,13 @@ export function legendNamesOf(config, result) {
         config.period?.endYear ??
         bindings.end ??
         "End";
-    const pointName = bindings.point ? [bindings.point] : [];
+    const pointName =
+      chartType === "forest"
+        ? [bindings.point || "Estimate"]
+        : bindings.point
+          ? [bindings.point]
+          : [];
     return unique([startName, endName, ...pointName]);
-  }
-  if (chartType === "forest" && appearance.pointStyle !== "none") {
-    return [String(bindings.point || "Estimate")];
   }
   return [];
 }

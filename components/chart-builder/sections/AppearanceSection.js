@@ -898,6 +898,23 @@ export default function AppearanceSection() {
               }}
             />
           </div>
+          <div className="grid gap-2">
+            <Label htmlFor="appearance-forest-center">Value axis center</Label>
+            <Input
+              id="appearance-forest-center"
+              type="number"
+              inputMode="decimal"
+              placeholder="Automatic"
+              value={appearance.center == null ? "" : String(appearance.center)}
+              onChange={(event) => {
+                const raw = event.target.value.trim();
+                setAppearance("center", raw === "" ? null : Number(raw));
+              }}
+            />
+            <p className="text-xs text-muted-foreground">
+              Keeps the value-axis range balanced around this number.
+            </p>
+          </div>
         </>
       ) : null}
 

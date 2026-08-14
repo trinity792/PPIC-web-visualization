@@ -592,6 +592,22 @@ describe("legendNamesOf", () => {
     ).toEqual(["Women", "Men"]);
   });
 
+  it("includes both bounds and the estimate for a forest legend", () => {
+    expect(
+      legendNamesOf(
+        {
+          chartType: "forest",
+          bindings: { start: "Lower", end: "Upper", point: "Estimate" },
+        },
+        {
+          series: [
+            { category: "Study A", Lower: 0.5, Upper: 1.5, Estimate: 1 },
+          ],
+        },
+      ),
+    ).toEqual(["Lower", "Upper", "Estimate"]);
+  });
+
   it("does not expose continuous color scales as renameable items", () => {
     expect(
       legendNamesOf(

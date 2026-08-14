@@ -412,4 +412,30 @@ describe("AppearanceSection", () => {
     expect(screen.getByLabelText("Group alignment")).toBeInTheDocument();
     expect(screen.getByLabelText("Variable alignment")).toBeInTheDocument();
   });
+
+  it("sets and clears a forest plot's value-axis center", () => {
+    state.config = config("forest");
+    const first = render(<AppearanceSection />);
+    const center = screen.getByLabelText("Value axis center");
+
+    expect(center).toHaveValue(null);
+    fireEvent.change(center, { target: { value: "1" } });
+    expect(state.dispatch).toHaveBeenCalledWith({
+      type: "SET_APPEARANCE",
+      key: "center",
+      value: 1,
+    });
+
+    first.unmount();
+    state.config = config("forest", { center: 1 });
+    render(<AppearanceSection />);
+    fireEvent.change(screen.getByLabelText("Value axis center"), {
+      target: { value: "" },
+    });
+    expect(state.dispatch).toHaveBeenCalledWith({
+      type: "SET_APPEARANCE",
+      key: "center",
+      value: null,
+    });
+  });
 });
