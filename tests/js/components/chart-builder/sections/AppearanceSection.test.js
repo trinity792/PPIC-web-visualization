@@ -78,6 +78,27 @@ describe("AppearanceSection", () => {
     expect(positions).toEqual([...positions].sort((a, b) => a - b));
   });
 
+  it("moves the per-series legend and color list to Advanced Mode", () => {
+    state.config = { ...config(), seriesNames: ["California"] };
+    const basic = renderBasic();
+
+    expect(screen.getByLabelText(/color palette/i)).toBeInTheDocument();
+    expect(screen.queryByText("Legend items")).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Legend label for California"),
+    ).not.toBeInTheDocument();
+    basic.unmount();
+
+    renderAdvanced();
+    expect(screen.getByText("Legend items")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Legend label for California"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Choose a color for California" }),
+    ).toBeInTheDocument();
+  });
+
   it.each(["line", "bar", "scatter", "bubble"])(
     "shows the %s Color binding in Appearance",
     (chartType) => {
@@ -86,6 +107,31 @@ describe("AppearanceSection", () => {
       expect(screen.getByLabelText(/^Color$/i)).toBeInTheDocument();
     },
   );
+
+  it("uses an on/off switch for line markers", () => {
+    state.config = config("line", { markerMode: "auto" });
+    const first = render(<AppearanceSection />);
+    const markers = screen.getByRole("switch", { name: "Markers" });
+
+    expect(markers).toBeChecked();
+    fireEvent.click(markers);
+    expect(state.dispatch).toHaveBeenCalledWith({
+      type: "SET_APPEARANCE",
+      key: "markerMode",
+      value: "off",
+    });
+
+    first.unmount();
+    state.dispatch.mockClear();
+    state.config = config("line", { markerMode: "off" });
+    render(<AppearanceSection />);
+    fireEvent.click(screen.getByRole("switch", { name: "Markers" }));
+    expect(state.dispatch).toHaveBeenCalledWith({
+      type: "SET_APPEARANCE",
+      key: "markerMode",
+      value: "on",
+    });
+  });
 
   it("does not move other chart types' Color bindings into Appearance", () => {
     state.config = config("pie");

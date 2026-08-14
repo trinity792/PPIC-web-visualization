@@ -78,7 +78,7 @@ export default function MultiChartToolbar({ className = "" }) {
           title={!hasData ? "Import or load data before adding another chart." : undefined}
         >
           <Plus aria-hidden="true" />
-          Add chart
+          Add comparison chart
         </Button>
         <Button
           type="button"

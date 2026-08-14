@@ -85,7 +85,9 @@ describe("Advanced Mode", () => {
     expect(toggle).not.toBeChecked();
     expect(rankedValues()).not.toBeInTheDocument();
     // The place list is not advanced: ordering and selection stay reachable.
-    expect(screen.getByRole("switch", { name: "Show Place 1" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", { name: "Select Place 1" }),
+    ).toBeInTheDocument();
 
     await user.click(toggle);
     expect(rankedValues()).toBeInTheDocument();

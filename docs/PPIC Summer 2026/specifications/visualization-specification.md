@@ -312,7 +312,7 @@ The predicate used to have a third clause: a chart type declaring a `benchmark` 
 
 ### Labels, Appearance, Typography
 
-**Labels** is five text inputs - Title, Subtitle, X-Axis Label, Y-Axis Label, Legend Title - each placeholdered with the label the chart would derive from its bindings. Blank means "keep the derived label", which is why the derived text is a placeholder and not a pre-filled value: a derived title keeps tracking the data when a binding changes, a typed one deliberately stops.
+**Labels** has four text inputs - Title, Subtitle, X-Axis Label, and Y-Axis Label - each placeholdered with the label the chart would derive from its bindings. Blank means "keep the derived label", which is why the derived text is a placeholder and not a pre-filled value: a derived title keeps tracking the data when a binding changes, a typed one deliberately stops. A separate **Legend** switch shows or hides the full legend; legends do not have editable titles.
 
 **Appearance** opens with the optional **Color** field binding for Line, Bar, Scatter, and Bubble, followed by the five shared controls in order: Color Palette (see *Palettes and colour scales*), Legend Position, Horizontal Line Spacing (px), Vertical Line Spacing (px), Footnote. The moved dropdown still writes `bindings.color`; Appearance owns only its location, not a new appearance property. Everything below Footnote is chart-type-conditional - markers, the diverging bar's reference line, value-axis range, and dashboard styling, the forest plot's interval style, marker style, and line of no effect, the colour scale and its invert switch, the symbol map's colour gradient, the watermark, the tooltip template. A default line chart therefore shows Color plus the five shared controls, and a diverging bar grows the ones it needs. Orientation lives in Outcome: it is the one degree of freedom bar still asks about explicitly, alongside the measure choice Outcome otherwise infers.
 
@@ -773,7 +773,7 @@ Present when the module declares `filterDimensions`, or when the chart type is `
 
 ### Labels
 
-Five text inputs, each placeholdered with the label the chart would derive from its bindings. Blank means "keep the derived label", which is why the derived text is a placeholder and never a pre-filled value.
+Four text inputs, each placeholdered with the label the chart would derive from its bindings. Blank means "keep the derived label", which is why the derived text is a placeholder and never a pre-filled value. Legend is a visibility switch, not a text field.
 
 | Control | Config key | Available on | Wired to | What it does |
 |---|---|---|---|---|
@@ -781,7 +781,7 @@ Five text inputs, each placeholdered with the label the chart would derive from 
 | Subtitle | `labels.subtitle` | All | same | |
 | X-Axis Label | `labels.xAxis` | All | `baseLayout` | |
 | Y-Axis Label | `labels.yAxis` | All | `baseLayout` | |
-| Legend Title | `labels.legend` | All | `baseLayout` | |
+| Legend | `appearance.showLegend` | All | `baseLayout` | Shows or hides the complete legend. There is no legend-title field. |
 | Footnote *(rendered in Appearance)* | `labels.footnote` | All | `baseLayout`'s bottom margin and annotation | Source note beneath the chart. Its height is reserved in the layout margin, so a long footnote does not overlap a bottom legend. |
 | Tooltip template *(rendered in Appearance)* | `labels.tooltip` | All | every renderer's `hovertemplate` | Replaces the chart type's default hover text wholesale. |
 
@@ -817,7 +817,7 @@ The first five controls are shared by every chart type. Everything below **Footn
 
 | Control | Config key | Available on | Wired to | What it does |
 |---|---|---|---|---|
-| Markers | `appearance.markerMode` | Line | `lineSpec` | Automatic, On, or Off. |
+| Markers | `appearance.markerMode` | Line | `lineSpec` | On or Off. |
 | Area fill | `appearance.area` | Line | `lineSpec` | Fills beneath the line. **No control** - config-only. |
 
 #### Bar and Diverging Bar

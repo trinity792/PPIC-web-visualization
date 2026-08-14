@@ -10,10 +10,12 @@
  * as a dropdown. It renders as a sentence naming the section that owns the
  * setting instead (`impliedRoleHint`), and the remaining "what is plotted"
  * choice reads as **Outcome** rather than Y-Axis. Series, Group, and
- * Tab-by-column still fill in beside it, and bar/diverging bar's orientation
- * toggle lives here too — the one degree of freedom Settings Reframing keeps as
- * an explicit control. Line, Bar, Scatter, and Bubble put their optional Color
- * binding in Appearance beside the palette; other chart types keep Color here.
+ * Add tabs still fills in beside it, and bar/diverging bar's orientation toggle
+ * lives here too — the one degree of freedom Settings Reframing keeps as an
+ * explicit control. The former Transform section is nested here as a setting,
+ * so related outcome and value-expression choices share one sidebar section.
+ * Line, Bar, Scatter, and Bubble put their optional Color binding in Appearance
+ * beside the palette; other chart types keep Color here.
  *
  * Roles come from the chart-type descriptor rather than a fixed x/y list, so a
  * forest plot asks for a study and its confidence bounds and a dot plot asks for
@@ -56,6 +58,7 @@ import { Switch } from "@/components/ui/switch";
 
 import { useAdvancedMode } from "@/components/chart-builder/advancedMode";
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
+import TransformSection from "@/components/chart-builder/sections/TransformSection";
 import { tabValues } from "@/lib/tabular/toSeries";
 import {
   CATALOG_ROLE_FOR_BINDING,
@@ -203,8 +206,14 @@ export default function OutcomeSection({ allowLayers = false }) {
   const { config, dispatch, schema } = useChartConfig();
   const { advanced } = useAdvancedMode();
   const chart = getChartType(config.chartType);
-  const roles = rolesFor(config, schema, { advanced });
-  const implied = impliedBindings(config.chartType, schema);
+  // Outcome can also be mounted solely to host inherited transform or
+  // stratification controls (notably on a data table). In that case, do not
+  // manufacture encoding and tab controls the chart type never declared.
+  const hasEncodingControls = Boolean(chart?.sidebarSections?.includes("encodings"));
+  const roles = hasEncodingControls ? rolesFor(config, schema, { advanced }) : [];
+  const implied = hasEncodingControls
+    ? impliedBindings(config.chartType, schema)
+    : {};
   // Workstream B: a diverging bar is `appearance.diverging` on a plain `bar`,
   // not a separate chart type.
   const diverging = Boolean(config.appearance?.diverging);
@@ -216,70 +225,76 @@ export default function OutcomeSection({ allowLayers = false }) {
 
   return (
     <div className="grid gap-4">
-      <div className="grid grid-cols-2 gap-3">
-        {roles.map((role) => {
-          const accepted = acceptedKinds(chart, role);
-          const catalogRole = CATALOG_ROLE_FOR_BINDING[role];
-          const fields = Object.entries(catalog)
-            .filter(([name, field]) => {
-              if (!accepted.includes(field.kind)) return false;
-              if (inline) return true;
-              if (
-                role === "group" &&
-                (field.cardinality === "high" || name === "Source")
-              ) {
-                return false;
-              }
-              // Workstream D: out of Advanced Mode, a measure must list this
-              // role among its catalog `chartRoles` — the curation decision
-              // made per module in the schema files. In Advanced Mode this
-              // becomes an escape hatch rather than a wall: every field of
-              // the accepted kind is offered, and `ROLE_NOT_IN_CATALOG`
-              // (validation.js) tells the reader why the curation existed.
-              return (
-                !isMeasure(field) ||
-                !catalogRole ||
-                supportsRole(field, catalogRole) ||
-                advanced
-              );
-            })
-            .sort(([, a], [, b]) =>
-              role === "group" ? Number(Boolean(b.isGroup)) - Number(Boolean(a.isGroup)) : 0,
-            );
-          const required = chart.requiredRoles.includes(role);
-
-          return (
-            <div className="grid gap-2" key={role}>
-              <Label htmlFor={`binding-${role}`}>
-                {roleLabel(role, config.chartType)}
-                {required ? <span className="text-destructive">*</span> : null}
-              </Label>
-              <Select
-                value={config.bindings[role] || NONE}
-                onValueChange={(field) =>
-                  dispatch({
-                    type: "SET_BINDING",
-                    role,
-                    field: field === NONE ? null : field,
-                  })
+      {hasEncodingControls ? (
+        <div className="grid grid-cols-2 gap-3">
+          {roles.map((role) => {
+            const accepted = acceptedKinds(chart, role);
+            const catalogRole = CATALOG_ROLE_FOR_BINDING[role];
+            const fields = Object.entries(catalog)
+              .filter(([name, field]) => {
+                if (!accepted.includes(field.kind)) return false;
+                if (inline) return true;
+                if (
+                  role === "group" &&
+                  (field.cardinality === "high" || name === "Source")
+                ) {
+                  return false;
                 }
-              >
-                <SelectTrigger id={`binding-${role}`}>
-                  <SelectValue placeholder="Not set" />
-                </SelectTrigger>
-                <SelectContent>
-                  {!required ? <SelectItem value={NONE}>Not set</SelectItem> : null}
-                  {fields.map(([name, field]) => (
-                    <SelectItem key={name} value={name}>
-                      {field.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          );
-        })}
-      </div>
+                // Workstream D: out of Advanced Mode, a measure must list this
+                // role among its catalog `chartRoles` — the curation decision
+                // made per module in the schema files. In Advanced Mode this
+                // becomes an escape hatch rather than a wall: every field of
+                // the accepted kind is offered, and `ROLE_NOT_IN_CATALOG`
+                // (validation.js) tells the reader why the curation existed.
+                return (
+                  !isMeasure(field) ||
+                  !catalogRole ||
+                  supportsRole(field, catalogRole) ||
+                  advanced
+                );
+              })
+              .sort(([, a], [, b]) =>
+                role === "group"
+                  ? Number(Boolean(b.isGroup)) - Number(Boolean(a.isGroup))
+                  : 0,
+              );
+            const required = chart.requiredRoles.includes(role);
+
+            return (
+              <div className="grid gap-2" key={role}>
+                <Label htmlFor={`binding-${role}`}>
+                  {roleLabel(role, config.chartType)}
+                  {required ? <span className="text-destructive">*</span> : null}
+                </Label>
+                <Select
+                  value={config.bindings[role] || NONE}
+                  onValueChange={(field) =>
+                    dispatch({
+                      type: "SET_BINDING",
+                      role,
+                      field: field === NONE ? null : field,
+                    })
+                  }
+                >
+                  <SelectTrigger id={`binding-${role}`}>
+                    <SelectValue placeholder="Not set" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {!required ? (
+                      <SelectItem value={NONE}>Not set</SelectItem>
+                    ) : null}
+                    {fields.map(([name, field]) => (
+                      <SelectItem key={name} value={name}>
+                        {field.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
 
       {/* Implied roles render as a sentence, not a disabled control: a disabled
           Select invites a click and then explains nothing, where a sentence
@@ -337,9 +352,11 @@ export default function OutcomeSection({ allowLayers = false }) {
         </div>
       ) : null}
 
-      <TabFilterControl />
+      <TransformSection />
 
-      {allowLayers && config.chartType === "line" ? (
+      {hasEncodingControls ? <TabFilterControl /> : null}
+
+      {hasEncodingControls && allowLayers && config.chartType === "line" ? (
         <LayerEditor
           trigger={
             <Button type="button" variant="outline" className="w-full">
@@ -419,7 +436,7 @@ function TabFilterControl() {
 
   return (
     <div className="grid gap-2">
-      <Label htmlFor="axis-tab-column">Tab by column</Label>
+      <Label htmlFor="axis-tab-column">Add tabs</Label>
       <Select
         value={tabColumn || NONE}
         onValueChange={(value) =>

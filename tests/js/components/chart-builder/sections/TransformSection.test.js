@@ -54,6 +54,7 @@ describe("TransformSection", () => {
 
   it("renders four allowed stock transforms and only two rate transforms", () => {
     const { unmount } = render(<TransformSection />);
+    expect(screen.getByText("Transform", { selector: "span" })).toBeInTheDocument();
     expect(screen.getAllByRole("radio")).toHaveLength(4);
     unmount();
     state.config = config({ bindings: { y: "Rate" } });
@@ -238,7 +239,7 @@ describe("TransformSection", () => {
       expect(hasTransformControls(config({ chartType: "dumbbell" }), schema)).toBe(false);
     });
 
-    it("hides the Transform section for a single-transform measure with no stratification", () => {
+    it("hides the Transform setting for a single-transform measure with no stratification", () => {
       const single = { ...schema, fields: { Stock: { kind: "measure", transforms: ["actual"] } } };
       expect(hasTransformControls(config({ chartType: "choroplethMap" }), single)).toBe(
         false,
@@ -246,7 +247,7 @@ describe("TransformSection", () => {
       expect(hasTransformControls(config(), single)).toBe(false);
     });
 
-    it("keeps the Transform section when filterDimensions exist", () => {
+    it("keeps the inherited controls when filterDimensions exist", () => {
       const stratified = {
         ...schema,
         fields: { Stock: { kind: "measure", transforms: ["actual"] } },

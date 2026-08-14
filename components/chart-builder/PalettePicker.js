@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * PalettePicker.js — palette select plus per-item legend controls.
+ * PalettePicker.js — palette select plus advanced per-item legend controls.
  *
  * Props:
  *   seriesNames {string[]} — last-loaded discrete legend names (defaults to
@@ -34,6 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+import { useAdvancedMode } from "@/components/chart-builder/advancedMode";
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import {
   DEFAULT_PALETTE,
@@ -112,10 +113,14 @@ function RampSwatch({ scale }) {
  */
 export default function PalettePicker({ seriesNames = [], kind = "categorical" }) {
   const { config, dispatch } = useChartConfig();
+  const { advanced } = useAdvancedMode();
   const [expanded, setExpanded] = React.useState(false);
   const [query, setQuery] = React.useState("");
-  // Item controls only make sense once a load has reported a discrete legend.
-  const showLegendItems = seriesNames.length > 0;
+  // The palette is a common choice; editing individual legend entries is a
+  // denser expert workflow. Keep the whole per-series list — rename,
+  // visibility, and color overrides — in Advanced Mode once a load has
+  // reported a discrete legend.
+  const showLegendItems = advanced && seriesNames.length > 0;
   const rampMode = kind !== "categorical";
   const options = palettesOfKind(kind).map((id) => [id, PALETTES[id]]);
   // `appearance.palette` is one key shared by every chart type, so a reader who

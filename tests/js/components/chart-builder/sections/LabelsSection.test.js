@@ -35,7 +35,7 @@ describe("LabelsSection", () => {
 
   it("uses derived labels as placeholders and dispatches typed overrides", () => {
     render(<LabelsSection />);
-    for (const name of ["Title", "Subtitle", "X-Axis Label", "Y-Axis Label", "Legend Title"]) {
+    for (const name of ["Title", "Subtitle", "X-Axis Label", "Y-Axis Label"]) {
       const input = screen.getByLabelText(new RegExp(`^${name}$`, "i"));
       expect(input).toHaveAttribute("placeholder");
       expect(input.getAttribute("placeholder")).not.toBe("");
@@ -49,10 +49,11 @@ describe("LabelsSection", () => {
     });
   });
 
-  it("renders one Legend Title and never a duplicate Title field", () => {
+  it("renders Legend as a toggle with no legend-title text field", () => {
     render(<LabelsSection />);
     expect(screen.getAllByLabelText(/^Title$/i)).toHaveLength(1);
-    expect(screen.getByLabelText(/^Legend Title$/i)).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "Legend" })).toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Legend Title$/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/tooltip template/i)).not.toBeInTheDocument();
 
     const labels = screen.getAllByRole("textbox").map((input) =>
@@ -63,7 +64,6 @@ describe("LabelsSection", () => {
       "Subtitle",
       "X-Axis Label",
       "Y-Axis Label",
-      "Legend Title",
     ]);
   });
 
@@ -76,7 +76,7 @@ describe("LabelsSection", () => {
       "Show subtitle",
       "Show X-axis label",
       "Show Y-axis label",
-      "Show legend",
+      "Legend",
     ]) {
       expect(screen.getByLabelText(name)).toBeChecked();
     }
@@ -105,7 +105,7 @@ describe("LabelsSection", () => {
     state.config.appearance = { legendPosition: "hidden" };
     render(<LabelsSection />);
 
-    fireEvent.click(screen.getByLabelText("Show legend"));
+    fireEvent.click(screen.getByLabelText("Legend"));
     expect(state.dispatch).toHaveBeenNthCalledWith(1, {
       type: "SET_APPEARANCE",
       key: "legendPosition",

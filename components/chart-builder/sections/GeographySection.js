@@ -7,9 +7,10 @@
  * The mockup's "Geographic Level" block, which absorbs three controls that used
  * to live apart: the level selector (was in Encodings), the explicit place
  * selection (was a comma-separated "selected places" layer), and — for chart
- * types whose categories *are* places — the ordering, visibility, and Top/Bottom
- * N controls (were in Comparisons). Decision 3: for every other chart type those
- * belong to `CategoriesSection` instead.
+ * types whose categories *are* places — the ordering and Top/Bottom N controls
+ * (were in Comparisons). Decision 3: for every other chart type those belong to
+ * `CategoriesSection` instead. A place row has one inclusion control: its
+ * checkbox. It does not also carry a visibility switch.
  *
  * Selection writes the first-class `filters.locations` array. Empty means "no
  * explicit selection", which leaves the existing Top-N behavior in charge — so
@@ -26,6 +27,8 @@
  * UI Kit reference:
  *   - Implements the select, checkbox-list, and draggable list-row patterns
  */
+
+/* eslint-disable react/prop-types */
 
 import React, { useMemo, useState } from "react";
 
@@ -162,20 +165,17 @@ export default function GeographySection() {
         names={names}
         selected={selected}
         reorderable={reorderable}
-        hidden={config.appearance?.hiddenCategories || []}
+        visibilityControls={false}
         onSelect={toggleLocation}
         onSelectMany={selectMany}
         onReorder={(value) =>
           dispatch({ type: "SET_APPEARANCE", key: "categoryOrder", value })
         }
-        onVisibility={(value) =>
-          dispatch({ type: "SET_APPEARANCE", key: "hiddenCategories", value })
-        }
       />
 
       {reorderable ? (
         // Ranked values sits behind Advanced Mode; the place list above still
-        // carries ordering and visibility, so hiding it costs no reach.
+        // carries ordering and checkbox selection, so hiding it costs no reach.
         advanced ? (
           <RankingControls
             idPrefix="geography-ranking"
@@ -207,11 +207,10 @@ function LocationPicker({
   names,
   selected,
   reorderable,
-  hidden,
   onSelect,
   onSelectMany,
   onReorder,
-  onVisibility,
+  visibilityControls,
 }) {
   const [query, setQuery] = useState("");
 
@@ -323,9 +322,8 @@ function LocationPicker({
           // Reordering a filtered list would write an order covering only the
           // matches, silently dropping every place the filter hid.
           reorderable={reorderable && !searching}
-          hidden={hidden}
+          visibilityControls={visibilityControls}
           onReorder={onReorder}
-          onVisibility={onVisibility}
         />
       ) : (
         <p className="px-0.5 text-sm text-muted-foreground">

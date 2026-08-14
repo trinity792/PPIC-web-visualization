@@ -32,7 +32,7 @@ describe("toPlotly legend wrapping", () => {
     ...overrides,
   });
 
-  it("wraps legend labels and titles at word boundaries", () => {
+  it("wraps legend labels and ignores retired legend titles", () => {
     const { data, layout } = toPlotly({
       ...lineSpec("Enrollment by detailed student population"),
       labels: { legend: "Enrollment category shown in this chart" },
@@ -44,7 +44,7 @@ describe("toPlotly legend wrapping", () => {
       "detailed student",
       "population",
     ]);
-    expect(layout.legend.title.text).toContain("<br>");
+    expect(layout.legend.title).toBeUndefined();
   });
 
   it("leaves a width reserve around side-legend lines for Plotly's clip path", () => {
@@ -99,7 +99,6 @@ describe("toPlotly label visibility", () => {
       subtitle: "Chart subtitle",
       xAxis: "Year",
       yAxis: "Value",
-      legend: "Place",
     },
     appearance: {},
   };

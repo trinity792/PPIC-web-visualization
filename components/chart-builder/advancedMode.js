@@ -7,8 +7,8 @@
  * needs occasionally. It is deliberately NOT the old three-tier registry
  * (`.trash/settingsTiers.js`), which gated dozens of controls from a central
  * table and mostly meant a user could not find a control they had been told
- * about. Here each section decides for itself what it hides, and today exactly
- * one thing does: the Ranked values block in Geographic Level and Categories.
+ * about. Here each section decides for itself what it hides, such as ranked
+ * geography controls, custom color composition, and per-series legend editing.
  *
  * The flag is editor state, not chart state: it never reaches `config`, is not
  * serialized into a saved view, and does not survive a reload.

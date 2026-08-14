@@ -3,7 +3,8 @@
  * Outcome reframe): an implied role renders as a hint sentence rather than a
  * dropdown, the measure role reads "Outcome" for chart types that imply
  * anything, and bar/diverging bar's orientation toggle lives here now. Also
- * covers Workstream B's Diverging bars switch, which lives beside it.
+ * covers Workstream B's Diverging bars switch and the Transform controls that
+ * Outcome now inherits.
  */
 
 import React from "react";
@@ -106,6 +107,49 @@ describe("OutcomeSection", () => {
     expect(screen.getByLabelText(/Outcome/i)).toBeInTheDocument();
     expect(screen.queryByLabelText(/^Series/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/^Color/i)).not.toBeInTheDocument();
+  });
+
+  it("renders Transform as an internal Outcome setting when choices exist", () => {
+    state.schema = {
+      ...schema,
+      fields: {
+        ...schema.fields,
+        Value: {
+          ...schema.fields.Value,
+          transforms: ["actual", "indexed", "percentChange"],
+        },
+      },
+    };
+    render(<OutcomeSection />);
+
+    expect(screen.getByText("Transform", { selector: "span" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("radio", { name: /index to base year/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows only inherited stratification controls for an encoding-free data table", () => {
+    state.schema = {
+      ...schema,
+      filterDimensions: [
+        {
+          column: "Region",
+          label: "Region filter",
+          values: ["North", "South"],
+          default: "North",
+        },
+      ],
+    };
+    state.config = lineConfig({
+      chartType: "dataTable",
+      bindings: {},
+      filters: { Region: "North" },
+    });
+    render(<OutcomeSection />);
+
+    expect(screen.getByLabelText("Region filter")).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Outcome/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Add tabs/i)).not.toBeInTheDocument();
   });
 
   it.each(["line", "bar", "scatter", "bubble"])(
@@ -476,7 +520,7 @@ describe("OutcomeSection", () => {
     });
 
     state.dispatch.mockClear();
-    await user.click(screen.getByLabelText(/tab[- ]by[- ]column/i));
+    await user.click(screen.getByLabelText(/add tabs/i));
     await user.click(screen.getByRole("option", { name: "Source" }));
     expect(state.dispatch).toHaveBeenCalledWith({
       type: "SET_FILTER",

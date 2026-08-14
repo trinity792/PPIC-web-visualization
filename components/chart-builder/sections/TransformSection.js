@@ -4,7 +4,7 @@
  * TransformSection.js — how a measure's values are expressed, and which slice of
  * the module's rows they are computed from.
  *
- * The mockup's "Transform" block: one radio per transform the bound measure
+ * Outcome's "Transform" setting: one radio per transform the bound measure
  * allows, with the base-year selector appearing inline beneath "Index to Base
  * Year". Radios rather than a dropdown because the options are few, mutually
  * exclusive, and worth seeing at a glance — a reader should be able to tell that
@@ -25,15 +25,15 @@
  * a dead control (flagged issue 1), and on an unstratified module that leaves the
  * section with nothing at all.
  *
- * Imported data (the standalone Visualization Tool) gets the same section with a
+ * Imported data (the standalone visualization tool) gets the same setting with a
  * two-radio list — Absolute Values or Index to 100 at Base Period — whose base
  * periods are the imported x column's own values rather than a module year
  * range. `transformOptions` in lib/visualization/transformRegistry.js owns both
  * lists, so what this section offers and what the reducer accepts cannot drift.
  *
  * That "nothing" is why `hasTransformControls` is exported: the sidebar registry
- * gates the *accordion header* on it, so a Range chart loses the whole "Transform"
- * block rather than showing a heading with an empty body underneath.
+ * uses it to keep Outcome available when these inherited controls are all that
+ * chart type needs, while this component still omits an empty setting.
  *
  * Exports:
  *   default             — the section
@@ -86,7 +86,8 @@ const INLINE_TRANSFORM_LABELS = {
 // ── Helpers ──────────────────────────────────────────────────────────
 
 /**
- * Whether this section has any control to offer — the registry's `when` gate.
+ * Whether this setting group has any control to offer — part of Outcome's
+ * registry `when` gate.
  *
  * Stratification is checked first and independently of the chart type: pinning
  * renters or a single income level is a statement about the data, and stays
@@ -111,9 +112,9 @@ export function hasTransformControls(config, schema) {
 export default function TransformSection() {
   const { config, dispatch, schema } = useChartConfig();
   const chart = getChartType(config.chartType);
-  // The registry gates the header on the same predicate, so this is normally
-  // unreachable. It stays because a section that can be mounted directly should
-  // still know when it has nothing to say, rather than trusting its caller.
+  // Outcome's registry gate includes the same predicate, but Outcome can also be
+  // present for encodings alone. Keep this local guard so an empty Transform
+  // setting never appears.
   if (!hasTransformControls(config, schema)) return null;
 
   const { transforms, basePeriods, inline } = transformOptions(config, schema);
@@ -134,66 +135,76 @@ export default function TransformSection() {
   return (
     <div className="grid gap-4">
       {hasChoice ? (
-      <RadioGroup
-        value={active}
-        onValueChange={(transform) => dispatch({ type: "SET_TRANSFORM", transform })}
-        className="grid gap-2"
-      >
-        {transforms.map((transform) => {
-          const label = labels[transform] || TRANSFORM_LABELS[transform] || transform;
-          return (
-            <div key={transform} className="grid gap-2">
-              <div className="flex items-center gap-2">
-                {/* aria-label, not a wrapping <label>: RadioGroupItem renders a
-                    button, which takes no name from an enclosing label. */}
-                <RadioGroupItem
-                  value={transform}
-                  id={`transform-${transform}`}
-                  aria-label={label}
-                />
-                <Label htmlFor={`transform-${transform}`} className="font-normal">
-                  {label}
-                </Label>
-              </div>
-              {transform === "indexed" && active === "indexed" && basePeriods.length ? (
-                <div className="ml-6 grid gap-2">
-                  <Label htmlFor="transform-base-year">{basePeriodLabel}</Label>
-                  <Select
-                    value={
-                      config.period?.baseYear ? String(config.period.baseYear) : ""
-                    }
-                    onValueChange={(value) =>
-                      dispatch({
-                        type: "SET_PERIOD",
-                        key: "baseYear",
-                        value: Number(value),
-                      })
-                    }
-                  >
-                    <SelectTrigger id="transform-base-year">
-                      {/* Left unset, the transform indexes each series to its own
-                          first value — the placeholder says so rather than
-                          implying nothing has happened. */}
-                      <SelectValue
-                        placeholder={
-                          inline ? "First period in the data" : "Choose a year"
+        <div className="grid gap-2">
+          <span className="text-sm font-medium">Transform</span>
+          <RadioGroup
+            value={active}
+            onValueChange={(transform) =>
+              dispatch({ type: "SET_TRANSFORM", transform })
+            }
+            className="grid gap-2"
+          >
+            {transforms.map((transform) => {
+              const label =
+                labels[transform] || TRANSFORM_LABELS[transform] || transform;
+              return (
+                <div key={transform} className="grid gap-2">
+                  <div className="flex items-center gap-2">
+                    {/* aria-label, not a wrapping <label>: RadioGroupItem renders a
+                        button, which takes no name from an enclosing label. */}
+                    <RadioGroupItem
+                      value={transform}
+                      id={`transform-${transform}`}
+                      aria-label={label}
+                    />
+                    <Label htmlFor={`transform-${transform}`} className="font-normal">
+                      {label}
+                    </Label>
+                  </div>
+                  {transform === "indexed" &&
+                  active === "indexed" &&
+                  basePeriods.length ? (
+                    <div className="ml-6 grid gap-2">
+                      <Label htmlFor="transform-base-year">{basePeriodLabel}</Label>
+                      <Select
+                        value={
+                          config.period?.baseYear
+                            ? String(config.period.baseYear)
+                            : ""
                         }
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {basePeriods.map((period) => (
-                        <SelectItem key={period} value={String(period)}>
-                          {period}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                        onValueChange={(value) =>
+                          dispatch({
+                            type: "SET_PERIOD",
+                            key: "baseYear",
+                            value: Number(value),
+                          })
+                        }
+                      >
+                        <SelectTrigger id="transform-base-year">
+                          {/* Left unset, the transform indexes each series to its own
+                              first value — the placeholder says so rather than
+                              implying nothing has happened. */}
+                          <SelectValue
+                            placeholder={
+                              inline ? "First period in the data" : "Choose a year"
+                            }
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {basePeriods.map((period) => (
+                            <SelectItem key={period} value={String(period)}>
+                              {period}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ) : null}
                 </div>
-              ) : null}
-            </div>
-          );
-        })}
-      </RadioGroup>
+              );
+            })}
+          </RadioGroup>
+        </div>
       ) : null}
 
       <StratificationFilters />

@@ -30,11 +30,8 @@ function config(chartType = "line") {
 
 /**
  * Every section a line chart shows on the fixture schema above, hand-written in
- * registry order. Transform is deliberately absent: this schema declares no
- * `filterDimensions` and its one measure declares no `transforms`, so after
- * Workstream D deleted the `benchmark` role there is nothing left to open the
- * section with — see "drops the Transform header when the bound measure allows
- * a single transform" below.
+ * registry order. Transform is not a section value: its controls are composed
+ * inside Outcome when the current measure offers them.
  */
 const LINE_SECTIONS = [
   "datasets",
@@ -54,16 +51,12 @@ describe("visibleSectionsFor", () => {
       (item) => item.value,
     );
 
-    // Transform is not asserted here either way: it carries no `key`, so it is
-    // gated by `when` and belongs to the dedicated cases below, not to this one.
     expect(line).toEqual(expect.arrayContaining(["axis", "labels", "appearance"]));
     expect(table).not.toContain("axis");
     expect(table).toEqual(expect.arrayContaining(["labels", "appearance"]));
   });
 
-  it("drops the Transform header for a chart that declares comparison but cannot transform", () => {
-    // The Range chart lists "comparison" in its sidebarSections, so the `key`
-    // gate alone would keep the header and render an empty block beneath it.
+  it("has no standalone Transform section for a chart that cannot transform", () => {
     const range = visibleSectionsFor(config("dumbbell"), schema).map(
       (item) => item.value,
     );
@@ -72,9 +65,7 @@ describe("visibleSectionsFor", () => {
     expect(range).toEqual(expect.arrayContaining(["axis", "labels", "appearance"]));
   });
 
-  it("drops the Transform header when the bound measure allows a single transform", () => {
-    // A choropleth takes no benchmark, so a lone "Actual Value" radio is all
-    // that would be left — a heading over one dead control.
+  it("keeps transform choices inside Outcome rather than adding a section", () => {
     const single = visibleSectionsFor(
       { ...config("choroplethMap"), bindings: { color: "Value" } },
       schema,
@@ -100,12 +91,13 @@ describe("visibleSectionsFor", () => {
         },
       },
     ).map((item) => item.value);
-    expect(many).toContain("transform");
+    expect(many).toContain("axis");
+    expect(many).not.toContain("transform");
   });
 
-  it("keeps Transform for a stratified module even on a chart with no comparison", () => {
+  it("keeps Outcome for inherited stratification controls on a data table", () => {
     // The pins are a statement about rows, so they outlive the chart type. A
-    // data table declares no "comparison" at all and still needs them.
+    // data table declares no encodings and still needs them inside Outcome.
     const stratified = {
       ...schema,
       filterDimensions: [
@@ -114,10 +106,13 @@ describe("visibleSectionsFor", () => {
     };
     expect(
       visibleSectionsFor(config("dataTable"), stratified).map((item) => item.value),
-    ).toContain("transform");
+    ).toContain("axis");
+    expect(
+      visibleSectionsFor(config("dataTable"), stratified).map((item) => item.value),
+    ).not.toContain("transform");
   });
 
-  it("shows Transform on the wizard's Edit step for a multi-period imported table", () => {
+  it("inherits imported-data transforms into Outcome on the wizard's Edit step", () => {
     // The Edit step's own filter, so this is the list the standalone tool renders.
     const editStep = { exclude: ["chart-type"] };
     const byod = { id: "byod", inlineOnly: true, fields: {}, yearRange: [1990, 2026] };
@@ -142,7 +137,10 @@ describe("visibleSectionsFor", () => {
 
     expect(
       visibleSectionsFor(imported(), byod, editStep).map((item) => item.value),
-    ).toContain("transform");
+    ).toContain("axis");
+    expect(
+      visibleSectionsFor(imported(), byod, editStep).map((item) => item.value),
+    ).not.toContain("transform");
     // A bar tags every inline row with one implied period: nothing to index against.
     expect(
       visibleSectionsFor(

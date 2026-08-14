@@ -8,7 +8,8 @@
  * which are selected, what order they appear in, and which are hidden. The only
  * differences are what the values *are* (places vs arbitrary categories), how
  * many rows show before "Show more", and whether rows carry a selection
- * checkbox. Everything else lives here so the two sections cannot drift.
+ * checkbox or a visibility switch. Everything else lives here so the two
+ * sections cannot drift.
  *
  * Exports:
  *   orderedCategories(names, savedOrder) — saved order first, then new arrivals
@@ -60,7 +61,8 @@ export function orderedCategories(names, savedOrder) {
  *   selectable   {boolean}        — render a selection checkbox per row
  *   selected     {Array<string>}  — currently selected values (selectable only)
  *   onSelect     {Function}       — (name, checked) => void
- *   reorderable  {boolean}        — render a drag handle and a visibility switch
+ *   reorderable  {boolean}        — render a drag handle
+ *   visibilityControls {boolean}  — render a visibility switch per row
  *   hidden       {Array<string>}  — values currently hidden from the chart
  *   onReorder    {Function}       — (nextOrder) => void
  *   onVisibility {Function}       — (nextHiddenList) => void
@@ -72,6 +74,7 @@ export function CategoryList({
   selected = [],
   onSelect,
   reorderable = false,
+  visibilityControls = reorderable,
   hidden = [],
   onReorder,
   onVisibility,
@@ -158,7 +161,7 @@ export function CategoryList({
 
               <span className="min-w-0 flex-1 truncate text-sm">{name}</span>
 
-              {reorderable ? (
+              {visibilityControls ? (
                 <Switch
                   aria-label={`Show ${name}`}
                   checked={!hiddenSet.has(name)}

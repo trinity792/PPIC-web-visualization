@@ -69,9 +69,9 @@ export default function Navbar() {
             <Link href="/" className="hover:underline">
               Home
             </Link>
-            <NavDropdown label="Modules" items={MODULE_LINKS} />
+            <NavDropdown label="Topic" items={MODULE_LINKS} />
             <Link href="/visualization-tool" className="hover:underline">
-              Visualization Tool
+              Custom visualizations
             </Link>
             <Link href="/documents" className="hover:underline">
               Documents

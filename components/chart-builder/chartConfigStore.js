@@ -442,7 +442,6 @@ export function createChartConfig(schema, initialConfig = {}, options = DEFAULT_
       subtitle: "",
       xAxis: "",
       yAxis: "",
-      legend: "",
       tooltip: "",
     },
     transform: preset.defaults?.transform || "actual",

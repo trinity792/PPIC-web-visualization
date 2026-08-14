@@ -649,21 +649,15 @@ export default function AppearanceSection() {
       ) : null}
 
       {config.chartType === "line" ? (
-        <div className="grid gap-2">
+        <div className="flex items-center justify-between gap-3">
           <Label htmlFor="appearance-markers">Markers</Label>
-          <Select
-            value={appearance.markerMode || "auto"}
-            onValueChange={(value) => setAppearance("markerMode", value)}
-          >
-            <SelectTrigger id="appearance-markers">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="auto">Automatic</SelectItem>
-              <SelectItem value="on">On</SelectItem>
-              <SelectItem value="off">Off</SelectItem>
-            </SelectContent>
-          </Select>
+          <Switch
+            id="appearance-markers"
+            checked={appearance.markerMode !== "off"}
+            onCheckedChange={(checked) =>
+              setAppearance("markerMode", checked ? "on" : "off")
+            }
+          />
         </div>
       ) : null}
 

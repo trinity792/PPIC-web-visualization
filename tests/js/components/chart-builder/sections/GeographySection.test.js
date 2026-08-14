@@ -197,15 +197,12 @@ describe("GeographySection", () => {
     });
   });
 
-  it("stores per-place visibility in appearance.hiddenCategories", async () => {
-    const user = userEvent.setup();
+  it("uses only selection checkboxes for places, without visibility switches", () => {
     render(<GeographySection />);
-    await user.click(screen.getByRole("switch", { name: "Show Place 2" }));
-    expect(state.dispatch).toHaveBeenCalledWith({
-      type: "SET_APPEARANCE",
-      key: "hiddenCategories",
-      value: ["Place 2"],
-    });
+    expect(
+      screen.getByRole("checkbox", { name: "Select Place 2" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("switch", { name: "Show Place 2" })).not.toBeInTheDocument();
   });
 
   it.each(["line", "bar"])(
