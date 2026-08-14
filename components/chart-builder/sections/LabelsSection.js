@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * LabelsSection.js — the chart's title, subtitle, axis titles, and legend title.
+ * LabelsSection.js — text and independent visibility for chart labels and legend.
  *
  * Each field placeholders the label the chart would derive from its bindings, so
  * an author sees what they are overriding before they type. A blank field means
@@ -27,41 +27,80 @@ import React from "react";
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import { deriveLabels } from "@/lib/visualization/deriveLabels";
 
-// Config key → the label the mockup gives it.
+// Label text key, editor label, appearance visibility key, visibility wording.
 const LABEL_FIELDS = [
-  ["title", "Title"],
-  ["subtitle", "Subtitle"],
-  ["xAxis", "X-Axis Label"],
-  ["yAxis", "Y-Axis Label"],
-  ["legend", "Legend Title"],
+  ["title", "Title", "showTitle", "Show title"],
+  ["subtitle", "Subtitle", "showSubtitle", "Show subtitle"],
+  ["xAxis", "X-Axis Label", "showXAxisLabel", "Show X-axis label"],
+  ["yAxis", "Y-Axis Label", "showYAxisLabel", "Show Y-axis label"],
+  ["legend", "Legend Title", "showLegend", "Show legend"],
 ];
 
 export default function LabelsSection() {
   const { config, dispatch, schema } = useChartConfig();
   // The live auto-labels the chart would use, shown as placeholders.
   const auto = deriveLabels(config, schema);
+  const appearance = config.appearance || {};
 
   return (
     <div className="grid gap-4">
-      {LABEL_FIELDS.map(([key, label]) => (
-        <div className="grid gap-2" key={key}>
-          <Label htmlFor={`label-${key}`}>{label}</Label>
-          <Input
-            id={`label-${key}`}
-            value={config.labels?.[key] || ""}
-            // Never blank: a placeholder that reads "" would look like a broken
-            // field rather than an inherited label.
-            placeholder={auto[key] || label}
-            onChange={(event) =>
-              dispatch({ type: "SET_LABEL", key, value: event.target.value })
-            }
-          />
-        </div>
-      ))}
+      {LABEL_FIELDS.map(([key, label, visibilityKey, visibilityLabel]) => {
+        const isLegacyHiddenLegend =
+          visibilityKey === "showLegend" && appearance.legendPosition === "hidden";
+        const isVisible = appearance[visibilityKey] !== false && !isLegacyHiddenLegend;
+        return (
+          <div className="grid gap-2" key={key}>
+            <div className="flex items-center justify-between gap-3">
+              <Label htmlFor={`label-${key}`}>{label}</Label>
+              <div className="flex items-center gap-2">
+                <Label
+                  htmlFor={`label-${key}-visible`}
+                  className="text-xs font-normal text-muted-foreground"
+                >
+                  {visibilityLabel}
+                </Label>
+                <Switch
+                  id={`label-${key}-visible`}
+                  checked={isVisible}
+                  onCheckedChange={(checked) => {
+                    // `legendPosition: hidden` predates the dedicated switch.
+                    // Turning the legend back on promotes that saved setting to
+                    // the normal right-hand position before enabling it.
+                    if (visibilityKey === "showLegend" && checked && isLegacyHiddenLegend) {
+                      dispatch({
+                        type: "SET_APPEARANCE",
+                        key: "legendPosition",
+                        value: "right",
+                      });
+                    }
+                    dispatch({
+                      type: "SET_APPEARANCE",
+                      key: visibilityKey,
+                      value: checked,
+                    });
+                  }}
+                />
+              </div>
+            </div>
+            <Input
+              id={`label-${key}`}
+              value={config.labels?.[key] || ""}
+              disabled={!isVisible}
+              // Never blank: a placeholder that reads "" would look like a broken
+              // field rather than an inherited label.
+              placeholder={auto[key] || label}
+              onChange={(event) =>
+                dispatch({ type: "SET_LABEL", key, value: event.target.value })
+              }
+            />
+          </div>
+        );
+      })}
     </div>
   );
 }

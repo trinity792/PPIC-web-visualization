@@ -58,29 +58,25 @@ describe("ChartTypeSection", () => {
     state.schema = { id: "widgets", subsets: { Counties: ["County"], Regions: ["Region"] } };
   });
 
-  it("renders a flat grid by default", () => {
+  it("renders one flat grid, the only layout", () => {
     render(<ChartTypeSection />);
     const buttons = screen.getAllByRole("button");
     expect(buttons.map((button) => button.textContent.trim())).toEqual(orderedLabels);
     expect(buttons[0].parentElement).toHaveClass("grid-cols-2");
   });
 
-  it("renders family headings when grouped", () => {
-    render(<ChartTypeSection grouped />);
-    for (const family of ["Line", "Bar", "Pie", "Map", "Range", "Distribution", "Table"]) {
-      expect(
-        screen.getAllByText(family).some((node) => !node.closest("button")),
-        family,
-      ).toBe(true);
-    }
+  // The retired family headings (Line, Bar, Pie, Map, …) were labels, not
+  // buttons; every tile label must now be a tile.
+  it("renders no family headings alongside the tiles", () => {
+    const { container } = render(<ChartTypeSection />);
+    const nonTileText = [...container.querySelectorAll("*")].filter(
+      (node) => !node.closest("button") && node.children.length === 0 && node.textContent.trim(),
+    );
+    expect(nonTileText).toHaveLength(0);
   });
 
-  it("appends a registered type missing from the design order, in both modes", () => {
-    const flat = render(<ChartTypeSection />);
-    expect(screen.getByRole("button", { name: "Experimental" })).toBeInTheDocument();
-    flat.unmount();
-
-    render(<ChartTypeSection grouped />);
+  it("appends a registered type missing from the design order", () => {
+    render(<ChartTypeSection />);
     expect(screen.getByRole("button", { name: "Experimental" })).toBeInTheDocument();
   });
 

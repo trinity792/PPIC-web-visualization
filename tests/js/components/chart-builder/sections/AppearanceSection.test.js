@@ -363,4 +363,53 @@ describe("AppearanceSection", () => {
       value: undefined,
     });
   });
+
+  it("edits group and variable alignment and indentation independently", async () => {
+    const user = userEvent.setup();
+    state.config = {
+      ...config("forest"),
+      bindings: { group: "Section" },
+    };
+    render(<AppearanceSection />);
+
+    expect(screen.getByLabelText("Group alignment")).toBeInTheDocument();
+    expect(screen.getByLabelText("Variable alignment")).toBeInTheDocument();
+    expect(screen.getByLabelText("Group indentation (px)")).toHaveValue(0);
+    expect(screen.getByLabelText("Variable indentation (px)")).toHaveValue(0);
+
+    await user.click(screen.getByLabelText("Group alignment"));
+    await user.click(screen.getByRole("option", { name: "Center" }));
+    expect(state.dispatch).toHaveBeenCalledWith({
+      type: "SET_APPEARANCE",
+      key: "groupLabelAlignment",
+      value: "center",
+    });
+
+    fireEvent.change(screen.getByLabelText("Variable indentation (px)"), {
+      target: { value: "24" },
+    });
+    expect(state.dispatch).toHaveBeenCalledWith({
+      type: "SET_APPEARANCE",
+      key: "variableLabelIndent",
+      value: 24,
+    });
+  });
+
+  it("shows grouped row label controls only where row grouping applies", () => {
+    state.config = {
+      ...config("bar", { orientation: "vertical" }),
+      bindings: { group: "Section" },
+    };
+    const vertical = render(<AppearanceSection />);
+    expect(screen.queryByLabelText("Group alignment")).not.toBeInTheDocument();
+    vertical.unmount();
+
+    state.config = {
+      ...config("bar", { orientation: "horizontal" }),
+      bindings: { group: "Section" },
+    };
+    render(<AppearanceSection />);
+    expect(screen.getByLabelText("Group alignment")).toBeInTheDocument();
+    expect(screen.getByLabelText("Variable alignment")).toBeInTheDocument();
+  });
 });

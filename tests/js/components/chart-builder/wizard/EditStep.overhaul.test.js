@@ -34,8 +34,12 @@ vi.mock("@/components/chart-builder/ConfigActions", () => ({
   ExportConfigButton: () => null,
 }));
 vi.mock("@/lib/visualization/sidebarSections", () => {
-  const ChartTypeProbe = ({ grouped }) =>
-    grouped ? "Line family Bar family Map family" : "Flat chart types";
+  // Reports any prop the shell hands the Chart Type section, so a wizard-only
+  // variant of this section cannot creep back in unnoticed.
+  const ChartTypeProbe = (props) => {
+    const passed = Object.keys(props).sort();
+    return passed.length ? `chart-type props: ${passed.join(",")}` : "chart types, no props";
+  };
   const sections = [
     { value: "datasets", label: "Datasets", Component: () => null },
     { value: "chart-type", label: "Chart Type", Component: ChartTypeProbe },
@@ -76,9 +80,14 @@ describe("EditStep shared sidebar", () => {
     expect(screen.getByRole("button", { name: "Chart Type" })).toBeInTheDocument();
   });
 
-  it("groups chart types into families", () => {
+  it("renders the module workbench's chart-type section, unmodified", () => {
     render(<EditStep />);
-    expect(screen.getByText(/Line family Bar family Map family/)).toBeInTheDocument();
+    expect(screen.getByText("chart types, no props")).toBeInTheDocument();
+    cleanup();
+
+    state.schema = { id: "widgets", inlineOnly: false, fields: {}, subsets: {} };
+    render(<ModuleSidebar />);
+    expect(screen.getByText("chart types, no props")).toBeInTheDocument();
   });
 
   it("renders the same section list as a module sidebar", () => {

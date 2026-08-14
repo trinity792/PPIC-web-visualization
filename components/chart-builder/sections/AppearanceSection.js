@@ -16,7 +16,7 @@
  * Labels.
  *
  * Props:
- *   None (LineSpacingControls takes lineAxes / appearance / onChange).
+ *   None (local controls receive appearance values and an onChange callback).
  *
  * Data sources:
  *   - Chart configuration and module schema from ChartConfigProvider
@@ -59,6 +59,7 @@ import { paletteKindFor, resolveToken } from "@/lib/visualization/palettes";
 import { RAMP_SHADE_GROUPS } from "@/lib/visualization/ppicRamps";
 
 const NONE = "__none__";
+const GROUPED_LABEL_INDENT_MAX = 200;
 
 // ── Line spacing ─────────────────────────────────────────────────────
 
@@ -112,6 +113,91 @@ export function LineSpacingControls({ lineAxes, appearance, onChange }) {
       {axes.has("vertical")
         ? spacingControl("Vertical", "verticalLinePadding")
         : null}
+    </div>
+  );
+}
+
+// ── Grouped row labels ───────────────────────────────────────────────
+
+function usesGroupedRowLabels(config) {
+  if (!config.bindings?.group) return false;
+  if (["dumbbell", "dotPlot", "forest"].includes(config.chartType)) return true;
+  if (config.chartType !== "bar") return false;
+  return config.appearance?.diverging
+    ? config.appearance?.orientation !== "vertical"
+    : config.appearance?.orientation === "horizontal";
+}
+
+function GroupedRowLabelControls({ appearance, onChange }) {
+  const rows = [
+    {
+      name: "Group",
+      alignmentKey: "groupLabelAlignment",
+      alignmentDefault: "left",
+      indentKey: "groupLabelIndent",
+    },
+    {
+      name: "Variable",
+      alignmentKey: "variableLabelAlignment",
+      alignmentDefault: "right",
+      indentKey: "variableLabelIndent",
+    },
+  ];
+
+  return (
+    <div className="grid gap-3 rounded-lg border bg-card p-3">
+      <p className="text-sm font-medium">Grouped row labels</p>
+      {rows.map(({ name, alignmentKey, alignmentDefault, indentKey }) => (
+        <div className="grid grid-cols-2 gap-3" key={name}>
+          <div className="grid gap-2">
+            <Label htmlFor={`appearance-${alignmentKey}`}>
+              {name} alignment
+            </Label>
+            <Select
+              value={appearance[alignmentKey] || alignmentDefault}
+              onValueChange={(value) => onChange(alignmentKey, value)}
+            >
+              <SelectTrigger id={`appearance-${alignmentKey}`}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="left">Left</SelectItem>
+                <SelectItem value="center">Center</SelectItem>
+                <SelectItem value="right">Right</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor={`appearance-${indentKey}`}>
+              {name} indentation (px)
+            </Label>
+            <Input
+              id={`appearance-${indentKey}`}
+              type="number"
+              inputMode="numeric"
+              min="0"
+              max={String(GROUPED_LABEL_INDENT_MAX)}
+              step="1"
+              value={appearance[indentKey] ?? 0}
+              onChange={(event) => {
+                const value = Number(event.target.value);
+                onChange(
+                  indentKey,
+                  Number.isFinite(value)
+                    ? Math.min(
+                        GROUPED_LABEL_INDENT_MAX,
+                        Math.max(0, Math.round(value)),
+                      )
+                    : 0,
+                );
+              }}
+            />
+          </div>
+        </div>
+      ))}
+      <p className="text-xs text-muted-foreground">
+        Indentation moves labels inward from their selected alignment edge.
+      </p>
     </div>
   );
 }
@@ -553,6 +639,13 @@ export default function AppearanceSection() {
             aria-label="Space between groups"
           />
         </div>
+      ) : null}
+
+      {usesGroupedRowLabels(config) ? (
+        <GroupedRowLabelControls
+          appearance={appearance}
+          onChange={setAppearance}
+        />
       ) : null}
 
       {config.chartType === "line" ? (

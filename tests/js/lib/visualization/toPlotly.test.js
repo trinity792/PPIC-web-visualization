@@ -89,6 +89,81 @@ describe("toPlotly legend wrapping", () => {
   });
 });
 
+describe("toPlotly label visibility", () => {
+  const spec = {
+    chartType: "line",
+    bindings: { x: "Year", y: "Value" },
+    series: [{ location: "California", years: [2024], values: [10] }],
+    labels: {
+      title: "Chart title",
+      subtitle: "Chart subtitle",
+      xAxis: "Year",
+      yAxis: "Value",
+      legend: "Place",
+    },
+    appearance: {},
+  };
+
+  it("hides title, subtitle, axis labels, and legend independently", () => {
+    const titleHidden = toPlotly({
+      ...spec,
+      appearance: { showTitle: false },
+    }).layout;
+    expect(titleHidden.title).toBeUndefined();
+    expect(titleHidden.xaxis.title.text).toBe("Year");
+    expect(titleHidden.yaxis.title.text).toBe("Value");
+    expect(titleHidden.showlegend).toBe(true);
+
+    const subtitleHidden = toPlotly({
+      ...spec,
+      appearance: { showSubtitle: false },
+    }).layout;
+    expect(subtitleHidden.title.text).toBe("Chart title");
+    expect(subtitleHidden.title.subtitle).toBeUndefined();
+
+    const xHidden = toPlotly({
+      ...spec,
+      appearance: { showXAxisLabel: false },
+    }).layout;
+    expect(xHidden.xaxis.title).toBeUndefined();
+    expect(xHidden.yaxis.title.text).toBe("Value");
+
+    const yHidden = toPlotly({
+      ...spec,
+      appearance: { showYAxisLabel: false },
+    }).layout;
+    expect(yHidden.yaxis.title).toBeUndefined();
+    expect(yHidden.xaxis.title.text).toBe("Year");
+
+    const legendHidden = toPlotly({
+      ...spec,
+      appearance: { showLegend: false },
+    }).layout;
+    expect(legendHidden.showlegend).toBe(false);
+    expect(legendHidden.title.text).toBe("Chart title");
+  });
+
+  it("uses the legend visibility switch for continuous color scales", () => {
+    const spec = {
+      chartType: "heatmap",
+      bindings: { x: "column", y: "row", color: "value" },
+      series: { x: ["A"], y: ["B"], z: [[1]] },
+      labels: {},
+    };
+    const switchedOff = toPlotly({
+      ...spec,
+      appearance: { showLegend: false },
+    });
+    const legacyHidden = toPlotly({
+      ...spec,
+      appearance: { legendPosition: "hidden" },
+    });
+
+    expect(switchedOff.data[0].showscale).toBe(false);
+    expect(legacyHidden.data[0].showscale).toBe(false);
+  });
+});
+
 describe("toPlotly footnote", () => {
   const spec = {
     chartType: "line",
@@ -490,6 +565,8 @@ describe("toPlotly grouped category sections", () => {
     const secondHeader = wide.layout.annotations.find(
       (annotation) => annotation.text === "<b>Occupation</b>",
     );
+    expect(secondHeader).toMatchObject({ align: "left", x: 0, xanchor: "left" });
+    expect(wide.layout.margin.l + secondHeader.xshift).toBe(0);
     expect(groupedAxis[0].y1).toBeLessThan(secondHeader.y);
     expect(groupedAxis[1].y0).toBeGreaterThan(secondHeader.y);
     const legendTraces = wide.data.filter((trace) => trace.showlegend !== false);
@@ -529,6 +606,138 @@ describe("toPlotly grouped category sections", () => {
       appearance: { groupGap: 1 },
     });
     expect(forest.layout.yaxis.ticktext).toEqual(["Study A", "Study B"]);
+  });
+
+  it("left-aligns grouped row headers across every applicable renderer", () => {
+    const rowRecords = [
+      { category: "Continuous quarters employed", group: "First section", value: 0.8 },
+      { category: "Bravo", group: "Second section", value: 1.2 },
+    ];
+    const rangeRecords = rowRecords.map((record) => ({
+      ...record,
+      start: record.value - 0.1,
+      end: record.value + 0.1,
+      point: record.value,
+    }));
+    const shared = {
+      bindings: { category: "category", group: "group" },
+      labels: {},
+    };
+    const results = [
+      toPlotly({
+        ...shared,
+        chartType: "bar",
+        bindings: { ...shared.bindings, y: "value" },
+        series: rowRecords,
+        appearance: { orientation: "horizontal" },
+      }),
+      toPlotly({
+        ...shared,
+        chartType: "bar",
+        bindings: { ...shared.bindings, y: "value" },
+        series: rowRecords,
+        appearance: { diverging: true },
+      }),
+      ...["dumbbell", "forest"].map((chartType) =>
+        toPlotly({
+          ...shared,
+          chartType,
+          bindings: {
+            ...shared.bindings,
+            start: "start",
+            end: "end",
+            point: "point",
+          },
+          series: rangeRecords,
+          appearance: {},
+        }),
+      ),
+      toPlotly({
+        chartType: "dotPlot",
+        bindings: { y: "Label", x: "Series", color: "Value", group: "Section" },
+        series: {
+          x: ["Women", "Men"],
+          y: rowRecords.map((record) => record.category),
+          z: [[0.7, 0.9], [1.1, 1.3]],
+          groups: rowRecords.map((record) => record.group),
+        },
+        labels: {},
+        appearance: {},
+      }),
+    ];
+
+    for (const { layout } of results) {
+      const headers = layout.annotations.filter(
+        (annotation) => annotation.name === "ppic-group-header",
+      );
+      expect(headers).toHaveLength(2);
+      expect(layout.yaxis.automargin).toBe(false);
+      expect(layout.yaxis.showticklabels).toBe(false);
+      expect(layout.margin.l).toBeGreaterThan(70);
+      const variables = layout.annotations.filter(
+        (annotation) => annotation.name === "ppic-variable-label",
+      );
+      expect(variables).toHaveLength(2);
+      expect(variables.every((label) => label.xanchor === "right")).toBe(true);
+      for (const header of headers) {
+        expect(header).toMatchObject({ align: "left", x: 0, xanchor: "left" });
+        expect(layout.margin.l + header.xshift).toBe(0);
+      }
+    }
+  });
+
+  it("aligns and indents group and variable labels independently", () => {
+    const spec = {
+      chartType: "dumbbell",
+      bindings: {
+        category: "category",
+        group: "group",
+        start: "start",
+        end: "end",
+      },
+      series: [
+        { category: "Alpha", group: "First", start: 1, end: 2 },
+        { category: "Bravo", group: "Second", start: 2, end: 3 },
+      ],
+      labels: { yAxis: "Variable" },
+    };
+    const base = toPlotly({
+      ...spec,
+      appearance: {
+        groupLabelAlignment: "center",
+        variableLabelAlignment: "left",
+      },
+    });
+    const indented = toPlotly({
+      ...spec,
+      appearance: {
+        groupLabelAlignment: "center",
+        groupLabelIndent: 10,
+        variableLabelAlignment: "left",
+        variableLabelIndent: 24,
+      },
+    });
+    const annotation = (result, name) =>
+      result.layout.annotations.find((item) => item.name === name);
+    const baseGroup = annotation(base, "ppic-group-header");
+    const baseVariable = annotation(base, "ppic-variable-label");
+    const movedGroup = annotation(indented, "ppic-group-header");
+    const movedVariable = annotation(indented, "ppic-variable-label");
+
+    expect(movedGroup).toMatchObject({ align: "center", xanchor: "center" });
+    expect(movedVariable).toMatchObject({ align: "left", xanchor: "left" });
+    expect(movedGroup.xshift - baseGroup.xshift).toBe(10);
+    expect(movedVariable.xshift - baseVariable.xshift).toBe(24);
+    expect(annotation(indented, "ppic-y-axis-title")).toMatchObject({
+      text: "Variable",
+      textangle: -90,
+    });
+
+    const yTitleHidden = toPlotly({
+      ...spec,
+      appearance: { showYAxisLabel: false },
+    });
+    expect(annotation(yTitleHidden, "ppic-y-axis-title")).toBeUndefined();
   });
 
 });

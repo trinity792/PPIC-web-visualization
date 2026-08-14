@@ -17,9 +17,6 @@
  *     views, trace layers, and the activity log are standalone-tool-only,
  *     with no module-workbench equivalent (see `ModuleSidebar`'s doc comment
  *     for why per capability); multi-chart applies to both.
- *   - Chart Type renders grouped into families (`sectionProps`), matching the
- *     layout of the wizard's now-retired Chart Type step (F5): it is no
- *     longer its own step, so it must read the same way inline.
  *   - the shared Outcome section's line-layer action (`allowLayers`).
  *   - `CategoriesSection`, mounted directly: bring-your-own-data has no
  *     geography at all, so `GeographySection` — which normally owns this
@@ -61,11 +58,10 @@ import StepShell from "@/components/chart-builder/wizard/StepShell";
 // catalog that bring-your-own-data does not have (applying one would clear
 // the bindings autoMapInlineBindings just derived from the pasted columns),
 // and the rest have simply never had a module-side equivalent.
-// Chart Type now renders inline, grouped into families — the retired step's
-// own layout, folded in (F5). Comparison layers are a standalone-tool
-// feature, so only this surface opts the shared Outcome section into it.
+// Comparison layers are likewise a standalone-tool feature, so only this
+// surface opts the shared Outcome section into it. Chart Type takes no props
+// here: it renders the module workbench's flat tile grid, unchanged.
 const SECTION_PROPS = {
-  "chart-type": { grouped: true },
   axis: { allowLayers: true },
 };
 

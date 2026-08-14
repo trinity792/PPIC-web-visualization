@@ -45,7 +45,7 @@ The chart container carries the module title, the chart, and an action bar: **Vi
 
 ### The standalone Visualization Tool - `/visualization-tool`
 
-Three steps: **Import → Edit → Export**. Import is where a table is pasted, uploaded, and corrected; the other two steps are disabled until it holds data. The Edit step renders the same sidebar the workbench does, Chart Type included - it is a registry section on both surfaces, and the wizard only asks for it grouped into families rather than as a flat grid.
+Three steps: **Import → Edit → Export**. Import is where a table is pasted, uploaded, and corrected; the other two steps are disabled until it holds data. The Edit step renders the same sidebar the workbench does, Chart Type included - it is one registry section, asked for the same way on both surfaces.
 
 On desktop, the chart container alone determines the shared row's height. The control card is absolutely positioned inside its stretched column, so when an adaptive chart requests more height the sidebar follows, while a long control list scrolls internally and cannot enlarge the chart. The stacked mobile layout keeps natural heights.
 
@@ -189,7 +189,7 @@ Which of those tiles a given module actually offers is `isChartTypeAvailable(id,
 | `schema.supportedChartTypes` | Narrows the grid to an allowlist when a module declares one. RHNA Progress declares `["bar"]`. |
 | `requiresGeometry` on the descriptor | A map type is offered only where something exists to join coordinates to: the level we hold geometry for on a module, or an inline shape builder on the standalone tool. See *Maps and geography*. |
 
-The wizard asks for the same tiles grouped into families (Line, Bar, Pie, Map, Range, Distribution, Table) rather than as a flat grid. That is the section's `grouped` prop, which the Edit step passes through `sectionProps` - not a second component. When the wizard's Chart Type *step* was folded back into the sidebar, `FAMILIES` moved into `ChartTypeSection.js` with it, and the append-the-forgotten fallback now runs in grouped mode too, which it never did as a step: a registered type missing from `FAMILIES` is appended rather than silently unreachable.
+Both surfaces ask for those tiles the same way: one flat two-column grid, `TILE_ORDER`, no family headings. The wizard briefly kept its retired Chart Type step's grouping (Line, Bar, Pie, Map, Range, Distribution, Table) as a `grouped` prop the Edit step passed through `sectionProps`; that prop is gone, along with `FAMILIES` and `familyGroups()`, so the tile set, its order, and its availability filtering have exactly one answer and the Edit step passes the section no props at all.
 
 On the workbench a tile changes the chart type and nothing else. Encodings the new type can accept follow the reader across - a measure on Y stays on Y from a line to a bar - and every role the new type needs but did not inherit is left unset, **unless the new chart type implies it**: a line's X-Axis of `Year` does not become a bar's Category by carrying across, but a bar's Category resolves anyway, from the schema's geography field rather than from what the reader had bound. A role neither carried nor implied has no field chosen to stand in for it, so the container returns to the skeleton naming what is still to set. On the standalone tool the same tile seeds from the preset registry or, for bring-your-own-data, auto-maps the pasted columns, exactly as its Chart Type step used to - the behaviour follows `autoBind`, not the mounting point.
 
@@ -577,7 +577,7 @@ Four shapes changed. All four are handled on load, because a bookmarked `?view=`
 | **Symbol Map on pasted data, and both map types on Building Permits** | Neither surface had anything to join coordinates to, so the tiles could only ever produce an empty figure or a failed request. See *Maps and geography*. |
 | **The `color` role on Pie / Donut and Symbol Map** | Both declared it and neither renderer read it: a pie colours its slices by their own category label, and a symbol map gives every marker one palette colour. A dropdown that changes nothing is worse than no dropdown. See *No dropdown here says "Color"*. |
 | **Presets, saved views, layers, activity log** - *from modules only* | Four capabilities a module surface does not declare. See *The two surfaces*. All four remain on the standalone tool, behind Advanced Mode. Multi-chart was in this row and came back: it is now a capability both surfaces declare. |
-| **The Chart Type step** | It was a step only because the wizard had four; the section it wrapped was always in the registry. Its family grouping survives as `ChartTypeSection`'s `grouped` prop, and the flat grid's append-the-forgotten fallback now covers grouped mode too. |
+| **The Chart Type step** | It was a step only because the wizard had four; the section it wrapped was always in the registry. Its family grouping survived one release as `ChartTypeSection`'s `grouped` prop and is now withdrawn too - both surfaces render the flat grid. |
 | **The `benchmark` role** | Declared on `line`, `dumbbell`, and `forest`, and read by no renderer, loader, or transform. `differenceFromBenchmark` takes its series from a trace layer, which stays. See *Outcome*. |
 | **A dimension on a line's X-Axis** | Widened and reverted the same week. Nothing honours a categorical line x - the inline shape builder coerces the column to a number and draws an empty chart, and the module line view never receives `bindings.x` at all - and offering one suppressed `inlineRenderBlock`'s "retype it as Date" hint, which is what actually fixes the reader's problem. `bar.category` keeps its widening, which *is* honoured. |
 
@@ -697,7 +697,6 @@ Rendered only where a module declares two or more datasets, which after the July
 | Control | Config key | Available on | Wired to | What it does |
 |---|---|---|---|---|
 | Chart type tile | `chartType` | All | `toPlotly.js`'s adapter switch; `chartData.js`'s `QUERY_SHAPES`; `paletteKindFor` reads the descriptor's `colorEncoding` | Selects the renderer and the data-shape verb the server is asked for. Which tiles appear is `isChartTypeAvailable(id, schema)` - descriptor `hidden`, `schema.supportedChartTypes`, and `requiresGeometry`. Selecting a map type also writes `filters.subset` to the geometry level and clears `filters.locations`. |
-| Family grouping | - | - | `ChartTypeSection.js` `grouped` prop | The standalone tool's grouped gallery, folded into the shared section when the wizard lost its Chart Type step. Off by default (the workbench's flat grid); the Edit step passes it through `sectionProps`. |
 
 ---
 

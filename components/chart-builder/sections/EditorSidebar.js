@@ -16,7 +16,6 @@
  *   only         {Array<string>} — restrict the registry to these section values
  *   exclude      {Array<string>} — drop these section values
  *   sectionProps {Object}        — extra props by section value (e.g. the
- *                                  Chart Type section's `grouped`, the
  *                                  Outcome section's `allowLayers`)
  *
  * Data sources:

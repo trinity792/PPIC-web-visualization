@@ -8,10 +8,9 @@
  * - Vitest 4's jsdom environment exposes a non-functional localStorage stub
  *   (opaque-origin behavior), so a real in-memory Storage implementation is
  *   installed on both `window` and `globalThis` and cleared per test.
- * - jsdom implements neither the Pointer Capture API nor `scrollIntoView`, both
- *   of which Radix's Select calls on every open. Without them a `user.click`
- *   on a SelectTrigger throws instead of opening the listbox, so the sidebar
- *   section tests get no-op stubs for them.
+ * - jsdom implements neither the Pointer Capture API, `scrollIntoView`, nor
+ *   `ResizeObserver`, all of which Radix controls use while opening or sizing.
+ *   Sidebar section tests get no-op stubs for those browser-only APIs.
  */
 
 import "@testing-library/jest-dom/vitest";
@@ -33,6 +32,16 @@ if (!Element.prototype.hasPointerCapture) {
 }
 if (!Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = () => {};
+}
+if (typeof ResizeObserver === "undefined") {
+  vi.stubGlobal(
+    "ResizeObserver",
+    class ResizeObserver {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
 }
 
 class MemoryStorage {

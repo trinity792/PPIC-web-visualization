@@ -50,8 +50,8 @@ const STEP_DEFS = {
 };
 
 // Workstream F5: the standalone wizard's Chart Type step folded into the Edit
-// step's sidebar (grouped ChartTypeSection), so it no longer occupies its own
-// step. Three steps now, not four.
+// step's sidebar (ChartTypeSection), so it no longer occupies its own step.
+// Three steps now, not four.
 export const DEFAULT_STEPS = ["import", "edit", "export"];
 
 function EmbedChromeHider() {
