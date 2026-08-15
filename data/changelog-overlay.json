@@ -679,5 +679,157 @@
     "audited": true,
     "module": null,
     "description": "Restructured the export menu with expanded chart export options, improved layout and styling, added image quality presets, and enhanced the exportImage library with new formatting and rendering capabilities."
+  },
+  "5097cdd": {
+    "title": "Moved the project directory and refreshed docs",
+    "area": "Documentation",
+    "intensity": "low",
+    "audited": true,
+    "module": null,
+    "description": "Relocated the project directory, updating the agent config, the convention docs, and package-lock.json to match the new path."
+  },
+  "ec30631": {
+    "title": "Dev-server fix, gitignore and docs housekeeping",
+    "area": "Documentation",
+    "intensity": "low",
+    "audited": true,
+    "module": null,
+    "description": "Fixed a dev-server startup bug, extended .gitignore, and updated CLAUDE.md, pyproject.toml, and the agent docs."
+  },
+  "0957728": {
+    "title": "Shared archive-and-save mechanism across all module pipelines",
+    "area": "Backend scripts",
+    "intensity": "high",
+    "audited": true,
+    "module": null,
+    "description": "Introduced one shared archive-and-save mechanism in scripts/shared and wired all six orchestrators to it, standardizing archive file naming. Live-ran every module to verify, which surfaced the RHNA snapshot-duplication bug fixed in the following commits. 14 unit-test files updated alongside."
+  },
+  "10d75e8": {
+    "title": "Fixed RHNA snapshot duplication that double-counted every jurisdiction",
+    "area": "Backend scripts & front-end",
+    "intensity": "high",
+    "audited": true,
+    "module": "RHNA Progress Report",
+    "description": "A same-day pipeline re-run duplicated every row, so the frontend rendered each jurisdiction twice: combine_snapshots de-duplicated on the raw Snapshot Date column, and both copies carried the Most Recent flag the default query filters on. Fixed the de-duplication key and withheld the module from the landing page until the data was trustworthy."
+  },
+  "be0f1e9": {
+    "title": "RHNA accumulated date columns now parse tolerantly everywhere",
+    "area": "Backend scripts",
+    "intensity": "high",
+    "audited": true,
+    "module": "RHNA Progress Report",
+    "description": "Follow-up to the snapshot-duplication fix, which corrected the mixed-representation date parse in only two of the six places that needed it. The live re-run then failed Phase 5 with a Status inconsistent with the four-quadrant rule - not a Status bug, but an unparsed date column. Every accumulated date column now parses tolerantly."
+  },
+  "88ea330": {
+    "title": "Restored RHNA Progress Report to the landing page",
+    "area": "Front-end components",
+    "intensity": "moderate",
+    "audited": true,
+    "module": "RHNA Progress Report",
+    "description": "Returned the module to the landing page once the snapshot-duplication and date-parsing fixes were verified, and updated its module specification."
+  },
+  "61451e6": {
+    "title": "Archive-and-save follow-up tweaks and CI workflow update",
+    "area": "Backend scripts",
+    "intensity": "low",
+    "audited": true,
+    "module": null,
+    "description": "Refinements to the shared archive-and-save mechanism with its unit tests, plus an update to the GitHub Actions workflow."
+  },
+  "6439ee0": {
+    "title": "Project specification refresh",
+    "area": "Documentation",
+    "intensity": "low",
+    "audited": true,
+    "module": null,
+    "description": "Brought projectSpec.md up to date with the preceding pipeline and front-end work."
+  },
+  "8701317": {
+    "title": "Chart editor: appearance, chart-type, labels and wizard refinements",
+    "area": "Front-end components & Documentation",
+    "intensity": "moderate",
+    "audited": true,
+    "module": null,
+    "description": "Reworked the Appearance, Chart Type, Labels, and Editor Sidebar sections plus the wizard's Edit step, with matching toPlotly changes and a visualization-specification update."
+  },
+  "9163f9d": {
+    "title": "Log records and sample feed refresh",
+    "area": "Backend scripts",
+    "intensity": "low",
+    "audited": true,
+    "module": null,
+    "description": "Updated the shared logging helper and its unit test, and refreshed the committed sample-runs.jsonl fixture that keeps the /logs page populated in the repo."
+  },
+  "77f0e83": {
+    "title": "Added a Home link to the navbar",
+    "area": "Front-end components",
+    "intensity": "low",
+    "audited": true,
+    "module": null,
+    "description": "The navbar now carries an explicit Home link to the landing page alongside the PPIC logo, with a test pinning both targets."
+  },
+  "870fd19": {
+    "title": "Legend titles are now editable",
+    "area": "Front-end components",
+    "intensity": "moderate",
+    "audited": true,
+    "module": null,
+    "description": "Added legend-title renaming through the Appearance section and the palette picker, carried on the chart spec and applied in toPlotly so the label survives save, export, and reload."
+  },
+  "b4a5e6e": {
+    "title": "Forest plot refinements",
+    "area": "Front-end components",
+    "intensity": "moderate",
+    "audited": true,
+    "module": null,
+    "description": "Updated the forest chart's registry and preset descriptors, its appearance controls, and its toPlotly builder."
+  },
+  "cd53165": {
+    "title": "Editor tweaks from the August 11 project meeting",
+    "area": "Front-end components & Documentation",
+    "intensity": "moderate",
+    "audited": true,
+    "module": null,
+    "description": "A broad pass over the chart editor from meeting feedback: Appearance, Geography, Labels, Outcome, Transform, and category controls, plus the palette picker, multi-chart toolbar, advanced-mode gate, config store, and navbar. Specification updated to match."
+  },
+  "23bd0b9": {
+    "title": "Follow-up editor and workbench tweaks",
+    "area": "Front-end components & Documentation",
+    "intensity": "moderate",
+    "audited": true,
+    "module": null,
+    "description": "Continued the meeting-feedback pass across the config store, chart data loading, the resizable sidebar, the module workbench and its sidebar, and the wizard shell, with chart-spec changes and specification updates."
+  },
+  "8df37f5": {
+    "title": "Landing page rebuilt as a topic directory; ESLint cleanup",
+    "area": "Front-end components & Documentation",
+    "intensity": "high",
+    "audited": true,
+    "module": null,
+    "description": "Replaced the landing page's category dashboards with a directory of six topic cards, one per built module, each linking into that module's chart editor. Routes and labels derive from a single topic registry that the navbar also reads, so they cannot drift; the retired dashboard components moved to .trash/ and categoryRegistry.js became builtInViews.js, keeping every ?view= deep-link working. Separately, react/prop-types was turned off once in eslint.config.js instead of via a per-file pragma in 107 files, and the React version is now detected rather than assumed."
+  },
+  "930baa5": {
+    "title": "Ignored the Python virtual environment",
+    "area": "Code quality",
+    "intensity": "low",
+    "audited": true,
+    "module": null,
+    "description": "Added web-viz-venv/ to .gitignore so the local Python virtual environment stops appearing as untracked work."
+  },
+  "ccb27e6": {
+    "title": "Changelog entries for the preceding export and editor work",
+    "area": "Documentation",
+    "intensity": "low",
+    "audited": true,
+    "module": null,
+    "description": "Added six curated overlay entries covering the export-options cleanup and the commits before it, and regenerated data/changelog.json."
+  },
+  "3d54d56": {
+    "title": "Multi-chart returned to the module workbench; dropdown handling fixed",
+    "area": "Front-end components",
+    "intensity": "moderate",
+    "audited": true,
+    "module": null,
+    "description": "Restored the multi-chart workspace on the module editor by threading it through the editor-capabilities context, so the workbench and the standalone wizard share one definition of what multiChart means. Also fixed dropdown handling in the settings sections' shared primitives, and updated the UI Kit patterns showcase."
   }
 }
