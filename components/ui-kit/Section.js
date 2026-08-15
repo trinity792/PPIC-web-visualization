@@ -16,8 +16,6 @@
  *   - Implements the "Section", "Panel", and "Caption" layout patterns
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 export function Section({ id, eyebrow, title, description, children }) {

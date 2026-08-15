@@ -14,8 +14,6 @@
  *   - Implements the shared "Switch" pattern
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import * as SwitchPrimitive from "@radix-ui/react-switch";

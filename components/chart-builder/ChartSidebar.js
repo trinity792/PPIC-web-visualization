@@ -21,8 +21,6 @@
  *   - Implements the pill-action and dialog patterns
  */
 
-/* eslint-disable react/prop-types */
-
 import React, { useCallback, useEffect, useState } from "react";
 
 import { Clipboard, Download, RotateCcw, Save, Trash2, Upload } from "lucide-react";

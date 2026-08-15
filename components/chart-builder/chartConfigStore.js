@@ -19,8 +19,6 @@
  *   - None — state-management utility that does not render visible UI
  */
 
-/* eslint-disable react/prop-types */
-
 import {
   default as React,
   createContext,

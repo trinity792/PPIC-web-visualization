@@ -16,8 +16,6 @@
  *   - Implements the shared "Calendar" pattern
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import { ChevronLeft, ChevronRight } from "lucide-react";

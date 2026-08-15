@@ -13,8 +13,6 @@
  *   - Documents the "Stat Card" and "Chart Container" patterns
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import { ArrowRight } from "lucide-react";

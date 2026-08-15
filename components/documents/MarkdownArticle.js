@@ -21,7 +21,6 @@
  *   - Scoped ".ppic-markdown" typography (app/globals.css)
  */
 
-/* eslint-disable react/prop-types */
 // react-markdown passes a `node` prop to every component override; we strip it
 // (via `node: _node`) so it isn't spread onto DOM elements.
 /* eslint-disable no-unused-vars */

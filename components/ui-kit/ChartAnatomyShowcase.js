@@ -14,8 +14,6 @@
  *   - Documents the "Chart Anatomy" and "Key / Legend" foundations
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import { Panel, Section } from "@/components/ui-kit/Section";

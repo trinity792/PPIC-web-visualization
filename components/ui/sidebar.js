@@ -25,8 +25,6 @@
  *   - Implements the shared responsive "Sidebar" and sidebar-menu patterns
  */
 
-/* eslint-disable react/prop-types */
-
 import * as React from "react";
 
 import { Slot } from "@radix-ui/react-slot";

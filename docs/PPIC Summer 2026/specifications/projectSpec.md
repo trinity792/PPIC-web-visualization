@@ -4,7 +4,7 @@ Content Type: project specification
 pinned: true
 description: "The single source of truth for the web-data-visualization project's specification, architecture, and API reference. A living document for programmers and researchers that uses PopHousing as the reference implementation future data modules should mirror."
 Date Published: June 23, 2026
-Last Updated: 08/12/2026 - 12:00 PM
+Last Updated: 08/14/2026 - 06:24 PM
 Status: Updating
 Footnote: Document generated and updated by Claude Opus 4.8 on command. Outlined and verified by Trinity Jones.
 ---
@@ -53,7 +53,7 @@ Two design goals run through the entire codebase and should be treated as requir
 ---
 ## Modules
 
-A **module** is one dataset's full vertical slice: its ETL pipeline under `scripts/<module>/`, its cleaned-data contract under `data/data-cleaned/<module>/`, its data-access layer under `lib/data/`, its API route under `app/api/<module>/`, and its **frontend field catalog** under `lib/visualization/moduleSchemas/` (which plugs it into the shared UI layer — chart editor + landing dashboards; see *Frontend Architecture (UI Layer)*). Project-independent machinery they all share lives in `scripts/shared/` (backend) and `lib/visualization/` + `components/{ui,chart-builder,charts,landing}/` (frontend).
+A **module** is one dataset's full vertical slice: its ETL pipeline under `scripts/<module>/`, its cleaned-data contract under `data/data-cleaned/<module>/`, its data-access layer under `lib/data/`, its API route under `app/api/<module>/`, and its **frontend field catalog** under `lib/visualization/moduleSchemas/` (which plugs it into the shared UI layer — the chart editor, plus a card in the landing topic directory; see *Frontend Architecture (UI Layer)*). Project-independent machinery they all share lives in `scripts/shared/` (backend) and `lib/visualization/` + `components/{ui,chart-builder,charts,landing}/` (frontend).
 
 | Module | Source | Status |
 |---|---|---|
@@ -63,7 +63,7 @@ A **module** is one dataset's full vertical slice: its ETL pipeline under `scrip
 | **ACS Housing Stress** | U.S. Census Bureau **ACS 1-year** table-based Summary File, table **B25140** (housing cost burden) | **Active** — fourth module migrated, built **test-first** (136 mirrored tests pass). Full Python pipeline, data contract, API route, module schema, and built-in chart views are complete, with a **verified end-to-end run** against live ACS. The contract now holds the **full 2012–2024 series (52,950 rows, 2020 excluded)**: the live pipeline still fetches one vintage per run, but the `housing_stress_backfill.py` driver has since built every published vintage into the immutable `HousingStress_Historical.csv` seed, which the live run unions in. A 2026-07-13 as-built pass resolved every flagged issue (A1–A9, B1–B4: discriminated fallback payload with degrade-not-crash, backfill driver + immutable seed, wired cleaning validator, single-fetch cache, atomic writes) with tests and offline re-verification. See *The ACS Housing Stress Module* for caveats. |
 | **Building Permits** | U.S. Census Bureau **Building Permits Survey** monthly CBSA + state `.xls` releases | **Active** — fifth module migrated, built **test-first** (95 mirrored tests pass) and the first **monthly** module. Full Python pipeline, data contract, API route, module schema, data-access layer, and a JS geography mirror are complete, with a **verified end-to-end run** against live Census BPS. The contract holds **198 months, 2010-01 → 2026-06, 14,766 rows** (as of 2026-08-12) — deep history (pre-2024) now lives in an immutable, read-only seed (`BuildingPermits_Historical.csv`) because the source only hosts a rolling ~2-year window; the live pipeline maintains 2024-onward forward and composes the two each run. A 2026-07-14 as-built pass resolved every flagged issue (A1–A7, B1–B4: immutable deep-history seed + baseline compose + Phase-5 guard, atomic writes, wired cleaning validator, probe retry + prefetch reuse + status-code 404, located + dtype-stable measure/code casts, write-gate-aligned change detection, clean-degrade regression test) with tests and an offline idempotency re-verification. As of 2026-07-07 it renders the live graph editor with module-owned presets (graph-editor overhaul). See *The Building Permits Module* for caveats. |
 | *Original legacy datasets* | V1 notebooks | **All five migrated** ✅ — PopHousing, Components of Change, Demographic Projections, ACS Housing Stress, and Building Permits are all on the V3 architecture. |
-| **RHNA Progress Report** | CA HCD **RHNA Progress Report** (data.ca.gov CKAN package, biweekly overwrite) | **Active — offline-seeded.** The **first net-new module** (no legacy predecessor), built **test-first** (115 mirrored tests pass). Full Python pipeline, data contract, API route, module schema, server-only data-access layer, and a live landing dashboard are complete. The contract is **tidy/long on income level** and **snapshot-versioned** — each biweekly HCD overwrite is captured as a `Snapshot Date`, turning the overwrite stream into a time series — with PPIC's pace / on-track analytics computed once in the pipeline. The committed contract holds **10,780 rows** as of 2026-08-12 — **two snapshots × 5,390 rows** each (539 jurisdictions × 5 income levels × 2 cycles): the original offline seed stamped `2026-07-15`, plus a second snapshot added by a 2026-08-07 run. That run's `Snapshot Date` was stamped from wall clock rather than each resource's CKAN `last_modified`, and landed as **two different timestamps** (one per cycle resource, ~1.7s apart) instead of one snapshot stamp, so it does **not** yet count as the verified live run; that run, correctly stamped, remains the **single gate** to full Active. See footnote ². The chart editor opens on the cross-sectional **ranking** view (the trend line is deferred until biweekly snapshots accrue; no jurisdiction geometry, so no map). See the [module specification](./RHNA-progress-report-module.md). |
+| **RHNA Progress Report** | CA HCD **RHNA Progress Report** (data.ca.gov CKAN package, biweekly overwrite) | **Active — offline-seeded.** The **first net-new module** (no legacy predecessor), built **test-first** (115 mirrored tests pass). Full Python pipeline, data contract, API route, module schema, and server-only data-access layer are complete. The contract is **tidy/long on income level** and **snapshot-versioned** — each biweekly HCD overwrite is captured as a `Snapshot Date`, turning the overwrite stream into a time series — with PPIC's pace / on-track analytics computed once in the pipeline. The committed contract holds **10,780 rows** as of 2026-08-12 — **two snapshots × 5,390 rows** each (539 jurisdictions × 5 income levels × 2 cycles): the original offline seed stamped `2026-07-15`, plus a second snapshot added by a 2026-08-07 run. That run's `Snapshot Date` was stamped from wall clock rather than each resource's CKAN `last_modified`, and landed as **two different timestamps** (one per cycle resource, ~1.7s apart) instead of one snapshot stamp, so it does **not** yet count as the verified live run; that run, correctly stamped, remains the **single gate** to full Active. See footnote ². The chart editor opens on the cross-sectional **ranking** view (the trend line is deferred until biweekly snapshots accrue; no jurisdiction geometry, so no map). See the [module specification](./RHNA-progress-report-module.md). |
 
 ### What each module covers
 
@@ -106,7 +106,7 @@ Migration builds the module; **auditing hardens it.** This table tracks, per mod
 
 ² **RHNA Progress Report live functionality** — no end-to-end run against the live data.ca.gov CKAN source has been logged yet. The committed contract is offline-seeded from the two saved cycle files (with a stand-in `Snapshot Date` of 2026-07-15); the real run stamps each resource's own `last_modified`. **Open issue (observed 2026-08-12):** a 2026-08-07 run appended a second snapshot, but both `Snapshot Date` and `Source Last Updated` carry that run's wall-clock time, and the two cycle resources were stamped 1.7 seconds apart — so the snapshot axis has two values for what should be one snapshot. The stamping needs to resolve to each resource's CKAN `last_modified` (or a single per-run stamp) before a live run can be logged as verified. A verified, logged live run is the gate to full **Active** and to Live-Verified, and unblocks the module's Reliability and Robustness audits.
 
-³ **RHNA Progress Report offline functionality** — the full clean → enrich → merge → validate → finalize chain runs end-to-end on local data and produces the validated 5,390-row contract; the backend passes 115 unit tests and the landing dashboard renders from the committed CSV, all without upstream access.
+³ **RHNA Progress Report offline functionality** — the full clean → enrich → merge → validate → finalize chain runs end-to-end on local data and produces the validated 5,390-row contract; the backend passes 115 unit tests and the chart editor renders from the committed CSV, all without upstream access.
 
 **Graph editor (signed off 2026-07-07).** The graph-editor overhaul shipped: all five modules render the live editor with module-owned **presets**. Building Permits renders the live editor and is **Verified** end-to-end against live Census BPS; two non-blocking follow-ups (its category/bar shared-view and a monthly range control) remain open.
 
@@ -128,8 +128,10 @@ Migration builds the module; **auditing hardens it.** This table tracks, per mod
 npm run dev          # start the Next.js dev server
 npm run build        # production build
 npm run start        # serve the production build
+npm test             # run the JS test suite (vitest)
 python -m pytest     # run backend tests (from project root, .venv active)
 ruff check scripts   # lint the Python pipeline
+npx eslint app components lib tests tools   # lint the JS (no npm script yet)
 ```
 
 ---
@@ -141,7 +143,7 @@ Folders marked *(PopHousing)* are this first module's slice; the same shape repe
 ```
 web-data-visualization/
 ├── app/                          ← Next.js App Router
-│   ├── page.js  layout.js  globals.css   ← landing (category dashboards) + shell + design tokens
+│   ├── page.js  layout.js  globals.css   ← landing (topic directory) + shell + design tokens
 │   ├── [module]/page.js                  ← detailed module page = the chart editor   (per module)
 │   ├── visualization-tool/page.js        ← standalone Visualization Tool (bring-your-own-data wizard)
 │   ├── logs/page.js                      ← /logs (tabbed: Pipeline Logs feed reads logs/*.jsonl + Changelog reads data/changelog.json)
@@ -155,10 +157,10 @@ web-data-visualization/
 ├── components/
 │   ├── Navbar.js                 ← shared site shell (Modules dropdown + top-level links)
 │   ├── ui/                       ← shadcn/Radix primitives (button, select, slider, dialog, table, …) + cn util; also nav-dropdown (hover menu) + under-construction placeholder
-│   ├── charts/                   ← PlotlyChart wrapper, ChartPreview, legacy line sections
+│   ├── charts/                   ← PlotlyChart wrapper, DataTableView, GraphTabs, legacy line sections
 │   ├── chart-builder/            ← the chart editor: config store, saved views, export; sections/ (the shared sidebar sections + registry), workbench/ (the /[module] single screen), wizard/ (the standalone tool's Import → Chart Type → Edit → Export shell)
 │   ├── logs/                     ← /logs: LogsTabs shell + Pipeline Logs (LogsBrowser, LogFilterSidebar, LogCard, SeverityChip) + Changelog (ChangelogBrowser, ChangelogCard, ChangelogFilterSidebar, IntensityChip) + CopyButton
-│   └── landing/                  ← dashboard shell, chart tiles, stat cards, region table, dashboards/<category>
+│   └── landing/                  ← TopicCard + topicIcons (the topic directory's two components)
 ├── lib/
 │   ├── config.py                 ← shared project paths + generic HTTP defaults
 │   ├── pophousing_config.py      ← PopHousing source of truth: geography, regions, columns
@@ -180,7 +182,8 @@ web-data-visualization/
 │       ├── fieldTypes.js  formatters.js  transformRegistry.js  toPlotly.js
 │       ├── chartRegistry.js  presetRegistry.js  validation.js
 │       ├── chartAvailability.js         ← single owner of which chart types a surface can actually draw (hidden markers, supportedChartTypes, requiresGeometry)
-│       └── categoryRegistry.js          ← landing categories + built-in dashboard views
+│       ├── topicRegistry.js             ← the six landing topics (title, description, accent); route + label derived
+│       └── builtInViews.js              ← built-in `?view=` deep-link configs
 ├── scripts/                      ← Python ETL (see Module Reference)
 │   ├── shared/                   ← cross-module mechanisms + reference data (downloads, data_cleaning, validation, visualizations, logging, geography)
 │   ├── pophousing/               ← California / E-5 / E-8 domain logic  (PopHousing module)
@@ -281,7 +284,7 @@ This is the architecture **every module follows**. A module has two halves conne
 
 <rect x="445" y="420" width="170" height="56" rx="8" fill="#FFFFFF" stroke="#1891E3" stroke-width="0.5" style="fill:rgb(255, 255, 255);stroke:rgb(24, 145, 227);color:rgb(11, 11, 11);stroke-width:0.5px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
 <text style="fill:#191B1C;fill:rgb(25, 27, 28);stroke:none;color:rgb(11, 11, 11);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:14px;font-weight:500;text-anchor:middle;dominant-baseline:central" x="530" y="438" text-anchor="middle" dominant-baseline="central">UI layer</text>
-<text style="fill:#595F61;fill:rgb(89, 95, 97);stroke:none;color:rgb(11, 11, 11);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:12px;font-weight:400;text-anchor:middle;dominant-baseline:central" x="530" y="458" text-anchor="middle" dominant-baseline="central">editor + dashboards</text>
+<text style="fill:#595F61;fill:rgb(89, 95, 97);stroke:none;color:rgb(11, 11, 11);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:12px;font-weight:400;text-anchor:middle;dominant-baseline:central" x="530" y="458" text-anchor="middle" dominant-baseline="central">editor + directory</text>
 
 <line x1="235" y1="448" x2="255" y2="448" stroke="#106FB0" stroke-width="1.5" marker-end="url(#arrow)" style="fill:rgb(0, 0, 0);stroke:rgb(16, 111, 176);color:rgb(11, 11, 11);stroke-width:1.5px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
 <line x1="425" y1="448" x2="445" y2="448" stroke="#106FB0" stroke-width="1.5" marker-end="url(#arrow)" style="fill:rgb(0, 0, 0);stroke:rgb(16, 111, 176);color:rgb(11, 11, 11);stroke-width:1.5px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
@@ -703,7 +706,7 @@ Owns all reading, parsing, and filtering of the CSV. **Uses `node:fs`, so it mus
 
 - `loadPopHousingData()` — reads and parses the CSV **once per server process**, caching the rows (`cachedRows`).
 - **Query shapes**, one per chart family: `queryLineSeries`, `queryCategoryValues` (bar/ranking), `queryTwoPeriod` (Range/forest), `queryMeasurePairs` (scatter/bubble), `queryMatrix` (heatmap), `queryGeoValues` (choropleth — joins county rows to GeoJSON `GEOID` via `lib/data/geography.js`).
-- **Landing helpers**: `queryStatewideStats(parameters)` and `queryRegionTable()` — latest-year statewide values + per-region totals for the dashboard, read server-side.
+- **Summary helpers (no current caller)**: `queryStatewideStats(parameters)` and `queryRegionTable()` — latest-year statewide values + per-region totals, read server-side. Written for the retired landing dashboard; kept as query helpers with their own coverage (see *Appendix: The retired dashboard landing page*).
 - `getAvailableLocations(subset)`; exports `AVAILABLE_PARAMETERS` / `AVAILABLE_MEASURES` / `AVAILABLE_SUBSETS` / `SUBSET_TO_LEVELS` (all schema-derived).
 
 A deliberately minimal CSV parser (`split(",")`) avoids a dependency, justified by the dataset's fixed, comma-free schema.
@@ -726,7 +729,7 @@ The Source column now carries **real per-row provenance** (`E-5` modern, `E-8` h
 
 Errors carry a `source` string (`"pop_housing API: <stage>"`) identifying the failed stage. Success returns `{ view, parameter, subset, …shape }` — `series` for line, `records` for category/pairs/geo, `matrix` for heatmap — with the observed period / `yearRange`.
 
-> The legacy `charts/PopHousingLineSection.js` (self-contained metric + location-preset line section) still exists and now renders through `toPlotly` + `PlotlyChart`, but the editor + dashboard (UI layer below) are the primary surface.
+> The legacy `charts/PopHousingLineSection.js` (self-contained metric + location-preset line section) still exists and now renders through `toPlotly` + `PlotlyChart`, but the chart editor (UI layer below) is the primary surface.
 
 ---
 
@@ -1255,7 +1258,7 @@ Owns reading/parsing/filtering of the CSV (`node:fs`). Pinning one race and one 
 `GET /api/housing-stress` — the same `view`-based dispatcher, plus the extra params `raceEthnicity`, `tenure`, `basis` (`number`/`share`), `threshold` (30/50), and `parameter`. Errors carry a `source` string (`"housing-stress API: …"`).
 
 ### Module schema, filters & built-in views
-The schema declares four curated measures (counts and shares use distinct `comparisonGroup`s so they never share an axis) and `filterDimensions` for **Race/Ethnicity** and **Tenure** — the shared `ChartSidebar` renders these automatically (no per-module code). Registering it in `moduleRegistry.js` makes the `/housing-stress` editor and the `components/Navbar.js` tab work through the existing dynamic `app/[module]/page.js` route. Four **built-in views** in `categoryRegistry.js` (`housing-stress-share-trend`, `renter-cost-burden-trend`, `housing-stress-county-ranking`, `housing-stress-county-map`) provide curated starting points; the county ranking/map subtitles carry the PUMA-approximation caveat.
+The schema declares four curated measures (counts and shares use distinct `comparisonGroup`s so they never share an axis) and `filterDimensions` for **Race/Ethnicity** and **Tenure** — the shared `ChartSidebar` renders these automatically (no per-module code). Registering it in `moduleRegistry.js` makes the `/housing-stress` editor and the `components/Navbar.js` tab work through the existing dynamic `app/[module]/page.js` route. Four **built-in views** in `builtInViews.js` (`housing-stress-share-trend`, `renter-cost-burden-trend`, `housing-stress-county-ranking`, `housing-stress-county-map`) provide curated starting points; the county ranking/map subtitles carry the PUMA-approximation caveat.
 
 ---
 
@@ -1269,7 +1272,7 @@ The module is complete, its tests pass, and it has run end-to-end against live A
 - **County/region are approximate.** They come from PUMA aggregation (PUMAs cross county lines); only the State series is exact. A future move to ACS **5-year** county tables (direct `SUMLEV=050`) is recorded as an open option, not adopted.
 - **Cross-module editor fix shipped alongside this module.** The shared chart editor kept the previous module's config when navigating between modules (all under `/[module]`), so arriving at a new module validated the old module's field bindings against the new schema and blocked every preset with a configuration error. Fixed by keying `<ChartConfigProvider>` on `moduleId` in `components/chart-builder/ModuleEditor.js` so the editor rebuilds a fresh config per module — a project-wide fix that benefits every module.
 - **Full-suite test collection fixed.** Adding this module's tests surfaced a pre-existing pytest duplicate-basename collision; `__init__.py` package files were added across the `projections`, `components_of_change`, and `housing_stress` test trees (matching the pophousing convention). `python -m pytest scripts/unit_tests` is green (840 passed).
-- **Landing surface deferred.** The module is reachable from the navbar and its built-in views, but it is **not** yet placed on a landing-page `CATEGORIES` card in `categoryRegistry.js` (a product/design decision).
+- **Landing surface (resolved 2026-08-14).** Previously the module was reachable only from the navbar and its built-in views, with no landing placement. The landing overhaul replaced per-category dashboards with a topic directory covering **every** built module, so Housing Stress now has a card like the rest; there is no longer a per-module landing decision to make.
 
 ---
 
@@ -1404,7 +1407,7 @@ The module is complete, its tests pass, and it has run end-to-end against live C
 - **25 metros, not 26.** Madera was de-delineated as a standalone MSA and no longer appears in current BPS data; older seeded months still carry it. Validation is "up to 26" (subset of canonical), all 50 states required per month.
 - **CBSA name drift absorbed by code renames.** The SF metro now publishes as "San Francisco-Oakland-**Fremont**" (was "…-Berkeley"), Bakersfield as "Bakersfield-Delano", Stockton as "Stockton-Lodi"; the CBSA-*code* rename map pins these to canonical display names regardless of Census label churn.
 - **Monthly axis vs. the year-based UI.** The shared sidebar/slider and `query_shapes.js` are year-integer based; the data-access layer carries its own monthly shaping, but wiring the shared slider/temporal control for a monthly range is deferred to the graph-editor overhaul.
-- **Presets & landing surface deferred.** Curated presets (region overview, overlay, indexed, year-to-date, two-period change, change map) and a landing-page `CATEGORIES` card are intentionally **not** built — deferred to the forthcoming graph-editor overhaul.
+- **Presets & landing surface (resolved).** Curated presets (region overview, overlay, indexed, year-to-date, two-period change, change map) were deferred to the graph-editor overhaul, which shipped them 2026-07-07. The landing placement, also deferred, was resolved differently: the 2026-08-14 landing overhaul retired per-category cards entirely, and the topic directory now covers every built module including this one.
 - **Detailed page shows a placeholder.** Because the presets aren't built, opening the editor for this module errored. The schema carries `underConstruction: true`, so `app/[module]/page.js` renders the shared `UnderConstruction` placeholder for `/building-permits` instead of the workbench. The module stays in the registry and the Modules dropdown; remove the flag once the overhaul wires up its presets.
 - **No map chart types.** Its subsets are Metros, Regions, and States, none of which this project holds geometry for, so `lib/visualization/chartAvailability.js` gates Choropleth Map and Symbol Map off entirely for this module rather than offering a tile that could only draw an empty figure — see [[visualization-specification]].
 
@@ -1418,7 +1421,7 @@ The site has **two pages**, both built from the shared layer:
 
 | Page | Route | What it is |
 |---|---|---|
-| **Landing** | `/` (`app/page.js`) | A stack of **category dashboards** — one self-contained dashboard component per dataset category. |
+| **Landing** | `/` (`app/page.js`) | The **topic directory**: a hero plus one card per built data topic, each card a single link into that topic's chart editor. Renders no charts and fetches no data. |
 | **Detailed module page** | `/[module]` (`app/[module]/page.js`) | The **module workbench**: a persistent control sidebar beside a chart container, on one screen, for one module. |
 | **Standalone Visualization Tool** | `/visualization-tool` (`app/visualization-tool/page.js`) | The same editor as a **step wizard** over a table you bring yourself (Import → Chart Type → Edit → Export). |
 
@@ -1426,13 +1429,13 @@ A third, non-data page exists at `/ui-kit` (`app/ui-kit/page.js`, built from `co
 
 Three ideas hold it together:
 
-- **A client-safe visualization layer** (`lib/visualization/`, no `node:fs`) is the single source of truth for fields, chart types, presets, transforms, validation, and category/built-in views. Both the browser and the server data modules import from it.
+- **A client-safe visualization layer** (`lib/visualization/`, no `node:fs`) is the single source of truth for fields, chart types, presets, transforms, validation, the landing topics, and built-in views. Both the browser and the server data modules import from it.
 - **Declarative configs, not figures.** A chart is plain JSON (`{ module, preset, chartType, bindings, filters, period, labels, appearance, layers }`); `toPlotly` turns config + fetched data into Plotly props. Saved views store the config, never a rendered figure.
-- **One server/client boundary.** `lib/data/*` (CSV / GeoJSON, `node:fs`) is server-only; `lib/visualization/*` is the client-safe seam the editor and dashboards import.
+- **One server/client boundary.** `lib/data/*` (CSV / GeoJSON, `node:fs`) is server-only; `lib/visualization/*` is the client-safe seam the editor, the landing directory, and the navbar all import.
 
 ### The chart config — the object everything revolves around
 
-Every chart on the site (an editor canvas, a landing tile, a saved view, a `?view=` deep-link) is described by one plain-JSON **config** object. The sidebar edits it, [`validation.js`](../../../lib/visualization/validation.js) grades it, [`chartData.js`](../../../components/chart-builder/chartData.js) turns it into an API request, and [`toPlotly.js`](../../../lib/visualization/toPlotly.js) turns it (plus the fetched data) into a Plotly figure. Nothing downstream keeps its own state — the config *is* the state. It is built by [`createChartConfig(schema, initial)`](../../../components/chart-builder/chartConfigStore.js) and has this shape:
+Every chart on the site (an editor canvas, a saved view, a `?view=` deep-link, an embed) is described by one plain-JSON **config** object. The sidebar edits it, [`validation.js`](../../../lib/visualization/validation.js) grades it, [`chartData.js`](../../../components/chart-builder/chartData.js) turns it into an API request, and [`toPlotly.js`](../../../lib/visualization/toPlotly.js) turns it (plus the fetched data) into a Plotly figure. Nothing downstream keeps its own state — the config *is* the state. It is built by [`createChartConfig(schema, initial)`](../../../components/chart-builder/chartConfigStore.js) and has this shape:
 
 | Key | Type | Written by | Meaning / who reads it |
 |---|---|---|---|
@@ -1452,7 +1455,7 @@ Every chart on the site (an editor canvas, a landing tile, a saved view, a `?vie
 | `validation` | array | `revalidate` (computed) | The current findings (`{ level, code, message, suggestion }`); recomputed on **every** reducer step. |
 
 > [!note] Saved views are configs, not figures (guardrail #8)
-> A saved view, an exported JSON blob, and a `?view=` deep-link all serialize this same object (minus computed `validation`/`seriesCount`) — never a rendered Plotly figure or a data snapshot. That is what makes a built-in landing view and a user-built view identical in kind.
+> A saved view, an exported JSON blob, and a `?view=` deep-link all serialize this same object (minus computed `validation`/`seriesCount`) — never a rendered Plotly figure or a data snapshot. That is what makes a built-in view and a user-built view identical in kind.
 
 ### The graph-editor overhaul (spec v2, shipped 2026-07-07)
 
@@ -1467,7 +1470,7 @@ The overhaul turned the editor into a general-purpose graph editor. Shipped surf
 |---|---|---|
 | **Bring-your-own-data** | [`DataSourcePanel.js`](../../../components/chart-builder/DataSourcePanel.js), [`InputTableEditor.js`](../../../components/chart-builder/InputTableEditor.js), [`lib/tabular/*`](../../../lib/tabular/) | Paste or upload a table (CSV/TSV/TXT/XLSX), correct it in a color-graded grid, and chart it. `toSeries.js` mirrors `query_shapes.js` so inline data feeds `toPlotly` identically to module data; nothing leaves the browser. |
 | **Export** | [`ExportMenu.js`](../../../components/chart-builder/ExportMenu.js), [`lib/export/*`](../../../lib/export/) | Two dropdowns, exported separately as `ExportChartButton` and `ExportDataButton`: chart image (PNG/SVG/JPG/PDF) and data (CSV/XLSX, displayed table or entire cleaned dataset), plus config copy/download/import. Sharing *is* export — no server-side share links. |
-| **Catalog growth** | [`chartRegistry.js`](../../../lib/visualization/chartRegistry.js), [`toPlotly.js`](../../../lib/visualization/toPlotly.js), [`DataTableView.js`](../../../components/charts/DataTableView.js) | Three new base chart ids (`pie`, `symbolMap`, `dataTable`); donut/pyramid/stacked/area are appearance **variants**, not new ids. `DataTableView` renders the `dataTable` type and `RegionTable` delegates to it. |
+| **Catalog growth** | [`chartRegistry.js`](../../../lib/visualization/chartRegistry.js), [`toPlotly.js`](../../../lib/visualization/toPlotly.js), [`DataTableView.js`](../../../components/charts/DataTableView.js) | Three new base chart ids (`pie`, `symbolMap`, `dataTable`); donut/pyramid/stacked/area are appearance **variants**, not new ids. `DataTableView` renders the `dataTable` type; it generalized the landing `RegionTable`, which delegated to it until that surface was retired. |
 | **Activity log** | [`editorLog.js`](../../../lib/logs/editorLog.js), `EditorActivityLog.js` | An in-memory, never-persisted ring of editor events with a "Copy technical details" button. Telemetry stays off — nothing is sent to a server. Mounted on the standalone tool only. |
 
 Two surfaces from the original overhaul were later **withdrawn**: the Basic/Moderate/Advanced settings tiers and the GUI ⇄ code editor. See *The module workbench* below and [[visualization-specification]].
@@ -1516,7 +1519,8 @@ After the overhaul shipped, the editor was re-presented as a **step wizard** and
 | `formatters.js`             | Named value formatters (year, people, percent, …).                                                                                                                                                                                          |
 | `toPlotly.js`               | The adapter: `(config + fetched data) → { data, layout, config }` for every chart type. Builds each layout from the shared `plotlyDefaults` tokens and rules.                                                                                |
 | `plotlyDefaults.js`         | Shared Plotly defaults — the chart `config`, base-layout tokens (font, white surfaces, grid color), legend-placement rules (incl. the bottom-legend overlap anchor), and `wrapTitle`. Imported by both `toPlotly` and hand-built figures (the UI-kit showcase) so they render as one family. |
-| `categoryRegistry.js`       | Landing **categories** and **built-in views** — the declarative configs the dashboard tiles and "See more" deep-links use.                                                                                                                  |
+| `topicRegistry.js`          | The six **landing topics** — card title, description, and accent per topic. Stores no route and no label: `getTopicHref` derives `/${id}` and `getTopicLabel` reads the module schema, and `getTopicLinks()` feeds the navbar's Topic menu from the same list. |
+| `builtInViews.js`           | **Built-in views** — the declarative configs behind `?view=` deep-links. Every id is a public URL, so removing or renaming one breaks saved and shared links.                                                                                |
 
 > [!flag] Plotly mutates `layout` in place
 > Plotly's `cleanLayout` writes to the layout object it is handed (it normalizes `layout.font.color`, among others). Any **shared or frozen** default must therefore be spread into a fresh object **per layout** — `font: { ...PLOTLY_FONT }`, never `font: PLOTLY_FONT` — or Plotly throws *"Cannot assign to read only property 'color'"*. `react-plotly.js` swallows that error (no `onError` prop is passed), so the only visible symptom is a **blank chart**: the div has `data` but no `_fullLayout`/SVG. `toPlotly` makes this fresh copy; `plotlyDefaults.js` documents the rule beside `PLOTLY_FONT`.
@@ -1535,7 +1539,7 @@ Follow a single chart from URL to pixels. Every arrow is a real file boundary.
 7. **Data loads.** [`chartData.loadChartData`](../../../components/chart-builder/chartData.js) maps the chart type to a query "view", builds the query string, fetches `/api/<module>` (plus `/api/geography` for maps), and returns `{ response, series, geometry }`. It aborts the in-flight request on any change (`AbortController`).
 8. **Render.** A `useMemo` calls [`toPlotly`](../../../lib/visualization/toPlotly.js) with the config + fetched `series` + `geometry`, producing `{ data, layout, config }`, handed to [`PlotlyChart`](../../../components/charts/PlotlyChart.js) (a `next/dynamic`, `ssr:false` wrapper over `react-plotly.js`). The workspace shows one of five states: `loading / invalid / empty / error / ready`.
 
-The **landing tiles take the exact same path** from step 7 on: [`ChartPreview`](../../../components/charts/ChartPreview.js) starts from a built-in config and calls the identical `loadChartData` + `toPlotly`. A built-in tile and a user-built chart differ only in **where the config comes from**.
+A **`?view=` deep-link takes the exact same path**: `app/[module]/page.js` resolves the id through `getBuiltInView`, hands the config to the workbench, and everything from step 7 on is identical. A built-in view and a user-built chart differ only in **where the config comes from**.
 
 ### The config store & reducer — what each action changes
 
@@ -1610,16 +1614,17 @@ The **geo** view is the one that reaches across modules: `queryGeoValues` builds
 
 ### Detailed component map — what renders each thing, front and back
 
-**Landing page (`/`)** — `app/page.js` renders one dashboard per live category via `components/landing/dashboards/` (a registry keyed by category id, so adding a category = add a dashboard component + a `categoryRegistry` entry).
+**Landing page (`/`)** — `app/page.js` maps over `TOPICS` and renders one card each. It is a **synchronous server component that fetches nothing**: no charts, no queries, no `await`. Adding a topic is one registry entry, and the card, the route, and the navbar menu item all follow from it.
 
 | Displayed element | Front end | Back end / data source |
 |---|---|---|
-| Page → one dashboard per category | `app/page.js` → `getDashboard(category.id)` → `<…Dashboard>` | `categoryRegistry.CATEGORIES` (live vs coming-soon) |
-| Dashboard container (title, description, grid) | `landing/DashboardShell.js` + `landing/dashboards/PopulationHousingDashboard.js` (async server component) | — (chrome) |
-| Chart tile (preview + "See more") | `landing/ChartTile.js` → `charts/ChartPreview.js` → `toPlotly` → `charts/PlotlyChart.js` | built-in view config (`categoryRegistry`) → `chartData.loadChartData` → `/api/<module>` (+ `/api/geography` for maps) |
-| Stat cards (population / household size / housing units) | `landing/StatCard.js` (server-rendered values) | `lib/data/pop_housing.js` `queryStatewideStats()` — latest State-level row |
-| Region table | `landing/RegionTable.js` (uses `ui/table`) | `lib/data/pop_housing.js` `queryRegionTable()` — latest Region rows |
-| "Coming soon" category cards | `app/page.js` + `ui/card`, `ui/badge` | `categoryRegistry` (status `coming-soon`) |
+| Hero (eyebrow, H1 "PPIC Interactive Visualization Tool", subtext) | `app/page.js` | — (static copy) |
+| Topic grid, `{n} datasets` count | `app/page.js` (1/2/3 columns responsive) | `topicRegistry.TOPICS` — the count is `TOPICS.length`, never a literal |
+| Topic card (rail, icon, label, title, description, "Explore topic") | `landing/TopicCard.js` + `landing/topicIcons.js` | One `TOPICS` entry; **route** from `getTopicHref` (`/${id}`) and **display label** from `getTopicLabel` (the module schema's `label`) |
+| Source-note footer | `app/page.js` | — (static copy; per-module vintages live on each module page) |
+
+> [!note] The card is one link, and the registry stores neither route nor label
+> Each card is a single `next/link` wrapping the whole tile - no nested button, one tab stop, an `aria-label` naming the topic because the visible affordance text ("Explore topic") is identical on all six. The registry deliberately holds no `href` and no `label`: routes are derived from the module id and names are read off the module schema, so a renamed or relabeled module cannot leave a dead link or a stale name on the landing page. `tests/js/lib/visualization/topicRegistry.test.js` pins both derivations with hand-written expectations.
 
 **Detailed module page (`/[module]`)** — `app/[module]/page.js` resolves the module schema, optionally hydrates a `?view=` deep-link, and renders `components/chart-builder/workbench/ModuleWorkbench.js` (config store + sidebar + chart container). A schema flagged `underConstruction: true` short-circuits to the shared `UnderConstruction` placeholder instead; as of 2026-07-07 all five modules — including Building Permits, which the graph-editor overhaul lifted out of `underConstruction` with module-owned presets — render the live editor.
 
@@ -1666,10 +1671,10 @@ editor edits config ──► chartConfigStore (revalidate) ──► chartData.
    toPlotly(config + data + geometry) ──► { data, layout, config } ──► PlotlyChart
 ```
 
-The same `loadChartData` + `toPlotly` path renders both the editor canvas and every landing dashboard tile (`ChartPreview`), so a built-in view and a user-built view differ only in **where the config comes from**, not in kind.
+The same `loadChartData` + `toPlotly` path renders the editor canvas whether the config arrived from a `?view=` deep-link or from the user's own edits, so a built-in view and a user-built view differ only in **where the config comes from**, not in kind.
 
 ### Saved views & deep-links
-A saved or built-in view is the declarative config serialized to JSON (guardrail #8 — never a rendered figure). The landing "See more" button links to `/[module]?view=<id>`, which the module page hydrates into the editor via the config store's `LOAD_VIEW`. Users export/import the same JSON (via `ExportMenu`) and save named views to browser `localStorage` (`ppic.savedViews.v2`).
+A saved or built-in view is the declarative config serialized to JSON (guardrail #8 — never a rendered figure). A `/[module]?view=<id>` link hydrates one into the editor via the config store's `LOAD_VIEW`; the ids live in `builtInViews.js` and are public URLs, so they outlive whatever surface first linked to them. Users export/import the same JSON (via `ExportMenu`) and save named views to browser `localStorage` (`ppic.savedViews.v2`).
 
 [`savedViews.js`](../../../components/chart-builder/savedViews.js) owns the round-trip: `serialize`/`savedShape` write a version-tagged shape; `deserialize` re-parses it, **rejects a version or module mismatch and re-runs `validateConfig`**, throwing (with the failed findings' messages) if the imported view has blocking errors. So a hand-edited or stale JSON can't load a broken chart — it fails loudly at import.
 
@@ -1749,7 +1754,18 @@ Every `.py` file follows [`docs/agent/python_conventions.md`](../agent/python_co
 - Regex file patterns are matched with `re.fullmatch` and treated as regexes, not globs.
 
 ### Linting
-`ruff` with rule families `E`, `F`, `I` (import sorting); `target-version = py312`; `line-length = 250`.
+
+**Python** — `ruff` with rule families `E`, `F`, `I` (import sorting); `target-version = py312`; `line-length = 250`.
+
+**JavaScript** — `eslint.config.js` layers `js/recommended`, `eslint-plugin-react`'s flat recommended set, and one project override carrying both a `settings` block and a rule change. Nothing runs ESLint automatically: there is no `lint` script, and neither `npm test` nor `npm run build` invokes it, so it stays a manual check (`npx eslint app components lib tests tools`) until someone wires it up.
+
+The override does two things:
+
+- **`react/prop-types` is off** project-wide. Props are documented in each component's JSDoc header (see [`docs/agent/frontend-conventions.md`](../agent/frontend-conventions.md)), not with runtime `PropTypes`, so the rule contradicts the house convention. It used to be opted out file by file with `/* eslint-disable react/prop-types */`; that reached 107 files and still failed lint whenever a new file forgot the pragma. Turning it off once replaced all 107 pragmas - **do not reintroduce them**, as each would now be reported as an unused directive.
+- **`settings.react.version` is `"detect"`**, which reads `react/package.json` at lint time. Without it the plugin warns on every run and falls back to `ULTIMATE_LATEST_SEMVER` (`999.999.999`), assuming a React newer than anything that exists.
+
+> [!warning] Five rules branch on the React version - keep it detected, never pinned
+> `no-deprecated`, `no-string-refs`, `no-render-return-value`, `no-unknown-property`, and `display-name` all change behavior with the React version, because each encodes a cutoff (string refs became an error in 16.3, `ReactDOM.render`'s return value became invalid in 17, and so on). `"detect"` keeps those answers tied to the installed dependency through any upgrade. Replacing it with a literal version string is the thing to avoid: it becomes a lie at the next upgrade, and the failure is silent - the rules simply enforce the wrong cutoffs, with no warning, since a version *is* specified.
 
 ### The dependency boundary (restated, because it matters)
 - `scripts/shared/` may not import any module's domain package.
@@ -1895,6 +1911,8 @@ The pytest suite lives in `scripts/unit_tests/`, **mirroring the source tree** (
 
 Cross-module **run logging is now implemented** (`shared/logging/pipeline_logging.py`, `dataframe_logging.py`, `run_records.py`): all five orchestrators set up a file + console logger, log each phase, and write one structured JSONL record per run to `logs/pipeline-runs.jsonl`. The `/logs` page (`app/logs/page.js` → `components/logs/`) is a **tabbed shell** (`LogsTabs`): a **Pipeline Logs** tab that reads those records via `lib/logs/logs.js` and renders them, Documents-landing-style, as a sidebar-filtered feed of **DocumentCard-variant run cards** — severity icon as the thumbnail tile, status chip + copy button top-right — with plain-language cause & impact derived on the client (`lib/logs/presentation.js`), a sidebar **Technical details** switch (off by default) plus a **per-card "Show technical details" disclosure that surfaces the complete record (error block, Result, the structured Revisions block, Flags, raw JSON) on every card — success and recovered runs included** — a card-face **`Revised`** row naming any previously published values the run restated (see *Revision Reporting (All Modules)*), and 15-at-a-time "Show more" paging; and a **Changelog** tab (`ChangelogBrowser`, curated changes derived from commit history through `lib/changelog/` over `data/changelog.json` + `data/changelog-overlay.json`, rebuilt by `scripts/changelog/build-changelog.mjs`). The live `logs/pipeline-runs.jsonl` is git-ignored; a committed `logs/sample-runs.jsonl` fixture keeps the page populated in the repo. No scaffolded-but-`TODO` surface remains project-wide; further work is enhancement.
 
+**Landing page (2026-08-14).** `/` was rebuilt from a stack of category dashboards into the **topic directory**: a hero and one card per built module, each linking into that module's chart editor. It closed the coverage gap the dashboards left - four of six modules previously had no landing presence - and removed the three "coming soon" placeholder categories that had never been filled in. The page now fetches nothing and renders no charts; the topic list, its routes, and the navbar's Topic menu all derive from one registry, and `?view=` deep-links kept working through the registry rename. The retired dashboard components are described in *Appendix: The retired dashboard landing page*.
+
 ---
 
 ## Extending the Project
@@ -1907,7 +1925,7 @@ Migrate another legacy dataset by reproducing PopHousing's shape — it is the w
 3. `data/data-cleaned/<module>/<Dataset>.csv` — the module's data contract.
 4. `lib/data/<module>.js` — a server-only access layer that loads/caches/queries the CSV.
 5. `app/api/<module>/route.js` — a thin `view`-dispatching route over that layer (reuse `lib/data/apiParams.js`).
-6. `lib/visualization/moduleSchemas/<module>.js` — the module's **field catalog**; registering it in `moduleRegistry.js` makes the `/[module]` editor work automatically (no per-module chart code). Optionally add built-in views in `categoryRegistry.js` and a dashboard component in `components/landing/dashboards/` to give the category a landing dashboard.
+6. `lib/visualization/moduleSchemas/<module>.js` — the module's **field catalog**; registering it in `moduleRegistry.js` makes the `/[module]` editor work automatically (no per-module chart code). Then add one entry to `lib/visualization/topicRegistry.js` (title, description, accent) and one icon to `components/landing/topicIcons.js` — that is the whole landing surface, since the card's route and label derive from the id and the schema. Optionally add built-in views in `builtInViews.js` for curated `?view=` starting points.
 7. `scripts/unit_tests/<module>/` — mirrored tests, written alongside the code.
 
 ### Extend the PopHousing module
@@ -1976,3 +1994,29 @@ To change the serif, swap the `next/font/google` import in `app/layout.js` and u
 - **[Domine](https://fonts.google.com/specimen/Domine)** — modern serif, weights 400–700 designed for body/headline legibility on screen.
 - **[Roboto Serif](https://fonts.google.com/specimen/Roboto+Serif)** — modern, **variable**(multi-axis: weight, optical size, grade, width).
 - **[Gelasio](https://fonts.google.com/specimen/Gelasio)** — transitional, **variable** metrically compatible with Georgia (drop-in replacement).
+
+---
+
+## Appendix: The retired dashboard landing page
+
+> [!info] Everything in this appendix describes a surface that no longer exists
+> The rest of this document is as-built. This section is here only so that references to dashboard components in older commits, comments, and documents resolve to something. The current landing page is the topic directory described in *Frontend Architecture (UI Layer)*.
+
+Until **2026-08-14**, `/` was a stack of **category dashboards** rather than a directory. `lib/visualization/categoryRegistry.js` exported a `CATEGORIES` list whose entries each carried a `status` of `live` or `coming-soon`; `app/page.js` filtered on it, resolved each live category through a registry in `components/landing/dashboards/`, and rendered that dashboard as an async server component that queried the cleaned CSVs at request time. Two were ever built - `population-housing` and `rhna-progress` - against five declared categories, so **California Economy**, **California State Law**, and **Climate Change** rendered as "coming soon" cards for a placeholder surface that was never filled in.
+
+The retired pieces and where their ideas survive:
+
+| Retired | What it did | What survives |
+|---|---|---|
+| `dashboards/PopulationHousingDashboard.js` | Stat cards, a region table, and two chart tiles, queried server-side | Nothing; the module's own editor covers it |
+| `dashboards/RHNAProgressDashboard.js` | Best/worst jurisdiction tables and regional on-track bars | Nothing; same |
+| `dashboards/index.js` | Category-id → dashboard component registry | Replaced by `topicRegistry.TOPICS` |
+| `DashboardShell.js` | Title/description/data-vintage wrapper shared by both | — |
+| `ChartTile.js` → `charts/ChartPreview.js` | Rendered a built-in view as a titled preview tile | The **views themselves**, in `builtInViews.js`, still resolve via `?view=` |
+| `StatCard.js` | Statewide summary figures | `components/ui-kit/CardsShowcase.js` defines its own unrelated local `StatCard`, still live |
+| `RegionTable.js` | Sortable region table | Generalized earlier into `components/charts/DataTableView.js` |
+| `RegionalOnTrackBars.js` | RHNA income-level bars | Its facet toggle became `components/charts/GraphTabs.js`; its bucket thresholds live in `AppearanceSection.js` |
+
+Three decisions shaped the replacement and are worth knowing before reviving anything here. **Coverage beat depth**: the dashboards showed two datasets richly while four modules had no landing presence at all, and a directory that lists every topic was judged more useful than a rich view of some. **The public URLs were kept**: `CATEGORIES` was deleted but `BUILT_IN_VIEWS` was not, because `?view=` ids are shareable links - the file was renamed `builtInViews.js` to say what it now holds. **Nothing was deleted outright**: the components sit in `.trash/landing-overhaul/` with a per-file note in `.trash/README.md`, recoverable until that folder is emptied.
+
+Full reasoning, the workstream breakdown, and the test contract are in [[landing-page-overhaul]].

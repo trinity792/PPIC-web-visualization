@@ -16,8 +16,6 @@
  *   - lib/logs/presentation.js (formatTimestamp — Pacific time)
  */
 
-/* eslint-disable react/prop-types */
-
 import React, { useEffect, useState } from "react";
 
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";

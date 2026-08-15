@@ -29,8 +29,6 @@
  *   - ui/card containers; underlined section heading matches ChartSidebar.
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import {

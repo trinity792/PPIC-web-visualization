@@ -3,8 +3,8 @@
 /**
  * DataTableView.js — the `dataTable` chart type's renderer: the exact numbers
  * behind a chart as a searchable, sortable, paginated table. Generalizes the
- * landing RegionTable pattern over any displayed-table object, so RegionTable
- * and the editor's data-table chart share one renderer.
+ * pattern of the retired landing RegionTable (now in `.trash/landing-overhaul/`)
+ * over any displayed-table object.
  *
  * Props:
  *   table      {Object} — { columns:[{name,type}], rows:[[...]] } (displayTable shape)
@@ -15,11 +15,9 @@
  *   - the displayed table already in memory; no fetch
  *
  * UI Kit reference:
- *   - Built from ui/table + ui/input, following landing/RegionTable conventions;
- *     paginates in-component (no grid library)
+ *   - Built from ui/table + ui/input, following the conventions of the retired
+ *     landing RegionTable; paginates in-component (no grid library)
  */
-
-/* eslint-disable react/prop-types */
 
 import React, { useMemo, useState } from "react";
 

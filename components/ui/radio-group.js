@@ -14,8 +14,6 @@
  *   - Implements the shared "Radio Group" pattern
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import * as RadioGroupPrimitive from "@radix-ui/react-radio-group";

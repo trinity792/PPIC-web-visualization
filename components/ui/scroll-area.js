@@ -16,8 +16,6 @@
  *   - Implements the shared custom-scrollbar pattern
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";

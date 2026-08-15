@@ -1,6 +1,6 @@
 import React from "react";
 
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import Navbar from "@/components/Navbar";
@@ -17,5 +17,59 @@ describe("Navbar", () => {
       "href",
       "/",
     );
+  });
+
+  it("lists every topic in the Topic menu", () => {
+    render(<Navbar />);
+
+    const topicMenu = screen.getByRole("menu", { name: "Topic" });
+
+    expect(
+      within(topicMenu)
+        .getAllByRole("menuitem")
+        .map((link) => link.textContent),
+    ).toEqual([
+      "Population & Housing",
+      "Components of Change",
+      "Age, Sex & Race Projections",
+      "ACS Housing Stress",
+      "Building Permits",
+      "RHNA Progress Report",
+    ]);
+  });
+
+  it("points each topic link at its module route", () => {
+    render(<Navbar />);
+
+    const topicMenu = screen.getByRole("menu", { name: "Topic" });
+
+    expect(
+      within(topicMenu)
+        .getAllByRole("menuitem")
+        .map((link) => link.getAttribute("href")),
+    ).toEqual([
+      "/pophousing",
+      "/components-of-change",
+      "/demographic-projections",
+      "/housing-stress",
+      "/building-permits",
+      "/rhna-progress",
+    ]);
+  });
+
+  it("keeps the non-topic links", () => {
+    render(<Navbar />);
+
+    for (const [label, href] of [
+      ["Custom visualizations", "/visualization-tool"],
+      ["Documents", "/documents"],
+      ["Logs", "/logs"],
+      ["UI Kit", "/ui-kit"],
+    ]) {
+      expect(screen.getByRole("link", { name: label })).toHaveAttribute(
+        "href",
+        href,
+      );
+    }
   });
 });

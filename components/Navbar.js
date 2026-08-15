@@ -5,7 +5,8 @@
  *   None.
  *
  * Data sources:
- *   - Static application routes defined in this file
+ *   - Topic links from lib/visualization/topicRegistry.js
+ *   - All other application routes are static and defined in this file
  *
  * UI Kit reference:
  *   - Implements the global "Navigation Header" and search-input patterns
@@ -19,18 +20,15 @@ import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import NavDropdown from "@/components/ui/nav-dropdown";
-
-// Data modules — each links to its detailed graph-editor page at /[module].
-const MODULE_LINKS = [
-  { href: "/pophousing", label: "Population & Housing" },
-  { href: "/components-of-change", label: "Components of Change" },
-  { href: "/demographic-projections", label: "Age, Sex & Race Projections" },
-  { href: "/housing-stress", label: "Housing Stress" },
-  { href: "/building-permits", label: "Building Permits" },
-  { href: "/rhna-progress", label: "RHNA Progress Report" },
-];
+import { getTopicLinks } from "@/lib/visualization/topicRegistry";
 
 export default function Navbar() {
+  // Data topics — each links to its detailed graph-editor page at /[module].
+  // Derived from the topic registry rather than restated here: the hardcoded
+  // copy this replaced had already drifted from the schema ("Housing Stress"
+  // where the module is labeled "ACS Housing Stress").
+  const moduleLinks = getTopicLinks();
+
   return (
     <nav
       aria-label="Primary navigation"
@@ -69,7 +67,7 @@ export default function Navbar() {
             <Link href="/" className="hover:underline">
               Home
             </Link>
-            <NavDropdown label="Topic" items={MODULE_LINKS} />
+            <NavDropdown label="Topic" items={moduleLinks} />
             <Link href="/visualization-tool" className="hover:underline">
               Custom visualizations
             </Link>

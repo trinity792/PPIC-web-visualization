@@ -18,8 +18,6 @@
  *   - Implements the shared single- and range-slider patterns
  */
 
-/* eslint-disable react/prop-types */
-
 import * as React from "react";
 import * as SliderPrimitive from "@radix-ui/react-slider";
 

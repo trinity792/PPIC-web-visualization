@@ -18,8 +18,6 @@
  *   - Reuses GraphTabs for the shared pill-tab filter row
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import {

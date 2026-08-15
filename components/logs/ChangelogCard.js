@@ -17,8 +17,6 @@
  *   - Mirrors LogCard's non-technical card, DetailRow, and the shared Badge chip.
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 import { CheckCircle2, Feather, Flame, Gauge } from "lucide-react";
 

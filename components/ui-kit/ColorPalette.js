@@ -11,8 +11,6 @@
  *   - Documents the canonical "Color Palette" foundation
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import { ChevronDownIcon } from "lucide-react";

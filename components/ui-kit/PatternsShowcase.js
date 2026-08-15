@@ -11,8 +11,6 @@
  *   - Documents the "Editor Sidebar", "Tag", and "Status Chip" patterns
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import { Download, RotateCcw, Save, Upload } from "lucide-react";

@@ -31,8 +31,6 @@
  *   - Implements the "Editor Sidebar" + "Chart Container" page pattern
  */
 
-/* eslint-disable react/prop-types */
-
 import React, { useEffect } from "react";
 
 import { AdvancedModeProvider } from "@/components/chart-builder/advancedMode";

@@ -11,8 +11,6 @@
  *   - None — utility placeholder
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 export default function UnderConstruction({ label }) {

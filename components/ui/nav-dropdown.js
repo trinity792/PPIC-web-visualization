@@ -24,8 +24,6 @@
 
 "use client";
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";

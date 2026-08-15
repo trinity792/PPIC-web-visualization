@@ -17,8 +17,6 @@
  *   - Implements the shared command-palette and searchable-list patterns
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import { Command as CommandPrimitive } from "cmdk";

@@ -15,8 +15,6 @@
  *   severities {string[]} — ["All severities", ...] from getLogSeverities()
  */
 
-/* eslint-disable react/prop-types */
-
 import React, { useMemo, useState } from "react";
 
 import LogCard from "./LogCard";

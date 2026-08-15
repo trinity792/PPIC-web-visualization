@@ -13,8 +13,6 @@
  *   - Documents text inputs, selects, radio groups, sliders, checkboxes, and switches
  */
 
-/* eslint-disable react/prop-types */
-
 import React, { useState } from "react";
 
 import { Search } from "lucide-react";

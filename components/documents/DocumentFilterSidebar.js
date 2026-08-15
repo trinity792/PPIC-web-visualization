@@ -24,8 +24,6 @@
  *   - Reuses the shared "Select" and "Checkbox" patterns
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import { Checkbox } from "@/components/ui/checkbox";

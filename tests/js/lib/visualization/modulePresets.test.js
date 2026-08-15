@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { CHART_TYPE_IDS, getChartType } from "@/lib/visualization/chartRegistry";
+import { CHART_TYPE_IDS } from "@/lib/visualization/chartRegistry";
 import { BUILDING_PERMITS_SCHEMA } from "@/lib/visualization/moduleSchemas/buildingPermits";
 import { DEMOGRAPHIC_PROJECTIONS_SCHEMA } from "@/lib/visualization/moduleSchemas/demographicProjections";
 import { MODULE_SCHEMAS } from "@/lib/visualization/moduleRegistry";

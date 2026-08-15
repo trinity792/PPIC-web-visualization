@@ -6,8 +6,6 @@
  * the loader's SET_SERIES_COUNT feedback. A mocked store would assert nothing.
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import { render, screen, waitFor } from "@testing-library/react";

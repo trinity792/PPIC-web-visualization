@@ -25,8 +25,6 @@
  *   - Implements the "Chart Container" pattern
  */
 
-/* eslint-disable react/prop-types */
-
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { AlertCircle, LoaderCircle } from "lucide-react";

@@ -9,8 +9,6 @@
  *   - lib/docs/markdown/extractToc.js
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 import { notFound } from "next/navigation";
 

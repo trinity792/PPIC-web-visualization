@@ -13,8 +13,6 @@
  *   - Reuses the shared "Status Chip" pill pattern (see SeverityChip).
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import { intensityMeta } from "@/lib/changelog/presentation";

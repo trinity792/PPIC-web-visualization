@@ -24,8 +24,6 @@
  *   - Chart configuration store (dispatch, schema)
  */
 
-/* eslint-disable react/prop-types */
-
 import { useEffect } from "react";
 
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";

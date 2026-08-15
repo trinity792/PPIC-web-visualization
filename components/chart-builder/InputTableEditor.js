@@ -16,11 +16,10 @@
  *   - `lib/tabular/{tableChecker,columnTypes,derivedColumns}.js`
  *
  * UI Kit reference:
- *   - Built from ui/table + ui/input following landing/RegionTable.js
- *     conventions; paginates past 100 rows (no grid library)
+ *   - Built from ui/table + ui/input following the conventions of the retired
+ *     landing RegionTable.js (now in `.trash/landing-overhaul/`); paginates
+ *     past 100 rows (no grid library)
  */
-
-/* eslint-disable react/prop-types */
 
 import React, { useMemo, useState } from "react";
 

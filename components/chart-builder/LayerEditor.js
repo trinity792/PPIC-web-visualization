@@ -13,8 +13,6 @@
  *   - Implements graph-editor dialog, badge, input, and select patterns
  */
 
-/* eslint-disable react/prop-types */
-
 import React, { useMemo, useState } from "react";
 
 import { Plus, Trash2 } from "lucide-react";

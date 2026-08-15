@@ -18,8 +18,6 @@
  *   - Reuses the "Table of Contents" navigation pattern
  */
 
-/* eslint-disable react/prop-types */
-
 import React, { useEffect, useState } from "react";
 
 function buildTocTree(toc) {

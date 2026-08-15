@@ -1,7 +1,5 @@
 /** The idle placeholder shown before a deferred workbench chart is armed. */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import { cleanup, render, screen } from "@testing-library/react";

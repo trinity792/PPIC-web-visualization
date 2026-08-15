@@ -15,8 +15,6 @@
  *   - Implements the shared "Accordion" pattern
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import * as AccordionPrimitive from "@radix-ui/react-accordion";

@@ -14,8 +14,6 @@
  *   - Implements the shared "Checkbox" pattern
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import * as CheckboxPrimitive from "@radix-ui/react-checkbox";

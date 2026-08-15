@@ -22,8 +22,6 @@
  *   - Implements the reusable "Chart Container" rendering wrapper
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 import dynamic from "next/dynamic";
 

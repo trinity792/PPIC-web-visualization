@@ -23,8 +23,6 @@
  *   - None — decorative artwork, not a UI Kit pattern
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 // Path data keeps its county `id` so the artwork can be reused as a real map

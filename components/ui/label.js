@@ -13,8 +13,6 @@
  *   - Implements the shared form-label pattern
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import * as LabelPrimitive from "@radix-ui/react-label";

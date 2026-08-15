@@ -16,8 +16,6 @@
  *   - Implements the shared mobile "Sheet" pattern
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import * as SheetPrimitive from "@radix-ui/react-dialog";

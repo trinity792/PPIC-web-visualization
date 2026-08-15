@@ -10,8 +10,6 @@
  *   severity {"success"|"recovered"|"error"}
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import { severityMeta } from "@/lib/logs/presentation";

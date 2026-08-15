@@ -1,52 +1,61 @@
+/**
+ * page.js — landing directory: one card per built data topic.
+ *
+ * Props:
+ *   None.
+ *
+ * Data sources:
+ *   - lib/visualization/topicRegistry.js (static; this page fetches nothing and
+ *     is deliberately a synchronous server component so it renders instantly)
+ *
+ * UI Kit reference:
+ *   - Composes the "Topic Card" pattern; page measure is local to this route
+ *     because PAGE_LAYOUT.maxWidth is "none" site-wide and .page-container is
+ *     therefore a no-op here.
+ */
+
 import React from "react";
-import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { CATEGORIES } from "@/lib/visualization/categoryRegistry";
-import { getDashboard } from "@/components/landing/dashboards";
+
+import TopicCard from "@/components/landing/TopicCard";
+import { TOPICS } from "@/lib/visualization/topicRegistry";
 
 export default function Home() {
-  const liveCategories = CATEGORIES.filter((category) => category.status === "live");
-  const futureCategories = CATEGORIES.filter(
-    (category) => category.status === "coming-soon",
-  );
-
   return (
-    <main className="min-h-[calc(100svh-7.5rem)] bg-muted/45 px-4 py-10 sm:px-8 lg:px-12">
-      <div className="page-container space-y-8">
-        {/* One self-contained dashboard per live category. */}
-        {liveCategories.map((category) => {
-          const Dashboard = getDashboard(category.id);
-          if (!Dashboard) return null;
-          return <Dashboard key={category.id} category={category} />;
-        })}
+    <div className="min-h-[calc(100svh-7.5rem)] bg-ppic-surface">
+      <section className="mx-auto max-w-6xl px-6 pt-14 pb-4">
+        <p className="font-heading text-xs font-semibold tracking-[0.16em] text-ppic-brand uppercase">
+          Explore the data
+        </p>
+        <h1 className="mt-3 max-w-3xl font-serif text-4xl leading-[1.08] text-ppic-neutral-600 sm:text-5xl">
+          PPIC Interactive Visualization Tool
+        </h1>
+        <p className="mt-4 max-w-2xl text-lg leading-relaxed text-ppic-neutral-main">
+          Each topic is a self-contained dataset with interactive charts and
+          downloadable tables. Pick a topic below to open its dashboard and start
+          exploring.
+        </p>
+      </section>
 
-        <section>
-          <div className="mb-4">
-            <h2 className="font-heading text-2xl font-semibold">More data modules</h2>
-            <p className="text-muted-foreground">
-              Additional PPIC research areas can be added through the category registry.
-            </p>
-          </div>
-          <div className="grid gap-4 md:grid-cols-3">
-            {futureCategories.map((category) => (
-              <Card key={category.id} className="bg-background/80">
-                <CardHeader>
-                  <div className="flex items-center justify-between gap-3">
-                    <CardTitle className="text-lg">{category.title}</CardTitle>
-                    <Badge variant="secondary">Coming soon</Badge>
-                  </div>
-                  <CardDescription>{category.description}</CardDescription>
-                </CardHeader>
-              </Card>
-            ))}
-          </div>
-        </section>
-      </div>
-    </main>
+      <main className="mx-auto max-w-6xl px-6 pt-8 pb-20">
+        <div className="mb-5 flex items-baseline justify-between">
+          <h2 className="font-serif text-xl text-ppic-neutral-600">Topics</h2>
+          <span className="text-sm text-ppic-neutral-main">
+            {TOPICS.length} datasets
+          </span>
+        </div>
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+          {TOPICS.map((topic) => (
+            <TopicCard key={topic.id} topic={topic} />
+          ))}
+        </div>
+      </main>
+
+      <footer className="border-t border-ppic-border bg-card">
+        <div className="mx-auto max-w-6xl px-6 py-6 text-xs text-ppic-neutral-main italic">
+          Data drawn from the CA Department of Finance, U.S. Census Bureau, and
+          CA HCD. Each module page lists its own source and last-updated date.
+        </div>
+      </footer>
+    </div>
   );
 }

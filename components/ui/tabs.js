@@ -14,8 +14,6 @@
  *   - Implements the shared "Tabs" pattern
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import * as TabsPrimitive from "@radix-ui/react-tabs";

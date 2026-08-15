@@ -17,8 +17,6 @@
  *   - Implements the shared "Popover" pattern
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import * as PopoverPrimitive from "@radix-ui/react-popover";

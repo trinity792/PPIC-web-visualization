@@ -13,8 +13,6 @@
  *   - Documents the "Chart Container" pattern and supported chart types
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import PlotlyChart from "@/components/charts/PlotlyChart";

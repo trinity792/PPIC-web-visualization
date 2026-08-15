@@ -23,8 +23,6 @@
  *   - Implements the draggable list-row, switch, and radio-group patterns
  */
 
-/* eslint-disable react/prop-types */
-
 import React, { useState } from "react";
 
 import { GripVertical } from "lucide-react";

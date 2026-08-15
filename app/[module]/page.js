@@ -1,9 +1,8 @@
-/* eslint-disable react/prop-types */
 import React from "react";
 import { notFound } from "next/navigation";
 import ModuleWorkbench from "@/components/chart-builder/workbench/ModuleWorkbench";
 import { UnderConstruction } from "@/components/ui/under-construction";
-import { getBuiltInView } from "@/lib/visualization/categoryRegistry";
+import { getBuiltInView } from "@/lib/visualization/builtInViews";
 import {
   getModuleSchema,
   MODULE_IDS,

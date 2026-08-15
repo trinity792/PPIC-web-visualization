@@ -23,8 +23,6 @@
  *   - Implements the "Editor Sidebar" accordion pattern
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import { Accordion } from "@/components/ui/accordion";

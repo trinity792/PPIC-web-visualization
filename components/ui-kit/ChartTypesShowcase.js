@@ -15,8 +15,6 @@
  *   - Documents the "Chart Types" usage guidance
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import { Section } from "@/components/ui-kit/Section";

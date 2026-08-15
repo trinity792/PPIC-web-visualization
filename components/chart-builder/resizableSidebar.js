@@ -2,8 +2,6 @@
 
 /** Shared desktop resize behavior for both chart-editor sidebars. */
 
-/* eslint-disable react/prop-types */
-
 import React, { useEffect, useState } from "react";
 
 export const SIDEBAR_WIDTH_KEY = "wizardSidebarWidth";

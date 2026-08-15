@@ -18,8 +18,6 @@
  *   - Reuses the hero + [TOC | content] grid pattern
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";

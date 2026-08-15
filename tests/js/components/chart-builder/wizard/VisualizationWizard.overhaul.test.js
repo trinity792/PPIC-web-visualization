@@ -1,8 +1,6 @@
 /** Phases 9-10 standalone wizard navigation and retained capabilities. */
 
 /* global process */
-/* eslint-disable react/prop-types */
-
 import fs from "node:fs";
 import path from "node:path";
 import React from "react";

@@ -20,8 +20,6 @@
  *   - Custom "Callout" pattern (PPIC tokens)
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 import * as Icons from "lucide-react";
 

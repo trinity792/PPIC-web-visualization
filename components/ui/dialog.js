@@ -15,8 +15,6 @@
  *   - Implements the shared "Dialog" pattern
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import * as DialogPrimitive from "@radix-ui/react-dialog";

@@ -22,8 +22,6 @@
  *   mode  {"nontechnical"|"technical"}
  */
 
-/* eslint-disable react/prop-types */
-
 import React, { useState } from "react";
 import { AlertTriangle, CheckCircle2, ChevronRight, ShieldAlert } from "lucide-react";
 

@@ -11,8 +11,6 @@
  *   - Documents the canonical "Typography" foundation
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import { Caption, Panel, Section } from "@/components/ui-kit/Section";

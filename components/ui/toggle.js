@@ -16,8 +16,6 @@
  *   - Implements the shared "Toggle" pattern
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import * as TogglePrimitive from "@radix-ui/react-toggle";

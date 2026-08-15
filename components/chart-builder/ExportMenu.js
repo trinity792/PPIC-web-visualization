@@ -37,8 +37,6 @@
  *   - ui/dropdown-menu, ui/dialog, ui/toggle-group; brand icons via lucide-react
  */
 
-/* eslint-disable react/prop-types */
-
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import {

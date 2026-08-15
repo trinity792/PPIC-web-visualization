@@ -21,8 +21,6 @@
  *   - Composes shared Select/Checkbox/Badge primitives with PPIC tokens
  */
 
-/* eslint-disable react/prop-types */
-
 import React, { useMemo, useState } from "react";
 
 import { DocumentFilterSidebar } from "./DocumentFilterSidebar";

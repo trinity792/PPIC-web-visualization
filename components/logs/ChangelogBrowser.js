@@ -15,8 +15,6 @@
  *   intensities {string[]} — ["All intensities", ...] from getChangelogIntensities()
  */
 
-/* eslint-disable react/prop-types */
-
 import React, { useMemo, useState } from "react";
 
 import ChangelogCard from "./ChangelogCard";

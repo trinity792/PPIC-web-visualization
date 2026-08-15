@@ -13,8 +13,6 @@
  *   - Implements the shared "Text Input" pattern
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import { cn } from "@/components/ui/utils";

@@ -24,8 +24,6 @@
  *     labeled "Switch" from the UI Kit's Form & Controls "Appearance" toggles.
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import {

@@ -12,8 +12,6 @@
  *   - Implements the shared "Card" and "Chart Container" patterns
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import { cn } from "@/components/ui/utils";

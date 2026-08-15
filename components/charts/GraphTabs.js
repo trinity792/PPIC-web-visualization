@@ -3,8 +3,9 @@
 /**
  * GraphTabs.js — general single-select "visualize by group" control (pill buttons).
  *
- * A reusable, chart-agnostic group/facet selector, extracted from the RHNA
- * dashboard's income-level toggle (`components/landing/RegionalOnTrackBars.js`).
+ * A reusable, chart-agnostic group/facet selector, extracted from the income-
+ * level toggle of the retired RHNA landing dashboard (RegionalOnTrackBars.js,
+ * now in `.trash/landing-overhaul/`).
  * Renders one pill button per group and is intended to be wired into the module
  * graph editors and the standalone Visualization Tool as the common facet
  * selector — so those graphs get one control, not several.
@@ -28,8 +29,6 @@
  * UI Kit reference:
  *   - Segmented pill selector (the landing dashboards' group toggle)
  */
-
-/* eslint-disable react/prop-types */
 
 import React, { useCallback, useId, useState } from "react";
 

@@ -38,8 +38,6 @@
  *   - Implements the select and draggable list-row patterns
  */
 
-/* eslint-disable react/prop-types */
-
 import React, { useState } from "react";
 
 import { GripVertical, Plus } from "lucide-react";

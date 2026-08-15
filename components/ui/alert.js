@@ -13,8 +13,6 @@
  *   - Implements the shared "Alert" pattern
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import { cva } from "class-variance-authority";

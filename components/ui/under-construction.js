@@ -18,8 +18,6 @@
  *   - Shared empty/placeholder state pattern
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import { Construction } from "lucide-react";

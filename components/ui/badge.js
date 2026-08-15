@@ -14,8 +14,6 @@
  *   - Implements the shared "Tag" and "Status Chip" patterns
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import { Slot } from "@radix-ui/react-slot";

@@ -17,8 +17,6 @@
  *   - Implements the shared grouped-toggle pattern
  */
 
-/* eslint-disable react/prop-types */
-
 import * as React from "react";
 import * as ToggleGroupPrimitive from "@radix-ui/react-toggle-group";
 

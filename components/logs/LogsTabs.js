@@ -17,8 +17,6 @@
  *   - Reuses the shared "Tabs" pattern (@/components/ui/tabs).
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import ChangelogBrowser from "./ChangelogBrowser";

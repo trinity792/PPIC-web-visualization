@@ -25,8 +25,6 @@
  *   - components/chart-builder/wizard/ViewHydrator.js
  */
 
-/* eslint-disable react/prop-types */
-
 import React, { useEffect, useMemo, useState } from "react";
 
 import {

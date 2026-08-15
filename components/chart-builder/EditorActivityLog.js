@@ -18,8 +18,6 @@
  *     (components/logs/SeverityChip.js, CopyButton.js)
  */
 
-/* eslint-disable react/prop-types */
-
 import React, { useState } from "react";
 
 import { ChevronRight, Trash2 } from "lucide-react";

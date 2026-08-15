@@ -18,8 +18,6 @@
  *   - Implements the shared "Select" pattern
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import * as SelectPrimitive from "@radix-ui/react-select";

@@ -11,8 +11,6 @@
  *   - Documents the "Pill Button" and "Data Action" patterns
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import { ArrowRight } from "lucide-react";

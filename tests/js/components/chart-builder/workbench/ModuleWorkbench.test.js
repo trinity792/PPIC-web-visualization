@@ -1,7 +1,5 @@
 /** Phase 2 shell contract: modules use a workbench, never the step wizard. */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import { fireEvent, render, screen } from "@testing-library/react";

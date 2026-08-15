@@ -30,8 +30,6 @@
  *   - Implements the segmented pill toggle and the brand action-button pair
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import {

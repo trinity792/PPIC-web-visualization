@@ -29,8 +29,6 @@
  *     patterns for the gated tools
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import { Plus } from "lucide-react";

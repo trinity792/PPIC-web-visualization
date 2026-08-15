@@ -27,8 +27,6 @@
  *   - Implements the label + switch pattern
  */
 
-/* eslint-disable react/prop-types */
-
 import React, { createContext, useContext, useMemo, useState } from "react";
 
 import { Label } from "@/components/ui/label";

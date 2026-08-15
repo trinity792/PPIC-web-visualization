@@ -18,8 +18,6 @@
  *   - Implements the shared dropdown-menu pattern
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";

@@ -1,7 +1,5 @@
 /** Advanced Mode: what the switch hides, and on which surfaces it appears. */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import { render, screen } from "@testing-library/react";

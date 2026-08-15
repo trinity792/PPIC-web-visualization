@@ -21,8 +21,6 @@
  *   - Custom "Code Block" pattern (PPIC tokens)
  */
 
-/* eslint-disable react/prop-types */
-
 import React, { useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { PrismLight as SyntaxHighlighter } from "react-syntax-highlighter";

@@ -25,8 +25,6 @@
  *   - Implements the select, switch, popover, and number-input patterns
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import { Plus, Trash2 } from "lucide-react";
@@ -479,8 +477,9 @@ const BUCKET_TOKENS = [
   "gray5",
 ];
 
-// The dashboard's on-track bucket set, applied when threshold coloring is
-// switched on. Mirrors RegionalOnTrackBars' bucketColor thresholds.
+// The on-track bucket set, applied when threshold coloring is switched on.
+// Mirrors the bucketColor thresholds of the retired RHNA landing dashboard
+// (RegionalOnTrackBars.js, now in `.trash/landing-overhaul/`).
 const DEFAULT_COLOR_BUCKETS = [
   { at: 1.0, color: "blue3" },
   { at: 0.7, color: "teal5" },

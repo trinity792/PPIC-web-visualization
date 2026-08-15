@@ -16,8 +16,6 @@
  *   - Implements the shared divider pattern
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import * as SeparatorPrimitive from "@radix-ui/react-separator";

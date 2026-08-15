@@ -12,8 +12,6 @@
  *   label {string} — accessible label + resting button text (default "Copy")
  */
 
-/* eslint-disable react/prop-types */
-
 import React, { useState } from "react";
 import { Check, Copy } from "lucide-react";
 

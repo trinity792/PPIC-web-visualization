@@ -30,8 +30,6 @@
  *   - lib/visualization/toPlotly.js
  */
 
-/* eslint-disable react/prop-types */
-
 import React, {
   createContext,
   useContext,

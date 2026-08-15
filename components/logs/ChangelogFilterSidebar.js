@@ -25,8 +25,6 @@
  *   - Reuses the shared "Select" pattern (matching LogFilterSidebar).
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import {

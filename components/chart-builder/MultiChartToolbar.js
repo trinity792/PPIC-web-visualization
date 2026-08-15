@@ -16,8 +16,6 @@
  *   - Button, Select, and ToggleGroup primitives; no bespoke control surface.
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import { Plus, Redo2, Trash2, Undo2 } from "lucide-react";

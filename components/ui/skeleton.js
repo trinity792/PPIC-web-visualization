@@ -12,8 +12,6 @@
  *   - Implements the shared loading-skeleton pattern
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import { cn } from "@/components/ui/utils";

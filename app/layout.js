@@ -1,4 +1,3 @@
-/* eslint-disable react/prop-types */
 import React from "react";
 import { Orbitron, Source_Sans_3, Inter, Source_Serif_4 } from "next/font/google";
 import Navbar from "@/components/Navbar";
@@ -34,7 +33,7 @@ const sourceSerif = Source_Serif_4({
 });
 
 export const metadata = {
-  title: "PPIC Data Explorer",
+  title: "PPIC Interactive Visualization Tool",
   description: "Interactive California population and housing data visualizations.",
 };
 

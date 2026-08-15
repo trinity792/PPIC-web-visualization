@@ -16,8 +16,6 @@
  *   - Implements graph-editor Select and Popover swatch-grid patterns
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 
 import { Eye, EyeOff, RotateCcw, Search } from "lucide-react";

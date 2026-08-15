@@ -18,8 +18,6 @@
  *   - Implements the shared "Card" / "Tag" patterns (Badge) with PPIC tokens
  */
 
-/* eslint-disable react/prop-types */
-
 import React from "react";
 import Link from "next/link";
 

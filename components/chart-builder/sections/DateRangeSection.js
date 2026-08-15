@@ -17,8 +17,6 @@
  *   - Implements the graph-editor range-slider pattern
  */
 
-/* eslint-disable react/prop-types */
-
 import React, { useEffect, useState } from "react";
 
 import { Slider } from "@/components/ui/slider";
