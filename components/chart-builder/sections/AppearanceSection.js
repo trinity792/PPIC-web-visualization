@@ -5,12 +5,12 @@
  * particular chart type needs.
  *
  * Ordered as the mockup draws it: the chart-conditional Color binding, Color
- * Palette, Legend Position, the two line spacings, Footnote. Everything after
- * Footnote is chart-type-conditional, so a default line chart shows Color with
- * the shared appearance controls and a diverging bar or forest plot grows the
- * extras it actually needs. That ordering is a contract, not a preference — the
- * tested one — because it is what keeps the common case from being buried under
- * options nine charts out of ten ignore.
+ * Palette, Legend Position, the two line spacings, applicable tick increments,
+ * Footnote. Everything after Footnote is chart-type-conditional, so a default
+ * line chart shows Color with the shared appearance controls and a diverging bar
+ * or forest plot grows the extras it actually needs. That ordering is a
+ * contract, not a preference — the tested one — because it is what keeps the
+ * common case from being buried under options nine charts out of ten ignore.
  *
  * Typography moved to its own section; the tooltip template arrived here from
  * Labels.
@@ -53,7 +53,12 @@ import {
   CATALOG_ROLE_FOR_BINDING,
   getChartType,
 } from "@/lib/visualization/chartRegistry";
-import { isMeasure, supportsRole } from "@/lib/visualization/fieldTypes";
+import {
+  FIELD_KINDS,
+  isMeasure,
+  supportsRole,
+} from "@/lib/visualization/fieldTypes";
+import { impliedBindings } from "@/lib/visualization/impliedRoles";
 import { bindableFields } from "@/lib/visualization/inlineMapping";
 import { paletteKindFor, resolveToken } from "@/lib/visualization/palettes";
 import { RAMP_SHADE_GROUPS } from "@/lib/visualization/ppicRamps";
@@ -113,6 +118,262 @@ export function LineSpacingControls({ lineAxes, appearance, onChange }) {
       {axes.has("vertical")
         ? spacingControl("Vertical", "verticalLinePadding")
         : null}
+    </div>
+  );
+}
+
+// ── Tick increments ─────────────────────────────────────────────────
+
+const TICKABLE_FIELD_KINDS = new Set([
+  FIELD_KINDS.MEASURE,
+  FIELD_KINDS.TEMPORAL,
+]);
+const TICK_INCREMENT_OPTIONS = Object.freeze([1, 2, 5, 10]);
+const MAX_TICK_INCREMENT_RANGE = 75;
+const AUTOMATIC_TICKS = "__auto_ticks__";
+const AUTOMATIC_NUMBER_TYPE = "automatic";
+const NUMBER_TYPE_OPTIONS = Object.freeze([
+  [AUTOMATIC_NUMBER_TYPE, "Automatic"],
+  ["number", "Number"],
+  ["usd", "USD ($)"],
+  ["percent", "Percentage / rate (%)"],
+]);
+
+/**
+ * Binding roles carried by the physical x (horizontal) and y (vertical) axes.
+ * Role candidates are ordered: a forest estimate uses `point` when bound and
+ * otherwise shares the interval's `start` measure.
+ */
+function physicalAxisRoles(config) {
+  const appearance = config.appearance || {};
+  switch (config.chartType) {
+    case "line":
+      return { horizontal: ["x"], vertical: ["y"] };
+    case "bar": {
+      const horizontalBars = appearance.diverging
+        ? appearance.orientation !== "vertical"
+        : appearance.orientation === "horizontal";
+      return horizontalBars
+        ? { horizontal: ["y"], vertical: ["category"] }
+        : { horizontal: ["category"], vertical: ["y"] };
+    }
+    case "dumbbell":
+    case "forest":
+      return {
+        horizontal: ["point", "start", "end"],
+        vertical: ["category"],
+      };
+    case "dotPlot":
+      return { horizontal: ["color"], vertical: ["y"] };
+    case "scatter":
+    case "bubble":
+    case "heatmap":
+      return { horizontal: ["x"], vertical: ["y"] };
+    default:
+      return { horizontal: [], vertical: [] };
+  }
+}
+
+/** The bound field on each physical axis, limited to numeric/time values. */
+export function tickIncrementFields(config, schema) {
+  const catalog = bindableFields(schema, config);
+  const bindings = {
+    ...impliedBindings(config.chartType, schema),
+    ...(config.bindings || {}),
+  };
+  const roles = physicalAxisRoles(config);
+
+  const fieldFor = (candidates) => {
+    for (const role of candidates) {
+      const name = bindings[role];
+      const field = name ? catalog[name] : null;
+      if (field && TICKABLE_FIELD_KINDS.has(field.kind)) {
+        return { name, ...field };
+      }
+    }
+    return null;
+  };
+
+  return {
+    horizontal: fieldFor(roles.horizontal),
+    vertical: fieldFor(roles.vertical),
+  };
+}
+
+function finiteSetting(value) {
+  if (value == null || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function axisSpan(config, axis, range) {
+  if (!Number.isFinite(range?.min) || !Number.isFinite(range?.max)) return null;
+  const appearance = config.appearance || {};
+  let min = range.min;
+  let max = range.max;
+
+  if (config.chartType === "bar") {
+    if (appearance.diverging) {
+      const fixed = Array.isArray(appearance.valueRange)
+        ? appearance.valueRange.map(finiteSetting)
+        : [
+            finiteSetting(appearance.valueRange?.min),
+            finiteSetting(appearance.valueRange?.max),
+          ];
+      if (fixed.every((value) => value != null) && fixed[0] !== fixed[1]) {
+        return Math.abs(fixed[1] - fixed[0]);
+      }
+      const center = finiteSetting(appearance.center) ?? 0;
+      min = Math.min(min, center);
+      max = Math.max(max, center);
+    } else {
+      min = Math.min(min, 0);
+      max = Math.max(max, 0);
+      if (appearance.mirror) {
+        const radius = Math.max(Math.abs(min), Math.abs(max));
+        min = -radius;
+        max = radius;
+      }
+    }
+  }
+
+  if (config.chartType === "forest" && axis === "horizontal") {
+    const center = finiteSetting(appearance.center);
+    if (center != null) {
+      const noEffect = finiteSetting(appearance.noEffectValue);
+      if (noEffect != null) {
+        min = Math.min(min, noEffect);
+        max = Math.max(max, noEffect);
+      }
+      const radius = Math.max(Math.abs(min - center), Math.abs(max - center));
+      return (radius || Math.max(Math.abs(center) * 0.05, 0.05)) * 2.1;
+    }
+  }
+
+  return Math.abs(max - min);
+}
+
+function TickIncrementControls({ config, fields, ranges, appearance, onChange }) {
+  const controls = [
+    ["horizontal", "Horizontal", "horizontalTickIncrement"],
+    ["vertical", "Vertical", "verticalTickIncrement"],
+  ]
+    .filter(([axis]) => fields[axis])
+    .map(([axis, axisLabel, key]) => {
+      const range = ranges?.[axis];
+      const span = axisSpan(config, axis, range);
+      return {
+        axis,
+        axisLabel,
+        key,
+        field: fields[axis],
+        span,
+        unavailable: span == null || span > MAX_TICK_INCREMENT_RANGE,
+      };
+    });
+  if (!controls.length) return null;
+
+  return (
+    <div className={`grid gap-3 ${controls.length > 1 ? "grid-cols-2" : ""}`}>
+      {controls.map(({ axis, axisLabel, key, field, unavailable }) => {
+        const fieldLabel = field.label || field.name;
+        const stored = Number(appearance[key]);
+        const selected =
+          !unavailable && TICK_INCREMENT_OPTIONS.includes(stored)
+            ? String(stored)
+            : AUTOMATIC_TICKS;
+        return (
+          <div className="grid gap-2" key={axis}>
+            <Label htmlFor={`appearance-${key}`}>
+              {axisLabel} tick increment ({fieldLabel})
+            </Label>
+            <Select
+              value={selected}
+              disabled={unavailable}
+              onValueChange={(value) =>
+                onChange(
+                  key,
+                  value === AUTOMATIC_TICKS ? undefined : Number(value),
+                )
+              }
+            >
+              <SelectTrigger id={`appearance-${key}`}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={AUTOMATIC_TICKS}>Automatic</SelectItem>
+                {TICK_INCREMENT_OPTIONS.map((increment) => (
+                  <SelectItem key={increment} value={String(increment)}>
+                    {increment}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        );
+      })}
+      {controls
+        .filter(({ unavailable }) => unavailable)
+        .map(({ axis, axisLabel, span }) => (
+          <p
+            className="col-span-full text-xs text-muted-foreground"
+            key={`${axis}-availability`}
+          >
+            {span == null
+              ? `${axisLabel} tick increment is available after the chart data loads.`
+              : `${axisLabel} tick increment unavailable when the plotted range exceeds 75 units.`}
+          </p>
+        ))}
+      <p className="col-span-full text-xs text-muted-foreground">
+        Choose Automatic or a safe increment of 1, 2, 5, or 10.
+      </p>
+    </div>
+  );
+}
+
+function NumberTypeControls({ fields, appearance, onChange }) {
+  const controls = [
+    ["horizontal", "Horizontal", "horizontalNumberType"],
+    ["vertical", "Vertical", "verticalNumberType"],
+  ].filter(([axis]) => fields[axis]?.kind === FIELD_KINDS.MEASURE);
+  if (!controls.length) return null;
+
+  return (
+    <div className={`grid gap-3 ${controls.length > 1 ? "grid-cols-2" : ""}`}>
+      {controls.map(([axis, axisLabel, key]) => {
+        const field = fields[axis];
+        const fieldLabel = field.label || field.name;
+        return (
+          <div className="grid gap-2" key={axis}>
+            <Label htmlFor={`appearance-${key}`}>
+              {axisLabel} number type ({fieldLabel})
+            </Label>
+            <Select
+              value={appearance[key] || AUTOMATIC_NUMBER_TYPE}
+              onValueChange={(value) =>
+                onChange(
+                  key,
+                  value === AUTOMATIC_NUMBER_TYPE ? undefined : value,
+                )
+              }
+            >
+              <SelectTrigger id={`appearance-${key}`}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {NUMBER_TYPE_OPTIONS.map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        );
+      })}
+      <p className="col-span-full text-xs text-muted-foreground">
+        Number types also apply when Show point values is enabled.
+      </p>
     </div>
   );
 }
@@ -522,6 +783,7 @@ export default function AppearanceSection() {
   const { config, dispatch, schema } = useChartConfig();
   const chart = getChartType(config.chartType);
   const appearance = config.appearance || {};
+  const tickFields = tickIncrementFields(config, schema);
   const setAppearance = (key, value) =>
     dispatch({ type: "SET_APPEARANCE", key, value });
 
@@ -603,6 +865,20 @@ export default function AppearanceSection() {
 
       <LineSpacingControls
         lineAxes={chart?.lineAxes}
+        appearance={appearance}
+        onChange={setAppearance}
+      />
+
+      <TickIncrementControls
+        config={config}
+        fields={tickFields}
+        ranges={config.axisRanges}
+        appearance={appearance}
+        onChange={setAppearance}
+      />
+
+      <NumberTypeControls
+        fields={tickFields}
         appearance={appearance}
         onChange={setAppearance}
       />

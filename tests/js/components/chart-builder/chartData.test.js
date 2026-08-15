@@ -8,6 +8,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  axisRangesOf,
   categoryNamesOf,
   changeRecords,
   isChangeTransform,
@@ -61,6 +62,60 @@ describe("changeRecords", () => {
     expect(out[0]).toEqual({ location: "Alameda", category: "Alameda", value: 30 });
     expect(out[0].start).toBeUndefined();
     expect(out[0].end).toBeUndefined();
+  });
+});
+
+describe("axisRangesOf", () => {
+  it("reports physical line-axis extents from loaded values", () => {
+    expect(
+      axisRangesOf(
+        { chartType: "line", bindings: { x: "Year", y: "Value" } },
+        {
+          series: [
+            { location: "A", years: [2020, 2025], values: [10, 1_000_000] },
+            { location: "B", years: [2021, 2024], values: [20, 30] },
+          ],
+        },
+      ),
+    ).toEqual({
+      horizontal: { min: 2020, max: 2025 },
+      vertical: { min: 10, max: 1_000_000 },
+    });
+  });
+
+  it("moves a bar's numeric extent with its orientation", () => {
+    const result = {
+      series: [
+        { category: "A", value: 10 },
+        { category: "B", value: 70 },
+      ],
+    };
+    expect(
+      axisRangesOf(
+        {
+          chartType: "bar",
+          bindings: { category: "Category", y: "Value" },
+          appearance: { orientation: "vertical" },
+        },
+        result,
+      ),
+    ).toEqual({
+      horizontal: null,
+      vertical: { min: 10, max: 70 },
+    });
+    expect(
+      axisRangesOf(
+        {
+          chartType: "bar",
+          bindings: { category: "Category", y: "Value" },
+          appearance: { orientation: "horizontal" },
+        },
+        result,
+      ),
+    ).toEqual({
+      horizontal: { min: 10, max: 70 },
+      vertical: null,
+    });
   });
 });
 

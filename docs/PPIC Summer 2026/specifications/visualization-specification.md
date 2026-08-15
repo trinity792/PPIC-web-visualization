@@ -43,6 +43,8 @@ The sidebar sections, top to bottom: **Datasets**, **Chart Type**, **Outcome**, 
 
 The chart container carries the module title, the chart, and an action bar: **View Chart | View Data** on the left, **Export Chart** and **Export Data** on the right.
 
+On desktop, the control sidebar has the same draggable right-edge resize handle as the standalone tool. Both surfaces share a 288-680px clamp and the persisted `wizardSidebarWidth` value, so a reader's chosen editor width follows them between tools.
+
 ### The standalone Visualization Tool - `/visualization-tool`
 
 Three steps: **Import → Edit → Export**. Import is where a table is pasted, uploaded, and corrected; the other two steps are disabled until it holds data. The Edit step renders the same sidebar the workbench does, Chart Type included - it is one registry section, asked for the same way on both surfaces.
@@ -108,6 +110,7 @@ Both shells also wrap their sidebar and container in one `EditorCapabilitiesProv
 | `ViewHydrator` | `chart-builder/wizard/ViewHydrator.js` | Resolves `?view=` once on mount: a saved-view id, a serialized workspace, or a serialized single config. Shared so a link behaves the same wherever it is opened. |
 | `EditorSidebar` | `chart-builder/sections/EditorSidebar.js` | The panel *contents* both surfaces mount: the Advanced Mode toggle, the validation notice, the section accordion, and the capability-gated tool blocks. Takes `{ only, exclude, sectionProps }`. |
 | `ModuleSidebar` | `chart-builder/workbench/ModuleSidebar.js` | The workbench's `<aside>` and nothing else. It owns the absolute-position height clamp that only makes sense inside `ModuleWorkbench`'s two-column grid, and renders `EditorSidebar` inside. The wizard's Edit step mounts `EditorSidebar` directly; its shared `StepShell` stretches the control card to the chart container's height instead. |
+| `resizableSidebar.js` | `chart-builder/resizableSidebar.js` | The shared desktop drag handle, 288-680px width clamp, and localStorage persistence used by both `ModuleWorkbench` and the wizard's `StepShell`. |
 | `editorCapabilities.js` | `chart-builder/editorCapabilities.js` | Which tools a surface can support at all - see *The two surfaces*. |
 | `SIDEBAR_SECTIONS` | `lib/visualization/sidebarSections.js` | The ordered section registry both shells compose from. |
 
@@ -802,6 +805,10 @@ The first five controls are shared by every chart type. Everything below **Footn
 | Legend Position | `appearance.legendPosition` | All | `baseLayout`'s legend block and bottom margin | Right, Bottom, or Hidden. Bottom reserves 104px of margin instead of 60. |
 | Horizontal Line Spacing (px) | `appearance.horizontalLinePadding` | Chart types declaring `lineAxes`: Line, Bar, Heat, Rng, Dot, For, Sca, Bub | `baseLayout` | Extra padding between gridlines. Blank is Auto; clamped 0-100 on the way in. |
 | Vertical Line Spacing (px) | `appearance.verticalLinePadding` | same | `baseLayout` | |
+| Horizontal tick increment | `appearance.horizontalTickIncrement` | Cartesian charts whose x axis is a measure or temporal field and spans no more than 75 units | `baseLayout` post-processing (`xaxis.dtick`) | Selects Automatic, 1, 2, 5, or 10 data units. Hidden for categorical/text axes and disabled above the 75-unit safety cap. |
+| Vertical tick increment | `appearance.verticalTickIncrement` | Cartesian charts whose y axis is a measure or temporal field and spans no more than 75 units | `baseLayout` post-processing (`yaxis.dtick`) | Selects Automatic, 1, 2, 5, or 10 data units. Hidden for categorical/text axes and disabled above the 75-unit safety cap. |
+| Horizontal number type | `appearance.horizontalNumberType` | Cartesian charts whose x axis is a measure | `withMeasureFormat` and visible point/value templates | Automatic, Number, USD ($), or Percentage / rate (%). Prefixes and suffixes use the global Decimal Places precision. |
+| Vertical number type | `appearance.verticalNumberType` | Cartesian charts whose y axis is a measure | `withMeasureFormat` and visible point/value templates | Same choices. Number types are hidden for temporal and categorical/text axes. |
 | Footnote | `labels.footnote` | All | see Labels | |
 | PPIC watermark | `appearance.watermark` | All | `baseLayout` (an image layer) | Stamps the brand mark on the plot. |
 | Tooltip template | `labels.tooltip` | All | see Labels | |

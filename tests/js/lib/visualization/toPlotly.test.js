@@ -402,6 +402,86 @@ describe("toPlotly line spacing", () => {
   });
 });
 
+describe("toPlotly tick increments", () => {
+  const spec = {
+    chartType: "line",
+    bindings: { x: "Year", y: "Value" },
+    series: [{ location: "California", years: [2020, 2025], values: [10, 20] }],
+    labels: {},
+  };
+
+  it("sets horizontal and vertical increments in data units", () => {
+    const { layout } = toPlotly({
+      ...spec,
+      appearance: {
+        horizontalTickIncrement: 2,
+        verticalTickIncrement: 10,
+      },
+    });
+
+    expect(layout.xaxis.dtick).toBe(2);
+    expect(layout.yaxis.dtick).toBe(10);
+  });
+
+  it("leaves Plotly on automatic ticks for blank or invalid increments", () => {
+    const { layout } = toPlotly({
+      ...spec,
+      appearance: {
+        horizontalTickIncrement: "",
+        verticalTickIncrement: 0,
+      },
+    });
+
+    expect(layout.xaxis.dtick).toBeUndefined();
+    expect(layout.yaxis.dtick).toBeUndefined();
+  });
+
+  it("ignores increments outside the safe preset list", () => {
+    const { layout } = toPlotly({
+      ...spec,
+      appearance: {
+        horizontalTickIncrement: 3,
+        verticalTickIncrement: 20,
+      },
+    });
+
+    expect(layout.xaxis.dtick).toBeUndefined();
+    expect(layout.yaxis.dtick).toBeUndefined();
+  });
+
+  it("ignores a manual increment when the rendered range exceeds 75 units", () => {
+    const { layout } = toPlotly({
+      ...spec,
+      series: [
+        {
+          location: "California",
+          years: [2020, 2025],
+          values: [0, 1_000_000],
+        },
+      ],
+      appearance: { horizontalTickIncrement: 1, verticalTickIncrement: 1 },
+    });
+
+    expect(layout.xaxis.dtick).toBe(1);
+    expect(layout.yaxis.dtick).toBeUndefined();
+  });
+
+  it("includes a bar's baseline in the rendered range guard", () => {
+    const { layout } = toPlotly({
+      chartType: "bar",
+      bindings: { category: "Category", y: "Value" },
+      series: [
+        { Category: "A", Value: 1_000_000 },
+        { Category: "B", Value: 1_000_010 },
+      ],
+      appearance: { verticalTickIncrement: 1 },
+      labels: {},
+    });
+
+    expect(layout.yaxis.dtick).toBeUndefined();
+  });
+});
+
 describe("toPlotly heatmap", () => {
   const matrix = { x: [2020, 2021, 2022], y: ["A", "B"], z: [
     [10, 20, 30],
@@ -1004,6 +1084,64 @@ describe("toPlotly decimal-places (measure formatting)", () => {
       field: ratioField,
     });
     expect(pie.data[0].hovertemplate).toContain("%{value:,.2f}");
+  });
+});
+
+describe("toPlotly axis number types", () => {
+  it("adds a USD prefix to a measure axis", () => {
+    const { layout } = toPlotly({
+      chartType: "line",
+      bindings: { x: "Year", y: "Income" },
+      series: [{ location: "California", years: [2020, 2021], values: [10, 20] }],
+      field: { kind: "measure", unit: "count" },
+      appearance: { verticalNumberType: "usd", decimalPlaces: 0 },
+      labels: {},
+    });
+
+    expect(layout.yaxis.tickformat).toBe(",.0f");
+    expect(layout.yaxis.tickprefix).toBe("$");
+    expect(layout.xaxis.tickprefix).toBeUndefined();
+  });
+
+  it("formats two measure axes independently", () => {
+    const { layout } = toPlotly({
+      chartType: "scatter",
+      bindings: { x: "Income", y: "Rate", unit: "County" },
+      series: [
+        { Income: 50, Rate: 4.2, County: "A" },
+        { Income: 60, Rate: 5.1, County: "B" },
+      ],
+      appearance: {
+        horizontalNumberType: "usd",
+        verticalNumberType: "percent",
+        decimalPlaces: 1,
+      },
+      labels: {},
+    });
+
+    expect(layout.xaxis).toMatchObject({ tickformat: ",.1f", tickprefix: "$" });
+    expect(layout.yaxis).toMatchObject({ tickformat: ",.1f", ticksuffix: "%" });
+  });
+
+  it("uses the axis number type for visible point values", () => {
+    const { data, layout } = toPlotly({
+      chartType: "dumbbell",
+      bindings: { category: "Group", start: "Before", end: "After" },
+      series: [{ Group: "A", Before: 4.2, After: 5.1 }],
+      field: { kind: "measure", unit: "ratio" },
+      appearance: {
+        showPointLabels: true,
+        horizontalNumberType: "percent",
+        decimalPlaces: 1,
+      },
+      labels: {},
+    });
+
+    const pointTraces = data.filter((trace) => trace.mode?.includes("markers"));
+    expect(pointTraces).toHaveLength(2);
+    expect(pointTraces.every((trace) => trace.texttemplate === "%{x:,.1f}%"))
+      .toBe(true);
+    expect(layout.xaxis.ticksuffix).toBe("%");
   });
 });
 

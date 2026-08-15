@@ -677,6 +677,8 @@ export function reduceChartConfig(config, action, schema, options = DEFAULT_OPTI
       const seriesNames = action.seriesNames || [];
       const legendNames = action.legendNames || [];
       const categoryNames = action.categoryNames || [];
+      const hasAxisRanges = Object.hasOwn(action, "axisRanges");
+      const axisRanges = hasAxisRanges ? action.axisRanges || {} : config.axisRanges;
       const hasTabMetadata = Object.hasOwn(action, "tabOptions");
       const tabOptions = hasTabMetadata
         ? orderedTabOptions(action.tabOptions, config.filters?.tabOrder)
@@ -705,6 +707,9 @@ export function reduceChartConfig(config, action, schema, options = DEFAULT_OPTI
       const categoriesUnchanged =
         categoryNames.length === previousCategoryNames.length &&
         categoryNames.every((name, index) => name === previousCategoryNames[index]);
+      const axisRangesUnchanged =
+        !hasAxisRanges ||
+        JSON.stringify(axisRanges) === JSON.stringify(config.axisRanges || {});
       const previousTabOptions = config.tabOptions || [];
       const tabsUnchanged =
         !hasTabMetadata ||
@@ -717,6 +722,7 @@ export function reduceChartConfig(config, action, schema, options = DEFAULT_OPTI
         seriesUnchanged &&
         legendsUnchanged &&
         categoriesUnchanged &&
+        axisRangesUnchanged &&
         tabsUnchanged
       ) {
         return config;
@@ -728,6 +734,7 @@ export function reduceChartConfig(config, action, schema, options = DEFAULT_OPTI
         seriesNames,
         legendNames,
         categoryNames,
+        ...(hasAxisRanges ? { axisRanges } : {}),
         ...(hasTabMetadata
           ? {
               tabOptions,
@@ -746,6 +753,18 @@ export function reduceChartConfig(config, action, schema, options = DEFAULT_OPTI
       next = {
         ...config,
         appearance: { ...config.appearance, [action.key]: action.value },
+        // Loaded ranges are stored by physical axis. A bar orientation change
+        // swaps those axes without changing the underlying data, so keep the
+        // tick-safety metadata aligned immediately instead of waiting for a
+        // redundant reload.
+        ...(action.key === "orientation" && config.axisRanges
+          ? {
+              axisRanges: {
+                horizontal: config.axisRanges.vertical,
+                vertical: config.axisRanges.horizontal,
+              },
+            }
+          : {}),
       };
       break;
 
@@ -878,6 +897,7 @@ export function reduceChartConfig(config, action, schema, options = DEFAULT_OPTI
         seriesNames: config.seriesNames,
         legendNames: config.legendNames,
         categoryNames: config.categoryNames,
+        axisRanges: config.axisRanges,
         tabOptions: config.tabOptions,
       };
       break;

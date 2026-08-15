@@ -30,3 +30,5 @@ logs/pipeline-runs.jsonl
 web_data_visualization.code-workspace
 
 .trash/
+
+mockups/

@@ -39,7 +39,7 @@ describe("ModuleSidebar layout", () => {
     const sidebar = screen.getByRole("complementary", { name: /chart controls/i });
     const cell = sidebar.parentElement;
 
-    expect(cell).toHaveClass("lg:relative");
+    expect(cell).toHaveClass("lg:relative", "lg:h-full");
     expect(sidebar).toHaveClass(
       "lg:absolute",
       "lg:inset-0",

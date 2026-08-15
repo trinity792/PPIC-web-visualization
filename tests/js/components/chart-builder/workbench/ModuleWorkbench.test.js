@@ -4,7 +4,7 @@
 
 import React from "react";
 
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 const configProps = vi.hoisted(() => ({ last: null }));
@@ -79,12 +79,42 @@ describe("ModuleWorkbench", () => {
 
     const toolbar = screen.getByTestId("multi-chart-toolbar");
     expect(toolbar).toBeInTheDocument();
-    const columns = container.querySelector(".lg\\:grid-cols-\\[22rem_minmax\\(0\\,1fr\\)\\]");
+    const columns = container.querySelector('[style*="--sb-w"]');
     expect(columns, "two-column grid").not.toBeNull();
+    expect(columns).toHaveClass(
+      "lg:grid-cols-[var(--sb-w)_minmax(0,1fr)]",
+    );
     expect(columns.contains(toolbar)).toBe(false);
     expect(
       toolbar.compareDocumentPosition(columns) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+  });
+
+  it("resizes and persists the module sidebar like the standalone tool", () => {
+    const { container } = render(
+      <ModuleWorkbench schema={schema} initialConfig={{ module: "widgets" }} />,
+    );
+    const columns = container.querySelector('[style*="--sb-w"]');
+    const handle = screen.getByRole("button", { name: "Resize panel" });
+
+    expect(columns).toHaveStyle({ "--sb-w": "360px" });
+    fireEvent.pointerDown(handle, { clientX: 100 });
+    fireEvent.pointerMove(window, { clientX: 180 });
+    fireEvent.pointerUp(window);
+
+    expect(columns).toHaveStyle({ "--sb-w": "440px" });
+    expect(window.localStorage.getItem("wizardSidebarWidth")).toBe("440");
+  });
+
+  it("restores the sidebar width shared with the standalone tool", () => {
+    window.localStorage.setItem("wizardSidebarWidth", "520");
+    const { container } = render(
+      <ModuleWorkbench schema={schema} initialConfig={{ module: "widgets" }} />,
+    );
+
+    expect(container.querySelector('[style*="--sb-w"]')).toHaveStyle({
+      "--sb-w": "520px",
+    });
   });
 
   it("renders no multi-chart bar in an embed, which has no editor chrome", () => {

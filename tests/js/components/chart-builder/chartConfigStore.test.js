@@ -584,6 +584,26 @@ describe("reduceChartConfig — v2 actions", () => {
     expect(reset.appearance.legendLabels).toEqual({});
   });
 
+  it("keeps loaded axis ranges aligned when orientation swaps", () => {
+    const vertical = {
+      ...base,
+      axisRanges: {
+        horizontal: null,
+        vertical: { min: 10, max: 70 },
+      },
+    };
+    const horizontal = dispatch(vertical, {
+      type: "SET_APPEARANCE",
+      key: "orientation",
+      value: "horizontal",
+    });
+
+    expect(horizontal.axisRanges).toEqual({
+      horizontal: { min: 10, max: 70 },
+      vertical: null,
+    });
+  });
+
   it("SET_SERIES_VISIBILITY toggles hiddenSeries membership", () => {
     const hidden = dispatch(base, {
       type: "SET_SERIES_VISIBILITY",
@@ -665,12 +685,20 @@ describe("reduceChartConfig — v2 actions", () => {
       seriesNames: ["Alameda", "Butte"],
       legendNames: ["Owner", "Renter"],
       categoryNames: ["Fresno", "Kern"],
+      axisRanges: {
+        horizontal: { min: 2020, max: 2025 },
+        vertical: { min: 10, max: 70 },
+      },
     });
     expect(withData.seriesCount).toBe(2);
     expect(withData.geoUnmatched).toEqual(["Alpine"]);
     expect(withData.seriesNames).toEqual(["Alameda", "Butte"]);
     expect(withData.legendNames).toEqual(["Owner", "Renter"]);
     expect(withData.categoryNames).toEqual(["Fresno", "Kern"]);
+    expect(withData.axisRanges).toEqual({
+      horizontal: { min: 2020, max: 2025 },
+      vertical: { min: 10, max: 70 },
+    });
   });
 
   it("SET_SERIES_COUNT synchronizes dynamically loaded module tab values", () => {

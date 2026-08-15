@@ -43,6 +43,10 @@ import {
   WORKBENCH_CAPABILITIES,
 } from "@/components/chart-builder/editorCapabilities";
 import MultiChartToolbar from "@/components/chart-builder/MultiChartToolbar";
+import {
+  SidebarResizeHandle,
+  useResizableSidebarWidth,
+} from "@/components/chart-builder/resizableSidebar";
 import { PreviewProvider } from "@/components/chart-builder/wizard/PreviewContext";
 import ViewHydrator from "@/components/chart-builder/wizard/ViewHydrator";
 import ChartContainer from "@/components/chart-builder/workbench/ChartContainer";
@@ -92,6 +96,9 @@ export default function ModuleWorkbench({
   hasBuiltInView = false,
   embedded = false,
 }) {
+  const { width: sidebarWidth, applyWidth: applySidebarWidth } =
+    useResizableSidebarWidth();
+
   return (
     // Key on the schema id so switching modules remounts the provider and
     // rebuilds a fresh config against the new schema.
@@ -142,8 +149,17 @@ export default function ModuleWorkbench({
                 <AdvancedModeProvider>
                   <div className="grid min-w-0 grid-cols-1 gap-4">
                     <WorkspaceBar />
-                    <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-[22rem_minmax(0,1fr)]">
-                      <ModuleSidebar />
+                    <div
+                      className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-[var(--sb-w)_minmax(0,1fr)]"
+                      style={{ "--sb-w": `${sidebarWidth}px` }}
+                    >
+                      <div className="relative min-w-0 lg:h-full">
+                        <ModuleSidebar />
+                        <SidebarResizeHandle
+                          width={sidebarWidth}
+                          onWidth={applySidebarWidth}
+                        />
+                      </div>
                       <ChartContainer />
                     </div>
                   </div>

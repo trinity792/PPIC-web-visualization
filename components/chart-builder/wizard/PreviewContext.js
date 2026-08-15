@@ -43,6 +43,7 @@ import React, {
 
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import {
+  axisRangesOf,
   categoryNamesOf,
   hasChartData,
   isChangeTransform,
@@ -196,6 +197,7 @@ export function PreviewProvider({ children, deferInitialRender = false }) {
             seriesNames: seriesNamesOf(config.chartType, next),
             legendNames: legendNamesOf(config, next),
             categoryNames: categoryNamesOf(config.chartType, next),
+            axisRanges: axisRangesOf(config, next),
             ...(Object.hasOwn(next, "tabOptions")
               ? { tabOptions: next.tabOptions, tabValue: next.tabValue }
               : {}),

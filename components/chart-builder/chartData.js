@@ -1078,3 +1078,90 @@ export function categoryNamesOf(chartType, result) {
     ),
   ];
 }
+
+// ── Loaded numeric axis ranges ──────────────────────────────────────
+
+function numericExtent(values) {
+  const finite = values
+    .flat(Infinity)
+    .filter((value) => value != null && value !== "")
+    .map((value) => Number(value))
+    .filter(Number.isFinite);
+  if (!finite.length) return null;
+  return { min: Math.min(...finite), max: Math.max(...finite) };
+}
+
+function loadedValue(record, binding, fallbacks = []) {
+  for (const key of [binding, ...fallbacks]) {
+    if (key && record?.[key] != null && record[key] !== "") return record[key];
+  }
+  return null;
+}
+
+/**
+ * Numeric extents on the physical x/y axes of the loaded chart. These are
+ * runtime metadata for safely gating manual tick increments; categorical text
+ * produces no extent and therefore no numeric tick control.
+ */
+export function axisRangesOf(config, result) {
+  if (!result) return {};
+  const bindings = config.bindings || {};
+  const appearance = config.appearance || {};
+  const records = Array.isArray(result.series)
+    ? result.series
+    : result.series?.records || [];
+  let horizontal = [];
+  let vertical = [];
+
+  switch (config.chartType) {
+    case "line":
+      horizontal = records.flatMap((series) => series.years || []);
+      vertical = records.flatMap((series) => series.values || []);
+      break;
+    case "bar": {
+      const categories = records.map((record) =>
+        loadedValue(record, bindings.category, ["category", "location", "year"]),
+      );
+      const values = records.map((record) =>
+        loadedValue(record, bindings.y, ["value", "y"]),
+      );
+      const horizontalBars = appearance.diverging
+        ? appearance.orientation !== "vertical"
+        : appearance.orientation === "horizontal";
+      horizontal = horizontalBars ? values : categories;
+      vertical = horizontalBars ? categories : values;
+      break;
+    }
+    case "dumbbell":
+    case "forest":
+      horizontal = records.flatMap((record) => [
+        loadedValue(record, bindings.start, ["start", "startValue"]),
+        loadedValue(record, bindings.end, ["end", "endValue"]),
+        loadedValue(record, bindings.point, ["point"]),
+      ]);
+      break;
+    case "dotPlot":
+      horizontal = result.series?.z || [];
+      break;
+    case "scatter":
+    case "bubble":
+      horizontal = records.map((record) =>
+        loadedValue(record, bindings.x, ["x"]),
+      );
+      vertical = records.map((record) =>
+        loadedValue(record, bindings.y, ["y"]),
+      );
+      break;
+    case "heatmap":
+      horizontal = result.series?.x || [];
+      vertical = result.series?.y || [];
+      break;
+    default:
+      break;
+  }
+
+  return {
+    horizontal: numericExtent(horizontal),
+    vertical: numericExtent(vertical),
+  };
+}

@@ -72,7 +72,7 @@ export default function ModuleSidebar() {
 /** The panel itself, split out only so the provider can wrap it. */
 function SidebarPanel() {
   return (
-    <div className="min-w-0 lg:relative">
+    <div className="min-w-0 lg:relative lg:h-full">
       <aside
         aria-label="Chart controls"
         // `static` + `lg:absolute inset-0` is the height clamp described above.

@@ -410,6 +410,206 @@ describe("AppearanceSection", () => {
     });
   });
 
+  it("offers data-unit tick increments for temporal and measure axes", async () => {
+    const user = userEvent.setup();
+    state.schema = {
+      ...state.schema,
+      fields: {
+        ...state.schema.fields,
+        Year: { kind: "temporal", label: "Year" },
+        Population: { kind: "measure", label: "Total population" },
+      },
+    };
+    state.config = {
+      ...config("line"),
+      bindings: { x: "Year", y: "Population" },
+      axisRanges: {
+        horizontal: { min: 2020, max: 2025 },
+        vertical: { min: 10, max: 70 },
+      },
+    };
+    render(<AppearanceSection />);
+
+    const horizontal = screen.getByLabelText(
+      "Horizontal tick increment (Year)",
+    );
+    const vertical = screen.getByLabelText(
+      "Vertical tick increment (Total population)",
+    );
+    await user.click(horizontal);
+    await user.click(screen.getByRole("option", { name: "2" }));
+    expect(state.dispatch).toHaveBeenCalledWith({
+      type: "SET_APPEARANCE",
+      key: "horizontalTickIncrement",
+      value: 2,
+    });
+    await user.click(vertical);
+    await user.click(screen.getByRole("option", { name: "10" }));
+    expect(state.dispatch).toHaveBeenCalledWith({
+      type: "SET_APPEARANCE",
+      key: "verticalTickIncrement",
+      value: 10,
+    });
+  });
+
+  it("greys out tick increments when the plotted range exceeds 75 units", () => {
+    state.schema = {
+      ...state.schema,
+      fields: {
+        ...state.schema.fields,
+        Year: { kind: "temporal", label: "Year" },
+        Population: { kind: "measure", label: "Total population" },
+      },
+    };
+    state.config = {
+      ...config("line"),
+      bindings: { x: "Year", y: "Population" },
+      axisRanges: {
+        horizontal: { min: 2020, max: 2025 },
+        vertical: { min: 0, max: 1_000_000 },
+      },
+    };
+    render(<AppearanceSection />);
+
+    expect(
+      screen.getByLabelText("Horizontal tick increment (Year)"),
+    ).toBeEnabled();
+    expect(
+      screen.getByLabelText("Vertical tick increment (Total population)"),
+    ).toBeDisabled();
+    expect(
+      screen.getByText(
+        "Vertical tick increment unavailable when the plotted range exceeds 75 units.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("includes a bar's zero baseline when checking the plotted range", () => {
+    state.config = {
+      ...config("bar", { orientation: "vertical" }),
+      bindings: { category: "Region", y: "Value" },
+      axisRanges: { vertical: { min: 1_000_000, max: 1_000_010 } },
+    };
+    render(<AppearanceSection />);
+
+    expect(
+      screen.getByLabelText("Vertical tick increment (Value)"),
+    ).toBeDisabled();
+  });
+
+  it("sets a number type independently for each measure axis", async () => {
+    const user = userEvent.setup();
+    state.schema = {
+      ...state.schema,
+      fields: {
+        ...state.schema.fields,
+        Income: { kind: "measure", label: "Median income" },
+        Rate: { kind: "measure", label: "Employment rate" },
+      },
+    };
+    state.config = {
+      ...config("scatter"),
+      bindings: { x: "Income", y: "Rate" },
+      axisRanges: {
+        horizontal: { min: 10, max: 70 },
+        vertical: { min: 0, max: 50 },
+      },
+    };
+    render(<AppearanceSection />);
+
+    const horizontal = screen.getByLabelText(
+      "Horizontal number type (Median income)",
+    );
+    const vertical = screen.getByLabelText(
+      "Vertical number type (Employment rate)",
+    );
+    await user.click(horizontal);
+    await user.click(screen.getByRole("option", { name: "USD ($)" }));
+    expect(state.dispatch).toHaveBeenCalledWith({
+      type: "SET_APPEARANCE",
+      key: "horizontalNumberType",
+      value: "usd",
+    });
+    await user.click(vertical);
+    await user.click(
+      screen.getByRole("option", { name: "Percentage / rate (%)" }),
+    );
+    expect(state.dispatch).toHaveBeenCalledWith({
+      type: "SET_APPEARANCE",
+      key: "verticalNumberType",
+      value: "percent",
+    });
+    expect(
+      screen.getByText(
+        "Number types also apply when Show point values is enabled.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("does not offer number types for temporal or text axes", () => {
+    state.schema = {
+      ...state.schema,
+      fields: {
+        ...state.schema.fields,
+        Year: { kind: "temporal", label: "Year" },
+        Population: { kind: "measure", label: "Total population" },
+      },
+    };
+    state.config = {
+      ...config("line"),
+      bindings: { x: "Year", y: "Population" },
+      axisRanges: {
+        horizontal: { min: 2020, max: 2025 },
+        vertical: { min: 0, max: 50 },
+      },
+    };
+    render(<AppearanceSection />);
+
+    expect(
+      screen.queryByLabelText(/Horizontal number type/i),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Vertical number type (Total population)"),
+    ).toBeInTheDocument();
+  });
+
+  it("hides tick increments for text axes and follows bar orientation", () => {
+    state.config = {
+      ...config("heatmap"),
+      bindings: { x: "Region", y: "Region", color: "Value" },
+    };
+    const textAxes = render(<AppearanceSection />);
+    expect(screen.queryByLabelText(/tick increment/i)).not.toBeInTheDocument();
+    textAxes.unmount();
+
+    state.config = {
+      ...config("bar", { orientation: "vertical" }),
+      bindings: { category: "Region", y: "Value" },
+      axisRanges: { vertical: { min: 0, max: 50 } },
+    };
+    const verticalBar = render(<AppearanceSection />);
+    expect(
+      screen.getByLabelText("Vertical tick increment (Value)"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText(/Horizontal tick increment/i),
+    ).not.toBeInTheDocument();
+    verticalBar.unmount();
+
+    state.config = {
+      ...state.config,
+      appearance: { orientation: "horizontal" },
+      axisRanges: { horizontal: { min: 0, max: 50 } },
+    };
+    render(<AppearanceSection />);
+    expect(
+      screen.getByLabelText("Horizontal tick increment (Value)"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText(/Vertical tick increment/i),
+    ).not.toBeInTheDocument();
+  });
+
   it("edits group and variable alignment and indentation independently", async () => {
     const user = userEvent.setup();
     state.config = {
