@@ -4,6 +4,7 @@ import {
   DEFAULT_MEASURE,
   queryBestWorst,
   queryCategoryValues,
+  queryGeoValues,
   queryRegionalOnTrack,
   resolveMeasureColumn,
 } from "@/lib/data/rhna_progress";
@@ -30,6 +31,19 @@ describe("rhna_progress data access", () => {
     // Every ranked record carries a region and a category for the dashboard.
     expect(records[0].region).toBeTruthy();
     expect(records[0].overallCategory).toBeTruthy();
+  });
+
+  it("joins county standings to canonical geometry ids for choropleths", async () => {
+    const { records, unmatched, featureidkey } = await queryGeoValues({
+      subset: "Counties",
+      incomeLevel: "Total",
+      parameter: "On Track Score",
+    });
+    expect(featureidkey).toBe("properties.GEOID");
+    expect(unmatched).toEqual([]);
+    expect(records).toHaveLength(57);
+    expect(new Set(records.map((record) => record.geoid)).size).toBe(records.length);
+    expect(records.every((record) => / County$/.test(record.location))).toBe(true);
   });
 
   it("returns best/worst standings with both compensatory and non-compensatory reads", async () => {

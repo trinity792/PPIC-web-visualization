@@ -65,6 +65,8 @@ describe("isChartTypeAvailable", () => {
   it("still honours supportedChartTypes", () => {
     expect(isChartTypeAvailable("line", RHNA_PROGRESS_SCHEMA)).toBe(false);
     expect(isChartTypeAvailable("bar", RHNA_PROGRESS_SCHEMA)).toBe(true);
+    expect(isChartTypeAvailable("choroplethMap", RHNA_PROGRESS_SCHEMA)).toBe(true);
+    expect(isChartTypeAvailable("symbolMap", RHNA_PROGRESS_SCHEMA)).toBe(false);
   });
 
   it("never offers an unregistered id, retired or invented", () => {

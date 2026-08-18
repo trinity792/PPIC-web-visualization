@@ -1,10 +1,11 @@
 /**
  * GET /api/rhna-progress
  *
- * Thin orchestrator for category (ranking), line (snapshot trend), table, and the
- * two landing-dashboard query shapes over the RHNA Progress dataset. Beyond the
- * standard subset/location params it accepts the module's Income Level pin and an
- * explicit measure `parameter` (defaulting to the headline On Track Score).
+ * Thin orchestrator for category (ranking), county-map, line (snapshot trend),
+ * table, and the two landing-dashboard query shapes over the RHNA Progress
+ * dataset. Beyond the standard subset/location params it accepts the module's
+ * Income Level pin and an explicit measure `parameter` (defaulting to the
+ * headline On Track Score).
  */
 
 import {
@@ -13,6 +14,7 @@ import {
   queryBestWorst,
   queryCategoryValues,
   queryFullTable,
+  queryGeoValues,
   queryLineSeries,
   queryLocations,
   queryRegionalOnTrack,
@@ -20,7 +22,7 @@ import {
 } from "@/lib/data/rhna_progress";
 import { integerParam, invalid, listParam } from "@/lib/data/apiParams";
 
-const VIEWS = ["category", "line", "table", "bestWorst", "regional", "locations"];
+const VIEWS = ["category", "geo", "line", "table", "bestWorst", "regional", "locations"];
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
@@ -79,6 +81,10 @@ export async function GET(request) {
     }
     if (view === "line") {
       const result = await queryLineSeries(common);
+      return Response.json({ ...echo, ...result });
+    }
+    if (view === "geo") {
+      const result = await queryGeoValues(common);
       return Response.json({ ...echo, ...result });
     }
     if (view === "bestWorst") {

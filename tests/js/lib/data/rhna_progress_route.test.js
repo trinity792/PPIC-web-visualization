@@ -40,6 +40,20 @@ describe("rhna-progress API route", () => {
     expect(body.records.length).toBeLessThanOrEqual(5);
   });
 
+  it("serves county records joined to geometry for a choropleth", async () => {
+    const { status, body } = await get(
+      "view=geo&subset=Counties&incomeLevel=Total&parameter=On+Track+Score",
+    );
+    expect(status).toBe(200);
+    expect(body.measure).toBe("On Track Score");
+    expect(body.featureidkey).toBe("properties.GEOID");
+    expect(body.records).toHaveLength(57);
+    expect(body.unmatched).toEqual([]);
+    expect(body.records[0]).toEqual(
+      expect.objectContaining({ location: expect.any(String), geoid: expect.any(String) }),
+    );
+  });
+
   it("rejects an invalid income level", async () => {
     const { status, body } = await get("view=category&incomeLevel=Bogus");
     expect(status).toBe(400);
