@@ -269,7 +269,7 @@ Folding an axis out of the grid also folds the question the reader is answering:
 
 ### Date Range
 
-A single- or dual-handle slider bounded by `schema.yearRange`, writing `period.year` or `period.startYear`/`endYear`. Dual for the chart types whose period is a span (line, heatmap, Range) and for bar/choropleth when a change transform makes them two-period. Absent for modules with no time axis - RHNA Progress declares no `yearRange` for exactly this reason.
+A single- or dual-handle slider bounded by `schema.yearRange`, writing `period.year` or `period.startYear`/`endYear`. Dual for the chart types whose period is a span (line, heatmap, dot plot, Range) and for bar/choropleth when a change transform makes them two-period. Each endpoint has its own labelled thumb so either end can be adjusted directly. Absent for modules with no time axis - RHNA Progress declares no `yearRange` for exactly this reason.
 
 ### Geographic Level
 

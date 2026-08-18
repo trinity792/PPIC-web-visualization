@@ -26,9 +26,10 @@ import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import { isChangeTransform } from "@/components/chart-builder/chartData";
 import { isTemporal } from "@/lib/visualization/fieldTypes";
 
-// Charts whose period is a span (vs a single year). The Range chart also uses a
-// start+end pair, so a dual-handle slider fits it too.
-const RANGE_CHART_TYPES = ["line", "heatmap", "dumbbell"];
+// Charts whose period is a span (vs a single year). Heatmap and Dot Plot share
+// the same temporal matrix shape, while Range uses a start+end pair of its own;
+// all four therefore need independently adjustable endpoints.
+const RANGE_CHART_TYPES = ["line", "heatmap", "dotPlot", "dumbbell"];
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -100,9 +101,10 @@ export default function DateRangeSection() {
         value={value}
         onValueChange={setValue}
         onValueCommit={commit}
-        aria-label={isRange ? "Year range" : "Year"}
+        thumbLabels={isRange ? ["Start year", "End year"] : ["Year"]}
         // The compact track matches the editor mockup without changing shared Slider.
         className={cn(
+          "py-1",
           "[&_[data-slot=slider-track]]:h-2.5",
           "[&_[data-slot=slider-range]]:bg-ppic-orange-300",
           "[&_[data-slot=slider-thumb]]:size-3",

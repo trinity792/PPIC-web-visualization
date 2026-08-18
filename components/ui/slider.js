@@ -7,6 +7,7 @@
  *   className   {string}        — optional utility classes
  *   defaultValue {Array<number>} — initial uncontrolled values
  *   value       {Array<number>} — controlled values
+ *   thumbLabels {Array<string>} — accessible label for each slider thumb
  *   min         {number}        — minimum slider value
  *   max         {number}        — maximum slider value
  *   ...props    {Object}        — Radix Slider attributes
@@ -26,6 +27,7 @@ function Slider({
   className,
   defaultValue,
   value,
+  thumbLabels,
   min = 0,
   max = 100,
   ...props
@@ -62,6 +64,7 @@ function Slider({
       {Array.from({ length: _values.length }, (_, index) => <SliderPrimitive.Thumb
     data-slot="slider-thumb"
     key={index}
+    aria-label={thumbLabels?.[index]}
     className="border-primary bg-background ring-ring/50 block size-4 shrink-0 rounded-full border shadow-sm transition-[color,box-shadow] hover:ring-4 focus-visible:ring-4 focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50"
   />)}
     </SliderPrimitive.Root>;
