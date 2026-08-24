@@ -20,6 +20,7 @@
  *   - components/chart-builder/wizard/PreviewContext.js (status + loaded result)
  *   - components/chart-builder/chartData.js (loadFullTable → ?view=table&full=1)
  *   - lib/export/exportTable.js (originalTable)
+ *   - lib/visualization/topicRegistry.js (hardcoded topic documentation routes)
  *
  * UI Kit reference:
  *   - Implements the "Chart Container" pattern
@@ -39,6 +40,7 @@ import { usePreview } from "@/components/chart-builder/wizard/PreviewContext";
 import PreviewPane from "@/components/chart-builder/wizard/PreviewPane";
 import ChartContainerFooter from "@/components/chart-builder/workbench/ChartContainerFooter";
 import { originalTable } from "@/lib/export/exportTable";
+import { getTopicDocumentationHref } from "@/lib/visualization/topicRegistry";
 
 // ── The full-dataset table ───────────────────────────────────────────
 
@@ -185,6 +187,7 @@ export default function ChartContainer({ embedded = false }) {
   const { schema, workspace } = useChartConfig();
   const { status, result, graphDivRef, graphDivRefs, previews } = usePreview();
   const [viewMode, setViewMode] = useState("chart");
+  const documentationHref = getTopicDocumentationHref(schema.id);
   // Lifted above the toggle so the loaded dataset survives switching back to the
   // chart — the table unmounts, but the fetch must not repeat.
   const dataset = useFullTable(viewMode === "data");
@@ -224,6 +227,7 @@ export default function ChartContainer({ embedded = false }) {
         loaded={result}
         previews={previews}
         graphDivRefs={graphDivRefs}
+        documentationHref={documentationHref}
       />
     </Card>
   );

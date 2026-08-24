@@ -3,12 +3,13 @@
 /**
  * ChartContainerFooter.js — the chart card's action bar.
  *
- * A segmented View Chart / View Data toggle on the left, and the two export
- * dropdowns on the right. Both are told whether the preview is `ready`, but they
- * act on it differently: Export Chart has nothing to write without a rendered
- * figure and greys out, while Export Data stays open, because the module's
- * entire cleaned dataset does not depend on the chart being built. Only its
- * "as displayed" items wait for `ready`.
+ * A segmented View Chart / View Data toggle on the left, with topic
+ * documentation and the two export dropdowns on the right. Both exports are
+ * told whether the preview is `ready`, but they act on it differently: Export
+ * Chart has nothing to write without a rendered figure and greys out, while
+ * Export Data stays open, because the module's entire cleaned dataset does not
+ * depend on the chart being built. Only its "as displayed" items wait for
+ * `ready`.
  *
  * Deliberately takes preview state as props rather than calling `usePreview()`:
  * the footer is a presentational bar, and keeping it context-free lets it mount
@@ -22,6 +23,7 @@
  *   loaded           {Object|null}    — forwarded to both export buttons
  *   previews         {Array|null}     — forwarded to both export buttons
  *   graphDivRefs     {Object|null}    — forwarded to ExportChartButton
+ *   documentationHref {string|null}   — internal documentation route for the topic
  *
  * Data sources:
  *   - Via props from ChartContainer
@@ -31,11 +33,15 @@
  */
 
 import React from "react";
+import Link from "next/link";
+
+import { BookOpen } from "lucide-react";
 
 import {
   ExportChartButton,
   ExportDataButton,
 } from "@/components/chart-builder/ExportMenu";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/utils";
 
 const VIEW_MODES = [
@@ -51,6 +57,7 @@ export default function ChartContainerFooter({
   loaded = null,
   previews = null,
   graphDivRefs = null,
+  documentationHref = null,
 }) {
   const ready = status === "ready";
 
@@ -83,6 +90,18 @@ export default function ChartContainerFooter({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
+        {documentationHref ? (
+          <Button variant="outline" size="sm" asChild>
+            <Link
+              href={documentationHref}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <BookOpen aria-hidden="true" />
+              View documentation
+            </Link>
+          </Button>
+        ) : null}
         <ExportChartButton
           graphDivRef={graphDivRef}
           loaded={loaded}

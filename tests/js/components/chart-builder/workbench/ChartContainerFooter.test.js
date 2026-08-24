@@ -17,6 +17,22 @@ vi.mock("@/components/chart-builder/ExportMenu", () => ({
 import ChartContainerFooter from "@/components/chart-builder/workbench/ChartContainerFooter";
 
 describe("ChartContainerFooter", () => {
+  it("links the documentation action to the configured topic document", () => {
+    render(
+      <ChartContainerFooter
+        viewMode="chart"
+        onViewModeChange={vi.fn()}
+        status="ready"
+        documentationHref="/documents/widgets-guide"
+      />,
+    );
+
+    const link = screen.getByRole("link", { name: "View documentation" });
+    expect(link).toHaveAttribute("href", "/documents/widgets-guide");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
   it.each(["loading", "invalid", "empty", "error"])(
     "disables both exports while preview status is %s",
     (status) => {

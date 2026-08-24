@@ -51,7 +51,7 @@ vi.mock("@/components/chart-builder/chartData", () => ({
 }));
 vi.mock("@/lib/export/exportTable", () => ({ originalTable: state.originalTable }));
 vi.mock("@/components/chart-builder/workbench/ChartContainerFooter", () => ({
-  default: ({ viewMode, onViewModeChange }) => (
+  default: ({ viewMode, onViewModeChange, documentationHref }) => (
     <footer>
       <button
         type="button"
@@ -67,6 +67,9 @@ vi.mock("@/components/chart-builder/workbench/ChartContainerFooter", () => ({
       >
         View Data
       </button>
+      {documentationHref ? (
+        <a href={documentationHref}>View documentation</a>
+      ) : null}
     </footer>
   ),
 }));
@@ -121,6 +124,23 @@ describe("ChartContainer", () => {
     const title = screen.getByRole("heading", { name: "Widgets" });
     expect(title).toHaveClass("text-center");
     expect((title.querySelector("span") || title).className).toMatch(/border|underline/);
+  });
+
+  it("passes the topic's configured documentation route to the footer", () => {
+    state.configStore = {
+      ...state.configStore,
+      schema: {
+        ...state.configStore.schema,
+        id: "pophousing",
+        label: "Population and Housing",
+      },
+    };
+
+    render(<ChartContainer />);
+
+    expect(
+      screen.getByRole("link", { name: "View documentation" }),
+    ).toHaveAttribute("href", "/documents/pophousing-pipeline-refractor");
   });
 
   it("switches between the chart and the dataset with pressed state", async () => {

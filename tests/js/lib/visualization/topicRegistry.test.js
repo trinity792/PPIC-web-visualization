@@ -15,6 +15,7 @@ import {
 } from "@/lib/visualization/moduleRegistry";
 import {
   TOPICS,
+  getTopicDocumentationHref,
   getTopicHref,
   getTopicLabel,
 } from "@/lib/visualization/topicRegistry";
@@ -24,31 +25,37 @@ const EXPECTED_TOPICS = [
     id: "pophousing",
     title: "People & housing units",
     href: "/pophousing",
+    documentationHref: "/documents/pophousing-pipeline-refractor",
   },
   {
     id: "components-of-change",
     title: "Births, deaths & migration",
     href: "/components-of-change",
+    documentationHref: "/documents/components-of-change-refractor",
   },
   {
     id: "demographic-projections",
     title: "Demographic projections",
     href: "/demographic-projections",
+    documentationHref: "/documents/age-sex-race-projections-refractor",
   },
   {
     id: "housing-stress",
     title: "Housing cost burden",
     href: "/housing-stress",
+    documentationHref: "/documents/acs-housing-stress-refractor",
   },
   {
     id: "building-permits",
     title: "Residential permits",
     href: "/building-permits",
+    documentationHref: "/documents/building-permits-refractor",
   },
   {
     id: "rhna-progress",
     title: "Housing goal tracking",
     href: "/rhna-progress",
+    documentationHref: "/documents/rhna-progress-report-module",
   },
 ];
 
@@ -59,6 +66,7 @@ describe("landing-page topic registry", () => {
         id: topic.id,
         title: topic.title,
         href: getTopicHref(topic),
+        documentationHref: getTopicDocumentationHref(topic.id),
       })),
     ).toEqual(EXPECTED_TOPICS);
   });
