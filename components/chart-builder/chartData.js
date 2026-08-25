@@ -166,9 +166,9 @@ function buildSearchParams(config, schema, overrides = {}) {
     params.set(
       "topN",
       String(
-        overrides.topN ||
-          config.filters.topN ||
-          chart?.limits?.recommendTopN ||
+        overrides.topN ??
+          config.filters.topN ??
+          chart?.limits?.recommendTopN ??
           20,
       ),
     );
@@ -780,7 +780,7 @@ function joinRecordsToPoints(records, points) {
 async function loadBarChangeData(config, schema, signal) {
   const response = await requestData(config, schema, signal, { view: "twoPeriod" });
   const chart = getChartType(config.chartType);
-  const topN = config.filters.topN || chart?.limits?.recommendTopN || 20;
+  const topN = config.filters.topN ?? chart?.limits?.recommendTopN ?? 20;
   const records = rankCategoryRecords(
     changeRecords(response.records || [], config.transform),
     { topN, sort: config.appearance.sort || "value" },
@@ -932,6 +932,24 @@ export async function loadChartData(config, schema, signal) {
       )
     : await loadModuleChartData(effectiveConfig, schema, signal);
   return withModuleFeatures(result, effectiveConfig, context);
+}
+
+/**
+ * Load the chart-shaped data for export using the active data-selection settings
+ * except the visual Top/Bottom N cap. A zero cap is the existing ranking
+ * helpers' "unlimited" value, so the exported table retains the configured
+ * filters, dates, grouping, sort direction, and comparison inputs while
+ * including rows the rendered chart omits for readability.
+ */
+export function loadChartExportData(config, schema, signal) {
+  return loadChartData(
+    {
+      ...config,
+      filters: { ...(config.filters || {}), topN: 0 },
+    },
+    schema,
+    signal,
+  );
 }
 
 export function hasChartData(chartType, result) {

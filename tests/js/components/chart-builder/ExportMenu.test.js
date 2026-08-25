@@ -20,6 +20,9 @@ const renderImagePreviewMock = vi.hoisted(() =>
 const renderCombinedImagePreviewMock = vi.hoisted(() =>
   vi.fn().mockResolvedValue("data:image/png;base64,Y29tYmluZWQ="),
 );
+const chartDataMocks = vi.hoisted(() => ({
+  loadChartExportData: vi.fn(),
+}));
 const exportTableMocks = vi.hoisted(() => ({
   displayTable: vi.fn(),
   originalTable: vi.fn(),
@@ -48,6 +51,10 @@ vi.mock("@/lib/export/exportImage", () => ({
 }));
 
 vi.mock("@/lib/export/exportTable", () => exportTableMocks);
+vi.mock("@/components/chart-builder/chartData", async (importOriginal) => ({
+  ...(await importOriginal()),
+  loadChartExportData: chartDataMocks.loadChartExportData,
+}));
 
 import ExportMenu, { ExportDataButton } from "@/components/chart-builder/ExportMenu";
 import { ChartConfigProvider } from "@/components/chart-builder/chartConfigStore";
@@ -161,6 +168,7 @@ describe("ExportMenu", () => {
     renderImagePreviewMock.mockClear();
     renderCombinedImagePreviewMock.mockClear();
     for (const fn of Object.values(exportTableMocks)) fn.mockClear();
+    chartDataMocks.loadChartExportData.mockReset().mockResolvedValue(loadedResult);
     primeTableMocks();
   });
 
@@ -307,6 +315,13 @@ describe("ExportMenu", () => {
 
   it("exports the displayed chart table as CSV", async () => {
     const user = userEvent.setup();
+    const untruncatedResult = {
+      series: [
+        ...loadedResult.series,
+        { location: "Butte", years: [2020], values: [90] },
+      ],
+    };
+    chartDataMocks.loadChartExportData.mockResolvedValueOnce(untruncatedResult);
     renderMenu();
 
     await user.click(screen.getByRole("button", { name: /export data/i }));
@@ -315,7 +330,11 @@ describe("ExportMenu", () => {
 
     expect(exportTableMocks.displayTable).toHaveBeenCalledWith(
       expect.objectContaining({ chartType: "line" }),
-      loadedResult,
+      untruncatedResult,
+    );
+    expect(chartDataMocks.loadChartExportData).toHaveBeenCalledWith(
+      expect.objectContaining({ chartType: "line" }),
+      schema,
     );
     expect(exportTableMocks.downloadBlob).toHaveBeenCalledWith(
       expect.any(Blob),
@@ -438,6 +457,7 @@ describe("ExportMenu — module full-source export", () => {
     renderImagePreviewMock.mockClear();
     renderCombinedImagePreviewMock.mockClear();
     for (const fn of Object.values(exportTableMocks)) fn.mockClear();
+    chartDataMocks.loadChartExportData.mockReset().mockResolvedValue(loadedResult);
     primeTableMocks();
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
@@ -464,6 +484,7 @@ describe("ExportMenu — module full-source export", () => {
       expect.objectContaining({ chartType: "line" }),
       { response: { records: [{ Location: "Alameda", Year: 2020, Value: 100 }] } },
     );
+    expect(chartDataMocks.loadChartExportData).not.toHaveBeenCalled();
     expect(exportTableMocks.downloadBlob).toHaveBeenCalledWith(
       expect.any(Blob),
       "widgets-original.csv",
@@ -499,6 +520,7 @@ describe("ExportMenu — multi-chart workspace", () => {
     renderImagePreviewMock.mockClear();
     renderCombinedImagePreviewMock.mockClear();
     for (const fn of Object.values(exportTableMocks)) fn.mockClear();
+    chartDataMocks.loadChartExportData.mockReset().mockResolvedValue(loadedResult);
     primeTableMocks();
   });
 

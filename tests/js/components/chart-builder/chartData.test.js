@@ -14,6 +14,7 @@ import {
   isChangeTransform,
   legendNamesOf,
   loadChartData,
+  loadChartExportData,
   rankChartRecords,
   rankLineSeries,
   rankMatrixRows,
@@ -258,6 +259,43 @@ describe("loadChartData — inline ('your data') source", () => {
     expect(result.series).toHaveLength(2);
     expect(result.series[0]).toMatchObject({ location: "Fresno", value: 100 });
   });
+
+  it("keeps every settings-filtered row in export data when the chart uses Top N", async () => {
+    const config = {
+      chartType: "bar",
+      data: {
+        source: "inline",
+        inline: {
+          columns: [
+            { name: "Place", type: "text" },
+            { name: "Value", type: "number" },
+          ],
+          rows: [
+            ["Alameda", 30],
+            ["Butte", 20],
+            ["Colusa", 10],
+          ],
+        },
+      },
+      bindings: { category: "Place", y: "Value" },
+      period: {},
+      filters: { topN: 1 },
+      layers: [],
+      appearance: { sort: "value" },
+      transform: "actual",
+    };
+
+    const preview = await loadChartData(config, {});
+    const exported = await loadChartExportData(config, {});
+
+    expect(preview.series).toHaveLength(1);
+    expect(exported.series.map((row) => row.category)).toEqual([
+      "Alameda",
+      "Butte",
+      "Colusa",
+    ]);
+    expect(config.filters.topN).toBe(1);
+  });
 });
 
 describe("loadChartData — module grouping and tabs", () => {
@@ -298,6 +336,47 @@ describe("loadChartData — module grouping and tabs", () => {
     appearance: { sort: "value" },
     transform: "actual",
   };
+
+  it("requests every settings-filtered row for export instead of the chart's Top N", async () => {
+    const fetchMock = vi.fn(async (url) => {
+      const params = new URL(url, "https://example.test").searchParams;
+      expect(params.get("view")).toBe("category");
+      expect(params.get("subset")).toBe("Counties");
+      expect(params.get("period")).toBe("2025");
+      expect(params.get("sort")).toBe("ascending");
+      expect(params.get("topN")).toBe("0");
+      return {
+        ok: true,
+        json: async () => ({
+          records: [
+            { location: "Alpha", category: "Alpha", value: 10 },
+            { location: "Bravo", category: "Bravo", value: 20 },
+            { location: "Charlie", category: "Charlie", value: 30 },
+          ],
+        }),
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await loadChartExportData(
+      {
+        ...config,
+        bindings: { category: "Location", y: "Metric" },
+        filters: {
+          ...config.filters,
+          tabColumn: null,
+          tabValue: null,
+          tabOrder: [],
+          topN: 1,
+        },
+        appearance: { sort: "ascending" },
+      },
+      schema,
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.series).toHaveLength(3);
+  });
 
   it("filters a module request to the active tab and attaches group metadata", async () => {
     const fetchMock = vi.fn(async (url) => {

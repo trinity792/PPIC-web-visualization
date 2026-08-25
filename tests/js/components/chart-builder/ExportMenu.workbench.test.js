@@ -10,6 +10,9 @@ const exportImage = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const renderImagePreview = vi.hoisted(() =>
   vi.fn().mockResolvedValue("data:image/png;base64,cHJldmlldw=="),
 );
+const chartData = vi.hoisted(() => ({
+  loadChartExportData: vi.fn(),
+}));
 const tables = vi.hoisted(() => ({
   displayTable: vi.fn(),
   originalTable: vi.fn(),
@@ -29,6 +32,10 @@ vi.mock("@/lib/export/exportImage", () => ({
   renderCombinedImagePreview: vi.fn(),
 }));
 vi.mock("@/lib/export/exportTable", () => tables);
+vi.mock("@/components/chart-builder/chartData", async (importOriginal) => ({
+  ...(await importOriginal()),
+  loadChartExportData: chartData.loadChartExportData,
+}));
 
 import {
   ExportChartButton,
@@ -84,6 +91,7 @@ describe("ExportMenu named buttons", () => {
     for (const mock of [exportImage, renderImagePreview, ...Object.values(tables)]) {
       mock.mockClear();
     }
+    chartData.loadChartExportData.mockReset().mockResolvedValue(loaded);
     tables.displayTable.mockReturnValue({
       filename: "widgets.csv",
       columns: [{ name: "Location" }],

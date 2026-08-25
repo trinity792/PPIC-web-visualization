@@ -8,7 +8,8 @@
  *
  *   • ExportChartButton — a live image-preview dialog with format and quality
  *     controls for PNG/SVG/JPG/PDF, plus an embed dialog for the workspace.
- *   • ExportDataButton  — the chart's displayed table, or the module's entire
+ *   • ExportDataButton  — the chart-shaped table under its active settings
+ *     (including rows hidden by its visual ranking cap), or the module's entire
  *     cleaned dataset (fetched full, ignoring the chart's filters), as CSV or
  *     Excel.
  *
@@ -83,7 +84,10 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/components/ui/utils";
 
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
-import { fullTableUrl } from "@/components/chart-builder/chartData";
+import {
+  fullTableUrl,
+  loadChartExportData,
+} from "@/components/chart-builder/chartData";
 import { serializeWorkspace } from "@/components/chart-builder/savedViews";
 import {
   exportCombinedImage,
@@ -933,12 +937,16 @@ export function ExportDataButton({
     return table;
   }
 
-  // One resolver for both export sources: displayTable is synchronous, the full
-  // source table may need a fetch — await either uniformly.
+  // One resolver for both export sources. Chart data is reloaded from the active
+  // settings with its visual Top/Bottom N cap disabled, while original data
+  // keeps its separate full-source path unchanged.
   async function tableFor(sourceId, chartConfig, chartResult) {
     return sourceId === "original"
       ? resolveOriginalTable(chartConfig, chartResult)
-      : displayTable(chartConfig, chartResult);
+      : displayTable(
+          chartConfig,
+          await loadChartExportData(chartConfig, schema),
+        );
   }
 
   async function onExportCsv(sourceId) {
