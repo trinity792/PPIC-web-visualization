@@ -12,10 +12,9 @@
  * `CategoriesSection` instead. A place row has one inclusion control: its
  * checkbox. It does not also carry a visibility switch.
  *
- * Selection writes the first-class `filters.locations` array. Empty means "no
- * explicit selection", which leaves the existing Top-N behavior in charge — so
- * a fresh chart still shows something without the user picking places one by
- * one.
+ * Selection writes the first-class `filters.locations` array. V3 line charts
+ * treat an empty selection as unfinished authoring state; level-wide maps and
+ * legacy ranked views retain their existing all-place behavior.
  *
  * Props:
  *   None.
@@ -76,7 +75,25 @@ export function hasGeographicSubsets(config, schema) {
 }
 
 export default function GeographySection() {
-  const { config, dispatch, schema } = useChartConfig();
+  const { config: storedConfig, dispatch, schema } = useChartConfig();
+  const v3 = storedConfig.version === 3;
+  const ranking = storedConfig.question?.calculation?.params?.ranking;
+  const config = v3
+    ? {
+        ...storedConfig,
+        chartType: storedConfig.presentation?.chartType,
+        filters: {
+          subset: storedConfig.question?.geography?.subset,
+          locations: storedConfig.question?.geography?.locations || [],
+          source: storedConfig.question?.source,
+          topN: ranking?.n,
+        },
+        appearance: {
+          ...(storedConfig.presentation?.appearance || {}),
+          sort: ranking?.direction === "bottom" ? "ascending" : "value",
+        },
+      }
+    : storedConfig;
   const options = useLocationOptions(schema, config.filters);
   // Read before the early return: hook order cannot depend on the schema.
   const { advanced } = useAdvancedMode();
@@ -101,17 +118,28 @@ export default function GeographySection() {
     : options.locations;
 
   function setSubset(value) {
-    dispatch({ type: "SET_FILTER", key: "subset", value });
+    if (v3) {
+      dispatch({
+        type: "SET_GEOGRAPHY",
+        geography: { ...storedConfig.question.geography, subset: value, locations: [] },
+      });
+    } else {
+      dispatch({ type: "SET_FILTER", key: "subset", value });
+    }
     // Place names do not survive a level change (a county is not a region), so
     // an explicit selection is cleared rather than silently filtering nothing.
     // The implied `category` binding (Workstream A) is not touched here: a level
     // change alters which rows a chart draws, not which column names them.
-    dispatch({ type: "SET_FILTER", key: "locations", value: [] });
+    if (!v3) dispatch({ type: "SET_FILTER", key: "locations", value: [] });
     const forcedSource = schema.subsetSource?.[value];
     if (forcedSource && schema.sources?.includes(forcedSource)) {
-      dispatch({ type: "SET_FILTER", key: "source", value: forcedSource });
+      dispatch(v3
+        ? { type: "SET_SOURCE", source: forcedSource }
+        : { type: "SET_FILTER", key: "source", value: forcedSource });
     } else if (value === "States" && schema.sources?.includes("Census")) {
-      dispatch({ type: "SET_FILTER", key: "source", value: "Census" });
+      dispatch(v3
+        ? { type: "SET_SOURCE", source: "Census" }
+        : { type: "SET_FILTER", key: "source", value: "Census" });
     }
   }
 
@@ -119,7 +147,12 @@ export default function GeographySection() {
     const next = checked
       ? [...selected, name]
       : selected.filter((item) => item !== name);
-    dispatch({ type: "SET_FILTER", key: "locations", value: next });
+    dispatch(v3
+      ? {
+          type: "SET_GEOGRAPHY",
+          geography: { ...storedConfig.question.geography, locations: next },
+        }
+      : { type: "SET_FILTER", key: "locations", value: next });
   }
 
   /**
@@ -134,7 +167,12 @@ export default function GeographySection() {
       if (checked) next.add(name);
       else next.delete(name);
     }
-    dispatch({ type: "SET_FILTER", key: "locations", value: [...next] });
+    dispatch(v3
+      ? {
+          type: "SET_GEOGRAPHY",
+          geography: { ...storedConfig.question.geography, locations: [...next] },
+        }
+      : { type: "SET_FILTER", key: "locations", value: [...next] });
   }
 
   return (
@@ -155,23 +193,29 @@ export default function GeographySection() {
         </Select>
       </div>
 
-      <LocationPicker
-        // Keyed on the level so a search typed against counties does not carry
-        // over to regions, where it would silently filter a fresh list.
-        key={config.filters?.subset || ""}
-        status={options.status}
-        names={names}
-        selected={selected}
-        reorderable={reorderable}
-        visibilityControls={false}
-        onSelect={toggleLocation}
-        onSelectMany={selectMany}
-        onReorder={(value) =>
-          dispatch({ type: "SET_APPEARANCE", key: "categoryOrder", value })
-        }
-      />
+      {config.filters?.subset ? (
+        <LocationPicker
+          // Keyed on the level so a search typed against counties does not carry
+          // over to regions, where it would silently filter a fresh list.
+          key={config.filters.subset}
+          status={options.status}
+          names={names}
+          selected={selected}
+          reorderable={reorderable}
+          visibilityControls={false}
+          onSelect={toggleLocation}
+          onSelectMany={selectMany}
+          onReorder={(value) =>
+            dispatch({ type: "SET_APPEARANCE", key: "categoryOrder", value })
+          }
+        />
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Select a geographic level to choose locations.
+        </p>
+      )}
 
-      {reorderable ? (
+      {config.filters?.subset && reorderable ? (
         // Ranked values sits behind Advanced Mode; the place list above still
         // carries ordering and checkbox selection, so hiding it costs no reach.
         advanced ? (
@@ -182,12 +226,12 @@ export default function GeographySection() {
             onChange={({ topN, sort }) => dispatch({ type: "SET_RANKING", topN, sort })}
           />
         ) : null
-      ) : (
+      ) : config.filters?.subset ? (
         // This chart's categories are something other than places (a pie of
         // housing types, a heatmap of age groups), so ordering, visibility, and
         // ranking belong to those values rather than to the place list above.
         <CategoriesSection />
-      )}
+      ) : null}
     </div>
   );
 }

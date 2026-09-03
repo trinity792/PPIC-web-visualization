@@ -30,6 +30,8 @@ const multiSchema = {
   sources: ["DoF", "Census"],
   fields: {},
   filterDimensions: [],
+  subsets: { Regions: ["Region"], Counties: ["County"], States: ["State"] },
+  subsetSource: { Regions: "DoF", Counties: "DoF", States: "Census" },
 };
 
 describe("DatasetsSection", () => {
@@ -76,6 +78,28 @@ describe("DatasetsSection", () => {
       screen.getByRole("checkbox", { name: "CA Department of Finance" }),
     );
     expect(state.dispatch).not.toHaveBeenCalled();
+  });
+
+  it("switches a v3 dataset and its compatible geography atomically", async () => {
+    const user = userEvent.setup();
+    state.config = {
+      version: 3,
+      question: {
+        source: "DoF",
+        geography: { subset: "Regions", locations: ["Bay Area"] },
+      },
+      presentation: { chartType: "line" },
+    };
+    render(<DatasetsSection />);
+
+    await user.click(screen.getByRole("checkbox", { name: "US Census" }));
+
+    expect(state.dispatch).toHaveBeenCalledTimes(1);
+    expect(state.dispatch).toHaveBeenCalledWith({
+      type: "SET_DATASET",
+      source: "Census",
+      geography: { subset: "States", locations: [] },
+    });
   });
 
   it("renders nothing for a provenance-only module", () => {

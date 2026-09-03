@@ -74,4 +74,17 @@ describe("PalettePicker legend items", () => {
     expect(screen.queryByLabelText("Search legend items")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Show more/ })).not.toBeInTheDocument();
   });
+
+  it("names the automatic v3 palette from the rendered series count", () => {
+    state.config = {
+      version: 3,
+      presentation: { appearance: {} },
+      seriesCount: 3,
+    };
+    render(<PalettePicker seriesNames={["2020", "2025", "2030"]} />);
+
+    expect(screen.getByRole("combobox", { name: /color palette/i })).toHaveTextContent(
+      "Automatic PPIC categorical · 3 groups",
+    );
+  });
 });

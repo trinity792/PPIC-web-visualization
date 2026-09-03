@@ -62,7 +62,33 @@ export default function DatasetsSection() {
   // honest if it is ever mounted directly.
   if (!hasDatasetControls(config, schema)) return null;
 
-  const active = config.filters?.source ?? options[0]?.id;
+  const v3 = config.version === 3;
+  const active = v3
+    ? config.question?.source ?? options[0]?.id
+    : config.filters?.source ?? options[0]?.id;
+
+  function selectDataset(source) {
+    if (!v3) {
+      dispatch({ type: "SET_FILTER", key: "source", value: source });
+      return;
+    }
+
+    const geography = config.question?.geography || {};
+    const compatibleSubsets = Object.entries(schema.subsetSource || {})
+      .filter(([, subsetSource]) => subsetSource === source)
+      .map(([subset]) => subset);
+    const subset = compatibleSubsets.includes(geography.subset)
+      ? geography.subset
+      : compatibleSubsets[0] || geography.subset || "";
+    dispatch({
+      type: "SET_DATASET",
+      source,
+      geography: {
+        subset,
+        locations: subset === geography.subset ? geography.locations || [] : [],
+      },
+    });
+  }
 
   return (
     <div className="grid gap-2">
@@ -82,11 +108,7 @@ export default function DatasetsSection() {
                 aria-label={option.label}
                 onCheckedChange={() => {
                   if (checked) return;
-                  dispatch({
-                    type: "SET_FILTER",
-                    key: "source",
-                    value: option.id,
-                  });
+                  selectDataset(option.id);
                 }}
               />
               <span>{option.label}</span>

@@ -56,7 +56,8 @@ function useFullTable(active) {
   const [state, setState] = useState({ status: "idle", table: null, error: null });
   const loadedRef = useRef(false);
 
-  const inline = config.data?.source === "inline";
+  const inline =
+    config.question?.dataset?.kind === "inline" || config.data?.source === "inline";
 
   useEffect(() => {
     if (!active || loadedRef.current) return undefined;

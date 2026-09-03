@@ -151,6 +151,56 @@ describe("GeographySection", () => {
     });
   });
 
+  it("writes v3 geography and its required source together", async () => {
+    const user = userEvent.setup();
+    state.config = {
+      version: 3,
+      question: {
+        source: "Census",
+        geography: { subset: "States", locations: ["California"] },
+        calculation: { id: "actual", params: {} },
+      },
+      presentation: { chartType: "line", appearance: {} },
+    };
+    state.schema = {
+      ...baseSchema,
+      subsetSource: { Regions: "DoF", Counties: "DoF", States: "Census" },
+    };
+    render(<GeographySection />);
+
+    await user.click(screen.getByRole("combobox", { name: /geographic level/i }));
+    await user.click(screen.getByRole("option", { name: "Regions" }));
+
+    expect(state.dispatch).toHaveBeenCalledWith({
+      type: "SET_GEOGRAPHY",
+      geography: { subset: "Regions", locations: [] },
+    });
+    expect(state.dispatch).toHaveBeenCalledWith({ type: "SET_SOURCE", source: "DoF" });
+  });
+
+  it("starts v3 geography without a level or preselected jurisdiction", () => {
+    state.config = {
+      version: 3,
+      question: {
+        source: "DoF",
+        geography: { subset: "", locations: [] },
+        calculation: { id: "actual", params: {} },
+      },
+      presentation: { chartType: "line", appearance: {} },
+    };
+    state.options = { status: "idle", locations: [], error: null };
+    render(<GeographySection />);
+
+    expect(screen.getByRole("combobox", { name: /geographic level/i })).toHaveTextContent(
+      "Choose a level",
+    );
+    expect(
+      screen.getByText("Select a geographic level to choose locations."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/loading locations/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+  });
+
   it.each([
     ["loading", /loading locations/i],
     ["error", /could not load locations/i],

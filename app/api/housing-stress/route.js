@@ -22,6 +22,8 @@ import {
   resolveMeasureColumn,
 } from "@/lib/data/housing_stress";
 import { integerParam, invalid, listParam } from "@/lib/data/apiParams";
+import { handleQuestionPost } from "@/lib/data/visualization/handleQuestionPost";
+import { housingStressAdapter } from "@/lib/data/visualization/moduleAdapters";
 
 const VIEWS = [
   "line",
@@ -32,6 +34,10 @@ const VIEWS = [
   "table",
   "locations",
 ];
+
+export async function POST(request) {
+  return handleQuestionPost(request, housingStressAdapter);
+}
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);

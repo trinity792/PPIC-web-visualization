@@ -18,9 +18,15 @@ import {
   queryTwoPeriod,
 } from "@/lib/data/building_permits";
 import { integerParam, invalid, listParam } from "@/lib/data/apiParams";
+import { handleQuestionPost } from "@/lib/data/visualization/handleQuestionPost";
+import { buildingPermitsAdapter } from "@/lib/data/visualization/moduleAdapters";
 
 const VIEWS = ["line", "twoPeriod", "geoValues", "table", "locations"];
 const MONTH_PATTERN = /^\d{4}-\d{2}$/;
+
+export async function POST(request) {
+  return handleQuestionPost(request, buildingPermitsAdapter);
+}
 
 function monthParam(searchParams, key) {
   const raw = searchParams.get(key);

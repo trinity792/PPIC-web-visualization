@@ -77,3 +77,121 @@ describe("DataTableView", () => {
     expect(screen.getByText("Fresno")).toBeInTheDocument();
   });
 });
+
+/**
+ * Workstream E - the Data view speaks the same language as the export.
+ *
+ * The table is the one place a reader can see what the chart could not draw, so
+ * "Not available" and "Suppressed" must be visible words rather than blank
+ * cells - and they must be the same words the CSV's status column carries.
+ */
+const dataTableModule = () => import("@/components/charts/DataTableView");
+const v3ExportModule = () => import("@/lib/export/exportTable");
+
+const V3_COMPARISONS = [
+  { id: "cmp_latina", label: "San Francisco Latina Women" },
+  { id: "cmp_white_women", label: "San Francisco White Women" },
+];
+
+const v3Obs = (overrides = {}) => ({
+  comparisonId: "cmp_latina",
+  comparisonLabel: "San Francisco Latina Women",
+  measureId: "Population",
+  measureLabel: "Population",
+  unit: "people",
+  period: 2025,
+  geographyId: "06075",
+  geographyLabel: "San Francisco",
+  categoryId: null,
+  categoryLabel: null,
+  value: 50000,
+  status: "available",
+  valueKind: "observed",
+  calculation: { id: "actual", params: {} },
+  includedPeriods: null,
+  source: "DoF P-3",
+  ...overrides,
+});
+
+describe("Workstream E observation statuses", () => {
+  it("shows Not available and Suppressed without numeric values", async () => {
+    const { default: View } = await dataTableModule();
+    const { displayTableFromObservations } = await v3ExportModule();
+
+    render(
+      <View
+        table={displayTableFromObservations({
+          observations: [
+            v3Obs(),
+            v3Obs({ period: 2030, value: null, status: "missing" }),
+            v3Obs({
+              comparisonId: "cmp_white_women",
+              comparisonLabel: "San Francisco White Women",
+              value: null,
+              status: "suppressed",
+            }),
+          ],
+          comparisons: V3_COMPARISONS,
+        })}
+      />,
+    );
+
+    expect(screen.getByText("Not available")).toBeInTheDocument();
+    expect(screen.getByText("Suppressed")).toBeInTheDocument();
+    // A hole rendered as 0 is the failure mode: it reads as a real count of
+    // nobody rather than as an absence of information.
+    expect(screen.queryByText("0")).not.toBeInTheDocument();
+  });
+
+  it("shows every comparison while one tab is active on the chart", async () => {
+    const { default: View } = await dataTableModule();
+    const { displayTableFromObservations } = await v3ExportModule();
+
+    render(
+      <View
+        table={displayTableFromObservations({
+          observations: [
+            v3Obs(),
+            v3Obs({
+              comparisonId: "cmp_white_women",
+              comparisonLabel: "San Francisco White Women",
+              value: 63000,
+            }),
+          ],
+          comparisons: V3_COMPARISONS,
+          presentation: { comparisonPresentation: "tabs", activeTab: "cmp_latina" },
+        })}
+      />,
+    );
+
+    expect(screen.getByText("San Francisco Latina Women")).toBeInTheDocument();
+    expect(screen.getByText("San Francisco White Women")).toBeInTheDocument();
+  });
+
+  it("names an average and the years inside it", async () => {
+    const { default: View } = await dataTableModule();
+    const { displayTableFromObservations } = await v3ExportModule();
+
+    render(
+      <View
+        table={displayTableFromObservations({
+          observations: [
+            v3Obs({
+              period: "2020-2030",
+              value: 50000,
+              valueKind: "derived",
+              calculation: {
+                id: "averageSelectedYears",
+                params: { years: [2020, 2025, 2030] },
+              },
+              includedPeriods: [2020, 2025, 2030],
+            }),
+          ],
+          comparisons: V3_COMPARISONS,
+        })}
+      />,
+    );
+
+    expect(screen.getByText("2020; 2025; 2030")).toBeInTheDocument();
+  });
+});

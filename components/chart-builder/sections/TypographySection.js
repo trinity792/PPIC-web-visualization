@@ -42,7 +42,10 @@ const TYPOGRAPHY_FIELDS = [
 ];
 
 export default function TypographySection() {
-  const { config, dispatch } = useChartConfig();
+  const { config: storedConfig, dispatch } = useChartConfig();
+  const appearance = storedConfig.version === 3
+    ? storedConfig.presentation?.appearance || {}
+    : storedConfig.appearance || {};
 
   return (
     <div className="grid grid-cols-2 gap-3">
@@ -53,7 +56,7 @@ export default function TypographySection() {
           label={label}
           min={min}
           max={max}
-          value={config.appearance?.[key] ?? fallback}
+          value={appearance[key] ?? fallback}
           onChange={(value) => dispatch({ type: "SET_APPEARANCE", key, value })}
         />
       ))}

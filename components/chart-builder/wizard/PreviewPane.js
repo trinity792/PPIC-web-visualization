@@ -47,6 +47,7 @@ import { usePreview } from "@/components/chart-builder/wizard/PreviewContext";
 import { CHART_HEIGHTS } from "@/lib/constants";
 import { tabValues } from "@/lib/tabular/toSeries";
 import { getChartType } from "@/lib/visualization/chartRegistry";
+import { missingQuestionSelections } from "@/lib/visualization/questionReadiness";
 import { unsetRoles } from "@/lib/visualization/validation";
 
 /**
@@ -156,7 +157,13 @@ function listLabels(labels) {
  * the generic caption when the findings carry no role (a preset-level
  * requirement with no named role, say).
  */
-function unconfiguredMessage(config) {
+function unconfiguredMessage(config, schema) {
+  if (config.version === 3) {
+    const labels = missingQuestionSelections(config, schema);
+    return labels.length
+      ? `Select ${listLabels(labels)} to build this chart.`
+      : null;
+  }
   const labels = unsetRoles(config.validation).map((role) =>
     roleLabel(role, config.chartType),
   );
@@ -178,18 +185,22 @@ function slotHeight(layout, count) {
 }
 
 function ChartSlot({ preview, layout, multi, embedded, onGraphDiv }) {
-  const { dispatch } = useChartConfig();
+  const { dispatch, schema } = useChartConfig();
   const {
     id,
     name,
     active,
     config,
+    renderChartType,
     status,
     error,
     notice,
     plotly,
     renderError,
   } = preview;
+  const v3 = config.version === 3;
+  const chartType = config.presentation?.chartType || config.chartType;
+  const appearance = config.presentation?.appearance || config.appearance;
   const height = slotHeight(layout, multi ? 2 : 1);
   const tabColumn = config.filters?.tabColumn;
   const tabs = tabValues(
@@ -202,6 +213,34 @@ function ChartSlot({ preview, layout, multi, embedded, onGraphDiv }) {
     : preview.result?.tabOptions || config.tabOptions || [];
   const tabValue =
     preview.result?.tabValue ?? config.filters?.tabValue ?? resolvedTabs[0];
+  const comparisonOptions = v3 && config.presentation?.comparisonPresentation === "tabs"
+    ? (config.question?.comparisons || [])
+      .filter(
+        (comparison) =>
+          config.presentation?.comparisonVisibility?.[comparison.id] !== false,
+      )
+      .map((comparison) => ({
+        value: comparison.id,
+        label:
+          preview.result?.comparisons?.find((entry) => entry.id === comparison.id)?.label ||
+          comparison.customLabel ||
+          comparison.label ||
+          comparison.id,
+        disabled:
+          preview.result?.comparisons?.find((entry) => entry.id === comparison.id)?.status ===
+          "invalid",
+      }))
+    : [];
+  const periodOptions =
+    v3 &&
+    config.question?.time?.contract === "selectedSnapshots" &&
+    ["choroplethMap", "pie", "symbolMap"].includes(chartType) &&
+    (preview.result?.periods || []).length > 1
+    ? preview.result.periods
+    : [];
+  const comparisonIssues = (preview.result?.issues || []).filter(
+    (issue) => issue.level === "comparison" || issue.level === "information",
+  );
 
   return (
     <div
@@ -249,14 +288,62 @@ function ChartSlot({ preview, layout, multi, embedded, onGraphDiv }) {
         />
       ) : null}
 
+      {comparisonOptions.length ? (
+        <GraphTabs
+          options={comparisonOptions}
+          value={
+            comparisonOptions.some(
+              (option) => option.value === config.presentation.activeTab,
+            )
+              ? config.presentation.activeTab
+              : comparisonOptions[0]?.value
+          }
+          onValueChange={(value) =>
+            dispatch({ type: "SET_ACTIVE_TAB", chartId: id, value })
+          }
+          ariaLabel="Comparison"
+          className={cn("px-3 pt-2", embedded && "px-2")}
+        />
+      ) : null}
+
+      {periodOptions.length ? (
+        <label className="flex items-center gap-2 px-3 pt-2 text-xs text-muted-foreground">
+          Period
+          <select
+            aria-label="Period"
+            value={config.presentation?.activePeriod ?? periodOptions.at(-1)}
+            onChange={(event) => {
+              const value = periodOptions.find(
+                (period) => String(period) === event.target.value,
+              );
+              dispatch({ type: "SET_ACTIVE_PERIOD", chartId: id, value });
+            }}
+          >
+            {periodOptions.map((period) => (
+              <option key={period} value={period}>{period}</option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+
+      {comparisonIssues.length ? (
+        <div className="mx-3 mt-2 grid gap-1 text-xs text-muted-foreground" role="status">
+          {comparisonIssues.map((issue, index) => (
+            <p key={`${issue.code}-${issue.comparisonId || "chart"}-${index}`}>
+              {issue.message}
+            </p>
+          ))}
+        </div>
+      ) : null}
+
       <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden px-2 pt-2 sm:px-4">
         {status === "idle" ? (
-          <ChartSkeleton shape={skeletonShapeFor(config.chartType, config.appearance)} />
+          <ChartSkeleton shape={skeletonShapeFor(chartType, appearance)} />
         ) : null}
         {status === "unconfigured" ? (
           <ChartSkeleton
-            shape={skeletonShapeFor(config.chartType, config.appearance)}
-            message={unconfiguredMessage(config)}
+            shape={skeletonShapeFor(chartType, appearance)}
+            message={unconfiguredMessage(config, schema)}
           />
         ) : null}
         {status === "loading" ? (
@@ -306,11 +393,15 @@ function ChartSlot({ preview, layout, multi, embedded, onGraphDiv }) {
         ) : null}
         {status === "ready" && plotly?.table && !renderError ? (
           <div className="h-full min-h-72 w-full">
-            <DataTableView table={plotly.table} appearance={config.appearance} />
+            <DataTableView
+              table={plotly.table}
+              appearance={config.presentation?.appearance || config.appearance}
+            />
           </div>
         ) : null}
         {status === "ready" && plotly?.data && !renderError ? (
           <PlotlyChart
+            key={renderChartType || chartType}
             {...plotly}
             // Embeds are read-only output: hide Plotly's modebar (zoom/pan/etc.)
             // so the shared chart shows no interactive editor controls.

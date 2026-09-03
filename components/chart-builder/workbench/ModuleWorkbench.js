@@ -21,6 +21,7 @@
  *   viewId         {string|null} — saved or built-in deep-link view identifier
  *   hasBuiltInView {boolean}     — whether initialConfig already represents viewId
  *   embedded       {boolean}     — render the preview only, for iframe embeds
+ *   deferInitialRender {boolean} — hold the first request until an editor action
  *
  * Data sources:
  *   - components/chart-builder/chartConfigStore.js (ChartConfigProvider)
@@ -93,6 +94,7 @@ export default function ModuleWorkbench({
   viewId = null,
   hasBuiltInView = false,
   embedded = false,
+  deferInitialRender = !embedded && !viewId,
 }) {
   const { width: sidebarWidth, applyWidth: applySidebarWidth } =
     useResizableSidebarWidth();
@@ -120,7 +122,7 @@ export default function ModuleWorkbench({
           back out, because in both the chart has already been asked for by name:
           an iframe embed, which has no sidebar to touch and would otherwise show
           a skeleton forever, and any `?view=` deep link or saved view. */}
-      <PreviewProvider deferInitialRender={!embedded && !viewId}>
+      <PreviewProvider deferInitialRender={deferInitialRender}>
         <ViewHydrator viewId={viewId} hasBuiltInView={hasBuiltInView} />
         {embedded ? (
           <>

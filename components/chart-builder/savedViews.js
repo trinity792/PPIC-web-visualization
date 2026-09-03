@@ -28,8 +28,14 @@ import {
   hasBlockingErrors,
   validateConfig,
 } from "@/lib/visualization/validation";
+import {
+  normalizeQuestion,
+  readQuestion,
+  serializeQuestion,
+} from "@/lib/visualization/questionSpec";
 
 export const SAVED_VIEWS_KEY = "ppic.savedViews.v1";
+export const SAVED_VIEWS_KEY_V3 = "ppic.savedViews.v3";
 export const SAVED_VIEW_VERSION = SPEC_VERSION;
 
 function clone(value) {
@@ -42,11 +48,19 @@ function storage() {
 
 /** The serialized shape: the normalized spec (computed keys already stripped). */
 function savedShape(config) {
-  return normalizeSpec(config);
+  return config?.version === 3 ? serializeQuestion(config) : normalizeSpec(config);
 }
 
 export function serialize(config) {
-  return JSON.stringify(savedShape(config), null, 2);
+  const shape = savedShape(config);
+  const json = JSON.stringify(shape, null, 2);
+  if (
+    shape.question?.dataset?.kind === "inline" &&
+    json.length > INLINE_DATA_MAX_BYTES
+  ) {
+    throw new Error("This saved view is too large because it contains inline data.");
+  }
+  return json;
 }
 
 function parseJson(json) {
@@ -63,6 +77,19 @@ function parseJson(json) {
 
 export function deserialize(json, schema) {
   const saved = parseJson(json);
+  if (saved.version === 3 || schema?.id === "projections") {
+    const result = readQuestion(saved);
+    if (!result.ok) return result;
+    const moduleId = result.spec.question.dataset?.moduleId;
+    if (moduleId !== schema?.id) {
+      return {
+        ok: false,
+        reason: "dataset-mismatch",
+        message: `This view belongs to dataset "${moduleId}", not "${schema?.id}".`,
+      };
+    }
+    return normalizeQuestion(result.spec);
+  }
   if (saved.version !== 1 && saved.version !== SAVED_VIEW_VERSION) {
     throw new Error(
       `Unsupported saved-view version "${saved.version}". Expected 1 or ${SAVED_VIEW_VERSION}.`,
@@ -103,6 +130,20 @@ export function deserialize(json, schema) {
  * Serialized compact (no pretty-print) because embeds ride inside a URL.
  */
 export function serializeWorkspace(workspace) {
+  const v3 = (workspace?.charts || []).some(
+    (chart) => (chart?.config || chart)?.version === 3,
+  );
+  if (v3) {
+    const directCharts = workspace.charts.every((chart) => chart?.version === 3);
+    return JSON.stringify({
+      activeChartId: workspace.activeChartId,
+      layout: workspace?.layout,
+      charts: workspace.charts.map((chart) => {
+        const config = serializeQuestion(chart?.config || chart);
+        return directCharts ? config : { name: chart.name, config };
+      }),
+    });
+  }
   const charts = (workspace?.charts || []).map((chart) => ({
     name: chart.name,
     config: savedShape(chart.config),
@@ -123,6 +164,16 @@ export function deserializeWorkspace(json, schema) {
     return null;
   }
   if (!parsed || !Array.isArray(parsed.charts)) return null;
+  if (parsed.charts.some((chart) => (chart?.config || chart)?.version === 3)) {
+    const directCharts = parsed.charts.every((chart) => chart?.version === 3);
+    const charts = parsed.charts.map((chart, index) => {
+      const config = deserialize(chart?.config || chart, schema);
+      return directCharts
+        ? config
+        : { name: chart?.name || `Chart ${index + 1}`, config };
+    });
+    return { activeChartId: parsed.activeChartId, layout: parsed.layout, charts };
+  }
   const charts = parsed.charts.map((chart, index) => ({
     name: chart?.name || `Chart ${index + 1}`,
     config: deserialize(chart?.config ?? chart, schema),
@@ -141,8 +192,21 @@ export function listViews() {
   }
 }
 
+function listViewsAt(key) {
+  const store = storage();
+  if (!store) return [];
+  try {
+    const views = JSON.parse(store.getItem(key) || "[]");
+    return Array.isArray(views) ? views : [];
+  } catch {
+    return [];
+  }
+}
+
 export function getView(id, schema) {
-  const view = listViews().find((item) => item.id === id);
+  const view =
+    listViewsAt(SAVED_VIEWS_KEY_V3).find((item) => item.id === id) ||
+    listViews().find((item) => item.id === id);
   return view ? deserialize(view.config, schema) : null;
 }
 
@@ -152,7 +216,10 @@ export function saveView(name, config, id) {
 
   const shape = savedShape(config);
   const serialized = JSON.stringify(shape);
-  if (shape.data?.inline && serialized.length > INLINE_DATA_MAX_BYTES) {
+  if (
+    (shape.data?.inline || shape.question?.dataset?.kind === "inline") &&
+    serialized.length > INLINE_DATA_MAX_BYTES
+  ) {
     throw new Error(
       `VIEW_TOO_LARGE: this view carries ${Math.round(serialized.length / 1024)} KB of inline data — ` +
         `the saved-view limit is ${Math.round(INLINE_DATA_MAX_BYTES / 1024)} KB. ` +
@@ -160,30 +227,33 @@ export function saveView(name, config, id) {
     );
   }
 
-  const views = listViews();
+  const key = config?.version === 3 ? SAVED_VIEWS_KEY_V3 : SAVED_VIEWS_KEY;
+  const views = listViewsAt(key);
   const viewId =
     id ||
     globalThis.crypto?.randomUUID?.() ||
     `view-${Date.now().toString(36)}`;
   const next = {
     id: viewId,
-    name: name?.trim() || config.labels?.title || "Untitled view",
-    module: config.module,
+    name: name?.trim() || config.labels?.title || config.presentation?.labels?.title || "Untitled view",
+    module: config.module || config.question?.dataset?.moduleId,
     updatedAt: new Date().toISOString(),
     config: shape,
   };
   const index = views.findIndex((view) => view.id === viewId);
   if (index === -1) views.push(next);
   else views[index] = next;
-  store.setItem(SAVED_VIEWS_KEY, JSON.stringify(views));
+  store.setItem(key, JSON.stringify(views));
   return next;
 }
 
 export function deleteView(id) {
   const store = storage();
   if (!store) return;
-  store.setItem(
-    SAVED_VIEWS_KEY,
-    JSON.stringify(listViews().filter((view) => view.id !== id)),
-  );
+  for (const key of [SAVED_VIEWS_KEY_V3, SAVED_VIEWS_KEY]) {
+    store.setItem(
+      key,
+      JSON.stringify(listViewsAt(key).filter((view) => view.id !== id)),
+    );
+  }
 }

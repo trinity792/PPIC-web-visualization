@@ -116,7 +116,9 @@ import { CHART_HEIGHTS } from "@/lib/constants";
  */
 
 function exportBase(config) {
-  return config.data?.source === "inline" ? "your-data" : config.module || "chart";
+  return config.question?.dataset?.kind === "inline" || config.data?.source === "inline"
+    ? "your-data"
+    : config.question?.dataset?.moduleId || config.module || "chart";
 }
 
 function slug(text) {
@@ -128,7 +130,8 @@ function slug(text) {
 }
 
 function imageFilename(config, format) {
-  return `${exportBase(config)}-${config.chartType}.${format.ext || format.id}`;
+  const chartType = config.presentation?.chartType || config.chartType;
+  return `${exportBase(config)}-${chartType}.${format.ext || format.id}`;
 }
 
 function combinedImageFilename(config, format) {
@@ -203,7 +206,7 @@ function useExportCharts(previews, config, loaded) {
     return [
       {
         id: null,
-        name: config.labels?.title || "Chart 1",
+        name: config.presentation?.labels?.title || config.labels?.title || "Chart 1",
         config,
         result: loaded,
       },
@@ -214,7 +217,8 @@ function useExportCharts(previews, config, loaded) {
 const MAX_EMBED_URL_LENGTH = 16000;
 
 function embedPath(config) {
-  return config.module === "byod" ? "/visualization-tool" : `/${config.module || ""}`;
+  const moduleId = config.question?.dataset?.moduleId || config.module;
+  return moduleId === "byod" ? "/visualization-tool" : `/${moduleId || ""}`;
 }
 
 // Stacked / grid layouts need a taller iframe: one 560px band per chart row.
@@ -230,7 +234,7 @@ function embedInfo(config, workspace) {
   const src = `${origin}${embedPath(config)}?embed=1&view=${encodeURIComponent(
     serializeWorkspace(workspace),
   )}`;
-  const title = config.labels?.title || "PPIC chart";
+  const title = config.presentation?.labels?.title || config.labels?.title || "PPIC chart";
   const height = embedHeight(workspace?.layout);
   const code = `<iframe title="${title.replace(/"/g, "&quot;")}" src="${src}" width="100%" height="${height}" style="border:0;" loading="lazy"></iframe>`;
   return { src, code, height, tooLarge: src.length > MAX_EMBED_URL_LENGTH };
@@ -941,12 +945,14 @@ export function ExportDataButton({
   // settings with its visual Top/Bottom N cap disabled, while original data
   // keeps its separate full-source path unchanged.
   async function tableFor(sourceId, chartConfig, chartResult) {
-    return sourceId === "original"
-      ? resolveOriginalTable(chartConfig, chartResult)
-      : displayTable(
-          chartConfig,
-          await loadChartExportData(chartConfig, schema),
-        );
+    if (sourceId === "original") {
+      return resolveOriginalTable(chartConfig, chartResult);
+    }
+    if (chartConfig.version === 3) return displayTable(chartConfig, chartResult);
+    return displayTable(
+      chartConfig,
+      await loadChartExportData(chartConfig, schema),
+    );
   }
 
   async function onExportCsv(sourceId) {

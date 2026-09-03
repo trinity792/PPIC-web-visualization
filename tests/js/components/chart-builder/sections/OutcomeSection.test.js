@@ -529,3 +529,202 @@ describe("OutcomeSection", () => {
     });
   });
 });
+
+/**
+ * Workstream D - Outcome keeps its name and its place, and gains Transformation.
+ *
+ * The section stays directly after Chart Type, and the Transformation control sits
+ * directly below the outcome measure, because "what am I measuring" and "what
+ * am I doing to it" are one decision and reading them apart is what let a v2
+ * user index a rate.
+ *
+ * The list of calculations is not a fixed menu. It is whatever the measure's
+ * unit and the resolved chart capability both allow, which is why a count is
+ * offered percent change and a rate is not.
+ */
+
+import {
+  AdvancedModeProvider as V3AdvancedModeProvider,
+  AdvancedModeToggle as V3AdvancedModeToggle,
+} from "@/components/chart-builder/advancedMode";
+
+const v3Schema = {
+  id: "components-of-change",
+  inlineOnly: false,
+  subsets: { Counties: ["County"] },
+  filterDimensions: [],
+  fields: {
+    Year: { kind: "temporal", label: "Year" },
+    Location: { kind: "dimension", label: "Location", cardinality: "high" },
+    "Total Population": {
+      kind: "measure",
+      label: "Total population",
+      unit: "people",
+      aggregation: "sum",
+      chartRoles: ["yMeasure"],
+      calculations: [
+        "actual",
+        "numericChange",
+        "percentChange",
+        "indexed",
+        "benchmarkDifference",
+      ],
+    },
+    "Crude Birth Rate": {
+      kind: "measure",
+      label: "Crude birth rate",
+      unit: "ratePerThousand",
+      aggregation: "weightedMean",
+      weightField: "Total Population",
+      chartRoles: ["yMeasure"],
+      calculations: ["actual", "percentagePointChange"],
+    },
+  },
+};
+
+function v3Config(measureId, overrides = {}) {
+  return {
+    version: 3,
+    question: {
+      dataset: { kind: "module", moduleId: "components-of-change" },
+      source: "DoF",
+      outcome: { measureId },
+      geography: { subset: "Counties", locations: ["Fresno"] },
+      time: { contract: "range", startYear: 2020, endYear: 2025 },
+      calculation: { id: "actual", params: {} },
+      comparisons: [{ id: "cmp_all", dimensions: {} }],
+      ...overrides,
+    },
+    presentation: { chartType: "line", comparisonPresentation: "combined" },
+    // The editor model the resolver hands the section.
+    editorModel: {
+      chartType: "line",
+      calculations: [
+        "actual",
+        "numericChange",
+        "percentChange",
+        "percentagePointChange",
+        "indexed",
+        "benchmarkDifference",
+      ],
+      ...(overrides.editorModel || {}),
+    },
+  };
+}
+
+function renderV3(ui, { advanced = false } = {}) {
+  return rtlRender(
+    <V3AdvancedModeProvider defaultAdvanced={advanced}>
+      <V3AdvancedModeToggle id="v3-advanced-mode" />
+      {ui}
+    </V3AdvancedModeProvider>,
+  );
+}
+
+describe("Workstream D Outcome and Transformation", () => {
+  beforeEach(() => {
+    state.dispatch.mockClear();
+    state.schema = v3Schema;
+    state.config = v3Config("Total Population");
+  });
+
+  it("places Transformation directly after the outcome measure", () => {
+    renderV3(<OutcomeSection />);
+
+    const measure = screen.getByLabelText(/outcome/i);
+    const calculation = screen.getByLabelText(/transformation/i);
+
+    expect(
+      measure.compareDocumentPosition(calculation) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    // Nothing sits between them: the two controls are one decision.
+    const controls = screen.getAllByRole("combobox");
+    expect(controls.indexOf(calculation) - controls.indexOf(measure)).toBe(1);
+  });
+
+  it("offers percent change for a count and percentage-point change for a rate", async () => {
+    const user = userEvent.setup();
+    renderV3(<OutcomeSection />);
+
+    await user.click(screen.getByLabelText(/transformation/i));
+    expect(screen.getByRole("option", { name: /percent change/i })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: /percentage-point change/i }),
+    ).not.toBeInTheDocument();
+
+    cleanup();
+    state.config = v3Config("Crude Birth Rate");
+    renderV3(<OutcomeSection />);
+
+    await user.click(screen.getByLabelText(/transformation/i));
+    // A rate is already per 1,000. A percent change of it has no readable
+    // meaning, so it is not offered - in either mode.
+    expect(screen.getByRole("option", { name: /percentage-point change/i })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /^percent change/i })).not.toBeInTheDocument();
+  });
+
+  it("does not duplicate the year selectors that belong to Time", async () => {
+    const user = userEvent.setup();
+    renderV3(<OutcomeSection />);
+
+    await user.click(screen.getByLabelText(/transformation/i));
+    await user.click(screen.getByRole("option", { name: /numeric change/i }));
+
+    // The Time section supplies the periods the calculation needs. Two places
+    // to set a base year is two places for them to disagree.
+    expect(screen.queryByLabelText(/base year/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/start year/i)).not.toBeInTheDocument();
+  });
+
+  it("shows benchmark controls only for an eligible Advanced question", async () => {
+    const user = userEvent.setup();
+    renderV3(<OutcomeSection />);
+
+    expect(screen.queryByLabelText(/benchmark/i)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("switch", { name: /advanced mode/i }));
+    expect(screen.getByLabelText(/benchmark/i)).toBeInTheDocument();
+
+    // ...and Advanced Mode alone cannot conjure it where the capability does
+    // not allow it.
+    cleanup();
+    state.config = v3Config("Total Population", {
+      editorModel: { chartType: "pie", calculations: ["actual", "averageSelectedYears"] },
+    });
+    renderV3(<OutcomeSection />, { advanced: true });
+    expect(screen.queryByLabelText(/benchmark/i)).not.toBeInTheDocument();
+  });
+
+  it("shows a measure-owned aggregation as additional information", async () => {
+    const user = userEvent.setup();
+    state.config = v3Config("Crude Birth Rate");
+    renderV3(<OutcomeSection />);
+
+    // Read-only: the schema declares that a crude rate is combined as a
+    // population-weighted mean. Offering a Sum here would let a reader ask for
+    // a number that does not exist.
+    const aggregation = screen.getByText(/weighted mean/i);
+    expect(aggregation).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: /aggregation/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/weighted by total population/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("switch", { name: /advanced mode/i }));
+    expect(screen.queryByRole("combobox", { name: /aggregation/i })).not.toBeInTheDocument();
+  });
+
+  it("no longer renders the scalar demographic filters the Comparison section replaced", () => {
+    state.schema = {
+      ...v3Schema,
+      filterDimensions: [
+        { column: "Sex", param: "sex", label: "Sex", values: ["Female", "Male"] },
+      ],
+    };
+    renderV3(<OutcomeSection />);
+
+    // One value per dimension is exactly what could not express "Black women
+    // beside White men". The controls move to Comparisons; they do not linger
+    // here as a second way to pin a population.
+    expect(screen.queryByLabelText(/^sex$/i)).not.toBeInTheDocument();
+  });
+});

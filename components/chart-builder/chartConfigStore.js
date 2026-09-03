@@ -32,7 +32,7 @@ import {
   geometrySubsetFor,
   requiresGeometry,
 } from "@/lib/visualization/chartAvailability";
-import { getChartType } from "@/lib/visualization/chartRegistry";
+import { getChartCapabilities, getChartType } from "@/lib/visualization/chartRegistry";
 import { impliedBindings } from "@/lib/visualization/impliedRoles";
 import {
   autoMapInlineBindings,
@@ -43,6 +43,12 @@ import {
   normalizeSpec,
   SPEC_VERSION,
 } from "@/lib/visualization/chartSpec";
+import {
+  applyChartType,
+  normalizeQuestion,
+} from "@/lib/visualization/questionSpec";
+import { resolveEditorModel } from "@/lib/visualization/resolveEditorModel";
+import { assignComparisonColors } from "@/lib/visualization/palettes";
 import {
   getPreset,
   PRESET_ORDER,
@@ -99,6 +105,7 @@ function chartId() {
 }
 
 function stripComputed(config) {
+  if (config?.version === 3) return normalizeQuestion(config);
   const next = normalizeSpec(config);
   return clone(next);
 }
@@ -331,7 +338,7 @@ function availableTabOptions(config, schema, column, savedOrder = []) {
   if (config.data?.source === "inline") {
     return tabValues(config.data?.inline, column, savedOrder);
   }
-  const loaded = config.filters?.tabColumn === column ? config.tabOptions : [];
+  const loaded = config.filters?.["tabColumn"] === column ? config.tabOptions : [];
   return orderedTabOptions(
     loaded?.length ? loaded : schemaTabOptions(schema, column),
     savedOrder,
@@ -351,9 +358,9 @@ function synchronizeTabFilters(filters, table, schema) {
     return { ...filters, tabColumn: null, tabValue: null, tabOrder: [] };
   }
   const options = inline
-    ? tabValues(table, column, filters.tabOrder)
-    : schemaTabOptions(schema, column, filters.tabOrder);
-  const current = filters.tabValue == null ? null : String(filters.tabValue).trim();
+    ? tabValues(table, column, filters["tabOrder"])
+    : schemaTabOptions(schema, column, filters["tabOrder"]);
+  const current = filters["tabValue"] == null ? null : String(filters["tabValue"]).trim();
   return {
     ...filters,
     tabColumn: column,
@@ -365,7 +372,7 @@ function synchronizeTabFilters(filters, table, schema) {
         ? current
         : options[0]
       : current,
-    tabOrder: options.length ? options : filters.tabOrder || [],
+    tabOrder: options.length ? options : filters["tabOrder"] || [],
   };
 }
 
@@ -407,6 +414,29 @@ function revalidate(rawConfig, schema, autoBind = true) {
 }
 
 export function createChartConfig(schema, initialConfig = {}, options = DEFAULT_OPTIONS) {
+  if (initialConfig?.version === 3) {
+    const normalized = normalizeQuestion(initialConfig);
+    const comparisons = normalized.question.comparisons || [];
+    const existing = normalized.presentation.appearance?.comparisonColors || {};
+    const overrides = Object.fromEntries(
+      comparisons
+        .filter((comparison) => comparison.color)
+        .map((comparison) => [comparison.id, comparison.color]),
+    );
+    return normalizeQuestion({
+      ...normalized,
+      presentation: {
+        ...normalized.presentation,
+        appearance: {
+          ...(normalized.presentation.appearance || {}),
+          comparisonColors: assignComparisonColors(comparisons, {
+            existing,
+            overrides,
+          }),
+        },
+      },
+    });
+  }
   const { autoBind = true } = options || {};
   // Accept v1 shapes (including the legacy wire shape that folded
   // transform/chartType/appearance into `filters`) via the spec migration.
@@ -477,6 +507,262 @@ export function createChartConfig(schema, initialConfig = {}, options = DEFAULT_
   return revalidate(merged, schema, autoBind);
 }
 
+function initialTimeForContract(contract, schema) {
+  const time = schema?.time || {};
+  const periods = time.availablePeriods || [];
+  if (contract === "range") {
+    return {
+      contract,
+      ...(periods.length
+        ? { startYear: periods[0], endYear: periods.at(-1) }
+        : {}),
+    };
+  }
+  if (contract === "snapshot") {
+    const year =
+      time.defaultReportingPeriod ??
+      time.reportingPeriods?.at(-1) ??
+      periods.at(-1);
+    return { contract, ...(year != null ? { year } : {}) };
+  }
+  if (contract === "selectedSnapshots") return { contract, years: [] };
+  return { contract };
+}
+
+function reduceV3ChartConfig(config, action, schema) {
+  if (action.type === "SET_OUTCOME") {
+    return normalizeQuestion({
+      ...config,
+      question: {
+        ...config.question,
+        outcome: clone(action.outcome),
+        calculation: { id: "actual", params: {} },
+      },
+    });
+  }
+  if (action.type === "SET_CALCULATION") {
+    return normalizeQuestion({
+      ...config,
+      question: { ...config.question, calculation: clone(action.calculation) },
+    });
+  }
+  if (action.type === "SET_TIME") {
+    return normalizeQuestion({
+      ...config,
+      question: { ...config.question, time: clone(action.time) },
+    });
+  }
+  if (action.type === "SET_GEOGRAPHY") {
+    return normalizeQuestion({
+      ...config,
+      question: { ...config.question, geography: clone(action.geography) },
+    });
+  }
+  if (action.type === "SET_SOURCE") {
+    return normalizeQuestion({
+      ...config,
+      question: { ...config.question, source: action.source },
+    });
+  }
+  if (action.type === "SET_DATASET") {
+    return normalizeQuestion({
+      ...config,
+      question: {
+        ...config.question,
+        source: action.source,
+        geography: clone(action.geography),
+      },
+    });
+  }
+  if (action.type === "SET_COMPARISONS") {
+    const existing = config.presentation.appearance?.comparisonColors || {};
+    const overrides = Object.fromEntries(
+      (action.comparisons || [])
+        .filter((comparison) => comparison.color)
+        .map((comparison) => [comparison.id, comparison.color]),
+    );
+    return normalizeQuestion({
+      ...config,
+      question: { ...config.question, comparisons: clone(action.comparisons) },
+      presentation: {
+        ...config.presentation,
+        appearance: {
+          ...(config.presentation.appearance || {}),
+          comparisonColors: assignComparisonColors(action.comparisons || [], {
+            existing,
+            overrides,
+          }),
+        },
+      },
+    });
+  }
+  if (action.type === "SET_CHART_TYPE") {
+    let switched = applyChartType(config, action.chartType);
+    const capabilities = getChartCapabilities(action.chartType);
+    const presentations = capabilities?.comparison?.presentations || [];
+    if (!presentations.includes(switched.presentation.comparisonPresentation)) {
+      const comparisonPresentation = capabilities?.comparison?.default;
+      switched = normalizeQuestion({
+        ...switched,
+        presentation: {
+          ...switched.presentation,
+          comparisonPresentation,
+          activeTab:
+            comparisonPresentation === "tabs"
+              ? switched.presentation.activeTab || switched.question.comparisons?.[0]?.id || null
+              : null,
+        },
+      });
+    }
+
+    if (
+      action.chartType !== config.presentation?.chartType &&
+      requiresGeometry(action.chartType)
+    ) {
+      const subset = geometrySubsetFor(schema);
+      const forcedSource = schema?.subsetSource?.[subset];
+      switched = normalizeQuestion({
+        ...switched,
+        question: {
+          ...switched.question,
+          ...(forcedSource ? { source: forcedSource } : {}),
+          geography: {
+            subset,
+            // Entering a map means showing the level, not carrying a single
+            // place from a prior Line into an otherwise blank map.
+            locations: [],
+          },
+        },
+      });
+    }
+
+    const accepted = capabilities?.time?.contracts || [];
+    if (!accepted.includes(switched.question.time?.contract)) {
+      const contract = accepted.includes("none") && accepted.length === 1 ? "none" : accepted[0];
+      switched = normalizeQuestion({
+        ...switched,
+        question: {
+          ...switched.question,
+          // Commit the same module defaults the Time control displays. Before
+          // this, Range visually showed the full extent and Snapshot showed the
+          // reporting year while the question held only `{ contract }`; the
+          // chart then waited until the reader toggled an already-selected
+          // value. Explicit multi-year/two-period choices remain empty.
+          time: contract ? initialTimeForContract(contract, schema) : {},
+        },
+      });
+    }
+    return switched;
+  }
+  if (action.type === "SET_APPEARANCE" || action.type === "SET_PALETTE") {
+    const key = action.type === "SET_PALETTE" ? "palette" : action.key;
+    const value = action.type === "SET_PALETTE" ? action.palette : action.value;
+    const appearance = { ...config.presentation.appearance };
+    if (value == null) delete appearance[key];
+    else appearance[key] = clone(value);
+    const next = normalizeQuestion({
+      ...config,
+      presentation: {
+        ...config.presentation,
+        appearance,
+      },
+    });
+    // Loader-owned metadata is not durable question state, but an Appearance
+    // edit should not make its controls forget the chart that is still drawn.
+    return {
+      ...next,
+      ...(Object.hasOwn(config, "seriesCount")
+        ? { seriesCount: config.seriesCount }
+        : {}),
+      ...(Object.hasOwn(config, "seriesNames")
+        ? { seriesNames: clone(config.seriesNames) }
+        : {}),
+      ...(Object.hasOwn(config, "legendNames")
+        ? { legendNames: clone(config.legendNames) }
+        : {}),
+      ...(Object.hasOwn(config, "issues") ? { issues: clone(config.issues) } : {}),
+    };
+  }
+  if (action.type === "SET_LABEL") {
+    return normalizeQuestion({
+      ...config,
+      presentation: {
+        ...config.presentation,
+        labels: { ...config.presentation.labels, [action.key]: action.value },
+      },
+    });
+  }
+  if (action.type === "SET_ACTIVE_TAB") {
+    return normalizeQuestion({
+      ...config,
+      presentation: { ...config.presentation, activeTab: action.value },
+    });
+  }
+  if (action.type === "SET_ACTIVE_PERIOD") {
+    return normalizeQuestion({
+      ...config,
+      presentation: { ...config.presentation, activePeriod: action.value },
+    });
+  }
+  if (action.type === "SET_COMPARISON_PRESENTATION") {
+    return normalizeQuestion({
+      ...config,
+      presentation: {
+        ...config.presentation,
+        comparisonPresentation: action.value,
+        activeTab:
+          action.value === "tabs"
+            ? config.presentation.activeTab || config.question.comparisons?.[0]?.id || null
+            : null,
+      },
+    });
+  }
+  if (action.type === "SET_COMPARISON_VISIBILITY") {
+    return normalizeQuestion({
+      ...config,
+      presentation: {
+        ...config.presentation,
+        comparisonVisibility: {
+          ...(config.presentation.comparisonVisibility || {}),
+          [action.comparisonId]: action.visible,
+        },
+      },
+    });
+  }
+  if (action.type === "SET_RANKING") {
+    const calculation = config.question.calculation || { id: "actual", params: {} };
+    return normalizeQuestion({
+      ...config,
+      question: {
+        ...config.question,
+        calculation: {
+          ...calculation,
+          params: {
+            ...calculation.params,
+            ranking: {
+              n: action.topN,
+              direction: action.sort === "ascending" ? "bottom" : "top",
+            },
+          },
+        },
+      },
+    });
+  }
+  if (["LOAD_SPEC", "LOAD_VIEW", "RESET"].includes(action.type)) {
+    return normalizeQuestion(action.spec || action.config || config);
+  }
+  if (action.type === "SET_SERIES_COUNT") {
+    return {
+      ...config,
+      seriesCount: action.count,
+      seriesNames: clone(action.seriesNames || []),
+      legendNames: clone(action.legendNames || action.seriesNames || []),
+      issues: clone(action.issues || config.issues || []),
+    };
+  }
+  return config;
+}
+
 /**
  * ======================================================================
  * Configuration Reducer
@@ -489,6 +775,7 @@ function presetForChartType(chartType) {
 }
 
 export function reduceChartConfig(config, action, schema, options = DEFAULT_OPTIONS) {
+  if (config?.version === 3) return reduceV3ChartConfig(config, action, schema);
   const { autoBind = true } = options || {};
   let next = config;
 
@@ -921,14 +1208,16 @@ function addChart(workspace, schema, options = DEFAULT_OPTIONS) {
   const id = chartId();
   const chartNumber = workspace.charts.length + 1;
   const base = stripComputed(current.config);
-  const config = revalidate(
-    {
-      ...base,
-      labels: { ...base.labels },
-    },
-    schema,
-    autoBind,
-  );
+  const config = base.version === 3
+    ? normalizeQuestion(base)
+    : revalidate(
+        {
+          ...base,
+          labels: { ...base.labels },
+        },
+        schema,
+        autoBind,
+      );
   const charts = [
     ...workspace.charts,
     { id, name: `Chart ${chartNumber}`, config },
@@ -973,7 +1262,7 @@ function loadWorkspace(schema, incoming, options = DEFAULT_OPTIONS) {
   const charts = source.slice(0, MAX_CHARTS).map((chart, index) => ({
     id: chartId(),
     name: chart.name || `Chart ${index + 1}`,
-    config: createChartConfig(schema, chart.config, options),
+    config: createChartConfig(schema, chart.config || chart, options),
   }));
   if (!charts.length) return null;
   const layout =
@@ -1017,6 +1306,16 @@ function reduceWorkspace(workspace, action, schema, options = DEFAULT_OPTIONS) {
     }
 
     case "SET_FILTER":
+      if (action.chartId) {
+        return updateChart(workspace, action.chartId, (chart) => ({
+          ...chart,
+          config: reduceChartConfig(chart.config, action, schema, options),
+        }));
+      }
+      break;
+
+    case "SET_ACTIVE_TAB":
+    case "SET_ACTIVE_PERIOD":
       if (action.chartId) {
         return updateChart(workspace, action.chartId, (chart) => ({
           ...chart,
@@ -1117,6 +1416,13 @@ export function ChartConfigProvider({
   const selected = activeChart(workspace);
   const config =
     selected?.config || createChartConfig(schema, initialConfig, options);
+  const editorModel = useMemo(
+    () =>
+      config.version === 3
+        ? resolveEditorModel({ spec: config, schema, mode: "standard" })
+        : null,
+    [config, schema],
+  );
 
   const value = useMemo(
     () => ({
@@ -1124,6 +1430,7 @@ export function ChartConfigProvider({
       dispatch,
       schema,
       workspace,
+      editorModel,
       // Consumers read this to tell "the reader has not chosen this yet" apart
       // from "this is wrong": PreviewContext draws the skeleton instead of
       // fetching, and ValidationNotice stays quiet about unset roles.
@@ -1131,7 +1438,15 @@ export function ChartConfigProvider({
       canUndo: state.past.length > 0,
       canRedo: state.future.length > 0,
     }),
-    [autoBind, config, schema, state.future.length, state.past.length, workspace],
+    [
+      autoBind,
+      config,
+      editorModel,
+      schema,
+      state.future.length,
+      state.past.length,
+      workspace,
+    ],
   );
 
   return (

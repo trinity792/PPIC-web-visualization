@@ -25,7 +25,7 @@
 // (via `node: _node`) so it isn't spread onto DOM elements.
 /* eslint-disable no-unused-vars */
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -46,6 +46,13 @@ import remarkIndentNesting from "@/lib/docs/markdown/remarkIndentNesting";
 import { DOC_SVG_DEFAULT_SIZE } from "@/lib/constants";
 
 export default function MarkdownArticle({ content, footnote, linkMap, assetMap }) {
+  const additionalMatch = String(content || "").match(
+    /:::additional-information\s*\n([\s\S]*?)\n:::/,
+  );
+  const [showAdditional, setShowAdditional] = useState(true);
+  const articleContent = additionalMatch
+    ? String(content).replace(additionalMatch[0], "")
+    : content;
   const footnoteText = String(footnote || "").trim();
   const remarkPlugins = [
     remarkGfm,
@@ -116,13 +123,35 @@ export default function MarkdownArticle({ content, footnote, linkMap, assetMap }
 
   return (
     <article className="ppic-markdown">
+      {additionalMatch ? (
+        <label className="mb-4 flex items-center gap-2">
+          <input
+            type="checkbox"
+            role="switch"
+            checked={showAdditional}
+            onChange={(event) => setShowAdditional(event.target.checked)}
+          />
+          Show additional information
+        </label>
+      ) : null}
       <ReactMarkdown
         remarkPlugins={remarkPlugins}
         rehypePlugins={rehypePlugins}
         components={components}
       >
-        {content}
+        {articleContent}
       </ReactMarkdown>
+      {additionalMatch && showAdditional ? (
+        <div className="settings-reference-additional-information">
+          <ReactMarkdown
+            remarkPlugins={remarkPlugins}
+            rehypePlugins={rehypePlugins}
+            components={components}
+          >
+            {additionalMatch[1]}
+          </ReactMarkdown>
+        </div>
+      ) : null}
       {footnoteText ? (
         <footer className="ppic-document-footnote">
           <hr aria-hidden="true" />

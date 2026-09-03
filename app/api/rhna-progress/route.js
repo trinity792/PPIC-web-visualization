@@ -21,8 +21,14 @@ import {
   resolveMeasureColumn,
 } from "@/lib/data/rhna_progress";
 import { integerParam, invalid, listParam } from "@/lib/data/apiParams";
+import { handleQuestionPost } from "@/lib/data/visualization/handleQuestionPost";
+import { rhnaProgressAdapter } from "@/lib/data/visualization/moduleAdapters";
 
 const VIEWS = ["category", "geo", "line", "table", "bestWorst", "regional", "locations"];
+
+export async function POST(request) {
+  return handleQuestionPost(request, rhnaProgressAdapter);
+}
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);

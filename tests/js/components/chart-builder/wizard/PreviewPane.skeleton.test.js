@@ -7,10 +7,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CHART_TYPE_IDS } from "@/lib/visualization/chartRegistry";
 
-const state = vi.hoisted(() => ({ previews: [] }));
+const state = vi.hoisted(() => ({ previews: [], schema: {} }));
 
 vi.mock("@/components/chart-builder/chartConfigStore", () => ({
-  useChartConfig: () => ({ workspace: { layout: "1x1" }, dispatch: vi.fn() }),
+  useChartConfig: () => ({ workspace: { layout: "1x1" }, dispatch: vi.fn(), schema: state.schema }),
 }));
 vi.mock("@/components/chart-builder/wizard/PreviewContext", () => ({
   usePreview: () => ({ previews: state.previews, setGraphDiv: vi.fn() }),
@@ -40,6 +40,7 @@ function preview(overrides) {
 describe("PreviewPane idle skeleton", () => {
   beforeEach(() => {
     state.previews = [preview()];
+    state.schema = {};
   });
 
   it("shows a chart-shaped placeholder with a prompt instead of a spinner", () => {
@@ -124,6 +125,69 @@ describe("PreviewPane idle skeleton", () => {
     expect(
       screen.getByText(/choose your settings to build this chart/i),
     ).toBeInTheDocument();
+  });
+
+  it("names unfinished v3 comparison selections in the same chart-shaped prompt", () => {
+    state.schema = {
+      subsets: { Counties: ["County"] },
+      fields: {
+        "Race/Ethnicity": { label: "Race/ethnicity" },
+        Sex: { label: "Sex" },
+        "Age Group": { label: "Age group" },
+      },
+      comparisonDimensions: [
+        { id: "Race/Ethnicity" },
+        { id: "Sex" },
+        { id: "Age Group" },
+      ],
+    };
+    state.previews = [
+      preview({
+        status: "unconfigured",
+        config: {
+          version: 3,
+          question: {
+            geography: { subset: "Counties", locations: ["San Francisco"] },
+            time: { contract: "range", startYear: 2020, endYear: 2070 },
+            comparisons: [{ id: "cmp_new", dimensions: {} }],
+          },
+          presentation: { chartType: "line", appearance: {} },
+        },
+      }),
+    ];
+    render(<PreviewPane />);
+
+    expect(
+      screen.getByText("Select Race/ethnicity, Sex, and Age group to build this chart."),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("prompts for Bar years without calling an unfinished question invalid", () => {
+    state.schema = {
+      subsets: { Regions: ["Region"] },
+      comparisonDimensions: [],
+    };
+    state.previews = [
+      preview({
+        status: "unconfigured",
+        config: {
+          version: 3,
+          question: {
+            geography: { subset: "Regions", locations: ["Bay Area"] },
+            time: { contract: "selectedSnapshots", years: [] },
+            comparisons: [{ id: "cmp_1", dimensions: {} }],
+          },
+          presentation: { chartType: "bar", appearance: {} },
+        },
+      }),
+    ];
+    render(<PreviewPane />);
+
+    expect(screen.getByText("Select Time to build this chart.")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/resolve the configuration errors/i),
+    ).not.toBeInTheDocument();
   });
 });
 

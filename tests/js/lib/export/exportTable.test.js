@@ -323,3 +323,191 @@ describe("copyText", () => {
     expect(writeText).toHaveBeenCalledWith("exported config");
   });
 });
+
+/**
+ * Workstream E - one table object behind the chart, the Data view, the CSV, and
+ * the XLSX.
+ *
+ * Three things the v2 export could not say, and now must:
+ *   - the difference between "we have no value" and "the source withheld it";
+ *   - what a derived number is derived from;
+ *   - every comparison, not just the one whose tab happens to be open.
+ *
+ * A reader who downloads the data and finds only the visible tab has been given
+ * a subset of their own chart without being told.
+ */
+const exportModule = () => import("@/lib/export/exportTable");
+
+const COMPARISONS = [
+  { id: "cmp_latina", label: "San Francisco Latina Women" },
+  { id: "cmp_white_women", label: "San Francisco White Women" },
+];
+
+const obs = (overrides = {}) => ({
+  comparisonId: "cmp_latina",
+  comparisonLabel: "San Francisco Latina Women",
+  measureId: "Population",
+  measureLabel: "Population",
+  unit: "people",
+  period: 2025,
+  geographyId: "06075",
+  geographyLabel: "San Francisco",
+  categoryId: null,
+  categoryLabel: null,
+  value: 50000,
+  status: "available",
+  valueKind: "observed",
+  calculation: { id: "actual", params: {} },
+  includedPeriods: null,
+  source: "DoF P-3",
+  ...overrides,
+});
+
+describe("Workstream E observation exports", () => {
+  it("shows Not available and Suppressed without numeric values", async () => {
+    const { displayTableFromObservations, toCsv } = await exportModule();
+
+    const table = displayTableFromObservations({
+      observations: [
+        obs({ value: 50000 }),
+        obs({ period: 2030, value: null, status: "missing" }),
+        obs({
+          comparisonId: "cmp_white_women",
+          comparisonLabel: "San Francisco White Women",
+          value: null,
+          status: "suppressed",
+        }),
+      ],
+      comparisons: COMPARISONS,
+    });
+
+    const statusColumn = table.columns.findIndex((column) => column.name === "Status");
+    const valueColumn = table.columns.findIndex((column) => column.name === "Population");
+    expect(statusColumn).toBeGreaterThan(-1);
+
+    // The reader-facing words, spelled the same way everywhere.
+    expect(table.rows[1][valueColumn]).toBe("Not available");
+    expect(table.rows[2][valueColumn]).toBe("Suppressed");
+
+    const csv = toCsv(table);
+    const lines = csv.trim().split("\n");
+    // In a file, the numeric cell is empty and the status travels in its own
+    // column: "Not available" in a number column breaks every spreadsheet that
+    // opens it.
+    expect(lines[2].split(",")[valueColumn]).toBe("");
+    expect(lines[2].split(",")[statusColumn]).toBe("missing");
+    expect(lines[3].split(",")[statusColumn]).toBe("suppressed");
+    expect(csv).not.toMatch(/(^|,)0(,|$)/m);
+  });
+
+  it("exports every comparison when one tab is active", async () => {
+    const { displayTableFromObservations } = await exportModule();
+
+    const table = displayTableFromObservations({
+      observations: [
+        obs(),
+        obs({
+          comparisonId: "cmp_white_women",
+          comparisonLabel: "San Francisco White Women",
+          value: 63000,
+        }),
+      ],
+      comparisons: COMPARISONS,
+      presentation: { comparisonPresentation: "tabs", activeTab: "cmp_latina" },
+    });
+
+    // The chart shows one map. The download is the data, not the screenshot.
+    expect(table.rows).toHaveLength(2);
+    const labels = table.rows.map((row) => row[table.columns.findIndex((c) => c.name === "Comparison")]);
+    expect(labels).toEqual([
+      "San Francisco Latina Women",
+      "San Francisco White Women",
+    ]);
+  });
+
+  it("exports only the active tab when the reader asked for exactly that", async () => {
+    const { displayTableFromObservations } = await exportModule();
+    const table = displayTableFromObservations({
+      observations: [
+        obs(),
+        obs({
+          comparisonId: "cmp_white_women",
+          comparisonLabel: "San Francisco White Women",
+          value: 63000,
+        }),
+      ],
+      comparisons: COMPARISONS,
+      presentation: { comparisonPresentation: "tabs", activeTab: "cmp_latina" },
+      scope: "visibleTab",
+    });
+
+    // The narrow export exists, but only behind an action that says so.
+    expect(table.rows).toHaveLength(1);
+  });
+
+  it("exports average metadata and included years", async () => {
+    const { displayTableFromObservations, toCsv } = await exportModule();
+
+    const table = displayTableFromObservations({
+      observations: [
+        obs({
+          period: "2020-2030",
+          value: 50000,
+          valueKind: "derived",
+          calculation: { id: "averageSelectedYears", params: { years: [2020, 2025, 2030] } },
+          includedPeriods: [2020, 2025, 2030],
+        }),
+      ],
+      comparisons: COMPARISONS,
+    });
+
+    const csv = toCsv(table);
+    // A derived value has to stay explainable once it leaves the chart: without
+    // the calculation and the years, 50,000 is indistinguishable from a single
+    // year's count.
+    expect(table.columns.map((column) => column.name)).toEqual(
+      expect.arrayContaining(["Calculation", "Included years"]),
+    );
+    expect(csv).toContain("averageSelectedYears");
+    expect(csv).toContain("2020; 2025; 2030");
+  });
+
+  it("uses custom and derived comparison labels consistently", async () => {
+    const { displayTableFromObservations } = await exportModule();
+
+    const table = displayTableFromObservations({
+      observations: [
+        obs({ comparisonLabel: "SF Latinas" }),
+        obs({
+          comparisonId: "cmp_white_women",
+          comparisonLabel: "San Francisco White Women",
+          value: 63000,
+        }),
+      ],
+      comparisons: [
+        { id: "cmp_latina", label: "SF Latinas", derivedLabel: "San Francisco Latina Women" },
+        COMPARISONS[1],
+      ],
+    });
+
+    const column = table.columns.findIndex((c) => c.name === "Comparison");
+    // The resolved label - custom where one was set, derived otherwise - is the
+    // one string the chart, the table, and the file all use. A CSV that says
+    // "Hispanic/Female/All Ages" describes a different thing to the reader than
+    // the legend they were looking at.
+    expect(table.rows.map((row) => row[column])).toEqual([
+      "SF Latinas",
+      "San Francisco White Women",
+    ]);
+  });
+
+  it("keeps the source beside the value", async () => {
+    const { displayTableFromObservations } = await exportModule();
+    const table = displayTableFromObservations({
+      observations: [obs({ source: "Census cc-est" })],
+      comparisons: COMPARISONS,
+    });
+    expect(table.columns.map((column) => column.name)).toContain("Source");
+    expect(table.rows[0]).toContain("Census cc-est");
+  });
+});

@@ -65,12 +65,13 @@ function orderedChartTypes(schema) {
   return ids.filter((id) => isChartTypeAvailable(id, schema));
 }
 
-function ChartTypeTile({ id, selected, onSelect }) {
+function ChartTypeTile({ id, selected, disabled = false, onSelect }) {
   const chart = getChartType(id);
   return (
     <button
       type="button"
       aria-pressed={selected}
+      disabled={disabled}
       onClick={onSelect}
       title={chart.purpose}
       className={cn(
@@ -86,8 +87,12 @@ function ChartTypeTile({ id, selected, onSelect }) {
 }
 
 export default function ChartTypeSection() {
-  const { config, dispatch, schema } = useChartConfig();
+  const { config, dispatch, schema, editorModel } = useChartConfig();
   const ids = orderedChartTypes(schema);
+  const available = new Map(
+    (editorModel?.chartChoices || []).map((choice) => [choice.id, choice.available]),
+  );
+  const selectedId = config.presentation?.chartType || config.chartType;
   const select = (id) => dispatch({ type: "SET_CHART_TYPE", chartType: id });
 
   return (
@@ -96,7 +101,8 @@ export default function ChartTypeSection() {
         <ChartTypeTile
           key={id}
           id={id}
-          selected={config.chartType === id}
+          selected={selectedId === id}
+          disabled={available.has(id) && !available.get(id)}
           onSelect={() => select(id)}
         />
       ))}

@@ -282,6 +282,166 @@ describe("reduceChartConfig — the geometry level a map needs", () => {
     );
     expect(map.filters.subset).toBe("Metros");
   });
+
+  it("pins the v3 question level, source, locations, and time when entering a map", () => {
+    const v3 = {
+      version: 3,
+      question: {
+        dataset: { kind: "module", moduleId: "testmodule" },
+        source: "Census",
+        outcome: { measureId: "Total Widgets" },
+        geography: { subset: "Regions", locations: ["Bay Area"] },
+        time: { contract: "range", startYear: 2020, endYear: 2025 },
+        calculation: { id: "actual", params: {} },
+        comparisons: [{ id: "cmp_1", dimensions: {} }],
+      },
+      presentation: { chartType: "line", comparisonPresentation: "combined" },
+    };
+    const map = reduceChartConfig(
+      v3,
+      { type: "SET_CHART_TYPE", chartType: "choroplethMap" },
+      { ...schema, subsetSource: { Counties: "DoF" } },
+    );
+
+    expect(map.question.geography).toEqual({ subset: "Counties", locations: [] });
+    expect(map.question.source).toBe("DoF");
+    expect(map.question.time).toEqual({ contract: "snapshot" });
+    expect(map.presentation.comparisonPresentation).toBe("tabs");
+  });
+
+  it("opens a v3 Bar on the multi-year contract", () => {
+    const v3 = {
+      version: 3,
+      question: {
+        dataset: { kind: "module", moduleId: "testmodule" },
+        source: "DoF",
+        outcome: { measureId: "Total Widgets" },
+        geography: { subset: "Regions", locations: ["Bay Area"] },
+        time: { contract: "range", startYear: 2020, endYear: 2025 },
+        calculation: { id: "actual", params: {} },
+        comparisons: [{ id: "cmp_1", dimensions: {} }],
+      },
+      presentation: { chartType: "line", comparisonPresentation: "combined" },
+    };
+
+    const bar = reduceChartConfig(v3, { type: "SET_CHART_TYPE", chartType: "bar" }, schema);
+
+    expect(bar.question.time).toEqual({ contract: "selectedSnapshots", years: [] });
+  });
+
+  it("commits the Range and Snapshot defaults shown after a chart switch", () => {
+    const projections = getModuleSchema("demographic-projections");
+    const v3 = {
+      version: 3,
+      question: {
+        dataset: { kind: "module", moduleId: projections.id },
+        source: "DoF P-3",
+        outcome: { measureId: "Population" },
+        geography: { subset: "Regions", locations: ["Bay Area"] },
+        time: { contract: "selectedSnapshots", years: [2025] },
+        calculation: { id: "actual", params: {} },
+        comparisons: [{
+          id: "cmp_1",
+          dimensions: {
+            "Race/Ethnicity": "Black",
+            Sex: "Female",
+            "Age Group": "All Ages",
+          },
+        }],
+      },
+      presentation: { chartType: "bar", comparisonPresentation: "combined" },
+    };
+
+    const line = reduceChartConfig(
+      v3,
+      { type: "SET_CHART_TYPE", chartType: "line" },
+      projections,
+    );
+    expect(line.question.time).toEqual({
+      contract: "range",
+      startYear: 2020,
+      endYear: 2070,
+    });
+
+    const map = reduceChartConfig(
+      line,
+      { type: "SET_CHART_TYPE", chartType: "choroplethMap" },
+      projections,
+    );
+    expect(map.question.time).toEqual({ contract: "snapshot", year: 2025 });
+  });
+
+  it("keeps v3 rendered-series metadata while changing or restoring the palette", () => {
+    const v3 = {
+      version: 3,
+      question: {
+        dataset: { kind: "module", moduleId: "testmodule" },
+        outcome: { measureId: "Total Widgets" },
+        geography: { subset: "Regions", locations: ["Bay Area"] },
+        time: { contract: "selectedSnapshots", years: [2020, 2025, 2030] },
+        calculation: { id: "actual", params: {} },
+        comparisons: [{ id: "cmp_1", dimensions: {} }],
+      },
+      presentation: { chartType: "bar", appearance: {} },
+    };
+    const loaded = reduceChartConfig(
+      v3,
+      {
+        type: "SET_SERIES_COUNT",
+        count: 3,
+        seriesNames: ["2020", "2025", "2030"],
+        legendNames: ["2020", "2025", "2030"],
+      },
+      schema,
+    );
+    const selected = reduceChartConfig(
+      loaded,
+      { type: "SET_PALETTE", palette: "ui-kit-blue" },
+      schema,
+    );
+    const automatic = reduceChartConfig(
+      selected,
+      { type: "SET_PALETTE", palette: null },
+      schema,
+    );
+
+    expect(selected.presentation.appearance.palette).toBe("ui-kit-blue");
+    expect(automatic.presentation.appearance.palette).toBeUndefined();
+    expect(automatic).toMatchObject({
+      seriesCount: 3,
+      seriesNames: ["2020", "2025", "2030"],
+      legendNames: ["2020", "2025", "2030"],
+    });
+  });
+
+  it("switches a v3 dataset and compatible geography in one action", () => {
+    const v3 = {
+      version: 3,
+      question: {
+        dataset: { kind: "module", moduleId: "testmodule" },
+        source: "DoF",
+        outcome: { measureId: "Total Widgets" },
+        geography: { subset: "Regions", locations: ["Bay Area"] },
+        time: { contract: "range", startYear: 2020, endYear: 2025 },
+        calculation: { id: "actual", params: {} },
+        comparisons: [{ id: "cmp_1", dimensions: {} }],
+      },
+      presentation: { chartType: "line", comparisonPresentation: "combined" },
+    };
+
+    const census = reduceChartConfig(
+      v3,
+      {
+        type: "SET_DATASET",
+        source: "Census",
+        geography: { subset: "States", locations: [] },
+      },
+      schema,
+    );
+
+    expect(census.question.source).toBe("Census");
+    expect(census.question.geography).toEqual({ subset: "States", locations: [] });
+  });
 });
 
 describe("reduceChartConfig — v2 actions", () => {

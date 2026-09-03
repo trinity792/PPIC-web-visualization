@@ -330,3 +330,151 @@ describe("rampProps", () => {
     });
   });
 });
+
+/**
+ * Workstream E - the official PPIC comparison schemes.
+ *
+ * `components/ui-kit/ppicSpec.js` transcribes the published guide;
+ * `lib/visualization/palettes.js` labelled a different sequence "official" and
+ * explained that Lime had been moved as an editorial adjustment. Two sources,
+ * one of them wrong, and the renderer consumed the wrong one. The UI Kit guide
+ * is the authority, so one client-safe module now exports the verbatim tokens
+ * and both surfaces read it.
+ *
+ * The colours below are hand-written from the guide's main-colour table
+ * (pp. 13-16), not read back off the module under test.
+ */
+const ORANGE = "#CA4F1A";
+const RED = "#832522";
+const GREEN = "#196348";
+const SEAFOAM = "#02BDA7";
+const NAVY = "#293B54";
+const VIOLET = "#693692";
+const BLUE = "#44AFD0";
+const LIME = "#CCCB74";
+const GRAY = "#CFCFCF";
+const DARK_GRAY = "#1A1918";
+
+/**
+ * Note that the four-group scheme is NOT the three-group scheme plus a colour:
+ * Gray leaves and Lime and Blue arrive. That is why a change in comparison
+ * count is the one event allowed to recalculate default assignments.
+ */
+const OFFICIAL_SCHEMES = {
+  1: [ORANGE],
+  2: [ORANGE, NAVY],
+  3: [ORANGE, NAVY, GRAY],
+  4: [ORANGE, NAVY, LIME, BLUE],
+  5: [ORANGE, NAVY, LIME, BLUE, DARK_GRAY],
+  6: [ORANGE, NAVY, LIME, BLUE, VIOLET, DARK_GRAY],
+  7: [ORANGE, NAVY, LIME, BLUE, VIOLET, SEAFOAM, DARK_GRAY],
+  8: [ORANGE, NAVY, LIME, BLUE, VIOLET, SEAFOAM, DARK_GRAY, GRAY],
+  9: [ORANGE, NAVY, LIME, BLUE, VIOLET, SEAFOAM, GRAY, RED, DARK_GRAY],
+  10: [ORANGE, NAVY, LIME, BLUE, VIOLET, SEAFOAM, GRAY, RED, GREEN, DARK_GRAY],
+};
+
+const palettesModule = () => import("@/lib/visualization/palettes");
+
+const comparisons = (count) =>
+  Array.from({ length: count }, (_, index) => ({
+    id: `cmp_${index}`,
+    label: `Comparison ${index + 1}`,
+  }));
+
+describe("Workstream E official comparison schemes", () => {
+  it("matches every official one-to-ten comparison scheme exactly", async () => {
+    const { officialComparisonScheme } = await palettesModule();
+    for (const [count, expected] of Object.entries(OFFICIAL_SCHEMES)) {
+      expect(officialComparisonScheme(Number(count)), `${count} comparisons`).toEqual(expected);
+    }
+  });
+
+  it("reads the same tokens the UI Kit publishes", async () => {
+    const { officialComparisonScheme } = await palettesModule();
+    const { PPIC_GROUP_SCHEMES, PPIC_HEX } = await import("@/components/ui-kit/ppicSpec");
+
+    // One shared source, so the page that documents the guide and the renderer
+    // that applies it cannot drift apart again.
+    for (const scheme of PPIC_GROUP_SCHEMES) {
+      expect(officialComparisonScheme(scheme.count), `${scheme.count} groups`).toEqual(
+        scheme.colors.map((name) => PPIC_HEX[name]),
+      );
+    }
+  });
+
+  it("does not label an adjusted sequence official", async () => {
+    const { PALETTES: ALL } = await palettesModule();
+    for (const [id, palette] of Object.entries(ALL)) {
+      if (!palette.official) continue;
+      expect(palette.adjusted, id).toBeFalsy();
+      expect(palette.note || "", id).not.toMatch(/adjust/i);
+    }
+  });
+
+  it("assigns tokens by comparison creation order, not display order", async () => {
+    const { assignComparisonColors } = await palettesModule();
+    const list = comparisons(3);
+    const assignment = assignComparisonColors(list);
+    expect(list.map((entry) => assignment[entry.id])).toEqual(OFFICIAL_SCHEMES[3]);
+  });
+
+  it("keeps comparison colors through reorder and chart switch", async () => {
+    const { assignComparisonColors } = await palettesModule();
+    const list = comparisons(3);
+    const original = assignComparisonColors(list);
+
+    // Dragging a card to the top, or switching Line to Bar, does not renumber
+    // anyone. Colour is attached to the stable id, not to a trace index.
+    const reordered = assignComparisonColors([list[2], list[0], list[1]], {
+      existing: original,
+    });
+    expect(reordered).toEqual(original);
+  });
+
+  it("reconciles defaults only when comparison count changes", async () => {
+    const { assignComparisonColors } = await palettesModule();
+    const three = comparisons(3);
+    const threeColors = assignComparisonColors(three);
+    expect(Object.values(threeColors)).toEqual(OFFICIAL_SCHEMES[3]);
+
+    const four = comparisons(4);
+    const fourColors = assignComparisonColors(four, { existing: threeColors });
+
+    // Four comparisons get the official four-group scheme, which is a different
+    // sequence rather than the three-group one with a colour appended.
+    expect(four.map((entry) => fourColors[entry.id])).toEqual(OFFICIAL_SCHEMES[4]);
+    expect(fourColors[three[2].id]).not.toBe(threeColors[three[2].id]);
+  });
+
+  it("keeps a reader's override attached to its comparison", async () => {
+    const { assignComparisonColors } = await palettesModule();
+    const list = comparisons(3);
+    const overrides = { [list[1].id]: VIOLET };
+
+    const three = assignComparisonColors(list, { overrides });
+    expect(three[list[1].id]).toBe(VIOLET);
+
+    // Even when the count change recalculates every default, the override
+    // survives on its own comparison.
+    const four = assignComparisonColors([...list, { id: "cmp_3", label: "Comparison 4" }], {
+      existing: three,
+      overrides,
+    });
+    expect(four[list[1].id]).toBe(VIOLET);
+  });
+
+  it("rejects an override that is not an official PPIC token", async () => {
+    const { assignComparisonColors } = await palettesModule();
+    expect(() =>
+      assignComparisonColors(comparisons(2), { overrides: { cmp_0: "#ff00ff" } }),
+    ).toThrow(/PPIC/i);
+  });
+
+  it("cycles predictably past ten rather than running out of colour", async () => {
+    const { officialComparisonScheme } = await palettesModule();
+    // Ten is the comparison limit, so eleven is an editor bug rather than a
+    // palette question - but the palette still must not return undefined.
+    expect(officialComparisonScheme(11)).toHaveLength(11);
+    expect(officialComparisonScheme(11)[10]).toBe(OFFICIAL_SCHEMES[10][0]);
+  });
+});

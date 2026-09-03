@@ -43,7 +43,16 @@ const LABEL_FIELDS = [
 ];
 
 export default function LabelsSection() {
-  const { config, dispatch, schema } = useChartConfig();
+  const { config: storedConfig, dispatch, schema } = useChartConfig();
+  const config = storedConfig.version === 3
+    ? {
+        ...storedConfig,
+        chartType: storedConfig.presentation?.chartType,
+        labels: storedConfig.presentation?.labels || {},
+        appearance: storedConfig.presentation?.appearance || {},
+        bindings: storedConfig.presentation?.bindings || {},
+      }
+    : storedConfig;
   // The live auto-labels the chart would use, shown as placeholders.
   const auto = deriveLabels(config, schema);
   const appearance = config.appearance || {};

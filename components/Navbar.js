@@ -23,7 +23,8 @@ import NavDropdown from "@/components/ui/nav-dropdown";
 import { getTopicLinks } from "@/lib/visualization/topicRegistry";
 
 export default function Navbar() {
-  // Data topics — each links to its detailed graph-editor page at /[module].
+  // Data topics — review-ready v3 modules point to the shared v3 workbench;
+  // all other topics retain their detailed graph-editor route at /[module].
   // Derived from the topic registry rather than restated here: the hardcoded
   // copy this replaced had already drifted from the schema ("Housing Stress"
   // where the module is labeled "ACS Housing Stress").

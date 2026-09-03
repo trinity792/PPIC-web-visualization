@@ -30,13 +30,13 @@ const EXPECTED_TOPICS = [
   {
     id: "components-of-change",
     title: "Births, deaths & migration",
-    href: "/components-of-change",
+    href: "/visualization-v3-review?module=components-of-change",
     documentationHref: "/documents/components-of-change-refractor",
   },
   {
     id: "demographic-projections",
     title: "Demographic projections",
-    href: "/demographic-projections",
+    href: "/visualization-v3-review?module=demographic-projections",
     documentationHref: "/documents/age-sex-race-projections-refractor",
   },
   {
@@ -71,10 +71,11 @@ describe("landing-page topic registry", () => {
     ).toEqual(EXPECTED_TOPICS);
   });
 
-  it("derives a route for every topic that resolves to a registered module", () => {
+  it("provides an editor route for every registered topic", () => {
     for (const topic of TOPICS) {
       expect(topic).not.toHaveProperty("href");
-      expect(MODULE_IDS).toContain(getTopicHref(topic).slice(1));
+      expect(MODULE_IDS).toContain(topic.id);
+      expect(getTopicHref(topic)).toMatch(/^\//);
     }
   });
 

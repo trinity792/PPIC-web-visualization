@@ -48,6 +48,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAdvancedMode } from "@/components/chart-builder/advancedMode";
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import {
+  hasComparisonDimensions,
+  resolveLabels,
+  updateComparison,
+} from "@/lib/visualization/comparisons";
+import {
   CATALOG_ROLE_FOR_BINDING,
   getChartType,
 } from "@/lib/visualization/chartRegistry";
@@ -58,7 +63,14 @@ import {
 } from "@/lib/visualization/fieldTypes";
 import { impliedBindings } from "@/lib/visualization/impliedRoles";
 import { bindableFields } from "@/lib/visualization/inlineMapping";
-import { paletteKindFor, resolveToken } from "@/lib/visualization/palettes";
+import {
+  OFFICIAL_COMPARISON_COLOR_NAMES,
+  PALETTES,
+  officialComparisonColor,
+  paletteKindFor,
+  resolveToken,
+  seriesColor,
+} from "@/lib/visualization/palettes";
 import { RAMP_SHADE_GROUPS } from "@/lib/visualization/ppicRamps";
 
 const NONE = "__none__";
@@ -778,8 +790,166 @@ function ValueAxisRangeControls() {
 
 // ── Section ──────────────────────────────────────────────────────────
 
+function comparisonLabelMeta(schema) {
+  return schema.labelMeta || {
+    dimensionOrder: ["geography", "Race/Ethnicity", "Sex", "Age Group"],
+    omitValues: { "Age Group": ["All Ages"], Sex: ["Both Sexes"], "Race/Ethnicity": ["All"] },
+    valueLabels: {
+      "Race/Ethnicity": { Hispanic: { default: "Latino", bySex: { Female: "Latina" } } },
+      Sex: { Female: "Women", Male: "Men" },
+    },
+    disambiguateBy: ["geography", "Source", "time"],
+  };
+}
+
+function ColorOption({ color, children }) {
+  return (
+    <span className="flex items-center gap-2">
+      <span
+        aria-hidden="true"
+        className="size-3 rounded-full border border-black/10"
+        style={{ backgroundColor: color }}
+      />
+      <span>{children}</span>
+    </span>
+  );
+}
+
+function ComparisonAppearanceControls({ config, dispatch, schema, advanced }) {
+  const comparisons = config.question?.comparisons || [];
+  if (!comparisons.length) return null;
+
+  const resolved = resolveLabels(
+    comparisons.map((entry) => ({
+      ...entry,
+      geography:
+        typeof entry.geography === "string"
+          ? entry.geography
+          : entry.geography?.locations?.length === 1
+            ? entry.geography.locations[0]
+            : undefined,
+      source: entry.source || config.question.source,
+    })),
+    { labelMeta: comparisonLabelMeta(schema) },
+  );
+  const automaticColors = config.presentation?.appearance?.comparisonColors || {};
+  const paletteSelected =
+    PALETTES[config.presentation?.appearance?.palette]?.kind === "categorical";
+  const setComparisons = (next) =>
+    dispatch({ type: "SET_COMPARISONS", comparisons: next });
+
+  return (
+    <div className="grid gap-3">
+      <div>
+        <p className="text-sm font-medium">Comparison appearance</p>
+        <p className="text-xs text-muted-foreground">
+          Labels and colors change the display, not the selected populations.
+        </p>
+      </div>
+      {resolved.map((comparison, index) => (
+        <div
+          key={comparison.id}
+          role="group"
+          aria-label={`Appearance for comparison ${index + 1}`}
+          className="grid gap-3 rounded-lg border bg-card p-3 shadow-xs"
+        >
+          <p className="text-sm font-semibold">{comparison.label}</p>
+          <div className="grid gap-2">
+            <Label htmlFor={`appearance-comparison-${comparison.id}-label`}>
+              Custom label
+            </Label>
+            <Input
+              id={`appearance-comparison-${comparison.id}-label`}
+              value={comparison.customLabel || ""}
+              placeholder={comparison.derivedLabel}
+              onChange={(event) => {
+                const result = updateComparison(comparisons, comparison.id, {
+                  customLabel: event.target.value || null,
+                });
+                setComparisons(result.comparisons);
+              }}
+            />
+          </div>
+          {advanced ? (
+            <>
+              <div className="grid gap-2">
+                <Label htmlFor={`appearance-comparison-${comparison.id}-color`}>
+                  Comparison color
+                </Label>
+                <Select
+                  value={comparison.color || "automatic"}
+                  onValueChange={(value) => {
+                    const result = updateComparison(comparisons, comparison.id, {
+                      color: value === "automatic" ? null : value,
+                    });
+                    setComparisons(result.comparisons);
+                  }}
+                >
+                  <SelectTrigger
+                    id={`appearance-comparison-${comparison.id}-color`}
+                    aria-label={`Comparison color for ${comparison.label}`}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="automatic">
+                      <ColorOption
+                        color={
+                          paletteSelected
+                            ? seriesColor(
+                                config.presentation.appearance,
+                                comparison.label,
+                                index,
+                              )
+                            : automaticColors[comparison.id]
+                        }
+                      >
+                        Automatic PPIC color
+                      </ColorOption>
+                    </SelectItem>
+                    {OFFICIAL_COMPARISON_COLOR_NAMES.map((name) => (
+                      <SelectItem key={name} value={name}>
+                        <ColorOption color={officialComparisonColor(name)}>{name}</ColorOption>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <Label htmlFor={`appearance-comparison-${comparison.id}-visible`}>
+                  Show this comparison
+                </Label>
+                <Switch
+                  id={`appearance-comparison-${comparison.id}-visible`}
+                  checked={config.presentation?.comparisonVisibility?.[comparison.id] !== false}
+                  onCheckedChange={(visible) =>
+                    dispatch({
+                      type: "SET_COMPARISON_VISIBILITY",
+                      comparisonId: comparison.id,
+                      visible,
+                    })
+                  }
+                />
+              </div>
+            </>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function AppearanceSection() {
-  const { config, dispatch, schema } = useChartConfig();
+  const { config: storedConfig, dispatch, schema } = useChartConfig();
+  const config = storedConfig.version === 3
+    ? {
+        ...storedConfig,
+        chartType: storedConfig.presentation?.chartType,
+        appearance: storedConfig.presentation?.appearance || {},
+        labels: storedConfig.presentation?.labels || {},
+        bindings: storedConfig.presentation?.bindings || {},
+      }
+    : storedConfig;
   const chart = getChartType(config.chartType);
   const appearance = config.appearance || {};
   const tickFields = tickIncrementFields(config, schema);
@@ -798,7 +968,11 @@ export default function AppearanceSection() {
   // scale-driven type is offered ramp palettes by declaring itself.
   const paletteKind = paletteKindFor(config.chartType, appearance);
   const rampInPlay = paletteKind !== "categorical";
-  const showsColorBinding = chart?.colorBindingSection === "appearance";
+  // V3 comparisons already define series identity. Its legacy Color binding
+  // dispatched an action the v3 question contract intentionally does not own,
+  // so showing it produced a control that could never affect the chart.
+  const showsColorBinding =
+    storedConfig.version !== 3 && chart?.colorBindingSection === "appearance";
   const colorFields = showsColorBinding
     ? Object.entries(bindableFields(schema, config)).filter(([, field]) => {
         if (!(chart.roleConstraints.color || []).includes(field.kind)) return false;
@@ -844,6 +1018,15 @@ export default function AppearanceSection() {
         seriesNames={config.legendNames || config.seriesNames || []}
         kind={paletteKind}
       />
+
+      {storedConfig.version === 3 && hasComparisonDimensions(schema) ? (
+        <ComparisonAppearanceControls
+          config={storedConfig}
+          dispatch={dispatch}
+          schema={schema}
+          advanced={advanced}
+        />
+      ) : null}
 
       <div className="grid gap-2">
         <Label htmlFor="appearance-legend">Legend Position</Label>
@@ -1186,15 +1369,6 @@ export default function AppearanceSection() {
           </div>
         </>
       ) : null}
-
-      <div className="flex items-center justify-between gap-3">
-        <Label htmlFor="appearance-watermark">PPIC watermark</Label>
-        <Switch
-          id="appearance-watermark"
-          checked={Boolean(appearance.watermark)}
-          onCheckedChange={(checked) => setAppearance("watermark", checked)}
-        />
-      </div>
 
       <div className="grid gap-2">
         <Label htmlFor="appearance-tooltip">Tooltip template</Label>

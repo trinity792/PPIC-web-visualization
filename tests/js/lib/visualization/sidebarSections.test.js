@@ -166,6 +166,26 @@ describe("visibleSectionsFor", () => {
     ).not.toContain("date-range");
   });
 
+  it("shows v3 Comparisons only for modules with comparison dimensions", () => {
+    const v3 = {
+      version: 3,
+      presentation: { chartType: "line" },
+      question: { comparisons: [] },
+    };
+    const demographic = {
+      ...schema,
+      comparisonDimensions: [{ id: "Race/Ethnicity" }],
+    };
+    const locationSeries = { ...schema, comparisonDimensions: [] };
+
+    expect(
+      visibleSectionsFor(v3, demographic).map((item) => item.value),
+    ).toContain("comparisons");
+    expect(
+      visibleSectionsFor(v3, locationSeries).map((item) => item.value),
+    ).not.toContain("comparisons");
+  });
+
   it("applies only and exclude without changing registry order", () => {
     // The registry's declared order, asserted against the hand-written list so a
     // reordering of either shows up here rather than cancelling out.

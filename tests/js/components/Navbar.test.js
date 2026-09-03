@@ -38,7 +38,7 @@ describe("Navbar", () => {
     ]);
   });
 
-  it("points each topic link at its module route", () => {
+  it("points the two review-ready topics at v3 and preserves the other module routes", () => {
     render(<Navbar />);
 
     const topicMenu = screen.getByRole("menu", { name: "Topic" });
@@ -49,8 +49,8 @@ describe("Navbar", () => {
         .map((link) => link.getAttribute("href")),
     ).toEqual([
       "/pophousing",
-      "/components-of-change",
-      "/demographic-projections",
+      "/visualization-v3-review?module=components-of-change",
+      "/visualization-v3-review?module=demographic-projections",
       "/housing-stress",
       "/building-permits",
       "/rhna-progress",

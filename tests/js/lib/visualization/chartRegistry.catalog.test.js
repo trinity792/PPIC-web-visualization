@@ -278,3 +278,250 @@ describe("descriptor metadata", () => {
     );
   });
 });
+
+/**
+ * Workstream A - the capability matrix.
+ *
+ * Standard Mode hides chart choices the resolved question cannot support, and
+ * Advanced Mode may expose a crowded presentation but never a mathematically
+ * invalid one. Both read one merged descriptor, so this matrix is the fact that
+ * decides which chart types a question can reach.
+ *
+ * The matrix is written out by hand. A test that reads the registry and then
+ * asserts what it just read proves nothing: adding a chart type has to change a
+ * table a person reviews.
+ *
+ * `getChartCapabilities` is resolved with a dynamic import so this block fails
+ * on its own while the descriptor is still being written, instead of taking the
+ * whole catalog file down with it.
+ */
+async function capabilitiesFor(chartTypeId) {
+  const registry = await import("@/lib/visualization/chartRegistry");
+  return registry.getChartCapabilities(chartTypeId);
+}
+
+const TIME_CONTRACTS = [
+  "range", // a start and an end over available periods
+  "orderedSequence", // every period in order, no endpoints chosen
+  "snapshot", // exactly one period
+  "selectedSnapshots", // an explicit set of periods, shown as tabs or averaged
+  "twoPeriods", // exactly two ordered periods, for a change calculation
+  "none", // the chart has no time axis at all
+];
+
+const ALL_CALCULATIONS = [
+  "actual",
+  "sum",
+  "weightedMean",
+  "averageSelectedYears",
+  "numericChange",
+  "percentChange",
+  "percentagePointChange",
+  "indexed",
+  "benchmarkDifference",
+  "ranking",
+];
+
+const CHANGE_CALCULATIONS = ["numericChange", "percentChange", "percentagePointChange"];
+
+/** Hand-written from the implementation plan's "Capability matrix to encode". */
+const CAPABILITY_MATRIX = {
+  line: {
+    time: ["range", "orderedSequence"],
+    presentations: ["combined", "tabs"],
+    defaultPresentation: "combined",
+    tabsRequired: false,
+    calculations: ["actual", "indexed", ...CHANGE_CALCULATIONS, "benchmarkDifference"],
+  },
+  bar: {
+    time: ["selectedSnapshots", "snapshot", "twoPeriods"],
+    presentations: ["combined", "tabs"],
+    defaultPresentation: "combined",
+    tabsRequired: false,
+    calculations: ["actual", ...CHANGE_CALCULATIONS, "benchmarkDifference", "ranking"],
+  },
+  choroplethMap: {
+    time: ["snapshot", "selectedSnapshots", "twoPeriods"],
+    presentations: ["tabs"],
+    defaultPresentation: "tabs",
+    tabsRequired: true,
+    calculations: ["actual", ...CHANGE_CALCULATIONS, "benchmarkDifference", "ranking"],
+  },
+  heatmap: {
+    time: ["range", "selectedSnapshots"],
+    presentations: ["tabs"],
+    defaultPresentation: "tabs",
+    tabsRequired: true,
+    calculations: ["actual", ...CHANGE_CALCULATIONS, "ranking"],
+  },
+  dumbbell: {
+    // The Range chart's two marks ARE the two periods, so a second change
+    // transform on top of them would plot a difference of a difference.
+    time: ["twoPeriods"],
+    presentations: ["rows"],
+    defaultPresentation: "rows",
+    tabsRequired: false,
+    calculations: ["actual"],
+  },
+  dotPlot: {
+    time: ["range", "snapshot", "none"],
+    presentations: ["combined", "tabs"],
+    defaultPresentation: "combined",
+    tabsRequired: false,
+    calculations: ["actual", "ranking"],
+  },
+  forest: {
+    // Lower and upper bounds are measure roles. Forest does not inherit
+    // Range's two-period rule.
+    time: ["snapshot", "none"],
+    presentations: ["rows"],
+    defaultPresentation: "rows",
+    tabsRequired: false,
+    calculations: ["actual"],
+  },
+  scatter: {
+    time: ["snapshot", "none"],
+    presentations: ["combined", "tabs"],
+    defaultPresentation: "combined",
+    tabsRequired: false,
+    calculations: ["actual", "ranking"],
+  },
+  bubble: {
+    time: ["snapshot", "none"],
+    presentations: ["combined", "tabs"],
+    defaultPresentation: "combined",
+    tabsRequired: false,
+    calculations: ["actual", "ranking"],
+  },
+  pie: {
+    time: ["snapshot", "selectedSnapshots"],
+    presentations: ["slices", "tabs"],
+    defaultPresentation: "slices",
+    tabsRequired: false,
+    calculations: ["actual", "averageSelectedYears"],
+  },
+  symbolMap: {
+    time: ["snapshot", "selectedSnapshots"],
+    presentations: ["tabs"],
+    defaultPresentation: "tabs",
+    tabsRequired: true,
+    calculations: ["actual", "ranking"],
+  },
+  dataTable: {
+    // A table can show anything the backend returns, including the aggregation
+    // rules a chart never offers as a control.
+    time: TIME_CONTRACTS,
+    presentations: ["rows"],
+    defaultPresentation: "rows",
+    tabsRequired: false,
+    calculations: ALL_CALCULATIONS,
+  },
+};
+
+describe("Workstream A capability matrix", () => {
+  it("declares the complete hand-written capability matrix for every chart id", async () => {
+    // Every registered chart is in the table, and the table invents nothing.
+    expect(Object.keys(CAPABILITY_MATRIX).sort()).toEqual([...CHART_TYPE_IDS].sort());
+
+    for (const [id, expected] of Object.entries(CAPABILITY_MATRIX)) {
+      const capability = await capabilitiesFor(id);
+
+      expect([...capability.time.contracts].sort(), `${id}.time`).toEqual(
+        [...expected.time].sort(),
+      );
+      expect([...capability.comparison.presentations].sort(), `${id}.presentations`).toEqual(
+        [...expected.presentations].sort(),
+      );
+      expect(capability.comparison.default, `${id}.defaultPresentation`).toBe(
+        expected.defaultPresentation,
+      );
+      expect(capability.comparison.tabsRequired, `${id}.tabsRequired`).toBe(
+        expected.tabsRequired,
+      );
+      expect([...capability.calculations].sort(), `${id}.calculations`).toEqual(
+        [...expected.calculations].sort(),
+      );
+
+      // Geography and appearance behaviour is declared, not inferred from the
+      // chart id at the call site.
+      expect(capability.geography, `${id}.geography`).toEqual(
+        expect.objectContaining({ requiresStableIds: expect.any(Boolean) }),
+      );
+      expect(capability.appearance, `${id}.appearance`).toEqual(
+        expect.objectContaining({ colorEncoding: getChartType(id).colorEncoding }),
+      );
+    }
+  });
+
+  it("uses only the declared time-contract vocabulary", async () => {
+    for (const id of CHART_TYPE_IDS) {
+      const capability = await capabilitiesFor(id);
+      expect(capability.time.contracts.length, id).toBeGreaterThan(0);
+      for (const contract of capability.time.contracts) {
+        expect(TIME_CONTRACTS, `${id}: ${contract}`).toContain(contract);
+      }
+    }
+  });
+
+  it("treats forest endpoints as measures rather than periods", async () => {
+    const forest = await capabilitiesFor("forest");
+    const dumbbell = await capabilitiesFor("dumbbell");
+
+    // The Range chart's endpoints are two periods...
+    expect(dumbbell.time.contracts).toEqual(["twoPeriods"]);
+    expect(dumbbell.intervalEndpoints).toBe("period");
+
+    // ...but a forest plot's interval is an estimate with a lower and an upper
+    // bound. It must not inherit the two-period rule just because both charts
+    // draw a span.
+    expect(forest.time.contracts).not.toContain("twoPeriods");
+    expect(forest.intervalEndpoints).toBe("measure");
+    expect(forest.measureRoles).toEqual(
+      expect.arrayContaining(["estimate", "lowerBound", "upperBound"]),
+    );
+  });
+
+  it("requires tabs for choropleth map heatmap and symbol map comparisons", async () => {
+    // On these three the colour IS the value, so a second comparison drawn in
+    // the same frame would have to overload the scale with identity.
+    for (const id of ["choroplethMap", "heatmap", "symbolMap"]) {
+      const capability = await capabilitiesFor(id);
+      expect(capability.comparison.presentations, id).toEqual(["tabs"]);
+      expect(capability.comparison.tabsRequired, id).toBe(true);
+      expect(capability.comparison.default, id).toBe("tabs");
+    }
+
+    // ...and Line is the counter-case: tabs are available but never forced.
+    const line = await capabilitiesFor("line");
+    expect(line.comparison.tabsRequired).toBe(false);
+    expect(line.comparison.default).toBe("combined");
+  });
+
+  it("never offers a change calculation to the Range chart", async () => {
+    const dumbbell = await capabilitiesFor("dumbbell");
+    for (const calculation of CHANGE_CALCULATIONS) {
+      expect(dumbbell.calculations, calculation).not.toContain(calculation);
+    }
+  });
+
+  it("offers ranking only where the backend can order the marks", async () => {
+    const ranked = [];
+    for (const id of CHART_TYPE_IDS) {
+      const capability = await capabilitiesFor(id);
+      if (capability.calculations.includes("ranking")) ranked.push(id);
+    }
+    expect(ranked.sort()).toEqual(
+      ["bar", "bubble", "choroplethMap", "dataTable", "dotPlot", "heatmap", "scatter", "symbolMap"].sort(),
+    );
+  });
+
+  it("offers the selected-year average only where a year tab set exists", async () => {
+    const averaged = [];
+    for (const id of CHART_TYPE_IDS) {
+      const capability = await capabilitiesFor(id);
+      if (capability.calculations.includes("averageSelectedYears")) averaged.push(id);
+    }
+    // Donut is the approved case; the data table shows whatever it is given.
+    expect(averaged.sort()).toEqual(["dataTable", "pie"]);
+  });
+});

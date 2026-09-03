@@ -20,6 +20,8 @@ import {
   queryTwoPeriod,
 } from "@/lib/data/demographic_projections";
 import { integerParam, invalid, listParam } from "@/lib/data/apiParams";
+import { executeQuestion } from "@/lib/data/visualization/executeQuestion";
+import { projectionsAdapter } from "@/lib/data/visualization/moduleAdapters";
 
 const VIEWS = [
   "line",
@@ -32,6 +34,31 @@ const VIEWS = [
 ];
 const CENSUS_SOURCE = "Census cc-est";
 const DOF_SOURCE = "DoF P-3";
+
+export async function POST(request) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return Response.json(
+      { status: "blocked", observations: [], comparisons: [], periods: [], issues: [
+        { code: "malformedJson", level: "blocking", comparisonId: null, message: "Send valid JSON." },
+      ] },
+      { status: 400 },
+    );
+  }
+  try {
+    const result = await executeQuestion(body, { adapter: projectionsAdapter });
+    return Response.json(result, { status: result.status === "blocked" ? 400 : 200 });
+  } catch (error) {
+    return Response.json(
+      { status: "blocked", observations: [], comparisons: [], periods: [], issues: [
+        { code: "serverError", level: "blocking", comparisonId: null, message: error.message },
+      ] },
+      { status: 500 },
+    );
+  }
+}
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);

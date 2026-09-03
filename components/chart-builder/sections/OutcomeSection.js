@@ -69,8 +69,74 @@ import {
 } from "@/lib/visualization/fieldTypes";
 import { impliedBindings, impliedRoleHint } from "@/lib/visualization/impliedRoles";
 import { bindableFields } from "@/lib/visualization/inlineMapping";
+import { calculationOptionsFor, getCalculation } from "@/lib/data/visualization/calculationRegistry";
 
 const NONE = "__none__";
+
+function V3Outcome({ config, dispatch, schema, advanced, editorModel }) {
+  const measureId = config.question?.outcome?.measureId;
+  const measure = schema.fields?.[measureId] || {};
+  const modelCalculations = editorModel?.calculations || config.editorModel?.calculations || [];
+  let calculations = calculationOptionsFor({ id: measureId, ...measure });
+  if (modelCalculations.length) {
+    calculations = calculations.filter((id) => modelCalculations.includes(id));
+  }
+  calculations = calculations.filter(
+    (id) => !["sum", "weightedMean", "averageSelectedYears"].includes(id),
+  );
+  if (!advanced) {
+    calculations = calculations.filter((id) => !["benchmarkDifference", "ranking"].includes(id));
+  }
+  const measures = Object.entries(schema.fields || {}).filter(([, field]) => isMeasure(field));
+  const benchmarkAllowed =
+    advanced &&
+    (editorModel?.calculations || config.editorModel?.calculations || calculations).includes(
+      "benchmarkDifference",
+    );
+
+  return (
+    <div className="grid gap-3">
+      <div className="grid gap-2">
+        <Label htmlFor="v3-outcome">Outcome</Label>
+        <Select
+          value={measureId}
+          onValueChange={(value) => dispatch({ type: "SET_OUTCOME", outcome: { measureId: value } })}
+        >
+          <SelectTrigger id="v3-outcome" aria-label="Outcome"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {measures.map(([id, field]) => <SelectItem key={id} value={id}>{field.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor="v3-calculation">Transformation</Label>
+        <Select
+          value={config.question.calculation?.id || "actual"}
+          onValueChange={(id) => dispatch({ type: "SET_CALCULATION", calculation: { id, params: {} } })}
+        >
+          <SelectTrigger id="v3-calculation" aria-label="Transformation"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {calculations.map((id) => (
+              <SelectItem key={id} value={id}>{getCalculation(id)?.label || id}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      {benchmarkAllowed ? (
+        <label className="grid gap-1 text-sm">
+          Benchmark
+          <input aria-label="Benchmark" />
+        </label>
+      ) : null}
+      {measure.aggregation && measure.aggregation !== "notAllowed" ? (
+        <div className="text-sm">
+          <p>{measure.aggregation === "weightedMean" ? "Weighted mean" : "Sum"}</p>
+          {measure.weightField ? <p>Weighted by {measure.weightField.toLowerCase()}.</p> : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 /**
  * Axis-block labels for the roles the mockup names directly. Anything not listed
@@ -201,8 +267,19 @@ function acceptedKinds(chart, role) {
 // ── Section ──────────────────────────────────────────────────────────
 
 export default function OutcomeSection({ allowLayers = false }) {
-  const { config, dispatch, schema } = useChartConfig();
+  const { config, dispatch, schema, editorModel } = useChartConfig();
   const { advanced } = useAdvancedMode();
+  if (config.version === 3) {
+    return (
+      <V3Outcome
+        config={config}
+        dispatch={dispatch}
+        schema={schema}
+        advanced={advanced}
+        editorModel={editorModel}
+      />
+    );
+  }
   const chart = getChartType(config.chartType);
   // Outcome can also be mounted solely to host inherited transform or
   // stratification controls (notably on a data table). In that case, do not

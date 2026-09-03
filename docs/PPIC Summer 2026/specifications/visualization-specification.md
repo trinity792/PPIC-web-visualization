@@ -700,6 +700,28 @@ The August additions are pinned at their boundaries too. `rhna_progress.test.js`
 
 Every chart setting the UI can write, plus the supported config-only and editor-state settings: what each is called on screen, where it lives, which chart types offer or consume it, what reads it, and what it does.
 
+The v3 factual inventory below is generated from the approved settings registry. The explanatory sections that follow remain human-written.
+
+<!-- settings-reference:start -->
+| ID | Setting | Section | Mode | Applies to | Values or limits | Config key | Consumer |
+|---|---|---|---|---|---|---|---|
+| benchmarkDifference | Difference from benchmark | Outcome | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.calculation.params.benchmark | lib/data/visualization/calculationRegistry.js |
+| calculation | Transformation | Outcome | standard | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.calculation.id | lib/data/visualization/calculationRegistry.js |
+| comparisonColor | Comparison color | Appearance | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.comparisons[].color | lib/visualization/palettes.js |
+| comparisonGeographyOverride | Comparison geography override | Comparisons | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.comparisons[].geography | lib/data/visualization/executeQuestion.js |
+| comparisonLegendLabel | Comparison legend label | Appearance | standard | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.comparisons[].customLabel | lib/visualization/adapters/index.js |
+| comparisonPresentation | Comparison presentation | Comparisons | standard | Charts: All; datasets: All | See resolved chart and dataset capabilities | presentation.comparisonPresentation | lib/visualization/adapters/index.js |
+| comparisons | Comparisons | Comparisons | standard | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.comparisons | lib/data/visualization/executeQuestion.js |
+| comparisonTimeOverride | Comparison time override | Comparisons | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.comparisons[].time | lib/data/visualization/executeQuestion.js |
+| comparisonVisibility | Comparison visibility | Appearance | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | presentation.comparisonVisibility | lib/visualization/adapters/index.js |
+| customDivergingStops | Custom diverging stops | Appearance | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | presentation.appearance.divergingStops | lib/visualization/palettes.js |
+| hideXAxis | Hide horizontal axis | Appearance | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | presentation.appearance.hideXAxis | lib/visualization/adapters/index.js |
+| outcome | Outcome | Outcome | standard | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.outcome.measureId | lib/data/visualization/executeQuestion.js |
+| ranking | Ranking | Geography | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.calculation.params.ranking | lib/data/visualization/rankObservations.js |
+| seriesBinding | Series binding | Outcome | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | presentation.bindings.series | lib/tabular/toObservations.js |
+| time | Time | Time | standard | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.time | components/chart-builder/sections/TimeSection.js |
+<!-- settings-reference:end -->
+
 > [!info] How to read this reference
 > **Config key** is the path inside the declarative chart config, which is also what a `?view=` link and a saved view carry. Unless a row says **No control**, **Available on** is the chart types whose control actually renders - a setting absent here is absent from the sidebar, not merely disabled. **Wired to** names the module that reads the key; a setting whose "Wired to" column reads *nothing* is declared and never consumed, and those are collected in their own table at the end.
 >

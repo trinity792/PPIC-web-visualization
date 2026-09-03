@@ -47,11 +47,15 @@ import {
   isChangeTransform,
   legendNamesOf,
   loadChartData,
+  loadObservationGeometry,
+  loadObservations,
   seriesCountOf,
   seriesNamesOf,
 } from "@/components/chart-builder/chartData";
 import { effectiveLabels } from "@/lib/visualization/deriveLabels";
 import { toPlotly } from "@/lib/visualization/toPlotly";
+import { adaptObservations } from "@/lib/visualization/adapters";
+import { missingQuestionSelections } from "@/lib/visualization/questionReadiness";
 import { hasBlockingErrors, isIncomplete } from "@/lib/visualization/validation";
 import { inlineRenderBlock } from "@/lib/visualization/inlineMapping";
 
@@ -78,6 +82,55 @@ const UNCONFIGURED = {
   error: null,
   notice: null,
 };
+
+const V3_MAP_TYPES = ["choroplethMap", "symbolMap"];
+
+function v3QuestionKey(config) {
+  return JSON.stringify(config.question);
+}
+
+function v3GeometryAdapter(config) {
+  const chartType = config.presentation?.chartType;
+  return V3_MAP_TYPES.includes(chartType) ? chartType : null;
+}
+
+function v3LoadKey(config) {
+  return JSON.stringify({
+    question: config.question,
+    // The data question is chart-independent, but the client-side geography
+    // artifact is not: choropleths need polygons and symbol maps need points.
+    geometryAdapter: v3GeometryAdapter(config),
+  });
+}
+
+function canHoldV3MapWhileLoading(state, config) {
+  return Boolean(
+    state?.result &&
+      state.questionKey === v3QuestionKey(config) &&
+      V3_MAP_TYPES.includes(state.chartType) &&
+      V3_MAP_TYPES.includes(config.presentation?.chartType) &&
+      state.chartType !== config.presentation?.chartType,
+  );
+}
+
+function adaptV3Result(config, schema, result, chartType) {
+  const summaries = new Map(
+    (result.comparisons || []).map((entry) => [entry.id, entry]),
+  );
+  return adaptObservations({
+    chartType: chartType || config.presentation?.chartType,
+    observations: result.observations || [],
+    comparisons: (config.question.comparisons || []).map((comparison) => ({
+      ...comparison,
+      label: summaries.get(comparison.id)?.label || comparison.label || comparison.id,
+    })),
+    presentation: config.presentation,
+    labels: effectiveLabels(config, schema),
+    appearance: config.presentation?.appearance || {},
+    format: config.presentation?.format || {},
+    geometry: result.geometry || null,
+  });
+}
 
 /**
  * Is this chart simply unfinished rather than misconfigured?
@@ -117,6 +170,9 @@ export function PreviewProvider({ children, deferInitialRender = false }) {
     () =>
       JSON.stringify(
         charts.map(({ id, config }) => {
+          if (config.version === 3) {
+            return { id, loadKey: v3LoadKey(config) };
+          }
           const fetchTransform =
             ["bar", "choroplethMap"].includes(config.chartType) &&
             isChangeTransform(config.transform)
@@ -150,21 +206,26 @@ export function PreviewProvider({ children, deferInitialRender = false }) {
     const initial = {};
 
     charts.forEach(({ id, config }) => {
+      const v3 = config.version === 3;
+      const loadKey = v3 ? v3LoadKey(config) : null;
+      const unfinishedQuestion = v3 && missingQuestionSelections(config, schema).length > 0;
       // Nothing to ask the server for until the reader has said what to plot.
       // This is what keeps a half-set chart on the skeleton instead of firing a
       // request that could only fail, and it is why switching chart type on the
       // workbench raises no error.
-      if (isUnconfigured(config, schema, autoBind)) {
+      if ((!v3 && isUnconfigured(config, schema, autoBind)) || unfinishedQuestion) {
         initial[id] = UNCONFIGURED;
         return;
       }
 
-      const isInline =
+      const isInline = !v3 &&
         schema.inlineOnly && config.data?.source === "inline" && config.data.inline;
       const inlineBlock = isInline
         ? inlineRenderBlock(config.chartType, config.data.inline, config.bindings)
         : null;
-      const blocked = isInline
+      const blocked = v3
+        ? !config.question?.outcome?.measureId || !config.question?.comparisons?.length
+        : isInline
         ? Boolean(inlineBlock)
         : hasBlockingErrors(config.validation);
 
@@ -183,10 +244,58 @@ export function PreviewProvider({ children, deferInitialRender = false }) {
         result: null,
         error: null,
         notice: null,
+        loadKey,
       };
 
-      loadChartData(config, schema, controller.signal)
+      const load = v3
+        ? Promise.all([
+            loadObservations(config, {
+              apiPath: schema.apiPath,
+              signal: controller.signal,
+            }),
+            loadObservationGeometry(
+              config.presentation?.chartType,
+              config.question?.geography?.subset,
+              controller.signal,
+            ),
+          ]).then(([result, geometry]) => ({ ...result, geometry }))
+        : loadChartData(config, schema, controller.signal);
+      load
         .then((next) => {
+          if (v3) {
+            let seriesNames = [];
+            if (next.observations?.length) {
+              const figure = adaptV3Result(config, schema, next);
+              seriesNames = (figure.data || [])
+                .map((trace) => trace.name)
+                .filter((name) => name != null && name !== "");
+            }
+            dispatch({
+              type: "SET_SERIES_COUNT",
+              chartId: id,
+              count: seriesNames.length,
+              seriesNames,
+              legendNames: seriesNames,
+              issues: next.issues || [],
+            });
+            setPreviewState((current) => ({
+              ...current,
+              [id]: {
+                status: next.blocked
+                  ? "invalid"
+                  : next.observations?.length
+                    ? "ready"
+                    : "empty",
+                result: next,
+                error: null,
+                notice: null,
+                loadKey,
+                questionKey: v3QuestionKey(config),
+                chartType: config.presentation?.chartType,
+              },
+            }));
+            return;
+          }
           dispatch({
             type: "SET_SERIES_COUNT",
             chartId: id,
@@ -219,6 +328,7 @@ export function PreviewProvider({ children, deferInitialRender = false }) {
               result: null,
               error: nextError,
               notice: null,
+              loadKey,
             },
           }));
         });
@@ -227,7 +337,12 @@ export function PreviewProvider({ children, deferInitialRender = false }) {
     setPreviewState((current) => {
       const next = {};
       for (const chart of charts) {
-        next[chart.id] = initial[chart.id] || current[chart.id];
+        const pending = initial[chart.id];
+        next[chart.id] =
+          pending?.status === "loading" &&
+          canHoldV3MapWhileLoading(current[chart.id], chart.config)
+            ? current[chart.id]
+            : pending || current[chart.id];
       }
       return next;
     });
@@ -249,20 +364,45 @@ export function PreviewProvider({ children, deferInitialRender = false }) {
         // the skeleton on the same commit, not flash the previous chart until
         // the load effect catches up. Otherwise: a slot the effect has not
         // reached yet is loading, unless the provider is still deferred.
-        const state = isUnconfigured(config, schema, autoBind)
+        let state = (
+          config.version === 3
+            ? missingQuestionSelections(config, schema).length > 0
+            : isUnconfigured(config, schema, autoBind)
+        )
           ? UNCONFIGURED
           : previewState[id] ||
             (armed
               ? { status: "loading", result: null, error: null, notice: null }
               : IDLE);
+        let renderChartType =
+          config.presentation?.chartType || config.chartType;
+        if (
+          config.version === 3 &&
+          state.result &&
+          state.loadKey !== v3LoadKey(config)
+        ) {
+          if (canHoldV3MapWhileLoading(state, config)) {
+            // Keep the fully drawn map mounted until the other geometry
+            // artifact arrives. Purging a geo plot while Plotly is still
+            // settling its projection can leave an asynchronous autorange
+            // callback pointed at a graph div that no longer exists.
+            renderChartType = state.chartType;
+          } else {
+            state = { status: "loading", result: null, error: null, notice: null };
+          }
+        }
         let plotly = null;
         let renderError = null;
 
         if (state.result) {
           try {
+            if (config.version === 3) {
+              plotly = adaptV3Result(config, schema, state.result, renderChartType);
+            } else {
+            const activeLegacyTabColumn = config.filters?.["tabColumn"];
             const bindings =
-              config.filters?.tabColumn &&
-              config.filters.tabColumn === config.bindings?.group
+              activeLegacyTabColumn &&
+              activeLegacyTabColumn === config.bindings?.group
                 ? Object.fromEntries(
                     Object.entries(config.bindings).filter(([role]) => role !== "group"),
                   )
@@ -294,6 +434,7 @@ export function PreviewProvider({ children, deferInitialRender = false }) {
               referenceLines: config.referenceLines,
               layers: config.layers,
             });
+            }
           } catch (nextError) {
             renderError = nextError;
           }
@@ -303,6 +444,7 @@ export function PreviewProvider({ children, deferInitialRender = false }) {
           id,
           name,
           config,
+          renderChartType,
           active: id === activeChartId,
           graphDiv: graphDivRefs.current[id] || null,
           ...state,

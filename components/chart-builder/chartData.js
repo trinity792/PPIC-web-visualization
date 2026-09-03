@@ -14,10 +14,13 @@
  */
 
 import { rankCategoryRecords } from "@/lib/data/query_shapes";
+import { calculateChangeValue } from "@/lib/data/visualization/calculationRegistry";
 import { buildShapes } from "@/lib/tabular/toSeries";
+import { executeInlineQuestion } from "@/lib/tabular/toObservations";
 import { getChartType } from "@/lib/visualization/chartRegistry";
+import { validateResponse } from "@/lib/visualization/observationContract";
 
-const QUERY_SHAPES = Object.freeze({
+const LEGACY_VIEW_BY_CHART = Object.freeze({
   line: "line",
   // A diverging bar is a `bar` with `appearance.diverging`, so it shares this
   // single-period category view; toPlotly re-anchors the same
@@ -39,6 +42,49 @@ const QUERY_SHAPES = Object.freeze({
   // A data table shows the rows behind the chart, so it asks for the full table.
   dataTable: "table",
 });
+
+/** Load one v3 question without leaking presentation state into the request. */
+export async function loadObservations(spec, { apiPath, signal } = {}) {
+  if (spec?.question?.dataset?.kind === "inline") {
+    const response = executeInlineQuestion(spec);
+    return { ...response, blocked: response.status === "blocked" };
+  }
+  const request = { version: spec.version, question: spec.question };
+  let response;
+  try {
+    const result = await fetch(apiPath, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(request),
+      signal,
+    });
+    response = await result.json();
+  } catch (error) {
+    return {
+      blocked: true,
+      observations: [],
+      comparisons: [],
+      periods: [],
+      issues: [{ code: "requestFailed", level: "blocking", comparisonId: null, message: error.message }],
+    };
+  }
+  const validation = validateResponse(response);
+  if (!validation.valid) {
+    return {
+      blocked: true,
+      observations: [],
+      comparisons: [],
+      periods: [],
+      issues: [{
+        code: "invalidResponse",
+        level: "blocking",
+        comparisonId: null,
+        message: validation.errors.join(" "),
+      }],
+    };
+  }
+  return { ...response, blocked: response.status === "blocked" };
+}
 
 // Transforms computed at the data layer rather than by transformRegistry: the
 // single-period "category"/"geo" API views don't carry a base period, so a
@@ -65,14 +111,7 @@ export function isChangeTransform(transformId) {
 export function changeRecords(records, transformId) {
   return records.map(({ start, end, ...rest }) => {
     let value = null;
-    if (start != null && end != null) {
-      value =
-        transformId === "percentChange"
-          ? start === 0
-            ? null
-            : ((end - start) / start) * 100
-          : end - start; // numericChange, percentagePointChange
-    }
+    if (start != null && end != null) value = calculateChangeValue(start, end, transformId);
     return { ...rest, value };
   });
 }
@@ -114,7 +153,7 @@ function sourceParams(config, overrides = {}) {
 }
 
 function buildSearchParams(config, schema, overrides = {}) {
-  const view = overrides.view || QUERY_SHAPES[config.chartType];
+  const view = overrides.view || LEGACY_VIEW_BY_CHART[config.chartType];
   const params = new URLSearchParams({
     view,
     subset: overrides.subset || config.filters.subset,
@@ -197,10 +236,13 @@ function buildSearchParams(config, schema, overrides = {}) {
  * them when selecting rows.
  */
 export function fullTableUrl(config, schema) {
-  if (!schema?.apiPath || config?.data?.source === "inline") return null;
+  const inline =
+    config?.question?.dataset?.kind === "inline" || config?.data?.source === "inline";
+  if (!schema?.apiPath || inline) return null;
   const params = new URLSearchParams({ view: "table", full: "1" });
-  if (config?.filters?.subset) params.set("subset", config.filters.subset);
-  const { source } = sourceParams(config);
+  const subset = config?.question?.geography?.subset || config?.filters?.subset;
+  if (subset) params.set("subset", subset);
+  const source = config?.question?.source || sourceParams(config).source;
   if (source) params.set("source", source);
   return `${schema.apiPath}?${params}`;
 }
@@ -753,6 +795,21 @@ async function loadPoints(level, signal) {
   }
   pointsCache.set(level, body);
   return body;
+}
+
+/** Load the geometry a v3 observation adapter needs without mixing it into the question. */
+export async function loadObservationGeometry(chartType, subset, signal) {
+  if (!subset) return null;
+  const level = geometryLevelForSubset(subset);
+  if (chartType === "choroplethMap") return loadGeometry(level, signal);
+  if (chartType === "symbolMap") {
+    const [points, geojson] = await Promise.all([
+      loadPoints(level, signal),
+      loadGeometry(level, signal),
+    ]);
+    return { points, geojson };
+  }
+  return null;
 }
 
 /**

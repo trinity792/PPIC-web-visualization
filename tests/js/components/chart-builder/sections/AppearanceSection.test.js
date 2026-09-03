@@ -99,6 +99,128 @@ describe("AppearanceSection", () => {
     ).toBeInTheDocument();
   });
 
+  it("keeps comparison labels in Appearance and gates color and visibility to Advanced", async () => {
+    const user = userEvent.setup();
+    const comparison = {
+      id: "cmp_latina",
+      dimensions: {
+        "Race/Ethnicity": "Hispanic",
+        Sex: "Female",
+        "Age Group": "All Ages",
+      },
+      customLabel: null,
+      color: null,
+    };
+    state.config = {
+      version: 3,
+      question: {
+        source: "DoF P-3",
+        outcome: { measureId: "Population" },
+        geography: { subset: "Counties", locations: ["San Francisco"] },
+        comparisons: [comparison],
+      },
+      presentation: {
+        chartType: "line",
+        appearance: { comparisonColors: { cmp_latina: "#CA4F1A" } },
+        labels: {},
+        bindings: {},
+        comparisonVisibility: {},
+      },
+    };
+    state.schema = {
+      comparisonDimensions: [
+        { id: "Race/Ethnicity" },
+        { id: "Sex" },
+        { id: "Age Group" },
+      ],
+      fields: {
+        Population: { kind: "measure", label: "Population", chartRoles: ["yMeasure"] },
+      },
+    };
+
+    const basic = renderBasic();
+    const customLabel = screen.getByLabelText("Custom label");
+    expect(customLabel).toHaveAttribute("placeholder", "Latina Women");
+    expect(screen.queryByLabelText(/comparison color/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/show this comparison/i)).not.toBeInTheDocument();
+
+    fireEvent.change(customLabel, { target: { value: "SF Latinas" } });
+    expect(state.dispatch).toHaveBeenLastCalledWith({
+      type: "SET_COMPARISONS",
+      comparisons: [{ ...comparison, customLabel: "SF Latinas" }],
+    });
+
+    basic.unmount();
+    state.dispatch.mockClear();
+    renderAdvanced();
+    await user.click(screen.getByLabelText(/comparison color/i));
+    await user.click(screen.getByRole("option", { name: "Violet" }));
+    expect(state.dispatch).toHaveBeenLastCalledWith({
+      type: "SET_COMPARISONS",
+      comparisons: [{ ...comparison, color: "Violet" }],
+    });
+
+    await user.click(screen.getByRole("switch", { name: /show this comparison/i }));
+    expect(state.dispatch).toHaveBeenLastCalledWith({
+      type: "SET_COMPARISON_VISIBILITY",
+      comparisonId: "cmp_latina",
+      visible: false,
+    });
+  });
+
+  it("does not expose an internal comparison for a location-series module", () => {
+    state.config = {
+      version: 3,
+      question: {
+        source: "DoF",
+        outcome: { measureId: "Births" },
+        geography: { subset: "Regions", locations: ["Bay Area", "Central Coast"] },
+        comparisons: [{ id: "cmp_locations", dimensions: {} }],
+      },
+      presentation: {
+        chartType: "line",
+        appearance: {},
+        labels: {},
+        bindings: {},
+      },
+      seriesNames: ["Bay Area", "Central Coast"],
+    };
+    state.schema = {
+      comparisonDimensions: [],
+      fields: {
+        Births: { kind: "measure", label: "Births", chartRoles: ["yMeasure"] },
+      },
+    };
+
+    render(<AppearanceSection />);
+
+    expect(screen.queryByText("Comparison appearance")).not.toBeInTheDocument();
+    expect(screen.queryByText("cmp_locations")).not.toBeInTheDocument();
+    expect(screen.getByText("Automatic PPIC categorical · 2 groups")).toBeInTheDocument();
+  });
+
+  it("does not show the legacy Color binding or watermark toggle in v3", () => {
+    state.config = {
+      version: 3,
+      question: {
+        source: "DoF P-3",
+        outcome: { measureId: "Population" },
+        comparisons: [],
+      },
+      presentation: {
+        chartType: "line",
+        appearance: {},
+        labels: {},
+        bindings: {},
+      },
+    };
+    render(<AppearanceSection />);
+
+    expect(screen.queryByLabelText(/^Color$/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/PPIC watermark/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/Color palette/i)).toBeInTheDocument();
+  });
+
   it.each(["line", "bar", "scatter", "bubble"])(
     "shows the %s Color binding in Appearance",
     (chartType) => {

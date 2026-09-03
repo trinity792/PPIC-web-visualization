@@ -75,6 +75,7 @@ const FALLBACK_RAMP = Object.freeze({
 });
 
 const COLLAPSED_ITEM_LIMIT = 5;
+const AUTOMATIC_PPIC = "__automatic_ppic__";
 
 /**
  * A palette's own stops, drawn as the gradient the chart will use. A named
@@ -110,7 +111,10 @@ function RampSwatch({ scale }) {
  *     a categorical palette has no stops to interpolate.
  */
 export default function PalettePicker({ seriesNames = [], kind = "categorical" }) {
-  const { config, dispatch } = useChartConfig();
+  const { config: storedConfig, dispatch } = useChartConfig();
+  const config = storedConfig.version === 3
+    ? { ...storedConfig, appearance: storedConfig.presentation?.appearance || {} }
+    : storedConfig;
   const { advanced } = useAdvancedMode();
   const [expanded, setExpanded] = React.useState(false);
   const [query, setQuery] = React.useState("");
@@ -120,13 +124,23 @@ export default function PalettePicker({ seriesNames = [], kind = "categorical" }
   // reported a discrete legend.
   const showLegendItems = advanced && seriesNames.length > 0;
   const rampMode = kind !== "categorical";
-  const options = palettesOfKind(kind).map((id) => [id, PALETTES[id]]);
+  const automatic = storedConfig.version === 3 && !rampMode;
+  const automaticCount = seriesNames.length || storedConfig.seriesCount || 0;
+  const automaticLabel = automaticCount
+    ? `Automatic PPIC categorical · ${automaticCount} ${automaticCount === 1 ? "group" : "groups"}`
+    : "Automatic PPIC categorical";
+  const options = [
+    ...(automatic
+      ? [[AUTOMATIC_PPIC, { label: automaticLabel, kind: "categorical" }]]
+      : []),
+    ...palettesOfKind(kind).map((id) => [id, PALETTES[id]]),
+  ];
   // `appearance.palette` is one key shared by every chart type, so a reader who
   // set a categorical palette on a line and then switched to a choropleth is
   // holding an id this list does not contain. Showing it blank would be a lie
   // about a control that is doing something; show the legacy ramp `rampFor`
   // actually falls back to, which is what the chart is drawing.
-  const active = config.appearance.palette || DEFAULT_PALETTE;
+  const active = config.appearance.palette || (automatic ? AUTOMATIC_PPIC : DEFAULT_PALETTE);
   const selected = options.some(([id]) => id === active)
     ? active
     : rampMode
@@ -153,7 +167,12 @@ export default function PalettePicker({ seriesNames = [], kind = "categorical" }
         <Label htmlFor="appearance-palette">Color palette</Label>
         <Select
           value={selected}
-          onValueChange={(palette) => dispatch({ type: "SET_PALETTE", palette })}
+          onValueChange={(palette) =>
+            dispatch({
+              type: "SET_PALETTE",
+              palette: palette === AUTOMATIC_PPIC ? null : palette,
+            })
+          }
         >
           <SelectTrigger id="appearance-palette">
             <SelectValue />
@@ -223,7 +242,10 @@ export default function PalettePicker({ seriesNames = [], kind = "categorical" }
 // ── Tightly coupled sub-components ───────────────────────────────────
 
 function LegendItemRow({ seriesName }) {
-  const { config, dispatch } = useChartConfig();
+  const { config: storedConfig, dispatch } = useChartConfig();
+  const config = storedConfig.version === 3
+    ? { ...storedConfig, appearance: storedConfig.presentation?.appearance || {} }
+    : storedConfig;
   const override = config.appearance.seriesColors?.[seriesName];
   const labelOverride = config.appearance.legendLabels?.[seriesName] || "";
   const hidden = (config.appearance.hiddenSeries || []).includes(seriesName);
