@@ -1,5 +1,3 @@
-/* global process */
-
 import React from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -8,19 +6,16 @@ import ModuleWorkbench from "@/components/chart-builder/workbench/ModuleWorkbenc
 import {
   V3_REVIEW_MODULE_IDS,
   getV3DevelopmentReviewSpec,
-  isV3DevelopmentReviewEnabled,
 } from "@/lib/visualization/developmentReview";
 import { getModuleSchema } from "@/lib/visualization/moduleRegistry";
 
 export const metadata = {
-  title: "Visualization v3 Review | PPIC Data Explorer",
+  title: "New Visualization Editor | PPIC Data Explorer",
 };
 
 export const dynamic = "force-dynamic";
 
 export default async function VisualizationV3ReviewPage({ searchParams }) {
-  if (!isV3DevelopmentReviewEnabled(process.env)) notFound();
-
   const query = await searchParams;
   const requested = query?.module;
   const moduleId = V3_REVIEW_MODULE_IDS.includes(requested)

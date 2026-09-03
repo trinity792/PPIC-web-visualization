@@ -3,13 +3,12 @@ import { describe, expect, it } from "vitest";
 import {
   V3_REVIEW_MODULE_IDS,
   getV3DevelopmentReviewSpec,
-  isV3DevelopmentReviewEnabled,
 } from "@/lib/visualization/developmentReview";
 import { getModuleSchema } from "@/lib/visualization/moduleRegistry";
 import { readQuestion } from "@/lib/visualization/questionSpec";
 import { resolveEditorModel } from "@/lib/visualization/resolveEditorModel";
 
-describe("the development-only v3 review questions", () => {
+describe("the selected-topic v3 editor questions", () => {
   it("provides a valid real-module question for every review dataset", () => {
     expect(V3_REVIEW_MODULE_IDS).toEqual([
       "demographic-projections",
@@ -58,11 +57,5 @@ describe("the development-only v3 review questions", () => {
       getV3DevelopmentReviewSpec("demographic-projections").question.comparisons,
     ).toEqual([]);
     expect(getV3DevelopmentReviewSpec("not-a-module")).toBeNull();
-  });
-
-  it("is available only in a development runtime", () => {
-    expect(isV3DevelopmentReviewEnabled({ NODE_ENV: "development" })).toBe(true);
-    expect(isV3DevelopmentReviewEnabled({ NODE_ENV: "production" })).toBe(false);
-    expect(isV3DevelopmentReviewEnabled({ NODE_ENV: "test" })).toBe(false);
   });
 });
