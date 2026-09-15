@@ -307,6 +307,43 @@ describe("Line", () => {
     });
   });
 
+  it("formats year-over-year values as percentages on the axis and hover", () => {
+    const calculation = { id: "percentChange", params: {} };
+    const figure = adaptObservations({
+      ...base,
+      comparisons: [{ id: "cmp_latina", label: "Latina Women" }],
+      chartType: "line",
+      observations: [
+        observation({
+          comparisonLabel: "Latina Women",
+          period: 2021,
+          value: 10,
+          unit: "percent",
+          valueKind: VALUE_KINDS.DERIVED,
+          calculation,
+          includedPeriods: [2020, 2021],
+        }),
+        observation({
+          comparisonLabel: "Latina Women",
+          period: 2022,
+          value: -4.96,
+          unit: "percent",
+          valueKind: VALUE_KINDS.DERIVED,
+          calculation,
+          includedPeriods: [2021, 2022],
+        }),
+      ],
+      presentation: { comparisonPresentation: "combined" },
+    });
+
+    expect(figure.layout.yaxis).toMatchObject({
+      hoverformat: ",.2f",
+      tickformat: ",.2f",
+      ticksuffix: "%",
+    });
+    expect(figure.data[0].hovertemplate).toContain("%{y:,.2f}%");
+  });
+
   it("applies a selected categorical palette without a new data question", () => {
     const automaticComparisons = COMPARISONS.map(({ id, label }) => ({ id, label }));
     const appearance = {

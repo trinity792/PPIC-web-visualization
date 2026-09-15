@@ -61,9 +61,13 @@ function closestPeriod(periods, value) {
   );
 }
 
-function RangePeriodSlider({ current, periods, onChange }) {
+function RangePeriodSlider({ current, periods, minimumPeriod, onChange }) {
+  const minimumIndex = periods.findIndex(
+    (period) => String(period) === String(minimumPeriod),
+  );
+  const rangePeriods = minimumIndex >= 0 ? periods.slice(minimumIndex) : periods;
   const numeric = periods.length > 1 && periods.every((period) => Number.isFinite(Number(period)));
-  const min = numeric ? Number(periods[0]) : null;
+  const min = numeric ? Number(rangePeriods[0]) : null;
   const max = numeric ? Number(periods.at(-1)) : null;
   const committed = numeric
     ? [Number(current.startYear ?? min), Number(current.endYear ?? max)]
@@ -80,13 +84,13 @@ function RangePeriodSlider({ current, periods, onChange }) {
         <YearSelect
           label="Start year"
           value={current.startYear}
-          periods={periods}
+          periods={rangePeriods}
           onChange={(startYear) => onChange({ ...current, contract: "range", startYear })}
         />
         <YearSelect
           label="End year"
           value={current.endYear}
-          periods={periods}
+          periods={rangePeriods}
           onChange={(endYear) => onChange({ ...current, contract: "range", endYear })}
         />
       </div>
@@ -94,8 +98,8 @@ function RangePeriodSlider({ current, periods, onChange }) {
   }
 
   function commit(next) {
-    const startYear = closestPeriod(periods, next[0]);
-    const endYear = closestPeriod(periods, next[1]);
+    const startYear = closestPeriod(rangePeriods, next[0]);
+    const endYear = closestPeriod(rangePeriods, next[1]);
     onChange({ ...current, contract: "range", startYear, endYear });
   }
 
@@ -118,9 +122,9 @@ function RangePeriodSlider({ current, periods, onChange }) {
         )}
       />
       <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>{periods[0]}</span>
+        <span>{rangePeriods[0]}</span>
         <span className="rounded-full bg-ppic-orange-100 px-2 py-0.5 font-medium text-foreground">
-          {closestPeriod(periods, value[0])}–{closestPeriod(periods, value[1])}
+          {closestPeriod(rangePeriods, value[0])}–{closestPeriod(rangePeriods, value[1])}
         </span>
         <span>{periods.at(-1)}</span>
       </div>
@@ -227,6 +231,9 @@ export default function TimeSection() {
   const capability = editorModel?.time || {};
   const current = config.question?.time || {};
   const periods = capability.availablePeriods || [];
+  const calculation = config.question?.calculation;
+  const minimumPeriod =
+    calculation?.id === "indexed" ? calculation.params?.baseYear : null;
   const [activeEndpoint, setActiveEndpoint] = useState(null);
 
   if (capability.contract === "none") return null;
@@ -245,6 +252,7 @@ export default function TimeSection() {
         <RangePeriodSlider
           current={current}
           periods={periods}
+          minimumPeriod={minimumPeriod}
           onChange={(time) => dispatch({ type: "SET_TIME", time })}
         />
       ) : null}

@@ -8,7 +8,7 @@
  * allows, with the base-year selector appearing inline beneath "Index to Base
  * Year". Radios rather than a dropdown because the options are few, mutually
  * exclusive, and worth seeing at a glance — a reader should be able to tell that
- * a chart is showing percent change without opening a menu.
+ * a chart is showing year-over-year percentage change without opening a menu.
  *
  * The module's stratification pins (Age group, Sex, Race/ethnicity, Tenure,
  * Income level) render below them, from `schema.filterDimensions`. They lived
@@ -25,11 +25,11 @@
  * a dead control (flagged issue 1), and on an unstratified module that leaves the
  * section with nothing at all.
  *
- * Imported data (the standalone visualization tool) gets the same setting with a
- * two-radio list — Absolute Values or Index to 100 at Base Period — whose base
- * periods are the imported x column's own values rather than a module year
- * range. `transformOptions` in lib/visualization/transformRegistry.js owns both
- * lists, so what this section offers and what the reducer accepts cannot drift.
+ * Imported data (the standalone visualization tool) gets the same setting with
+ * Absolute Values, Index to Base Period, and Year over Year. Its base periods
+ * are the imported x column's own values rather than a module year range.
+ * `transformOptions` in lib/visualization/transformRegistry.js owns both lists,
+ * so what this section offers and what the reducer accepts cannot drift.
  *
  * That "nothing" is why `hasTransformControls` is exported: the sidebar registry
  * uses it to keep Outcome available when these inherited controls are all that
@@ -69,18 +69,17 @@ const TRANSFORM_LABELS = {
   actual: "Actual Value",
   indexed: "Index to Base Year",
   numericChange: "Numeric Change",
-  percentChange: "Percentage Change",
+  percentChange: "Year over Year (Percentage)",
   percentagePointChange: "Percentage-Point Change",
   differenceFromBenchmark: "Difference from Benchmark",
 };
 
-// Imported data indexes against whatever the x column holds — years in most
-// pasted tables, but months, quarters, or waves just as often — so its two
-// radios say "period" where a module's say "year", and name the 100 the reader
-// is choosing between.
+// Imported data compares against whatever the x column holds — years in most
+// pasted tables, but months, quarters, or waves just as often — so its base
+// control says "period" where a module's says "year".
 const INLINE_TRANSFORM_LABELS = {
   actual: "Absolute Values",
-  indexed: "Index to 100 at Base Period",
+  indexed: "Index to Base Period",
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────
@@ -181,8 +180,8 @@ export default function TransformSection() {
                         }
                       >
                         <SelectTrigger id="transform-base-year">
-                          {/* Left unset, the transform indexes each series to its own
-                              first value — the placeholder says so rather than
+                          {/* Left unset, the transform uses each series' first value
+                              as its base — the placeholder says so rather than
                               implying nothing has happened. */}
                           <SelectValue
                             placeholder={

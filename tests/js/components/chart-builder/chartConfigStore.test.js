@@ -444,6 +444,66 @@ describe("reduceChartConfig — the geometry level a map needs", () => {
   });
 });
 
+describe("reduceChartConfig — indexed date ranges", () => {
+  it("moves a v3 range start to the selected base year", () => {
+    const v3 = {
+      version: 3,
+      question: {
+        dataset: { kind: "module", moduleId: "testmodule" },
+        outcome: { measureId: "Total Widgets" },
+        geography: { subset: "Regions", locations: ["Bay Area"] },
+        time: { contract: "range", startYear: 2020, endYear: 2030 },
+        calculation: { id: "actual", params: {} },
+        comparisons: [{ id: "cmp_1", dimensions: {} }],
+      },
+      presentation: { chartType: "line", comparisonPresentation: "combined" },
+    };
+
+    const indexed = reduceChartConfig(
+      v3,
+      {
+        type: "SET_CALCULATION",
+        calculation: { id: "indexed", params: { baseYear: 2025 } },
+      },
+      schema,
+    );
+    expect(indexed.question.time).toEqual({
+      contract: "range",
+      startYear: 2025,
+      endYear: 2030,
+    });
+
+    const attemptedEarlierStart = reduceChartConfig(
+      indexed,
+      {
+        type: "SET_TIME",
+        time: { contract: "range", startYear: 2020, endYear: 2030 },
+      },
+      schema,
+    );
+    expect(attemptedEarlierStart.question.time.startYear).toBe(2025);
+  });
+
+  it("moves a legacy range start to the selected base year", () => {
+    const current = createChartConfig(schema, {
+      chartType: "line",
+      transform: "indexed",
+      period: { baseYear: 2020, startYear: 2020, endYear: 2030 },
+    });
+    const indexed = dispatch(current, {
+      type: "SET_PERIOD",
+      key: "baseYear",
+      value: 2025,
+    });
+
+    expect(indexed.period).toMatchObject({
+      baseYear: 2025,
+      startYear: 2025,
+      endYear: 2030,
+    });
+  });
+});
+
 describe("reduceChartConfig — v2 actions", () => {
   const base = createChartConfig(schema);
 
@@ -492,6 +552,7 @@ describe("reduceChartConfig — v2 actions", () => {
         value: 2021,
       });
       expect(withBase.transform).toBe("indexed");
+      expect(withBase.period.startYear).toBe(2021);
       // The year slider's window is a module concept; an inline chart plots every
       // row it was given, so 2021 is not "outside" anything.
       expect(withBase.validation.some((f) => f.code === "BASE_YEAR_OUT_OF_RANGE")).toBe(false);

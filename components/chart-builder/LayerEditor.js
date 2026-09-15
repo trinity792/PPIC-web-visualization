@@ -69,9 +69,9 @@ const LAYER_TYPES = {
 };
 
 const DERIVED_TRANSFORMS = [
-  ["indexed", "Indexed values"],
+  ["indexed", "Index to Base Year"],
   ["numericChange", "Numeric change"],
-  ["percentChange", "Percent change"],
+  ["percentChange", "Year over Year (Percentage)"],
   ["percentagePointChange", "Percentage-point change"],
   ["differenceFromBenchmark", "Difference from benchmark"],
 ];

@@ -232,7 +232,7 @@ describe("partial comparison failure", () => {
             "Age Group": "All Ages",
           }),
         ],
-        calculation: { id: "percentChange", params: { startYear: 2025, endYear: 2025 } },
+        calculation: { id: "percentChange", params: {} },
       }),
     );
 
@@ -284,7 +284,7 @@ describe("partial comparison failure", () => {
 });
 
 describe("materialized cells", () => {
-  it("uses the selected time range as change endpoints when parameters are omitted", async () => {
+  it("uses every adjacent pair in the selected time range for year-over-year percentage change", async () => {
     const result = await run(
       question({
         time: { contract: "range", startYear: 2020, endYear: 2030 },
@@ -293,18 +293,19 @@ describe("materialized cells", () => {
     );
 
     expect(result.status).toBe("ok");
-    expect(result.issues).not.toEqual(
-      expect.arrayContaining([expect.objectContaining({ code: "distinctPeriodsRequired" })]),
-    );
-    expect(result.observations).toHaveLength(1);
-    expect(result.observations[0]).toMatchObject({
-      period: 2030,
-      includedPeriods: [2020, 2030],
-      calculation: {
-        id: "percentChange",
-        params: { startYear: 2020, endYear: 2030 },
-      },
-    });
+    expect(result.observations).toHaveLength(2);
+    expect(result.periods).toEqual([2025, 2030]);
+    expect(
+      result.observations.map((row) => [
+        row.period,
+        row.value,
+        row.includedPeriods,
+        row.calculation,
+      ]),
+    ).toEqual([
+      [2025, 25, [2020, 2025], { id: "percentChange", params: {} }],
+      [2030, 20, [2025, 2030], { id: "percentChange", params: {} }],
+    ]);
   });
 
   it("calculates a change independently for every selected geography", async () => {
@@ -317,18 +318,23 @@ describe("materialized cells", () => {
     );
 
     expect(result.status).toBe("ok");
-    expect(result.observations).toHaveLength(2);
+    expect(result.observations).toHaveLength(4);
     expect(
       Object.fromEntries(
-        result.observations.map((row) => [row.geographyLabel, row.value]),
+        result.observations.map((row) => [
+          `${row.geographyLabel}-${row.period}`,
+          row.value,
+        ]),
       ),
     ).toEqual({
-      "Los Angeles": 10,
-      "San Francisco": 50,
+      "Los Angeles-2025": 5,
+      "Los Angeles-2030": expect.closeTo(4.761904762),
+      "San Francisco-2025": 25,
+      "San Francisco-2030": 20,
     });
     expect(
       result.observations.every(
-        (row) => row.period === 2030 && row.calculation.id === "percentChange",
+        (row) => [2025, 2030].includes(row.period) && row.calculation.id === "percentChange",
       ),
     ).toBe(true);
   });

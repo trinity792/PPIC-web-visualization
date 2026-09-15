@@ -540,7 +540,7 @@ describe("OutcomeSection", () => {
  *
  * The list of calculations is not a fixed menu. It is whatever the measure's
  * unit and the resolved chart capability both allow, which is why a count is
- * offered percent change and a rate is not.
+ * offered year-over-year percentage change and a rate is not.
  */
 
 import {
@@ -551,6 +551,11 @@ import {
 const v3Schema = {
   id: "components-of-change",
   inlineOnly: false,
+  time: {
+    availablePeriods: [2020, 2025],
+    reportingPeriods: [2020, 2025],
+    defaultReportingPeriod: 2025,
+  },
   subsets: { Counties: ["County"] },
   filterDimensions: [],
   fields: {
@@ -643,12 +648,14 @@ describe("Workstream D Outcome and Transformation", () => {
     expect(controls.indexOf(calculation) - controls.indexOf(measure)).toBe(1);
   });
 
-  it("offers percent change for a count and percentage-point change for a rate", async () => {
+  it("offers year-over-year percentage change for a count and percentage-point change for a rate", async () => {
     const user = userEvent.setup();
     renderV3(<OutcomeSection />);
 
     await user.click(screen.getByLabelText(/transformation/i));
-    expect(screen.getByRole("option", { name: /percent change/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "Year over Year (Percentage)" }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("option", { name: /percentage-point change/i }),
     ).not.toBeInTheDocument();
@@ -661,7 +668,37 @@ describe("Workstream D Outcome and Transformation", () => {
     // A rate is already per 1,000. A percent change of it has no readable
     // meaning, so it is not offered - in either mode.
     expect(screen.getByRole("option", { name: /percentage-point change/i })).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: /^percent change/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "Year over Year (Percentage)" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("lets the user choose the base year for Index to Base Year", async () => {
+    const user = userEvent.setup();
+    const view = renderV3(<OutcomeSection />);
+
+    await user.click(screen.getByLabelText(/transformation/i));
+    await user.click(screen.getByRole("option", { name: "Index to Base Year" }));
+    expect(state.dispatch).toHaveBeenCalledWith({
+      type: "SET_CALCULATION",
+      calculation: { id: "indexed", params: { baseYear: 2020 } },
+    });
+
+    state.dispatch.mockClear();
+    state.config = v3Config("Total Population", {
+      calculation: { id: "indexed", params: { baseYear: 2020 } },
+    });
+    view.rerender(
+      <V3AdvancedModeProvider>
+        <OutcomeSection />
+      </V3AdvancedModeProvider>,
+    );
+    await user.click(screen.getByLabelText("Base year"));
+    await user.click(screen.getByRole("option", { name: "2025" }));
+    expect(state.dispatch).toHaveBeenCalledWith({
+      type: "SET_CALCULATION",
+      calculation: { id: "indexed", params: { baseYear: 2025 } },
+    });
   });
 
   it("does not duplicate the year selectors that belong to Time", async () => {

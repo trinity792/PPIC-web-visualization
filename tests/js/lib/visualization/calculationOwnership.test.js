@@ -108,7 +108,7 @@ describe("the preserved arithmetic guarantees, under their new owner", () => {
       params: { baseYear: 2020 },
       comparisonId: COMPARISON_ID,
     });
-    expect(rows.map((row) => row.value)).toEqual([100, null, 150]);
+    expect(rows.map((row) => row.value)).toEqual([0, null, 50]);
   });
 
   it("rejects a zero base instead of returning infinity or zero", async () => {

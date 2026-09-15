@@ -54,7 +54,12 @@ export function hasTemporalData(config, schema) {
 
 export default function DateRangeSection() {
   const { config, dispatch, schema } = useChartConfig();
-  const [min, max] = schema.yearRange || [2000, new Date().getFullYear()];
+  const [availableMin, max] = schema.yearRange || [2000, new Date().getFullYear()];
+  const selectedBaseYear = Number(config.period?.baseYear);
+  const min =
+    config.transform === "indexed" && Number.isFinite(selectedBaseYear)
+      ? Math.max(availableMin, selectedBaseYear)
+      : availableMin;
   // Bar/choropleth become two-period charts when a change transform is active
   // (legacy metric_of_change), so they get the dual-handle window too.
   const isRange =

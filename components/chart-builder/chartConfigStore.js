@@ -85,6 +85,51 @@ function clone(value) {
   return value == null ? value : JSON.parse(JSON.stringify(value));
 }
 
+function periodComesBefore(left, right) {
+  const leftNumber = Number(left);
+  const rightNumber = Number(right);
+  if (Number.isFinite(leftNumber) && Number.isFinite(rightNumber)) {
+    return leftNumber < rightNumber;
+  }
+  return String(left).localeCompare(String(right), undefined, { numeric: true }) < 0;
+}
+
+function rangeBeginningAt(range = {}, basePeriod) {
+  if (basePeriod == null) return range;
+  const endYear = range.endYear;
+  return {
+    ...range,
+    startYear: basePeriod,
+    // Keep the range valid if a reader chooses a base beyond its old end.
+    ...(endYear != null && periodComesBefore(endYear, basePeriod)
+      ? { endYear: basePeriod }
+      : {}),
+  };
+}
+
+/** An indexed line starts at its zero-valued base period in every editor. */
+function withIndexedRangeStart(config) {
+  if (config?.version === 3) {
+    const calculation = config.question?.calculation;
+    const time = config.question?.time;
+    const baseYear = calculation?.params?.baseYear;
+    if (calculation?.id !== "indexed" || time?.contract !== "range" || baseYear == null) {
+      return config;
+    }
+    return {
+      ...config,
+      question: {
+        ...config.question,
+        time: rangeBeginningAt(time, baseYear),
+      },
+    };
+  }
+
+  const baseYear = config?.period?.baseYear;
+  if (config?.transform !== "indexed" || baseYear == null) return config;
+  return { ...config, period: rangeBeginningAt(config.period, baseYear) };
+}
+
 function chartCapacity(layout) {
   if (layout === "2x2") return 4;
   if (layout === "1x2" || layout === "2x1") return 2;
@@ -105,7 +150,7 @@ function chartId() {
 }
 
 function stripComputed(config) {
-  if (config?.version === 3) return normalizeQuestion(config);
+  if (config?.version === 3) return withIndexedRangeStart(normalizeQuestion(config));
   const next = normalizeSpec(config);
   return clone(next);
 }
@@ -402,7 +447,7 @@ function withExpressibleTransform(config, schema) {
 // state threaded as a parameter rather than stored on the config — the same
 // reasoning that keeps Advanced Mode out of `config`.
 function revalidate(rawConfig, schema, autoBind = true) {
-  const config = withExpressibleTransform(rawConfig, schema);
+  const config = withIndexedRangeStart(withExpressibleTransform(rawConfig, schema));
   return {
     ...config,
     validation: validateConfig(config, schema, {
@@ -415,7 +460,7 @@ function revalidate(rawConfig, schema, autoBind = true) {
 
 export function createChartConfig(schema, initialConfig = {}, options = DEFAULT_OPTIONS) {
   if (initialConfig?.version === 3) {
-    const normalized = normalizeQuestion(initialConfig);
+    const normalized = withIndexedRangeStart(normalizeQuestion(initialConfig));
     const comparisons = normalized.question.comparisons || [];
     const existing = normalized.presentation.appearance?.comparisonColors || {};
     const overrides = Object.fromEntries(
@@ -423,7 +468,7 @@ export function createChartConfig(schema, initialConfig = {}, options = DEFAULT_
         .filter((comparison) => comparison.color)
         .map((comparison) => [comparison.id, comparison.color]),
     );
-    return normalizeQuestion({
+    return withIndexedRangeStart(normalizeQuestion({
       ...normalized,
       presentation: {
         ...normalized.presentation,
@@ -435,7 +480,7 @@ export function createChartConfig(schema, initialConfig = {}, options = DEFAULT_
           }),
         },
       },
-    });
+    }));
   }
   const { autoBind = true } = options || {};
   // Accept v1 shapes (including the legacy wire shape that folded
@@ -775,7 +820,9 @@ function presetForChartType(chartType) {
 }
 
 export function reduceChartConfig(config, action, schema, options = DEFAULT_OPTIONS) {
-  if (config?.version === 3) return reduceV3ChartConfig(config, action, schema);
+  if (config?.version === 3) {
+    return withIndexedRangeStart(reduceV3ChartConfig(config, action, schema));
+  }
   const { autoBind = true } = options || {};
   let next = config;
 
@@ -1209,7 +1256,7 @@ function addChart(workspace, schema, options = DEFAULT_OPTIONS) {
   const chartNumber = workspace.charts.length + 1;
   const base = stripComputed(current.config);
   const config = base.version === 3
-    ? normalizeQuestion(base)
+    ? withIndexedRangeStart(normalizeQuestion(base))
     : revalidate(
         {
           ...base,

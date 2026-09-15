@@ -157,7 +157,7 @@ export default function VisualizationV3FlowFixture() {
           }
         >
           <option value="actual">Actual value</option>
-          <option value="percentChange">Percent change</option>
+          <option value="percentChange">Year over Year (Percentage)</option>
         </select>
       </label>
 

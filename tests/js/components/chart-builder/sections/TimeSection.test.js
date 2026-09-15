@@ -83,6 +83,20 @@ describe("the control follows the capability, not the chart id", () => {
     expect(screen.getByText("2020–2030")).toBeInTheDocument();
   });
 
+  it("uses the selected index base year as the range minimum", () => {
+    state.config = config(
+      { contract: "range", startYear: 2023, endYear: 2030 },
+      { calculation: { id: "indexed", params: { baseYear: 2023 } } },
+    );
+    render(<TimeSection />);
+
+    expect(screen.getByRole("slider", { name: /start year/i })).toHaveAttribute(
+      "aria-valuemin",
+      "2023",
+    );
+    expect(screen.getByText("2023–2030")).toBeInTheDocument();
+  });
+
   it("renders the same range control for a chart id the old list did not contain", () => {
     // Under RANGE_CHART_TYPES, "scatter" was never a range. The component must
     // not know or care: the resolved capability is the only input.

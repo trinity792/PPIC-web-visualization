@@ -76,6 +76,7 @@ const NONE = "__none__";
 function V3Outcome({ config, dispatch, schema, advanced, editorModel }) {
   const measureId = config.question?.outcome?.measureId;
   const measure = schema.fields?.[measureId] || {};
+  const calculation = config.question?.calculation || { id: "actual", params: {} };
   const modelCalculations = editorModel?.calculations || config.editorModel?.calculations || [];
   let calculations = calculationOptionsFor({ id: measureId, ...measure });
   if (modelCalculations.length) {
@@ -93,6 +94,28 @@ function V3Outcome({ config, dispatch, schema, advanced, editorModel }) {
     (editorModel?.calculations || config.editorModel?.calculations || calculations).includes(
       "benchmarkDifference",
     );
+  const baseYears =
+    editorModel?.time?.availablePeriods ||
+    config.editorModel?.time?.availablePeriods ||
+    schema.time?.availablePeriods ||
+    [];
+  const defaultBaseYear =
+    calculation.params?.baseYear ??
+    config.question?.time?.startYear ??
+    baseYears[0];
+
+  function selectCalculation(id) {
+    dispatch({
+      type: "SET_CALCULATION",
+      calculation: {
+        id,
+        params:
+          id === "indexed" && defaultBaseYear != null
+            ? { baseYear: defaultBaseYear }
+            : {},
+      },
+    });
+  }
 
   return (
     <div className="grid gap-3">
@@ -111,8 +134,8 @@ function V3Outcome({ config, dispatch, schema, advanced, editorModel }) {
       <div className="grid gap-2">
         <Label htmlFor="v3-calculation">Transformation</Label>
         <Select
-          value={config.question.calculation?.id || "actual"}
-          onValueChange={(id) => dispatch({ type: "SET_CALCULATION", calculation: { id, params: {} } })}
+          value={calculation.id}
+          onValueChange={selectCalculation}
         >
           <SelectTrigger id="v3-calculation" aria-label="Transformation"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -122,6 +145,36 @@ function V3Outcome({ config, dispatch, schema, advanced, editorModel }) {
           </SelectContent>
         </Select>
       </div>
+      {calculation.id === "indexed" && baseYears.length ? (
+        <div className="grid gap-2">
+          <Label htmlFor="v3-base-year">Base year</Label>
+          <Select
+            value={defaultBaseYear != null ? String(defaultBaseYear) : ""}
+            onValueChange={(value) => {
+              const baseYear =
+                baseYears.find((period) => String(period) === value) ?? value;
+              dispatch({
+                type: "SET_CALCULATION",
+                calculation: {
+                  ...calculation,
+                  params: { ...(calculation.params || {}), baseYear },
+                },
+              });
+            }}
+          >
+            <SelectTrigger id="v3-base-year" aria-label="Base year">
+              <SelectValue placeholder="Choose a year" />
+            </SelectTrigger>
+            <SelectContent>
+              {baseYears.map((year) => (
+                <SelectItem key={year} value={String(year)}>
+                  {year}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
       {benchmarkAllowed ? (
         <label className="grid gap-1 text-sm">
           Benchmark

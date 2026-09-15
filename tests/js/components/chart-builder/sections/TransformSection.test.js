@@ -56,6 +56,9 @@ describe("TransformSection", () => {
     const { unmount } = render(<TransformSection />);
     expect(screen.getByText("Transform", { selector: "span" })).toBeInTheDocument();
     expect(screen.getAllByRole("radio")).toHaveLength(4);
+    expect(
+      screen.getByRole("radio", { name: "Year over Year (Percentage)" }),
+    ).toBeInTheDocument();
     unmount();
     state.config = config({ bindings: { y: "Rate" } });
     render(<TransformSection />);
@@ -178,14 +181,17 @@ describe("TransformSection", () => {
       state.config = inlineConfig();
     });
 
-    it("offers absolute values or index-to-100, and no module-only transforms", () => {
+    it("offers absolute, base-period, and year-over-year values", () => {
       render(<TransformSection />);
-      expect(screen.getAllByRole("radio")).toHaveLength(2);
+      expect(screen.getAllByRole("radio")).toHaveLength(3);
       expect(screen.getByRole("radio", { name: /absolute values/i })).toBeInTheDocument();
       expect(
-        screen.getByRole("radio", { name: /index to 100 at base period/i }),
+        screen.getByRole("radio", { name: /index to base period/i }),
       ).toBeInTheDocument();
-      expect(screen.queryByRole("radio", { name: /change/i })).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("radio", { name: "Year over Year (Percentage)" }),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("radio", { name: /numeric change/i })).not.toBeInTheDocument();
     });
 
     it("draws base periods from the imported column, not the schema year range", async () => {

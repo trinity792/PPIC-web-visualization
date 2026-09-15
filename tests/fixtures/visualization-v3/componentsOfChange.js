@@ -133,7 +133,7 @@ export const COMPONENTS_OF_CHANGE_EXPECTED = Object.freeze({
   fresnoTotalPopulation: Object.freeze({
     numericChange2020to2025: 200000,
     percentChange2020to2025: 25,
-    indexedToBase2020: Object.freeze({ 2020: 100, 2025: 125 }),
+    indexedToBase2020: Object.freeze({ 2020: 0, 2025: 25 }),
     benchmarkDifference2025: 1000000 - 39500000,
   }),
   fresnoCrudeBirthRate: Object.freeze({

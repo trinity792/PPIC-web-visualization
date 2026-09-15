@@ -37,19 +37,19 @@ describe("TRANSFORMS.actual", () => {
 });
 
 describe("TRANSFORMS.indexed", () => {
-  it("indexes every value to 100 at the base year", () => {
+  it("computes percentage change from the base year", () => {
     const out = TRANSFORMS.indexed(series([50, 100, 150]), { baseYear: 2020 });
-    expect(out.values).toEqual([100, 200, 300]);
+    expect(out.values).toEqual([0, 100, 200]);
   });
 
   it("falls back to the first non-null value when the base year is missing", () => {
     const out = TRANSFORMS.indexed(series([null, 100, 150]), { baseYear: 1900 });
-    expect(out.values).toEqual([null, 100, 150]);
+    expect(out.values).toEqual([null, 0, 50]);
   });
 
   it("preserves nulls instead of coercing them to zero", () => {
     const out = TRANSFORMS.indexed(series([100, null, 150]), { baseYear: 2020 });
-    expect(out.values).toEqual([100, null, 150]);
+    expect(out.values).toEqual([0, null, 50]);
   });
 
   it("does not mutate the input series", () => {
@@ -67,9 +67,17 @@ describe("TRANSFORMS.numericChange", () => {
 });
 
 describe("TRANSFORMS.percentChange", () => {
-  it("computes percent change from the base-year value", () => {
-    const out = TRANSFORMS.percentChange(series([100, 150, 50]), { baseYear: 2020 });
-    expect(out.values).toEqual([0, 50, -50]);
+  it("computes percentage change for every adjacent pair", () => {
+    const out = TRANSFORMS.percentChange(series([100, 110, 121, 115]));
+    expect(out.years).toEqual([2021, 2022, 2023]);
+    expect(out.values[0]).toBeCloseTo(10);
+    expect(out.values[1]).toBeCloseTo(10);
+    expect(out.values[2]).toBeCloseTo(-4.958677686);
+  });
+
+  it("returns gaps for missing or zero preceding values", () => {
+    const out = TRANSFORMS.percentChange(series([0, 10, null, 20, 30]));
+    expect(out.values).toEqual([null, null, null, 50]);
   });
 });
 
@@ -196,9 +204,9 @@ describe("transformOptions", () => {
     expect(transforms).toEqual(rateField.transforms);
   });
 
-  it("offers imported data absolute values or index-to-100 over its own periods", () => {
+  it("offers imported data absolute, base-period, and year-over-year values", () => {
     expect(transformOptions(inlineConfig(), byodSchema)).toEqual({
-      transforms: ["actual", "indexed"],
+      transforms: ["actual", "indexed", "percentChange"],
       basePeriods: [2020, 2021],
       inline: true,
     });

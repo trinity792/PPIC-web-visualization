@@ -498,7 +498,7 @@ describe("toPlotly heatmap", () => {
     expect(data[0].z).toEqual(matrix.z);
   });
 
-  it("indexes each row to 100 at the base-year column", () => {
+  it("computes each row's percentage change from the base-year column", () => {
     const { data } = toPlotly({
       chartType: "heatmap",
       series: matrix,
@@ -507,8 +507,23 @@ describe("toPlotly heatmap", () => {
       transforms: { id: "indexed", baseYear: 2020 },
     });
     expect(data[0].z).toEqual([
-      [100, 200, 300],
-      [100, 200, 300],
+      [0, 100, 200],
+      [0, 100, 200],
+    ]);
+  });
+
+  it("aligns a year-over-year heatmap to the later periods", () => {
+    const { data } = toPlotly({
+      chartType: "heatmap",
+      series: matrix,
+      appearance: {},
+      field: countField,
+      transforms: { id: "percentChange" },
+    });
+    expect(data[0].x).toEqual([2021, 2022]);
+    expect(data[0].z).toEqual([
+      [100, 50],
+      [100, 50],
     ]);
   });
 
@@ -525,11 +540,11 @@ describe("toPlotly heatmap", () => {
   });
 });
 
-describe("toPlotly indexed imported data", () => {
-  it("indexes every inline series to 100 at the chosen base period", () => {
+describe("toPlotly imported data indexed to a base period", () => {
+  it("computes every inline series' percentage change from the chosen base period", () => {
     // The imported-data half of the Transform section, end to end: an imported
     // table has no catalog field, so `field` is undefined and only the transform
-    // id decides. Divergent series must each start at 100.
+    // id decides. Divergent series must each start at zero.
     const table = {
       columns: [
         { name: "County", type: "text" },
@@ -555,9 +570,9 @@ describe("toPlotly indexed imported data", () => {
       appearance: {},
     });
     expect(data.map((trace) => trace.name)).toEqual(["Fresno", "Kern"]);
-    expect(data[0].y[0]).toBe(100);
-    expect(data[0].y[1]).toBeCloseTo(110);
-    expect(data[1].y).toEqual([100, 80]);
+    expect(data[0].y[0]).toBe(0);
+    expect(data[0].y[1]).toBeCloseTo(10);
+    expect(data[1].y).toEqual([0, -20]);
   });
 });
 
@@ -1062,7 +1077,7 @@ describe("toPlotly decimal-places (measure formatting)", () => {
   });
 
   it("formats a percent-change transform of a count measure", () => {
-    const { layout } = toPlotly({
+    const { data, layout } = toPlotly({
       chartType: "line",
       bindings: { x: "Year", y: "Value" },
       series: [{ location: "CA", years: [2020, 2021], values: [10, 12] }],
@@ -1072,6 +1087,9 @@ describe("toPlotly decimal-places (measure formatting)", () => {
     });
     // Line measure lives on the y-axis; x (year) stays unformatted.
     expect(layout.yaxis.hoverformat).toBe(",.2f");
+    expect(layout.yaxis.tickformat).toBe(",.2f");
+    expect(layout.yaxis.ticksuffix).toBe("%");
+    expect(data[0].hovertemplate).toContain("%{y:,.2f}%");
     expect(layout.xaxis.hoverformat).toBeUndefined();
   });
 

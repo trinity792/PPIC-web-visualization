@@ -199,7 +199,7 @@ describe("hand-calculated expectations", () => {
       expected.percentChange2020to2025,
     );
     for (const year of [2020, 2025, 2030]) {
-      expect((sfLatina(year) / sfLatina(2020)) * 100, String(year)).toBe(
+      expect(((sfLatina(year) - sfLatina(2020)) / sfLatina(2020)) * 100, String(year)).toBe(
         expected.indexedToBase2020[year],
       );
     }

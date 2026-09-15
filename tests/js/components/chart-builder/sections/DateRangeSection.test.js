@@ -75,6 +75,24 @@ describe("DateRangeSection", () => {
     });
   });
 
+  it("uses an index base year as the date range minimum", () => {
+    state.config = {
+      ...config("line", {
+        baseYear: 2015,
+        startYear: 2015,
+        endYear: 2020,
+      }),
+      transform: "indexed",
+    };
+    render(<DateRangeSection />);
+
+    expect(screen.getByRole("slider", { name: "Start year" })).toHaveAttribute(
+      "aria-valuemin",
+      "2015",
+    );
+    expect(screen.getAllByText("2015")).not.toHaveLength(0);
+  });
+
   it("keeps snapshot charts on a single-year slider", () => {
     state.config = config("bar", { year: 2016 });
     render(<DateRangeSection />);

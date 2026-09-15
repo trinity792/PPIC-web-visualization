@@ -160,7 +160,7 @@ export const PROJECTIONS_EXPECTED = Object.freeze({
     actual: Object.freeze({ 2020: 40000, 2025: 50000, 2030: 60000 }),
     numericChange2020to2025: 10000,
     percentChange2020to2025: 25,
-    indexedToBase2020: Object.freeze({ 2020: 100, 2025: 125, 2030: 150 }),
+    indexedToBase2020: Object.freeze({ 2020: 0, 2025: 25, 2030: 50 }),
     averageOfAllThreeYears: 50000,
     // California Hispanic women, same year, subtracted from the county value.
     benchmarkDifference2025: 50000 - 8000000,

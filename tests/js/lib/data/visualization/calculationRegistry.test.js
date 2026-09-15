@@ -135,6 +135,9 @@ describe("the registry", () => {
       expect(descriptor, id).not.toHaveProperty("chartType");
       expect(descriptor, id).not.toHaveProperty("chartTypes");
     }
+    expect(getCalculation("percentChange").label).toBe("Year over Year (Percentage)");
+    expect(getCalculation("percentChange").requiredPeriods).toBe("twoOrMore");
+    expect(getCalculation("indexed").label).toBe("Index to Base Year");
   });
 });
 
@@ -178,7 +181,7 @@ describe("change calculations", () => {
     });
   });
 
-  it("calculates percent change and keeps the sign of a decline", () => {
+  it("calculates year-over-year percentage change for every adjacent pair", () => {
     const { rows } = applyCalculation("percentChange", {
       observations: projections({
         Location: "Los Angeles",
@@ -188,11 +191,37 @@ describe("change calculations", () => {
         Source: "DoF P-3",
       }),
       measure: populationMeasure,
-      params: { startYear: 2020, endYear: 2025 },
+      params: {},
       comparisonId: COMPARISON_ID,
     });
 
+    expect(rows.map((row) => row.period)).toEqual([2025, 2030]);
+    expect(rows.map((row) => row.includedPeriods)).toEqual([
+      [2020, 2025],
+      [2025, 2030],
+    ]);
     expect(rows[0].value).toBe(PROJECTIONS_EXPECTED.laWhiteWomen.percentChange2020to2025);
+    expect(rows[1].value).toBeCloseTo(-1.01010101);
+  });
+
+  it("matches the adjacent-period matrix example", () => {
+    const template = sfLatinaWomen()[0];
+    const observations = [100, 110, 121, 115].map((value, index) => ({
+      ...template,
+      period: 2020 + index,
+      value,
+    }));
+    const { rows } = applyCalculation("percentChange", {
+      observations,
+      measure: populationMeasure,
+      params: {},
+      comparisonId: COMPARISON_ID,
+    });
+
+    expect(rows.map((row) => row.period)).toEqual([2021, 2022, 2023]);
+    expect(rows[0].value).toBeCloseTo(10);
+    expect(rows[1].value).toBeCloseTo(10);
+    expect(rows[2].value).toBeCloseTo(-4.96, 2);
   });
 
   it("rejects percent change from a zero base", () => {
@@ -201,7 +230,7 @@ describe("change calculations", () => {
     const { rows, issues } = applyCalculation("percentChange", {
       observations: coc("Total Population", { Location: "Alpine" }),
       measure: { id: "Total Population", ...COMPONENTS_OF_CHANGE_MEASURES["Total Population"] },
-      params: { startYear: 2020, endYear: 2025 },
+      params: {},
       comparisonId: COMPARISON_ID,
     });
 
@@ -248,8 +277,8 @@ describe("change calculations", () => {
     expect(rows[0].unit).toBe("percentagePoints");
   });
 
-  it("requires exactly two ordered periods for every change calculation", () => {
-    for (const id of ["numericChange", "percentChange", "percentagePointChange"]) {
+  it("requires exactly two ordered periods for endpoint change calculations", () => {
+    for (const id of ["numericChange", "percentagePointChange"]) {
       const { issues } = applyCalculation(id, {
         observations: sfLatinaWomen(),
         measure: id === "percentagePointChange" ? rateMeasure : populationMeasure,
@@ -260,6 +289,20 @@ describe("change calculations", () => {
         expect.objectContaining({ code: "distinctPeriodsRequired", level: "comparison" }),
       ]);
     }
+  });
+
+  it("requires at least two periods for year-over-year percentage change", () => {
+    const { rows, issues } = applyCalculation("percentChange", {
+      observations: sfLatinaWomen().slice(0, 1),
+      measure: populationMeasure,
+      params: {},
+      comparisonId: COMPARISON_ID,
+    });
+
+    expect(rows).toEqual([]);
+    expect(issues).toEqual([
+      expect.objectContaining({ code: "twoPeriodsRequired", level: "comparison" }),
+    ]);
   });
 
   it("returns a missing change when either endpoint is unavailable", () => {
@@ -284,7 +327,7 @@ describe("change calculations", () => {
 });
 
 describe("indexing", () => {
-  it("indexes every available period to a declared base of 100", () => {
+  it("computes every available period's percentage change from the declared base", () => {
     const { rows } = applyCalculation("indexed", {
       observations: sfLatinaWomen(),
       measure: populationMeasure,
@@ -295,7 +338,7 @@ describe("indexing", () => {
     expect(Object.fromEntries(rows.map((row) => [row.period, row.value]))).toEqual(
       PROJECTIONS_EXPECTED.sfLatinaWomen.indexedToBase2020,
     );
-    expect(rows.every((row) => row.unit === "index")).toBe(true);
+    expect(rows.every((row) => row.unit === "percent")).toBe(true);
   });
 
   it("retains null gaps rather than closing them", () => {
@@ -312,12 +355,24 @@ describe("indexing", () => {
       comparisonId: COMPARISON_ID,
     });
 
-    // 10000 -> suppressed -> 9000, indexed on 2020.
+    // 10000 -> suppressed -> 9000, expressed as change from 2020.
     expect(rows.map((row) => [row.period, row.value, row.status])).toEqual([
-      [2020, 100, OBSERVATION_STATUS.AVAILABLE],
+      [2020, 0, OBSERVATION_STATUS.AVAILABLE],
       [2025, null, OBSERVATION_STATUS.SUPPRESSED],
-      [2030, 90, OBSERVATION_STATUS.AVAILABLE],
+      [2030, -10, OBSERVATION_STATUS.AVAILABLE],
     ]);
+  });
+
+  it("defaults to the first ordered period when no base year is supplied", () => {
+    const { rows } = applyCalculation("indexed", {
+      observations: sfLatinaWomen(),
+      measure: populationMeasure,
+      params: {},
+      comparisonId: COMPARISON_ID,
+    });
+
+    expect(rows.map((row) => row.value)).toEqual([0, 25, 50]);
+    expect(rows.every((row) => row.calculation.params.baseYear === 2020)).toBe(true);
   });
 
   it("blocks the comparison when the base period has no value", () => {
