@@ -297,6 +297,27 @@ describe("derived labels", () => {
     expect(new Set(labels).size).toBe(2);
   });
 
+  it("names an all-aggregate comparison by its aggregate values, never its id", () => {
+    // Every value is an omitted aggregate and the geography is shared (no
+    // override), so nothing survives the omit pass. The card and legend must
+    // still say what was picked - "Total", or the Projections aggregates -
+    // rather than leak the opaque comparison id.
+    const [projections] = resolveLabels(
+      [cmp({ "Race/Ethnicity": "All", Sex: "Both Sexes", "Age Group": "All Ages" })],
+      { labelMeta: projectionsLabelMeta },
+    );
+    expect(projections.label).toBe("All Both Sexes All Ages");
+    expect(projections.label).not.toContain("cmp_");
+
+    const [rhna] = resolveLabels([cmp({ "Income Level": "Total" })], {
+      labelMeta: {
+        dimensionOrder: ["geography", "Income Level"],
+        omitValues: { "Income Level": ["Total"] },
+      },
+    });
+    expect(rhna.label).toBe("Total");
+  });
+
   it("lets a custom label win over the derived one", () => {
     const [resolved] = resolveLabels(
       [

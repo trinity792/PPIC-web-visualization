@@ -1,9 +1,10 @@
 /**
- * Deferred first render: landing on a module workbench must cost no request.
+ * Deferred initial render: landing on a module page issues no request until
+ * the reader changes a setting, and the loader's own feedback never counts as
+ * a change.
  *
- * Runs against the real config store rather than a mocked one, because the whole
- * mechanism hangs on the store's own undo history telling user intent apart from
- * the loader's SET_SERIES_COUNT feedback. A mocked store would assert nothing.
+ * Runs against the real config store with a complete v3 question, so the
+ * only thing standing between the preview and a request is the deferral.
  */
 
 import React from "react";
@@ -12,11 +13,11 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const state = vi.hoisted(() => ({ loadChartData: vi.fn() }));
+const state = vi.hoisted(() => ({ loadObservations: vi.fn() }));
 
 vi.mock("@/components/chart-builder/chartData", async (importOriginal) => ({
   ...(await importOriginal()),
-  loadChartData: state.loadChartData,
+  loadObservations: state.loadObservations,
 }));
 
 import {
@@ -27,9 +28,17 @@ import {
   PreviewProvider,
   usePreview,
 } from "@/components/chart-builder/wizard/PreviewContext";
+import { getDefaultQuestion } from "@/lib/visualization/defaultQuestions";
 import { getModuleSchema } from "@/lib/visualization/moduleRegistry";
 
 const schema = getModuleSchema("pophousing");
+
+/** The module's default question with the places filled in, so it can run. */
+function answered() {
+  const spec = getDefaultQuestion("pophousing");
+  spec.question.geography = { subset: "Counties", locations: ["Alameda"] };
+  return spec;
+}
 
 function Probe() {
   const { status } = usePreview();
@@ -37,8 +46,9 @@ function Probe() {
   return (
     <div>
       <span data-testid="status">{status}</span>
-      {/* A cosmetic, appearance-only change: it does not alter the data request,
-          so it proves arming keys off user intent and not off the request key. */}
+      {/* A cosmetic, presentation-only change: it does not alter the data
+          request, so it proves arming keys off user intent and not off the
+          request key. */}
       <button
         type="button"
         onClick={() => dispatch({ type: "SET_LABEL", key: "title", value: "Mine" })}
@@ -54,10 +64,7 @@ function Probe() {
       >
         feed back
       </button>
-      <button
-        type="button"
-        onClick={() => dispatch({ type: "ADD_CHART" })}
-      >
+      <button type="button" onClick={() => dispatch({ type: "ADD_CHART" })}>
         add second chart
       </button>
     </div>
@@ -66,7 +73,7 @@ function Probe() {
 
 function mount(providerProps = {}) {
   return render(
-    <ChartConfigProvider schema={schema} initialConfig={{ module: schema.id }}>
+    <ChartConfigProvider schema={schema} initialConfig={answered()} autoBind={false}>
       <PreviewProvider {...providerProps}>
         <Probe />
       </PreviewProvider>
@@ -76,11 +83,14 @@ function mount(providerProps = {}) {
 
 describe("deferred initial render", () => {
   beforeEach(() => {
-    state.loadChartData.mockReset();
-    state.loadChartData.mockResolvedValue({
-      series: [],
-      response: {},
-      unmatched: [],
+    state.loadObservations.mockReset();
+    state.loadObservations.mockResolvedValue({
+      status: "ok",
+      blocked: false,
+      observations: [],
+      comparisons: [],
+      periods: [],
+      issues: [],
     });
   });
 
@@ -90,7 +100,7 @@ describe("deferred initial render", () => {
     expect(screen.getByTestId("status")).toHaveTextContent("idle");
     // Give any effect a chance to fire before concluding nothing was fetched.
     await Promise.resolve();
-    expect(state.loadChartData).not.toHaveBeenCalled();
+    expect(state.loadObservations).not.toHaveBeenCalled();
   });
 
   it("arms on the first user setting change, even a cosmetic one", async () => {
@@ -99,7 +109,7 @@ describe("deferred initial render", () => {
 
     await user.click(screen.getByRole("button", { name: "rename" }));
 
-    await waitFor(() => expect(state.loadChartData).toHaveBeenCalled());
+    await waitFor(() => expect(state.loadObservations).toHaveBeenCalled());
     await waitFor(() =>
       expect(screen.getByTestId("status")).not.toHaveTextContent("idle"),
     );
@@ -112,7 +122,7 @@ describe("deferred initial render", () => {
     await user.click(screen.getByRole("button", { name: "feed back" }));
 
     expect(screen.getByTestId("status")).toHaveTextContent("idle");
-    expect(state.loadChartData).not.toHaveBeenCalled();
+    expect(state.loadObservations).not.toHaveBeenCalled();
   });
 
   it("stays armed once armed, so later changes render live", async () => {
@@ -120,27 +130,27 @@ describe("deferred initial render", () => {
     mount({ deferInitialRender: true });
 
     await user.click(screen.getByRole("button", { name: "rename" }));
-    await waitFor(() => expect(state.loadChartData).toHaveBeenCalled());
+    await waitFor(() => expect(state.loadObservations).toHaveBeenCalled());
 
-    state.loadChartData.mockClear();
+    state.loadObservations.mockClear();
     await user.click(screen.getByRole("button", { name: "feed back" }));
     await waitFor(() =>
       expect(screen.getByTestId("status")).not.toHaveTextContent("idle"),
     );
   });
 
-  it("loads immediately when not deferred, which is the standalone wizard", async () => {
+  it("loads immediately when not deferred, which is a deep link or an embed", async () => {
     mount();
 
-    await waitFor(() => expect(state.loadChartData).toHaveBeenCalled());
+    await waitFor(() => expect(state.loadObservations).toHaveBeenCalled());
   });
 
   it("arms the deferred preview when a second chart is added", async () => {
     const user = userEvent.setup();
     mount({ deferInitialRender: true });
-    expect(state.loadChartData).not.toHaveBeenCalled();
+    expect(state.loadObservations).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole("button", { name: "add second chart" }));
-    await waitFor(() => expect(state.loadChartData).toHaveBeenCalled());
+    await waitFor(() => expect(state.loadObservations).toHaveBeenCalled());
   });
 });

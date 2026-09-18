@@ -308,15 +308,9 @@ describe("OutcomeSection", () => {
     expect(screen.getByRole("option", { name: "Not set" })).toBeInTheDocument();
   });
 
-  it("contains neither geography nor the module Add line layer action", () => {
+  it("contains no geography control", () => {
     render(<OutcomeSection />);
     expect(screen.queryByLabelText(/geographic level/i)).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /add line/i })).not.toBeInTheDocument();
-  });
-
-  it("keeps Add line available when the standalone Edit step opts into layers", () => {
-    render(<OutcomeSection allowLayers />);
-    expect(screen.getByRole("button", { name: /add line/i })).toBeInTheDocument();
   });
 
   it("binds standalone dropdowns to inlineFields instead of the module catalog", async () => {
@@ -337,7 +331,7 @@ describe("OutcomeSection", () => {
       },
       bindings: { x: "Period", y: "Amount", series: "Place" },
     });
-    render(<OutcomeSection allowLayers />);
+    render(<OutcomeSection />);
     await user.click(screen.getByLabelText(/Outcome/i));
     expect(screen.getByRole("option", { name: "Amount" })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: "Value" })).not.toBeInTheDocument();
@@ -359,7 +353,7 @@ describe("OutcomeSection", () => {
       },
       bindings: { x: "Period", y: "Amount" },
     });
-    render(<OutcomeSection allowLayers />);
+    render(<OutcomeSection />);
     expect(screen.getByLabelText(/^X-Axis/)).toBeInTheDocument();
   });
 

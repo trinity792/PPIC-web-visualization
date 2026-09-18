@@ -22,9 +22,6 @@ vi.mock("@/components/chart-builder/sections/PresetSection", () => ({
 vi.mock("@/components/chart-builder/ChartSidebar", () => ({
   FooterActions: () => <div data-testid="saved-views-tool">Saved views</div>,
 }));
-vi.mock("@/components/chart-builder/LayerEditor", () => ({
-  default: () => <div data-testid="layers-tool">Trace layers</div>,
-}));
 vi.mock("@/components/chart-builder/EditorActivityLog", () => ({
   default: () => <div data-testid="activity-tool">Activity log</div>,
 }));
@@ -59,7 +56,6 @@ import EditorSidebar from "@/components/chart-builder/sections/EditorSidebar";
 const NONE = {
   presets: false,
   savedViews: false,
-  layers: false,
   activityLog: false,
   multiChart: false,
 };
@@ -77,7 +73,6 @@ function mount({ capabilities = NONE, advanced = false, ...props } = {}) {
 const toolCases = [
   ["presets", "presets-tool"],
   ["savedViews", "saved-views-tool"],
-  ["layers", "layers-tool"],
   ["activityLog", "activity-tool"],
 ];
 
@@ -90,7 +85,7 @@ describe("EditorSidebar", () => {
     ["workbench", { ...NONE, multiChart: true }],
     [
       "standalone",
-      { presets: true, savedViews: true, layers: true, activityLog: true, multiChart: true },
+      { presets: true, savedViews: true, activityLog: true, multiChart: true },
     ],
   ])("renders the registry sections in registry order for the %s", (_surface, capabilities) => {
     mount({ capabilities });

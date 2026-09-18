@@ -9,6 +9,7 @@ import {
   AVAILABLE_MEASURES,
   AVAILABLE_SOURCES,
   AVAILABLE_SUBSETS,
+  SUBSET_TO_SOURCE,
   queryCategoryValues,
   queryGeoValues,
   queryLineSeries,
@@ -106,9 +107,10 @@ export async function GET(request) {
       "components_of_change API: source validation",
     );
   }
-  if (subset === "States" && source !== "Census") {
+  const requiredSource = SUBSET_TO_SOURCE[subset];
+  if (requiredSource && source !== requiredSource) {
     return invalid(
-      "National state data is only available for Census.",
+      `${subset} is only available for ${requiredSource}.`,
       "components_of_change API: source/subset validation",
     );
   }

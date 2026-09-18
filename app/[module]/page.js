@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import ModuleWorkbench from "@/components/chart-builder/workbench/ModuleWorkbench";
 import { UnderConstruction } from "@/components/ui/under-construction";
 import { getBuiltInView } from "@/lib/visualization/builtInViews";
+import { getDefaultQuestion } from "@/lib/visualization/defaultQuestions";
 import {
   getModuleSchema,
   MODULE_IDS,
@@ -39,15 +40,19 @@ export default async function DetailedModulePage({ params, searchParams }) {
 
   const viewId = query.view || null;
   const builtIn = viewId ? getBuiltInView(viewId) : null;
-  const initialConfig =
-    builtIn?.module === module ? builtIn : { module: schema.id };
+  const hasBuiltInView = Boolean(builtIn && builtIn.question.dataset.moduleId === module);
+  // Every module opens on its v3 default question (an unanswered one: the
+  // workbench never chooses a setting for the reader). A built-in deep link
+  // is a complete v3 spec for this module and replaces it outright.
+  const initialConfig = hasBuiltInView ? builtIn : getDefaultQuestion(module);
+  if (!initialConfig) notFound();
 
   return (
     <ModuleWorkbench
       schema={schema}
       initialConfig={initialConfig}
       viewId={viewId}
-      hasBuiltInView={Boolean(builtIn?.module === module)}
+      hasBuiltInView={hasBuiltInView}
       embedded={query.embed === "1"}
     />
   );

@@ -5,6 +5,7 @@ import React from "react";
 import VisualizationWizard, {
   DEFAULT_STEPS,
 } from "@/components/chart-builder/wizard/VisualizationWizard";
+import { getDefaultQuestion } from "@/lib/visualization/defaultQuestions";
 import { BYOD_SCHEMA } from "@/lib/visualization/moduleRegistry";
 import VisualizationV3FlowFixture from "@/app/%5F%5Fvisual/visualization-v3/visualization-v3-flow-fixture";
 
@@ -18,9 +19,9 @@ export default async function VisualizationToolPage({ searchParams }) {
   }
   const query = await searchParams;
   // Standalone bring-your-own-data editor: the byod schema has no server
-  // dataset, so start in the inline data source with an empty table — the
-  // Import step populates it from a paste or upload.
-  const initialConfig = { module: BYOD_SCHEMA.id, data: { source: "inline" } };
+  // dataset, so start on an empty inline v3 question — the Import step fills
+  // in the table, and the store maps its columns onto the chart's roles.
+  const initialConfig = getDefaultQuestion(BYOD_SCHEMA.id);
 
   return (
     <VisualizationWizard

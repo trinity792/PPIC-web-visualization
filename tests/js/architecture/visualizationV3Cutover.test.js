@@ -186,6 +186,7 @@ describe("removals are reviewed one at a time", () => {
     const candidates = [
       "components/chart-builder/chartData.js",
       "components/chart-builder/sections/DateRangeSection.js",
+      "components/chart-builder/LayerEditor.js",
       "lib/visualization/transformRegistry.js",
       "lib/visualization/chartSpec.js",
     ];
@@ -195,8 +196,14 @@ describe("removals are reviewed one at a time", () => {
       if (exists(candidate)) continue;
       const entry = entries.find((row) => row.path === candidate);
       expect(entry, `${candidate} was removed with no changelog entry`).toBeDefined();
-      expect(entry.state, candidate).toBe("deleted");
       expect(entry.row.join(" "), candidate).toMatch(/\d{4}-\d{2}-\d{2}/);
+      if (entry.state === "trashed") {
+        // Quarantined, not gone: the file must still be recoverable by a move
+        // from the same relative path under the quarantine folder.
+        expect(fs.existsSync(path.join(TRASH, candidate)), `${candidate} in .trash`).toBe(true);
+        continue;
+      }
+      expect(entry.state, candidate).toBe("deleted");
     }
   });
 

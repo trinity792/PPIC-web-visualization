@@ -31,6 +31,7 @@ import {
   ChartConfigProvider,
   useChartConfig,
 } from "@/components/chart-builder/chartConfigStore";
+import { inlineTableOf } from "@/lib/visualization/inlineQuestion";
 import MultiChartToolbar from "@/components/chart-builder/MultiChartToolbar";
 
 import { PreviewProvider } from "@/components/chart-builder/wizard/PreviewContext";
@@ -78,7 +79,7 @@ function WizardInner({ steps }) {
   const hasImport = steps.includes("import");
   // For the standalone tool, everything after Import needs an imported table;
   // module editors always have data, so their steps are always reachable.
-  const dataReady = hasImport ? Boolean(config.data?.inline) : true;
+  const dataReady = hasImport ? Boolean(inlineTableOf(config)) : true;
 
   function isEnabled(stepId) {
     if (stepId === "import") return true;

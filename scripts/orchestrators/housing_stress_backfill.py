@@ -41,6 +41,7 @@ from scripts.housing_stress.config.paths import get_paths
 from scripts.housing_stress.config.schemas import get_schema_config
 from scripts.housing_stress.config.sources import get_source_settings
 from scripts.housing_stress.merging.historical_merge import (
+    combine_history_sources,
     combine_with_historical,
     load_canonical_dataset,
 )
@@ -49,6 +50,7 @@ from scripts.housing_stress.validation.housing_stress_validators import (
     validate_cleaning_output,
     validate_housing_stress_dataset,
     validate_stratification_completeness,
+    validate_vintage_race_coverage,
 )
 from scripts.orchestrators.housing_stress_pipeline import _acquire_live_frames
 from scripts.shared.geography.california_geography import get_california_geography
@@ -71,14 +73,16 @@ _LEGACY_RENAME = {"Race/ethnicity": "Race/Ethnicity", "Label": "Tenure"}
 
 def _load_legacy_seed(legacy_path, schema_config, cutoff_year, excluded_years, logger=None):
     """
-    Load the pre-cutoff years from the legacy CSV, reconciled to the V3 contract.
+    Load legacy years through the first table-based vintage, reconciled to V3.
 
     The Census table-based Summary File only carries 2022 onward, so the earlier years live in
     the set-aside legacy CSV (old sequence-based format). Its schema is the V3 contract except
     for two column names and the raw race labels, and its values are identical to V3 on the
     overlap years — so it is bootstrapped by renaming the columns, reconciling the race labels
-    with the same map the live cleaner uses, and taking the years below cutoff_year (excluding
-    the permanently-gapped year). Returns an empty contract frame when the file is absent.
+    with the same map the live cleaner uses. The first table-based vintage is included because
+    it may contain only the aggregate table; exact V3 keys win later while the legacy overlap
+    fills any unpublished race iterations. The permanently-gapped year remains excluded.
+    Returns an empty contract frame when the file is absent.
     """
     output_columns = schema_config["output_columns"]
     if not legacy_path or not Path(legacy_path).exists():
@@ -89,7 +93,7 @@ def _load_legacy_seed(legacy_path, schema_config, cutoff_year, excluded_years, l
     race_column = schema_config["race_column"]
     frame = pd.read_csv(legacy_path).rename(columns=_LEGACY_RENAME)
     frame = reconcile_race_label(frame, race_column, schema_config["race_reconciliation_map"])
-    frame = frame[(frame[year_column] < cutoff_year) & (~frame[year_column].isin(excluded_years))]
+    frame = frame[(frame[year_column] <= cutoff_year) & (~frame[year_column].isin(excluded_years))]
 
     missing = [column for column in output_columns if column not in frame.columns]
     if missing:
@@ -160,7 +164,13 @@ def backfill_housing_stress_history(config=None, logger=None, start_year=None, e
             built,
             accumulated,
             _YEAR_COLUMN,
-            lambda candidate: validate_stratification_completeness(candidate, schema_config),
+            # The first table-based vintage may be missing whole iterations that
+            # the trusted overlap fills below. Validate its tenure matrices now;
+            # enforce global race coverage after both sources have been combined.
+            lambda candidate: validate_stratification_completeness(
+                candidate,
+                {**schema_config, "required_vintage_race_groups": []},
+            ),
         )
         years_included.append(year)
         log_message(logger, "Backfill built vintage", year=year, rows=len(built))
@@ -168,22 +178,26 @@ def backfill_housing_stress_history(config=None, logger=None, start_year=None, e
     legacy_years = []
     if include_legacy:
         # The table-based Summary File starts at the earliest V3 year built; the
-        # years below it come from the legacy CSV. Trusted, pre-computed data whose
-        # small-population strata legitimately drop a tenure sub-cell, so it is gated
-        # by the final validator, not the per-vintage completeness gate (which exists
-        # to catch build bugs in fresh vintages and would hard-fail these gaps).
+        # years below it come from the legacy CSV. Include the first table-based
+        # year as an overlap: current table rows win on exact keys and legacy rows
+        # fill iterations absent from that release. This source is trusted,
+        # pre-computed data whose small-population strata may legitimately drop a
+        # tenure sub-cell, so it is gated by the final validator rather than the
+        # per-vintage completeness gate used for fresh builds.
         cutoff_year = min(years_included) if years_included else end + 1
         legacy = _load_legacy_seed(paths["legacy_seed_path"], schema_config, cutoff_year, excluded_years, logger=logger)
         if not legacy.empty:
-            def _legacy_completeness(candidate):
-                _ok, messages = validate_stratification_completeness(candidate, schema_config)
-                incomplete = [message for message in messages if message.startswith("ERROR")]
-                if incomplete:
-                    log_message(logger, "Legacy years carry suppressed tenure strata (kept as-is)", incomplete_strata=len(incomplete))
-                return True, messages
-
-            accumulated = combine_with_historical(legacy, accumulated, _YEAR_COLUMN, _legacy_completeness)
+            accumulated = combine_history_sources(legacy, accumulated)
             legacy_years = sorted(legacy[_YEAR_COLUMN].unique().tolist())
+
+    has_race_coverage, race_coverage_messages = validate_vintage_race_coverage(
+        accumulated,
+        schema_config,
+    )
+    if not has_race_coverage:
+        raise ValueError(
+            f"Backfill race-iteration coverage failed after legacy merge: {race_coverage_messages}"
+        )
 
     prepared = prepare_output(accumulated, schema_config)
     is_valid, messages = validate_housing_stress_dataset(prepared, schema_config["final_validation_config"])

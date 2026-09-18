@@ -23,6 +23,7 @@ import {
   normalizeSpec,
   SPEC_VERSION,
 } from "@/lib/visualization/chartSpec";
+import { BYOD_SCHEMA, MODULE_IDS } from "@/lib/visualization/moduleRegistry";
 import { getPreset } from "@/lib/visualization/presetRegistry";
 import {
   hasBlockingErrors,
@@ -75,17 +76,40 @@ function parseJson(json) {
   throw new Error("A saved view must be a JSON object.");
 }
 
+/**
+ * Did `deserialize` decline the view rather than return a config? A v3 reader
+ * answers with `{ ok: false, message }` (never a half-converted spec), and the
+ * callers that load views must show that message instead of dispatching it.
+ */
+export function isRejectedView(result) {
+  return Boolean(result) && result.ok === false;
+}
+
 export function deserialize(json, schema) {
   const saved = parseJson(json);
-  if (saved.version === 3 || schema?.id === "projections") {
+  // Every editor surface reads v3 only (modules and the bring-your-own-data
+  // tool both cut over on 2026-09-14): a v1 or v2 view gets the plain-language
+  // unsupported-version message rather than a guessed conversion. The legacy
+  // reader below survives only for unregistered (test) schemas.
+  const v3Only =
+    saved.version === 3 ||
+    schema?.id === "projections" ||
+    schema?.inlineOnly ||
+    MODULE_IDS.includes(schema?.id);
+  if (v3Only) {
     const result = readQuestion(saved);
     if (!result.ok) return result;
-    const moduleId = result.spec.question.dataset?.moduleId;
-    if (moduleId !== schema?.id) {
+    const dataset = result.spec.question.dataset || {};
+    // A pasted-data view opens only on the standalone tool; a module view only
+    // on its own module page.
+    const mismatch =
+      dataset.kind === "inline" ? !schema?.inlineOnly : dataset.moduleId !== schema?.id;
+    if (mismatch) {
+      const owner = dataset.kind === "inline" ? "your own data" : `dataset "${dataset.moduleId}"`;
       return {
         ok: false,
         reason: "dataset-mismatch",
-        message: `This view belongs to dataset "${moduleId}", not "${schema?.id}".`,
+        message: `This view belongs to ${owner}, not "${schema?.id}".`,
       };
     }
     return normalizeQuestion(result.spec);
@@ -164,10 +188,15 @@ export function deserializeWorkspace(json, schema) {
     return null;
   }
   if (!parsed || !Array.isArray(parsed.charts)) return null;
+  const readChart = (chart) => {
+    const config = deserialize(chart, schema);
+    if (isRejectedView(config)) throw new Error(config.message);
+    return config;
+  };
   if (parsed.charts.some((chart) => (chart?.config || chart)?.version === 3)) {
     const directCharts = parsed.charts.every((chart) => chart?.version === 3);
     const charts = parsed.charts.map((chart, index) => {
-      const config = deserialize(chart?.config || chart, schema);
+      const config = readChart(chart?.config || chart);
       return directCharts
         ? config
         : { name: chart?.name || `Chart ${index + 1}`, config };
@@ -176,20 +205,14 @@ export function deserializeWorkspace(json, schema) {
   }
   const charts = parsed.charts.map((chart, index) => ({
     name: chart?.name || `Chart ${index + 1}`,
-    config: deserialize(chart?.config ?? chart, schema),
+    config: readChart(chart?.config ?? chart),
   }));
   return { layout: parsed.layout, charts };
 }
 
+/** Every browser-local saved view, v3 first, then the untouched v1 namespace. */
 export function listViews() {
-  const store = storage();
-  if (!store) return [];
-  try {
-    const views = JSON.parse(store.getItem(SAVED_VIEWS_KEY) || "[]");
-    return Array.isArray(views) ? views : [];
-  } catch {
-    return [];
-  }
+  return [...listViewsAt(SAVED_VIEWS_KEY_V3), ...listViewsAt(SAVED_VIEWS_KEY)];
 }
 
 function listViewsAt(key) {
@@ -205,7 +228,6 @@ function listViewsAt(key) {
 
 export function getView(id, schema) {
   const view =
-    listViewsAt(SAVED_VIEWS_KEY_V3).find((item) => item.id === id) ||
     listViews().find((item) => item.id === id);
   return view ? deserialize(view.config, schema) : null;
 }
@@ -236,7 +258,12 @@ export function saveView(name, config, id) {
   const next = {
     id: viewId,
     name: name?.trim() || config.labels?.title || config.presentation?.labels?.title || "Untitled view",
-    module: config.module || config.question?.dataset?.moduleId,
+    // The owner the Restore list filters on: a module id, or the standalone
+    // tool's schema id for pasted data.
+    module:
+      config.module ||
+      config.question?.dataset?.moduleId ||
+      (config.question?.dataset?.kind === "inline" ? BYOD_SCHEMA.id : undefined),
     updatedAt: new Date().toISOString(),
     config: shape,
   };

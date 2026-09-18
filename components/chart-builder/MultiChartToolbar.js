@@ -25,6 +25,7 @@ import {
   MAX_CHARTS,
   useChartConfig,
 } from "@/components/chart-builder/chartConfigStore";
+import { inlineTableOf } from "@/lib/visualization/inlineQuestion";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -53,7 +54,7 @@ export default function MultiChartToolbar({ className = "" }) {
   const { canRedo, canUndo, dispatch, schema, workspace } = useChartConfig();
   const charts = workspace?.charts || [];
   const activeId = workspace?.activeChartId || charts[0]?.id;
-  const hasData = !schema.inlineOnly || charts.some((chart) => chart.config.data?.inline);
+  const hasData = !schema.inlineOnly || charts.some((chart) => inlineTableOf(chart.config));
   const canAdd = hasData && charts.length < MAX_CHARTS;
   const layoutOptions = CHART_LAYOUTS.filter(
     (layout) => layoutCapacity(layout) >= charts.length,

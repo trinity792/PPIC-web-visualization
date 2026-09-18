@@ -31,8 +31,10 @@ describe("geometry loaders", () => {
     expect(geometryRequiring).toEqual(expect.arrayContaining(["choroplethMap", "symbolMap"]));
 
     for (const id of geometryRequiring) {
+      // `loadObservationGeometry` branches on the chart type id and calls the
+      // polygon and/or point loader for it.
       const wired = new RegExp(
-        `config\\.chartType === "${id}"[\\s\\S]{0,40}\\?\\s*load(Geometry|Points)\\(`,
+        `chartType === "${id}"[\\s\\S]{0,120}load(Geometry|Points)\\(`,
       );
       expect(
         wired.test(source),

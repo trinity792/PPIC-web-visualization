@@ -22,7 +22,7 @@ describe("TopicCard", () => {
 
     expect(screen.getByRole("link")).toHaveAttribute(
       "href",
-      "/visualization-v3-review?module=demographic-projections",
+      "/demographic-projections",
     );
   });
 

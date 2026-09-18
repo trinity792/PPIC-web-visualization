@@ -365,6 +365,39 @@ describe("materialized cells", () => {
     });
   });
 
+  it("gives a materialized missing cell a source even with no sources axis", async () => {
+    // Reproduces a real bug: modules with no `sources` axis (Housing Stress,
+    // RHNA Progress, ...) never set `question.source`, so a materialized cell
+    // with no matching row previously fell through to `source: undefined` and
+    // failed the shared observation contract (`source` is required on every
+    // row, missing or not). The fallback chain must reach something truthy
+    // even when the adapter has neither a `label` nor a matched row.
+    const sourcelessAdapter = {
+      ...fixtureAdapter,
+      label: undefined,
+      select: () => [],
+    };
+    const result = await executeQuestion(
+      {
+        version: 3,
+        question: {
+          dataset: { kind: "module", moduleId: "projections" },
+          outcome: { measureId: "Population" },
+          geography: { subset: "Counties", locations: ["San Francisco"] },
+          time: { contract: "snapshot", year: 2025 },
+          calculation: { id: "actual", params: {} },
+          comparisons: [comparison("cmp1", {})],
+        },
+      },
+      { adapter: sourcelessAdapter },
+    );
+
+    expect(result.observations).toHaveLength(1);
+    expect(result.observations[0]).toMatchObject({ status: OBSERVATION_STATUS.MISSING, value: null });
+    expect(result.observations[0].source).toBeTruthy();
+    expect(validateResponse(result).valid).toBe(true);
+  });
+
   it("returns one cell per requested comparison, period, and geography", async () => {
     const result = await run(
       question({

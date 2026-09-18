@@ -25,7 +25,6 @@
  * also owns the place selection it drives.
  *
  * Props:
- *   allowLayers {boolean} — render the line chart's "Add line" layer action.
  *     Off for the module workbench (layers are a standalone-tool feature), on
  *     for the wizard's Edit step.
  *
@@ -40,10 +39,8 @@
 
 import React, { useState } from "react";
 
-import { GripVertical, Plus } from "lucide-react";
+import { GripVertical } from "lucide-react";
 
-import LayerEditor from "@/components/chart-builder/LayerEditor";
-import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -68,14 +65,72 @@ import {
   supportsRole,
 } from "@/lib/visualization/fieldTypes";
 import { impliedBindings, impliedRoleHint } from "@/lib/visualization/impliedRoles";
-import { bindableFields } from "@/lib/visualization/inlineMapping";
+import { bindableFields, inlineFields } from "@/lib/visualization/inlineMapping";
+import { roleLabel } from "@/lib/visualization/roleLabels";
 import { calculationOptionsFor, getCalculation } from "@/lib/data/visualization/calculationRegistry";
 
 const NONE = "__none__";
 
+/**
+ * "Map your columns" for a pasted table on the v3 path: one select per role
+ * the chart type declares, offering only the columns of an accepted kind. The
+ * outcome is not a separate choice here - it is whichever column the chart's
+ * measure role points at, so this grid is the whole encoding question.
+ */
+function InlineRoles({ config, dispatch }) {
+  const chartType = config.presentation?.chartType;
+  const chart = getChartType(chartType);
+  const table = config.question?.dataset?.inline;
+  const bindings = config.question?.dataset?.bindings || {};
+  if (!chart || !table) return null;
+  const fields = inlineFields(table);
+  const roles = [...chart.requiredRoles, ...chart.optionalRoles].filter(
+    (role) => !(chart.hiddenRoles || []).includes(role),
+  );
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      {roles.map((role) => {
+        const accepted = chart.roleConstraints[role] || [];
+        const required = chart.requiredRoles.includes(role);
+        const options = Object.entries(fields).filter(
+          ([, field]) => !accepted.length || accepted.includes(field.kind),
+        );
+        const id = `v3-role-${role}`;
+        return (
+          <div key={role} className="grid gap-2">
+            <Label htmlFor={id}>
+              {roleLabel(role, chartType)}
+              {required ? null : <span className="text-muted-foreground"> (optional)</span>}
+            </Label>
+            <Select
+              value={bindings[role] || NONE}
+              onValueChange={(value) =>
+                dispatch({ type: "SET_BINDING", role, column: value === NONE ? null : value })
+              }
+            >
+              <SelectTrigger id={id} aria-label={roleLabel(role, chartType)}>
+                <SelectValue placeholder="Choose a column" />
+              </SelectTrigger>
+              <SelectContent>
+                {required ? null : <SelectItem value={NONE}>None</SelectItem>}
+                {options.map(([name]) => (
+                  <SelectItem key={name} value={name}>{name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function V3Outcome({ config, dispatch, schema, advanced, editorModel }) {
+  const inline = config.question?.dataset?.kind === "inline";
   const measureId = config.question?.outcome?.measureId;
-  const measure = schema.fields?.[measureId] || {};
+  const measure =
+    schema.fields?.[measureId] ||
+    (inline && measureId ? { unit: config.question.outcome.unit || "number" } : {});
   const calculation = config.question?.calculation || { id: "actual", params: {} };
   const modelCalculations = editorModel?.calculations || config.editorModel?.calculations || [];
   let calculations = calculationOptionsFor({ id: measureId, ...measure });
@@ -119,18 +174,23 @@ function V3Outcome({ config, dispatch, schema, advanced, editorModel }) {
 
   return (
     <div className="grid gap-3">
-      <div className="grid gap-2">
-        <Label htmlFor="v3-outcome">Outcome</Label>
-        <Select
-          value={measureId}
-          onValueChange={(value) => dispatch({ type: "SET_OUTCOME", outcome: { measureId: value } })}
-        >
-          <SelectTrigger id="v3-outcome" aria-label="Outcome"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {measures.map(([id, field]) => <SelectItem key={id} value={id}>{field.label}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>
+      {inline ? (
+        <InlineRoles config={config} dispatch={dispatch} />
+      ) : (
+        <div className="grid gap-2">
+          <Label htmlFor="v3-outcome">Outcome</Label>
+          <Select
+            value={measureId}
+            onValueChange={(value) => dispatch({ type: "SET_OUTCOME", outcome: { measureId: value } })}
+          >
+            <SelectTrigger id="v3-outcome" aria-label="Outcome"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {measures.map(([id, field]) => <SelectItem key={id} value={id}>{field.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+      {inline && !measureId ? null : (
       <div className="grid gap-2">
         <Label htmlFor="v3-calculation">Transformation</Label>
         <Select
@@ -145,6 +205,7 @@ function V3Outcome({ config, dispatch, schema, advanced, editorModel }) {
           </SelectContent>
         </Select>
       </div>
+      )}
       {calculation.id === "indexed" && baseYears.length ? (
         <div className="grid gap-2">
           <Label htmlFor="v3-base-year">Base year</Label>
@@ -191,25 +252,7 @@ function V3Outcome({ config, dispatch, schema, advanced, editorModel }) {
   );
 }
 
-/**
- * Axis-block labels for the roles the mockup names directly. Anything not listed
- * falls through to the chart-type-aware labels in `roleLabel`.
- */
-const AXIS_LABELS = {
-  x: "X-Axis",
-  y: "Y-Axis",
-  series: "Series",
-  color: "Color",
-  group: "Group",
-};
-
 // ── Helpers ──────────────────────────────────────────────────────────
-
-/** Does this chart type encode a measure as colour, rather than group by one? */
-function colorIsMeasure(chartType) {
-  const constraints = getChartType(chartType)?.roleConstraints?.color;
-  return Boolean(constraints?.includes(FIELD_KINDS.MEASURE));
-}
 
 /**
  * Fields the encoding dropdowns bind to: a module's curated catalog, or — for
@@ -218,60 +261,8 @@ function colorIsMeasure(chartType) {
  */
 export { bindableFields };
 
-export function roleLabel(role, chartType) {
-  // The dot plot borrows the heatmap's x/y/color roles but reads more naturally
-  // with dot-plot-specific labels (rows / dots / plotted value).
-  if (chartType === "dotPlot") {
-    const dotLabels = { y: "Category (rows)", x: "Series (dots)", color: "Value" };
-    if (dotLabels[role]) return dotLabels[role];
-  }
-  // Forest plot reads as study / CI bounds / estimate / weight.
-  if (chartType === "forest") {
-    const forestLabels = {
-      category: "Study",
-      start: "CI lower bound",
-      end: "CI upper bound",
-      point: "Estimate",
-      size: "Study weight",
-    };
-    if (forestLabels[role]) return forestLabels[role];
-  }
-  // A symbol map's `size` is not a size the reader picks — the marker areas are
-  // scaled from the measure — so it asks for the value being mapped, unlike a
-  // bubble chart where size is genuinely a third variable alongside x and y.
-  if (chartType === "symbolMap" && role === "size") return "Bubble value";
-  // A chart type with any implied role has folded its axis choice into a
-  // single "what is plotted" question — the Settings Reframing callout — so its
-  // measure role reads as Outcome rather than Y-Axis. Descriptor-only: this does
-  // not depend on whether the implied role actually resolves for this schema
-  // (byod's line still shows a real X-Axis dropdown, but its Y-Axis reads
-  // Outcome too, because the chart type itself is the same reframed kind).
-  if (role === "y" && Object.keys(getChartType(chartType)?.impliedRoles || {}).length) {
-    return "Outcome";
-  }
-  // `color` is two different questions wearing one name. Where the chart type
-  // constrains it to a MEASURE (choropleth, heatmap) the colour *is* the
-  // plotted value, and calling that dropdown "Color" asks for an outcome by
-  // naming the mechanism that draws it — the same mistake the Outcome reframe
-  // removed from the x/category axes. Where it is constrained to a DIMENSION it
-  // really does choose colours, and those chart types render it in Appearance
-  // beside the palette rather than here. Read from the constraint rather than
-  // from a list of ids, so a future chart type is labelled correctly for free.
-  if (role === "color" && colorIsMeasure(chartType)) return "Outcome";
-  if (AXIS_LABELS[role]) return AXIS_LABELS[role];
-  const labels = {
-    facet: "Facet",
-    category: "Category",
-    geography: "Geography",
-    period: "Period",
-    start: "Start value",
-    end: "End value",
-    point: "Center point",
-    unit: "Observation unit",
-    size: "Bubble size",
-  };
-  return labels[role] || role;
-}
+// Re-exported so existing importers (ValidationNotice, PreviewPane) keep working.
+export { roleLabel };
 
 /**
  * The roles this chart type binds, in the order the section renders them.
@@ -319,7 +310,7 @@ function acceptedKinds(chart, role) {
 
 // ── Section ──────────────────────────────────────────────────────────
 
-export default function OutcomeSection({ allowLayers = false }) {
+export default function OutcomeSection() {
   const { config, dispatch, schema, editorModel } = useChartConfig();
   const { advanced } = useAdvancedMode();
   if (config.version === 3) {
@@ -484,16 +475,6 @@ export default function OutcomeSection({ allowLayers = false }) {
 
       {hasEncodingControls ? <TabFilterControl /> : null}
 
-      {hasEncodingControls && allowLayers && config.chartType === "line" ? (
-        <LayerEditor
-          trigger={
-            <Button type="button" variant="outline" className="w-full">
-              <Plus aria-hidden="true" />
-              Add line
-            </Button>
-          }
-        />
-      ) : null}
     </div>
   );
 }

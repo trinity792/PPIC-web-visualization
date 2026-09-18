@@ -99,9 +99,9 @@ def validate_stratification_completeness(df, schema_config):
     tenure_column = schema_config["tenure_column"]
     canonical_tenures = schema_config["canonical_tenures"]
     canonical_races = schema_config["canonical_race_groups"]
+    vintage_coverage_valid, messages = validate_vintage_race_coverage(df, schema_config)
+    has_error = not vintage_coverage_valid
 
-    messages = []
-    has_error = False
     for group_key, group in df.groupby(group_columns):
         keys = group_key if isinstance(group_key, tuple) else (group_key,)
         identifier = ", ".join(f"{column}={value}" for column, value in zip(group_columns, keys))
@@ -118,6 +118,24 @@ def validate_stratification_completeness(df, schema_config):
                 messages.append(f"ERROR: group ({identifier}) race '{race}' is missing tenures: {missing_tenures}.")
 
     return not has_error, messages
+
+
+def validate_vintage_race_coverage(df, schema_config):
+    """Reject a vintage whose race iteration is absent from the entire dataset."""
+    required_races = schema_config.get("required_vintage_race_groups", [])
+    if not required_races:
+        return True, []
+
+    race_column = schema_config["race_column"]
+    messages = []
+    for year, vintage in df.groupby(schema_config["year_column"]):
+        present_races = set(vintage[race_column])
+        missing_races = [race for race in required_races if race not in present_races]
+        if missing_races:
+            messages.append(
+                f"ERROR: vintage Year={year} is missing race iterations: {missing_races}."
+            )
+    return not messages, messages
 
 
 """

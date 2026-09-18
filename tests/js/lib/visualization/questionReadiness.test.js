@@ -91,6 +91,29 @@ describe("v3 question readiness", () => {
     expect(missingQuestionSelections(needsYears, schema)).toEqual([]);
   });
 
+  it("lets a bare snapshot through when the module publishes no periods to pick", () => {
+    // RHNA Progress: the schema lists no snapshot dates (see rhnaProgress.js
+    // `time`), so the service resolves "snapshot" to its latest row. There is
+    // no year for the reader to choose, so it must not read as unfinished —
+    // otherwise the preview never sends a request and the module cannot render.
+    const noPeriods = {
+      ...schema,
+      comparisonDimensions: [{ id: "Income Level" }],
+      fields: { "Income Level": { label: "Income level" } },
+      time: { availablePeriods: [], reportingPeriods: [], defaultReportingPeriod: null },
+    };
+    const snapshot = spec({
+      time: { contract: "snapshot" },
+      comparisons: [{ id: "cmp_1", dimensions: { "Income Level": "Total" } }],
+    });
+    snapshot.presentation.chartType = "bar";
+    expect(missingQuestionSelections(snapshot, noPeriods)).toEqual([]);
+
+    // With a published list, a bare snapshot is still an unfinished selection.
+    const withPeriods = { ...noPeriods, time: { availablePeriods: [2024, 2025] } };
+    expect(missingQuestionSelections(snapshot, withPeriods)).toEqual(["Time"]);
+  });
+
   it("requires a geographic level before requesting any geographic chart", () => {
     const noLevel = spec({
       geography: { subset: "", locations: [] },

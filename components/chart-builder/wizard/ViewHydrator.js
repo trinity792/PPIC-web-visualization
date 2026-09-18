@@ -7,7 +7,9 @@
  * Extracted from VisualizationWizard so both editor shells share one hydration
  * path: the module workbench and the standalone Visualization Tool must resolve
  * `?view=` identically, or a link would behave differently depending on where it
- * was opened. Renders nothing.
+ * was opened. Renders nothing unless the view was declined, in which case it
+ * shows the reason (an older format, another module's dataset) above the
+ * editor - the module workbench has no activity log to carry the message.
  *
  * Three shapes are accepted, in order:
  *   1. a browser-local saved-view id (savedViews.getView)
@@ -24,24 +26,42 @@
  *   - Chart configuration store (dispatch, schema)
  */
 
-import { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   deserialize,
   deserializeWorkspace,
   getView,
+  isRejectedView,
 } from "@/components/chart-builder/savedViews";
+import { logEditorEvent } from "@/lib/logs/editorLog";
 
 export default function ViewHydrator({ viewId, hasBuiltInView = false }) {
   const { dispatch, schema } = useChartConfig();
+  const [declined, setDeclined] = useState(null);
 
   useEffect(() => {
     if (!viewId || hasBuiltInView) return;
+    // A declined view (an older format, another module's dataset) is reported
+    // and otherwise ignored: the page stays on its default question rather
+    // than loading a half-converted spec or a rejection object as a config.
+    const decline = (message) => {
+      setDeclined(message);
+      logEditorEvent({
+        severity: "error",
+        code: "VIEW_NOT_LOADED",
+        summary: "Could not open that view",
+        detail: message,
+        source: "ViewHydrator",
+      });
+    };
     try {
       const local = getView(viewId, schema);
       if (local) {
-        dispatch({ type: "LOAD_VIEW", config: local });
+        if (isRejectedView(local)) decline(local.message);
+        else dispatch({ type: "LOAD_VIEW", config: local });
         return;
       }
       const decoded = decodeURIComponent(viewId);
@@ -53,11 +73,21 @@ export default function ViewHydrator({ viewId, hasBuiltInView = false }) {
         return;
       }
       const imported = deserialize(decoded, schema);
-      dispatch({ type: "LOAD_VIEW", config: imported });
-    } catch {
-      // Unknown deep links fall back to the default preset.
+      if (isRejectedView(imported)) decline(imported.message);
+      else dispatch({ type: "LOAD_VIEW", config: imported });
+    } catch (error) {
+      // Unknown or malformed deep links fall back to the default question.
+      decline(error.message);
     }
   }, [dispatch, hasBuiltInView, schema, viewId]);
 
-  return null;
+  if (!declined) return null;
+  return (
+    <div className="page-container px-4 pt-4 sm:px-8 lg:px-12">
+      <Alert variant="destructive" role="status" className="max-w-xl">
+        <AlertTitle>Could not open that view</AlertTitle>
+        <AlertDescription>{declined}</AlertDescription>
+      </Alert>
+    </div>
+  );
 }

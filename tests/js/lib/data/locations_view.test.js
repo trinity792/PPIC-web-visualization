@@ -37,6 +37,25 @@ describe("view=locations", () => {
     expect(body.locations.length).toBeGreaterThan(0);
   });
 
+  it("keeps the DoF statewide option separate from Census states", async () => {
+    const statewide = await request(
+      componentsOfChange,
+      "view=locations&subset=California",
+    );
+    const states = await request(
+      componentsOfChange,
+      "view=locations&subset=States",
+    );
+
+    expect(statewide).toEqual({
+      status: 200,
+      body: { subset: "California", locations: ["CA"] },
+    });
+    expect(states.status).toBe(200);
+    expect(states.body.locations).toContain("CA");
+    expect(states.body.locations.length).toBeGreaterThan(1);
+  });
+
   it("rejects an unknown subset with the standard error/source envelope", async () => {
     const { status, body } = await request(
       componentsOfChange,

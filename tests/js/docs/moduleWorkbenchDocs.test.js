@@ -52,7 +52,9 @@ describe("module workbench documentation", () => {
     expect(metadata["Content Type"]).toMatch(
       /implementation plan|as-built|specification|reference|guide/i,
     );
-    expect(metadata.Status).toBe("Finalized");
+    // Finalized for the 2026-07 overhaul; back to Updating since the
+    // 2026-09-14 v3 cutover, until its spec-v2 sections are rewritten.
+    expect(["Finalized", "Updating"]).toContain(metadata.Status);
     expect(metadata["Date Published"]).toMatch(/July 27, 2026|2026-07-27/i);
   });
 

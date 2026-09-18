@@ -20,6 +20,7 @@ import { ImportConfigButton } from "@/components/chart-builder/ConfigActions";
 import DataSourcePanel from "@/components/chart-builder/DataSourcePanel";
 import InputTableEditor from "@/components/chart-builder/InputTableEditor";
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
+import { inlineTableOf } from "@/lib/visualization/inlineQuestion";
 
 import StepShell from "@/components/chart-builder/wizard/StepShell";
 
@@ -43,7 +44,7 @@ function CheckLegend() {
 
 function ImportedTableView() {
   const { config, dispatch } = useChartConfig();
-  const inline = config.data?.inline;
+  const inline = inlineTableOf(config);
 
   if (!inline) {
     return (

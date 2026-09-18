@@ -58,12 +58,10 @@ import StepShell from "@/components/chart-builder/wizard/StepShell";
 // catalog that bring-your-own-data does not have (applying one would clear
 // the bindings autoMapInlineBindings just derived from the pasted columns),
 // and the rest have simply never had a module-side equivalent.
-// Comparison layers are likewise a standalone-tool feature, so only this
-// surface opts the shared Outcome section into it. Chart Type takes no props
-// here: it renders the module workbench's flat tile grid, unchanged.
-const SECTION_PROPS = {
-  axis: { allowLayers: true },
-};
+// Chart Type takes no props here: it renders the module workbench's flat tile
+// grid, unchanged. (Trace layers, which this surface used to opt the Outcome
+// section into, left with the v3 cutover.)
+const SECTION_PROPS = {};
 
 export default function EditStep() {
   return (
@@ -79,10 +77,13 @@ export default function EditStep() {
 
 /** The step's own content, split out only so the providers can wrap it. */
 function EditStepBody() {
-  const { schema } = useChartConfig();
+  const { config, schema } = useChartConfig();
   // Bring-your-own-data has no geography, so GeographySection — which normally
   // owns the category ordering fallback — never renders. Mount it directly.
-  const needsCategories = Object.keys(schema?.subsets || {}).length === 0;
+  // The fallback reads v2 preview feedback (`categoryNames`); a v3 question
+  // derives its categories from the table and has nothing for it to show.
+  const needsCategories =
+    config.version !== 3 && Object.keys(schema?.subsets || {}).length === 0;
 
   return (
     <StepShell title="Edit" preview={<PreviewPane />}>

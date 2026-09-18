@@ -47,6 +47,12 @@ import {
   applyChartType,
   normalizeQuestion,
 } from "@/lib/visualization/questionSpec";
+import {
+  guessInlineBindings,
+  inlinePeriods,
+  isInlineQuestion,
+  withInlineBindings,
+} from "@/lib/visualization/inlineQuestion";
 import { resolveEditorModel } from "@/lib/visualization/resolveEditorModel";
 import { assignComparisonColors } from "@/lib/visualization/palettes";
 import {
@@ -552,9 +558,13 @@ export function createChartConfig(schema, initialConfig = {}, options = DEFAULT_
   return revalidate(merged, schema, autoBind);
 }
 
-function initialTimeForContract(contract, schema) {
+/**
+ * The time a chart contract starts with. A module reads its schema's published
+ * periods; pasted data passes the periods its bound time column holds.
+ */
+function initialTimeForContract(contract, schema, availablePeriods) {
   const time = schema?.time || {};
-  const periods = time.availablePeriods || [];
+  const periods = availablePeriods || time.availablePeriods || [];
   if (contract === "range") {
     return {
       contract,
@@ -564,17 +574,87 @@ function initialTimeForContract(contract, schema) {
     };
   }
   if (contract === "snapshot") {
-    const year =
-      time.defaultReportingPeriod ??
-      time.reportingPeriods?.at(-1) ??
-      periods.at(-1);
+    const year = availablePeriods
+      ? periods.at(-1)
+      : (time.defaultReportingPeriod ?? time.reportingPeriods?.at(-1) ?? periods.at(-1));
     return { contract, ...(year != null ? { year } : {}) };
   }
   if (contract === "selectedSnapshots") return { contract, years: [] };
   return { contract };
 }
 
+/**
+ * Re-derive an inline question's outcome, comparisons, and time after its
+ * table, chart type, or bindings changed. Time keeps the reader's contract when
+ * the chart still accepts it and its endpoints still exist in the data;
+ * otherwise it takes the chart's first contract over the data's own periods.
+ */
+function withInlineQuestion(config, table, chartType, bindings, schema) {
+  const next = withInlineBindings(config, table, chartType, bindings);
+  const periods = inlinePeriods(table, chartType, bindings);
+  const accepted = getChartCapabilities(chartType)?.time?.contracts || [];
+  const current = next.question.time || {};
+  const endpoints = [current.startYear, current.endYear, current.year, ...(current.years || [])]
+    .filter((value) => value != null);
+  // With no time column bound there is no time to ask about, whatever the
+  // chart would accept from a module: a bar of categories, a range whose
+  // endpoints are two columns, a pie of shares all read every row.
+  if (!periods.length) {
+    return normalizeQuestion({
+      ...next,
+      question: { ...next.question, time: { contract: "none" } },
+    });
+  }
+  const keep =
+    accepted.includes(current.contract) &&
+    (current.contract === "none" || endpoints.every((value) => periods.includes(value)));
+  if (keep) return normalizeQuestion(next);
+  const contract = accepted.find((entry) => entry !== "none") || accepted[0];
+  return normalizeQuestion({
+    ...next,
+    question: {
+      ...next.question,
+      time: contract ? initialTimeForContract(contract, schema, periods) : {},
+    },
+  });
+}
+
 function reduceV3ChartConfig(config, action, schema) {
+  if (action.type === "SET_DATA_SOURCE") {
+    // Bring-your-own-data: a fresh import (`defaultChart`) picks a chart that
+    // fits the columns; a table edit keeps the chart. Either way the columns
+    // are re-mapped onto the chart's roles and the question re-derived.
+    if (action.source !== "inline" || !action.inline) return config;
+    const table = clone(action.inline);
+    const chartType = action.defaultChart
+      ? suggestChartType(table)
+      : config.presentation?.chartType || suggestChartType(table);
+    const previous = config.question?.dataset?.bindings || {};
+    const bindings = guessInlineBindings(chartType, table, previous);
+    let next = withInlineQuestion(config, table, chartType, bindings, schema);
+    if (chartType !== config.presentation?.chartType) {
+      next = applyChartType(next, chartType);
+      const presentation = getChartCapabilities(chartType)?.comparison?.default;
+      next = normalizeQuestion({
+        ...next,
+        presentation: { ...next.presentation, comparisonPresentation: presentation },
+      });
+    }
+    return next;
+  }
+  if (action.type === "SET_BINDING") {
+    // { role, column } — a column of "" or null clears the role.
+    const table = config.question?.dataset?.inline;
+    if (!table) return config;
+    const bindings = { ...(config.question.dataset.bindings || {}) };
+    if (action.column) bindings[action.role] = action.column;
+    else delete bindings[action.role];
+    // A column serves one role at a time, as auto-mapping guarantees.
+    for (const [role, column] of Object.entries(bindings)) {
+      if (role !== action.role && column === action.column) delete bindings[role];
+    }
+    return withInlineQuestion(config, table, config.presentation?.chartType, bindings, schema);
+  }
   if (action.type === "SET_OUTCOME") {
     return normalizeQuestion({
       ...config,
@@ -643,6 +723,17 @@ function reduceV3ChartConfig(config, action, schema) {
   }
   if (action.type === "SET_CHART_TYPE") {
     let switched = applyChartType(config, action.chartType);
+    if (isInlineQuestion(config) && config.question.dataset.inline) {
+      // The new chart has its own roles: carry over the bindings that still
+      // fit, fill the rest by name, and re-derive the question from them.
+      const table = config.question.dataset.inline;
+      const bindings = guessInlineBindings(
+        action.chartType,
+        table,
+        config.question.dataset.bindings || {},
+      );
+      switched = withInlineQuestion(switched, table, action.chartType, bindings, schema);
+    }
     const capabilities = getChartCapabilities(action.chartType);
     const presentations = capabilities?.comparison?.presentations || [];
     if (!presentations.includes(switched.presentation.comparisonPresentation)) {
@@ -682,7 +773,11 @@ function reduceV3ChartConfig(config, action, schema) {
     }
 
     const accepted = capabilities?.time?.contracts || [];
-    if (!accepted.includes(switched.question.time?.contract)) {
+    const inlineTable = isInlineQuestion(switched) ? switched.question.dataset.inline : null;
+    // Pasted data settled its time above (`withInlineQuestion`); "none" with no
+    // time column is final even where the chart would ask a module for years.
+    const inlineTimeless = inlineTable && switched.question.time?.contract === "none";
+    if (!inlineTimeless && !accepted.includes(switched.question.time?.contract)) {
       const contract = accepted.includes("none") && accepted.length === 1 ? "none" : accepted[0];
       switched = normalizeQuestion({
         ...switched,
@@ -693,7 +788,15 @@ function reduceV3ChartConfig(config, action, schema) {
           // reporting year while the question held only `{ contract }`; the
           // chart then waited until the reader toggled an already-selected
           // value. Explicit multi-year/two-period choices remain empty.
-          time: contract ? initialTimeForContract(contract, schema) : {},
+          time: contract
+            ? initialTimeForContract(
+                contract,
+                schema,
+                inlineTable
+                  ? inlinePeriods(inlineTable, action.chartType, switched.question.dataset.bindings)
+                  : undefined,
+              )
+            : {},
         },
       });
     }

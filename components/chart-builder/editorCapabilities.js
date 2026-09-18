@@ -3,7 +3,7 @@
 /**
  * editorCapabilities.js — what an editor shell can support (Workstream F).
  *
- * Five booleans — presets, savedViews, layers, activityLog, multiChart —
+ * Four booleans — presets, savedViews, activityLog, multiChart —
  * describing a fact about the *surface* (can it support this tool at all),
  * not a guess about the reader (which is what the withdrawn settings-tier
  * registry tried to do; see advancedMode.js). Each capability is combined
@@ -41,7 +41,6 @@ const EditorCapabilitiesContext = createContext(null);
 export const NO_CAPABILITIES = Object.freeze({
   presets: false,
   savedViews: false,
-  layers: false,
   activityLog: false,
   multiChart: false,
 });
@@ -50,8 +49,7 @@ export const NO_CAPABILITIES = Object.freeze({
  * The module workbench. No presets, because seeding bindings from nothing is
  * the opposite of the surface's manual-encoding rule — Advanced Mode does not
  * change that, it is a rule and not a complexity tier. No saved views (a module
- * chart is reproducible from its URL) and no trace layers (the comparable job
- * is a Series binding or a Geographic Level selection). No activity log, which
+ * chart is reproducible from its URL). No activity log, which
  * only ever recorded wizard-only events. Multi-chart is the one it supports,
  * through the workspace bar `ModuleWorkbench` puts above the grid.
  */
@@ -63,12 +61,12 @@ export const WORKBENCH_CAPABILITIES = Object.freeze({
 /**
  * The standalone Visualization Tool. Everything, because bring-your-own-data
  * has no server dataset to fall back on: a saved view is the only way a chart
- * survives a refresh, and layers are how two pasted columns get compared.
+ * survives a refresh. (Trace layers were a fifth capability until the v3
+ * cutover; a v3 question's comparisons do that job.)
  */
 export const STANDALONE_CAPABILITIES = Object.freeze({
   presets: true,
   savedViews: true,
-  layers: true,
   activityLog: true,
   multiChart: true,
 });

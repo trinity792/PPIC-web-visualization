@@ -46,6 +46,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 import InputTableEditor from "@/components/chart-builder/InputTableEditor";
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
+import { inlineTableOf } from "@/lib/visualization/inlineQuestion";
 import { logEditorEvent } from "@/lib/logs/editorLog";
 import { parseFile, parsePaste } from "@/lib/tabular/parseTable";
 
@@ -71,7 +72,7 @@ export default function DataSourcePanel() {
   // dataset selector is hidden and the source stays pinned to "inline".
   const inlineOnly = Boolean(schema.inlineOnly);
   const source = inlineOnly ? "inline" : config.data?.source || "module";
-  const inline = config.data?.inline;
+  const inline = inlineTableOf(config);
 
   useEffect(() => {
     setTitleDraft(inline?.meta?.title || "");

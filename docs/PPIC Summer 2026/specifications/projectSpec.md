@@ -4,7 +4,7 @@ Content Type: project specification
 pinned: true
 description: "The single source of truth for the web-data-visualization project's specification, architecture, and API reference. A living document for programmers and researchers that uses PopHousing as the reference implementation future data modules should mirror."
 Date Published: June 23, 2026
-Last Updated: 08/14/2026 - 06:24 PM
+Last Updated: 09/14/2026 - 05:00 PM
 Status: Updating
 Footnote: Document generated and updated by Claude Opus 4.8 on command. Outlined and verified by Trinity Jones.
 ---
@@ -12,7 +12,7 @@ Footnote: Document generated and updated by Claude Opus 4.8 on command. Outlined
 
 # Project Specification, Architecture & API Reference
 Web **Visualizations** Project
-Last Updated: July 31st, 2026
+Last Updated: September 14th, 2026
 
 ---
 
@@ -1430,12 +1430,15 @@ A third, non-data page exists at `/ui-kit` (`app/ui-kit/page.js`, built from `co
 Three ideas hold it together:
 
 - **A client-safe visualization layer** (`lib/visualization/`, no `node:fs`) is the single source of truth for fields, chart types, presets, transforms, validation, the landing topics, and built-in views. Both the browser and the server data modules import from it.
-- **Declarative configs, not figures.** A chart is plain JSON (`{ module, preset, chartType, bindings, filters, period, labels, appearance, layers }`); `toPlotly` turns config + fetched data into Plotly props. Saved views store the config, never a rendered figure.
+- **Declarative questions, not figures.** A chart is plain JSON (a **question**: `module`/`dataset`, `chartType`, `bindings`, `comparisons`, `calculation`, `time`) as of the 2026-09-14 v3 cutover; `adaptObservations` turns the question's fetched observations into Plotly props. Saved views store the question, never a rendered figure. See *The question spec* below.
 - **One server/client boundary.** `lib/data/*` (CSV / GeoJSON, `node:fs`) is server-only; `lib/visualization/*` is the client-safe seam the editor, the landing directory, and the navbar all import.
 
-### The chart config — the object everything revolves around
+### The chart config — the object everything revolved around (spec v2, retired 2026-09-14)
 
-Every chart on the site (an editor canvas, a saved view, a `?view=` deep-link, an embed) is described by one plain-JSON **config** object. The sidebar edits it, [`validation.js`](../../../lib/visualization/validation.js) grades it, [`chartData.js`](../../../components/chart-builder/chartData.js) turns it into an API request, and [`toPlotly.js`](../../../lib/visualization/toPlotly.js) turns it (plus the fetched data) into a Plotly figure. Nothing downstream keeps its own state — the config *is* the state. It is built by [`createChartConfig(schema, initial)`](../../../components/chart-builder/chartConfigStore.js) and has this shape:
+> [!note] Superseded by the v3 question spec
+> This section describes the spec v2 chart-config object, which every editor surface built and read from 2026-07-07 through 2026-09-14. As of the 2026-09-14 cutover, no surface produces or loads this shape any more; it is kept here as the historical record of what spec v2 looked like. See *The question spec — the object everything revolves around now (v3, cut over 2026-09-14)* below for the current shape.
+
+Every chart on the site (an editor canvas, a saved view, a `?view=` deep-link, an embed) was described by one plain-JSON **config** object. The sidebar edits it, [`validation.js`](../../../lib/visualization/validation.js) grades it, [`chartData.js`](../../../components/chart-builder/chartData.js) turns it into an API request, and [`toPlotly.js`](../../../lib/visualization/toPlotly.js) turns it (plus the fetched data) into a Plotly figure. Nothing downstream keeps its own state — the config *is* the state. It is built by [`createChartConfig(schema, initial)`](../../../components/chart-builder/chartConfigStore.js) and has this shape:
 
 | Key | Type | Written by | Meaning / who reads it |
 |---|---|---|---|
@@ -1455,9 +1458,31 @@ Every chart on the site (an editor canvas, a saved view, a `?view=` deep-link, a
 | `validation` | array | `revalidate` (computed) | The current findings (`{ level, code, message, suggestion }`); recomputed on **every** reducer step. |
 
 > [!note] Saved views are configs, not figures (guardrail #8)
-> A saved view, an exported JSON blob, and a `?view=` deep-link all serialize this same object (minus computed `validation`/`seriesCount`) — never a rendered Plotly figure or a data snapshot. That is what makes a built-in view and a user-built view identical in kind.
+> A saved view, an exported JSON blob, and a `?view=` deep-link all serialize this same object (minus computed `validation`/`seriesCount`) — never a rendered Plotly figure or a data snapshot. That is what makes a built-in view and a user-built view identical in kind. This principle carries forward unchanged into v3: a saved view, an export, and a deep-link now serialize the question object instead.
 
-### The graph-editor overhaul (spec v2, shipped 2026-07-07)
+### The question spec — the object everything revolves around now (v3, cut over 2026-09-14)
+
+**Every editor surface is on the v3 question spec as of 2026-09-14.** No surface produces or loads a v1/v2 config any more. `/[module]` (all six modules) seeds [`getDefaultQuestion(moduleId)`](../../../lib/visualization/defaultQuestions.js) — renamed from the dev-only `developmentReview.js`; the dev-only `/visualization-v3-review` page was deleted, and [`topicRegistry.js`](../../../lib/visualization/topicRegistry.js) routes every topic to `/${id}`.
+
+`?view=` deep links in [`builtInViews.js`](../../../lib/visualization/builtInViews.js) are v3 specs (all 11 ids kept). Rankings now list places explicitly — all 58 counties via `CALIFORNIA_COUNTIES` in [`californiaGeography.js`](../../../lib/geography/californiaGeography.js), regions via `REGION_NAMES` — narrowed with `calculation.params.ranking`, and Housing Stress pins race/tenure on a comparison. Three renderer gaps are noted as comments in that file rather than fixed: v3 bar ignores `orientation` (rankings render vertical), v3 line has no `area` or reference-line setting, and v3 "indexed" is percent change from the base year (0 at base) rather than a 100-index.
+
+`/visualization-tool` (bring-your-own-data) seeds an inline v3 question: `question.dataset = { kind: "inline", inline: <typed table>, bindings: { role: column } }`. The chart registry's own roles (`requiredRoles`/`optionalRoles`/`roleConstraints`) are the column mapping; [`inlineQuestion.js`](../../../lib/visualization/inlineQuestion.js) derives the outcome (the chart's measure column), the comparisons (one `cmp_inline_n` per distinct value of the series/group column, or a single "Data" when there isn't one), and the time list (periods from the bound time column, or the `none` contract when there is no time column) — the store (`chartConfigStore.js`, actions `SET_DATA_SOURCE`, `SET_CHART_TYPE`, and the new `SET_BINDING {role, column}`) re-derives all three on every change. [`toObservations.js`](../../../lib/tabular/toObservations.js) is the chart-aware inline executor: forest rows expand into estimate/lowerBound/upperBound observations (a midpoint estimate when there's no point column), range rows into two endpoints named by column, and scatter/bubble rows carry `xValue`/`sizeValue`; every calculation still runs through the shared registry via `calculationParamsFor` (exported from `executeQuestion.js`). The Outcome section shows a "map your columns" grid for pasted data (`InlineRoles` in `OutcomeSection.js`; `roleLabel` moved to [`roleLabels.js`](../../../lib/visualization/roleLabels.js)). Maps stay unavailable on pasted data because there is no name-to-GEOID crosswalk (`resolveEditorModel` greys them out with a reason), and the Time section hides itself when the contract is `none`.
+
+Saved views and shared links are v3-only. [`savedViews.js`](../../../components/chart-builder/savedViews.js)'s `deserialize` (`isRejectedView()`) accepts only v3 views, for every registered module and the tool; a v1 or v2 view now returns `UNSUPPORTED_VERSION_MESSAGE` ("This view uses an older format and cannot open in this version.") instead of being migrated in. Inline views are accepted only on the standalone tool and are saved with `module: "byod"`. `listViews()` reads the new `ppic.savedViews.v3` namespace first, then falls back to the untouched `ppic.savedViews.v1` namespace, which is never modified. `ViewHydrator` surfaces a rejected view as a destructive Alert ("Could not open that view") carrying the reason; `ConfigActions` throws the same message on import.
+
+The request path is correspondingly thinner. [`chartData.js`](../../../components/chart-builder/chartData.js) now holds only `loadObservations` (one POST per question, validated by `observationContract.validateResponse`; pasted data runs `executeInlineQuestion` locally instead), `loadObservationGeometry`, and the full-table fetch (`fullTableUrl`/`loadFullTable`). `PreviewContext` has no v2 branch left: an unanswered question (`missingQuestionSelections`) reads as "unconfigured," and figures come from `lib/visualization/adapters`' `adaptObservations` rather than `toPlotly`. `ExportMenu` exports the chart's own answer instead of re-fetching.
+
+Three shared-code fixes landed alongside the cutover: `comparisons.js`'s `deriveLabel` names an all-aggregate comparison by its aggregate values (e.g. "Total") instead of leaking the internal id; `questionReadiness.js` lets a bare `snapshot` through when the schema publishes no periods (RHNA Progress); and `moduleAdapters.js` rejects a comparison that pins no stratum (`incompleteComparison`) and reads Building Permits' derived Regions/"Rest of US" rows via `queryVisualizationTable()`.
+
+> [!note] Quarantined vs. still-live-but-unreachable
+> `components/chart-builder/sections/DateRangeSection.js`, `components/chart-builder/LayerEditor.js` (the `layers` editor capability is gone; `editorCapabilities` now exposes four booleans), and the pre-cutover `chartData.js` with its v2 tests moved to `.trash/visualization-backend/` (gitignored, original relative paths preserved, recorded in [`visualization-backend-removal-changelog.md`](../refractor-guide/visualization-backend-removal-changelog.md)). Still live but unreachable from any page, pending their own removal: the `config.version !== 3` branches of `chartConfigStore.js`, `savedViews.js`, and the section components, plus `chartSpec.js`, `transformRegistry.js`, `presetRegistry.js`, `validation.js`, the `toSeries.js` shape builders, `TransformSection.js`, `PresetSection.js`, and `toPlotly.js`'s transform path (`toPlotly` itself stays live for the UI Kit showcases).
+
+**Verified:** 1,302/1,302 Vitest tests, ESLint clean, a clean `npm run build`, a Playwright sweep of all six module pages, all 11 deep links, and every chart family on the standalone tool, with zero console errors.
+
+### The graph-editor overhaul (spec v2, shipped 2026-07-07, retired 2026-09-14)
+
+> [!note] Historical — describes the retired spec v2 shape
+> This section is the record of the 2026-07-07 overhaul itself. As of the 2026-09-14 cutover, the chart config it describes no longer exists in any live code path; see *The question spec* above for the current v3 shape.
 
 The chart config is **spec v2** ([`chartSpec.js`](../../../lib/visualization/chartSpec.js), `SPEC_VERSION = 2`), carrying a top-level `version` plus four keys the v1 shape lacked: `data` (module vs inline "your data" — including `data.inline` for a client-only uploaded/pasted table, capped at 1 MB and never sent to a server), `format`, `annotations`, and `appearance.palette`/`seriesColors` (brand tokens only, never raw hex). `migrateSpec` reads a v1 view and unpacks the keys it used to smuggle inside `filters`; `normalizeSpec`/`printSpec`/`parseSpec` (never throws) and `diffSpec` (small vs structural edits) round-trip it.
 
@@ -1468,7 +1493,7 @@ The overhaul turned the editor into a general-purpose graph editor. Shipped surf
 
 | Surface | File(s) | What it adds |
 |---|---|---|
-| **Bring-your-own-data** | [`DataSourcePanel.js`](../../../components/chart-builder/DataSourcePanel.js), [`InputTableEditor.js`](../../../components/chart-builder/InputTableEditor.js), [`lib/tabular/*`](../../../lib/tabular/) | Paste or upload a table (CSV/TSV/TXT/XLSX), correct it in a color-graded grid, and chart it. `toSeries.js` mirrors `query_shapes.js` so inline data feeds `toPlotly` identically to module data; nothing leaves the browser. |
+| **Bring-your-own-data** | [`DataSourcePanel.js`](../../../components/chart-builder/DataSourcePanel.js), [`InputTableEditor.js`](../../../components/chart-builder/InputTableEditor.js), [`lib/tabular/*`](../../../lib/tabular/) | Paste or upload a table (CSV/TSV/TXT/XLSX), correct it in a color-graded grid, and chart it; nothing leaves the browser. *Historical:* `toSeries.js` originally mirrored `query_shapes.js` so inline data fed `toPlotly` identically to module data. As of the 2026-09-14 v3 cutover that path is retired; `toObservations.js` executes the inline question instead. See *The question spec* above. |
 | **Export** | [`ExportMenu.js`](../../../components/chart-builder/ExportMenu.js), [`lib/export/*`](../../../lib/export/) | Two dropdowns, exported separately as `ExportChartButton` and `ExportDataButton`: chart image (PNG/SVG/JPG/PDF) and data (CSV/XLSX, displayed table or entire cleaned dataset), plus config copy/download/import. Sharing *is* export — no server-side share links. |
 | **Catalog growth** | [`chartRegistry.js`](../../../lib/visualization/chartRegistry.js), [`toPlotly.js`](../../../lib/visualization/toPlotly.js), [`DataTableView.js`](../../../components/charts/DataTableView.js) | Three new base chart ids (`pie`, `symbolMap`, `dataTable`); donut/pyramid/stacked/area are appearance **variants**, not new ids. `DataTableView` renders the `dataTable` type; it generalized the landing `RegionTable`, which delegated to it until that surface was retired. |
 | **Activity log** | [`editorLog.js`](../../../lib/logs/editorLog.js), `EditorActivityLog.js` | An in-memory, never-persisted ring of editor events with a "Copy technical details" button. Telemetry stays off — nothing is sent to a server. Mounted on the standalone tool only. |
@@ -1674,7 +1699,7 @@ editor edits config ──► chartConfigStore (revalidate) ──► chartData.
 The same `loadChartData` + `toPlotly` path renders the editor canvas whether the config arrived from a `?view=` deep-link or from the user's own edits, so a built-in view and a user-built view differ only in **where the config comes from**, not in kind.
 
 ### Saved views & deep-links
-A saved or built-in view is the declarative config serialized to JSON (guardrail #8 — never a rendered figure). A `/[module]?view=<id>` link hydrates one into the editor via the config store's `LOAD_VIEW`; the ids live in `builtInViews.js` and are public URLs, so they outlive whatever surface first linked to them. Users export/import the same JSON (via `ExportMenu`) and save named views to browser `localStorage` (`ppic.savedViews.v2`).
+A saved or built-in view is the declarative question serialized to JSON (guardrail #8 — never a rendered figure). A `/[module]?view=<id>` link hydrates one into the editor via the config store's `LOAD_VIEW`; the ids live in `builtInViews.js` and are public URLs, so they outlive whatever surface first linked to them. Users export/import the same JSON (via `ExportMenu`) and save named views to browser `localStorage`. As of the 2026-09-14 v3 cutover, `listViews()` reads the `ppic.savedViews.v3` namespace first, then falls back to the untouched `ppic.savedViews.v1` namespace, which the cutover never modifies. See *The question spec* above.
 
 [`savedViews.js`](../../../components/chart-builder/savedViews.js) owns the round-trip: `serialize`/`savedShape` write a version-tagged shape; `deserialize` re-parses it, **rejects a version or module mismatch and re-runs `validateConfig`**, throwing (with the failed findings' messages) if the imported view has blocking errors. So a hand-edited or stale JSON can't load a broken chart — it fails loudly at import.
 
@@ -1728,7 +1753,7 @@ These are consumed at **runtime by JS**, often to be passed to a third party (Pl
 
 5. **`PresetPicker.js` was orphaned — ✅ resolved (pre-clean 2026-07-04).** `components/chart-builder/PresetPicker.js` (a `Select`-based preset control) was imported nowhere; the live control is `ChartSidebar`'s inline `PresetSection` (`OptionList`). The dead file was **deleted**, leaving `PresetSection` as the single preset control.
 
-6. **Saved views serialize non-filter keys at the top level — ✅ resolved.** The v1 wire shape hid `transform`, `chartType`, and `appearance` inside the serialized `filters` object; spec v2 serializes them as top-level fields, so a future stratification key named `transform`/`chartType`/`appearance` can no longer collide and be silently stripped. `savedViews` reads v1 via `migrateSpec` for backward compatibility.
+6. **Saved views serialize non-filter keys at the top level — ✅ resolved.** The v1 wire shape hid `transform`, `chartType`, and `appearance` inside the serialized `filters` object; spec v2 serialized them as top-level fields instead, so a stratification key named `transform`/`chartType`/`appearance` could no longer collide and be silently stripped. **Historical as of the 2026-09-14 v3 cutover:** `savedViews` no longer reads v1 via `migrateSpec`. `deserialize` now accepts only v3 views (`isRejectedView()`); a v1 or v2 view returns `UNSUPPORTED_VERSION_MESSAGE` ("This view uses an older format and cannot open in this version.") rather than being migrated in. See *The question spec* above.
 
 7. **The palette has a single owner — ✅ resolved (Phase 0).** `lib/constants.js` `COLORS` is now the source of truth; `tools/generate-palette-css.mjs` generates the `--ppic-*` `:root` ramp in `globals.css` from it (byte-identical on first run; a `prebuild` hook + drift-guard test keep them in lockstep), unifying the two numbering schemes.
 

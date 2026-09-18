@@ -49,6 +49,30 @@ function question(overrides = {}) {
 }
 
 describe("components-of-change v3 POST", () => {
+  it("returns one DoF line for California statewide", async () => {
+    const { status, body } = await post(
+      question({
+        source: "DoF",
+        outcome: { measureId: "Births" },
+        geography: { subset: "California", locations: ["CA"] },
+        time: { contract: "range", startYear: 2020, endYear: 2024 },
+      }),
+    );
+
+    expect(status).toBe(200);
+    expect(body.periods).toEqual([2020, 2021, 2022, 2023, 2024]);
+    expect(body.observations).toHaveLength(5);
+    expect(
+      body.observations.every(
+        (row) =>
+          row.geographyId === "CA" &&
+          row.geographyLabel === "CA" &&
+          row.source === "DoF" &&
+          row.status === "available",
+      ),
+    ).toBe(true);
+  });
+
   it("returns count and rate calculations allowed by their units", async () => {
     const change = await post(
       question({
@@ -87,6 +111,34 @@ describe("components-of-change v3 POST", () => {
     );
     expect(points.status).toBe(200);
     expect(points.body.observations[0].unit).toBe("percentagePoints");
+  });
+
+  it("returns an adjacent percentage-point series for a line range", async () => {
+    const { status, body } = await post(
+      question({
+        outcome: { measureId: "Crude Birth Rate" },
+        geography: { subset: "Counties", locations: ["Fresno"] },
+        time: { contract: "range", startYear: 2020, endYear: 2024 },
+        calculation: { id: "percentagePointChange", params: {} },
+      }),
+    );
+
+    expect(status).toBe(200);
+    expect(body.periods).toEqual([2021, 2022, 2023, 2024]);
+    expect(body.observations).toHaveLength(4);
+    expect(body.observations.map((row) => row.includedPeriods)).toEqual([
+      [2020, 2021],
+      [2021, 2022],
+      [2022, 2023],
+      [2023, 2024],
+    ]);
+    expect(
+      body.observations.every(
+        (row) =>
+          row.calculation.id === "percentagePointChange" &&
+          row.unit === "percentagePoints",
+      ),
+    ).toBe(true);
   });
 
   it("ranks the displayed calculation on the server", async () => {

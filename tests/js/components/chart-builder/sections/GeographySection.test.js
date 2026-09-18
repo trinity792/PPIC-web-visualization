@@ -24,6 +24,7 @@ vi.mock("@/components/chart-builder/useLocationOptions", () => ({
 
 import CategoriesSection from "@/components/chart-builder/sections/CategoriesSection";
 import GeographySection from "@/components/chart-builder/sections/GeographySection";
+import { COMPONENTS_OF_CHANGE_SCHEMA } from "@/lib/visualization/moduleSchemas/componentsOfChange";
 
 function baseConfig(overrides = {}) {
   return {
@@ -174,6 +175,30 @@ describe("GeographySection", () => {
     expect(state.dispatch).toHaveBeenCalledWith({
       type: "SET_GEOGRAPHY",
       geography: { subset: "Regions", locations: [] },
+    });
+    expect(state.dispatch).toHaveBeenCalledWith({ type: "SET_SOURCE", source: "DoF" });
+  });
+
+  it("offers the DoF California statewide level and pins its source", async () => {
+    const user = userEvent.setup();
+    state.config = {
+      version: 3,
+      question: {
+        source: "Census",
+        geography: { subset: "States", locations: ["CA"] },
+        calculation: { id: "actual", params: {} },
+      },
+      presentation: { chartType: "line", appearance: {} },
+    };
+    state.schema = COMPONENTS_OF_CHANGE_SCHEMA;
+    render(<GeographySection />);
+
+    await user.click(screen.getByRole("combobox", { name: /geographic level/i }));
+    await user.click(screen.getByRole("option", { name: "California" }));
+
+    expect(state.dispatch).toHaveBeenCalledWith({
+      type: "SET_GEOGRAPHY",
+      geography: { subset: "California", locations: [] },
     });
     expect(state.dispatch).toHaveBeenCalledWith({ type: "SET_SOURCE", source: "DoF" });
   });

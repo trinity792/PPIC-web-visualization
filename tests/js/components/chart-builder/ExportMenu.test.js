@@ -78,23 +78,23 @@ const schema = {
 };
 
 const initialConfig = {
-  version: 2,
-  module: "widgets",
-  preset: "trend-over-time",
-  chartType: "line",
-  data: { source: "module" },
-  bindings: { x: "Year", y: "Total Widgets", series: "Location" },
-  period: {},
-  filters: { subset: "Counties" },
-  transform: "actual",
-  comparisonMode: "places",
-  labels: { title: "Widgets over time" },
-  format: {},
-  appearance: {},
-  annotations: [],
-  layers: [],
-  referenceLines: [],
-  tier: "moderate",
+  version: 3,
+  question: {
+    dataset: { kind: "module", moduleId: "widgets" },
+    outcome: { measureId: "Total Widgets" },
+    geography: { subset: "Counties", locations: ["Alameda"] },
+    time: { contract: "range", startYear: 2020, endYear: 2020 },
+    calculation: { id: "actual", params: {} },
+    comparisons: [{ id: "cmp_locations", dimensions: {}, customLabel: null, color: null }],
+  },
+  presentation: {
+    chartType: "line",
+    comparisonPresentation: "combined",
+    labels: { title: "Widgets over time" },
+    format: {},
+    appearance: {},
+    annotations: [],
+  },
 };
 
 const loadedResult = {
@@ -315,27 +315,19 @@ describe("ExportMenu", () => {
 
   it("exports the displayed chart table as CSV", async () => {
     const user = userEvent.setup();
-    const untruncatedResult = {
-      series: [
-        ...loadedResult.series,
-        { location: "Butte", years: [2020], values: [90] },
-      ],
-    };
-    chartDataMocks.loadChartExportData.mockResolvedValueOnce(untruncatedResult);
     renderMenu();
 
     await user.click(screen.getByRole("button", { name: /export data/i }));
     // First "CSV" item is under "Chart data (as displayed)".
     await user.click(screen.getAllByRole("menuitem", { name: "CSV" })[0]);
 
+    // The chart's own answer is the table: a v3 answer already holds every
+    // comparison and period, so nothing is re-fetched for export.
     expect(exportTableMocks.displayTable).toHaveBeenCalledWith(
-      expect.objectContaining({ chartType: "line" }),
-      untruncatedResult,
+      expect.objectContaining({ version: 3 }),
+      loadedResult,
     );
-    expect(chartDataMocks.loadChartExportData).toHaveBeenCalledWith(
-      expect.objectContaining({ chartType: "line" }),
-      schema,
-    );
+    expect(chartDataMocks.loadChartExportData).not.toHaveBeenCalled();
     expect(exportTableMocks.downloadBlob).toHaveBeenCalledWith(
       expect.any(Blob),
       "widgets-line.csv",
@@ -351,7 +343,7 @@ describe("ExportMenu", () => {
     await user.click(screen.getAllByRole("menuitem", { name: "CSV" })[1]);
 
     expect(exportTableMocks.originalTable).toHaveBeenCalledWith(
-      expect.objectContaining({ chartType: "line" }),
+      expect.objectContaining({ version: 3 }),
       loadedResult,
     );
     expect(exportTableMocks.downloadBlob).toHaveBeenCalledWith(
@@ -385,7 +377,8 @@ describe("ExportMenu", () => {
     const payload = JSON.parse(view);
     expect(payload.layout).toBe("1x1");
     expect(payload.charts).toHaveLength(1);
-    expect(payload.charts[0].config.chartType).toBe("line");
+    expect(payload.charts[0].config.version).toBe(3);
+    expect(payload.charts[0].config.presentation.chartType).toBe("line");
   });
 
   it("confirms with 'Copied!' after copying the embed code", async () => {
@@ -481,7 +474,7 @@ describe("ExportMenu — module full-source export", () => {
 
     // The fetched records — not the filtered loaded result — build the table.
     expect(exportTableMocks.originalTable).toHaveBeenCalledWith(
-      expect.objectContaining({ chartType: "line" }),
+      expect.objectContaining({ version: 3 }),
       { response: { records: [{ Location: "Alameda", Year: 2020, Value: 100 }] } },
     );
     expect(chartDataMocks.loadChartExportData).not.toHaveBeenCalled();

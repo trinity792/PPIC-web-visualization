@@ -257,7 +257,16 @@ export default function TimeSection() {
         />
       ) : null}
 
-      {capability.contract === "snapshot" ? (
+      {capability.contract === "snapshot" && !periods.length ? (
+        // No static period list to pick from (RHNA Progress): the service
+        // resolves the snapshot to the latest row itself, so say so rather
+        // than offer an empty picker.
+        <p className="text-sm text-muted-foreground">
+          Shows the latest available snapshot.
+        </p>
+      ) : null}
+
+      {capability.contract === "snapshot" && periods.length ? (
         <div className="grid gap-2">
           <Label>Year</Label>
           <PeriodPopover

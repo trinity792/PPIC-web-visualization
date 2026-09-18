@@ -16,7 +16,6 @@ import {
 const CAPABILITY_KEYS = [
   "presets",
   "savedViews",
-  "layers",
   "activityLog",
   "multiChart",
 ];
@@ -27,7 +26,6 @@ const CAPABILITY_KEYS = [
 const WORKBENCH = {
   presets: false,
   savedViews: false,
-  layers: false,
   activityLog: false,
   multiChart: true,
 };
@@ -35,7 +33,6 @@ const WORKBENCH = {
 const STANDALONE = {
   presets: true,
   savedViews: true,
-  layers: true,
   activityLog: true,
   multiChart: true,
 };

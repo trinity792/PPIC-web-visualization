@@ -31,12 +31,9 @@
 
 import React from "react";
 
-import { Plus } from "lucide-react";
-
 import { FooterActions } from "@/components/chart-builder/ChartSidebar";
 import { ExportConfigButton } from "@/components/chart-builder/ConfigActions";
 import EditorActivityLog from "@/components/chart-builder/EditorActivityLog";
-import LayerEditor from "@/components/chart-builder/LayerEditor";
 import ValidationNotice from "@/components/chart-builder/ValidationNotice";
 import { useAdvancedMode } from "@/components/chart-builder/advancedMode";
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
@@ -44,7 +41,6 @@ import { useEditorCapabilities } from "@/components/chart-builder/editorCapabili
 import { Section } from "@/components/chart-builder/sections/primitives";
 import PresetSection from "@/components/chart-builder/sections/PresetSection";
 import { Accordion } from "@/components/ui/accordion";
-import { Button } from "@/components/ui/button";
 import { visibleSectionsFor } from "@/lib/visualization/sidebarSections";
 
 export default function EditorSidebar({ only, exclude, sectionProps = {} }) {
@@ -80,17 +76,6 @@ export default function EditorSidebar({ only, exclude, sectionProps = {} }) {
         <div className="grid gap-2 rounded-lg border bg-card p-3">
           <PresetSection />
         </div>
-      ) : null}
-
-      {shows("layers") ? (
-        <LayerEditor
-          trigger={
-            <Button type="button" variant="outline" className="w-full gap-1.5">
-              <Plus aria-hidden="true" />
-              Add line
-            </Button>
-          }
-        />
       ) : null}
 
       {shows("savedViews") ? (

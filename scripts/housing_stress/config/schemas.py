@@ -195,6 +195,11 @@ def get_schema_config():
         "race_iteration_map": dict(_RACE_ITERATION_MAP),
         "race_reconciliation_map": dict(_RACE_RECONCILIATION_MAP),
         "canonical_race_groups": list(_CANONICAL_RACE_GROUPS),
+        # A race may be suppressed for one small geography, but every acquired
+        # vintage must contain each iteration somewhere before it can replace the
+        # saved year. This catches partial releases such as ACS 2022 (base table
+        # only) while preserving legitimate geography-level suppression.
+        "required_vintage_race_groups": list(_CANONICAL_RACE_GROUPS),
         "region_id_to_name": dict(_REGION_ID_TO_NAME),
         "state_abbreviations": list(_STATE_ABBREVIATIONS),
         "excluded_state_areas": set(_EXCLUDED_STATE_AREAS),

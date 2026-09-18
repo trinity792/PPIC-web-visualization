@@ -1,9 +1,9 @@
 /**
- * Manual encoding: a chart the reader has not finished setting up is
- * "unconfigured", not "invalid" — no request goes out and no error is raised.
+ * An unanswered question is "unconfigured", not "invalid": no request goes
+ * out and no error is raised until the reader has said what to plot.
  *
  * Runs against the real config store, because the whole point is that the
- * store's autoBind policy and the preview's status agree; a mocked store would
+ * store's question and the preview's status agree; a mocked store would
  * assert nothing about the behavior that regressed.
  */
 
@@ -13,11 +13,13 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const state = vi.hoisted(() => ({ loadChartData: vi.fn() }));
+const state = vi.hoisted(() => ({ loadObservations: vi.fn() }));
 
 vi.mock("@/components/chart-builder/chartData", async (importOriginal) => ({
   ...(await importOriginal()),
-  loadChartData: state.loadChartData,
+  loadObservations: state.loadObservations,
+  // Map geometry is a separate fetch; this suite is about the question.
+  loadObservationGeometry: vi.fn().mockResolvedValue(null),
 }));
 
 import {
@@ -28,6 +30,7 @@ import {
   PreviewProvider,
   usePreview,
 } from "@/components/chart-builder/wizard/PreviewContext";
+import { getDefaultQuestion } from "@/lib/visualization/defaultQuestions";
 import { getModuleSchema } from "@/lib/visualization/moduleRegistry";
 
 const schema = getModuleSchema("pophousing");
@@ -38,40 +41,41 @@ function Probe() {
   return (
     <div>
       <span data-testid="status">{status}</span>
-      <span data-testid="bindings">{JSON.stringify(config.bindings)}</span>
+      <span data-testid="geography">{JSON.stringify(config.question.geography)}</span>
       <button
         type="button"
-        onClick={() => dispatch({ type: "SET_CHART_TYPE", chartType: "bar" })}
+        onClick={() => dispatch({ type: "SET_CHART_TYPE", chartType: "choroplethMap" })}
       >
-        bar
-      </button>
-      <button
-        type="button"
-        onClick={() => dispatch({ type: "SET_BINDING", role: "x", field: "Year" })}
-      >
-        set x
+        map
       </button>
       <button
         type="button"
         onClick={() =>
-          dispatch({ type: "SET_BINDING", role: "y", field: "Total Population" })
+          dispatch({ type: "SET_GEOGRAPHY", geography: { subset: "Counties", locations: [] } })
         }
       >
-        set y
+        set level
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          dispatch({
+            type: "SET_GEOGRAPHY",
+            geography: { subset: "Counties", locations: ["Alameda"] },
+          })
+        }
+      >
+        set place
       </button>
     </div>
   );
 }
 
-function mount({ autoBind = false, initialConfig = { module: schema.id } } = {}) {
+function mount({ initialConfig = getDefaultQuestion("pophousing") } = {}) {
   return render(
-    <ChartConfigProvider
-      schema={schema}
-      initialConfig={initialConfig}
-      autoBind={autoBind}
-    >
-      {/* Armed from the start, so the assertions below are about the encodings
-          being unset and not about the deferred first render. */}
+    <ChartConfigProvider schema={schema} initialConfig={initialConfig} autoBind={false}>
+      {/* Armed from the start, so the assertions below are about the question
+          being unanswered and not about the deferred first render. */}
       <PreviewProvider>
         <Probe />
       </PreviewProvider>
@@ -79,79 +83,79 @@ function mount({ autoBind = false, initialConfig = { module: schema.id } } = {})
   );
 }
 
+const answer = {
+  status: "ok",
+  blocked: false,
+  observations: [
+    {
+      comparisonId: "cmp_locations",
+      comparisonLabel: "Alameda",
+      measureId: "Total Population",
+      measureLabel: "Total population",
+      unit: "people",
+      period: 2020,
+      geographyId: "06001",
+      geographyLabel: "Alameda",
+      categoryId: null,
+      categoryLabel: null,
+      value: 1,
+      status: "available",
+      valueKind: "observed",
+      calculation: { id: "actual", params: {} },
+      includedPeriods: null,
+      source: "E-5",
+    },
+  ],
+  comparisons: [{ id: "cmp_locations", label: "Alameda", status: "ok" }],
+  periods: [2020],
+  issues: [],
+};
+
 describe("unconfigured previews", () => {
   beforeEach(() => {
-    state.loadChartData.mockReset();
-    state.loadChartData.mockResolvedValue({
-      series: [{ name: "California", x: [2020], y: [1] }],
-      response: {},
-      unmatched: [],
-    });
+    state.loadObservations.mockReset();
+    state.loadObservations.mockResolvedValue(answer);
   });
 
-  it("reports unconfigured and fetches nothing while a required role is unset", async () => {
+  it("reports unconfigured and fetches nothing while the question is unanswered", async () => {
+    // The module default names no geographic level and no place.
     mount();
 
     expect(screen.getByTestId("status")).toHaveTextContent("unconfigured");
     await Promise.resolve();
-    expect(state.loadChartData).not.toHaveBeenCalled();
+    expect(state.loadObservations).not.toHaveBeenCalled();
   });
 
-  it("renders once every required role is set", async () => {
+  it("renders once every selection is made", async () => {
     const user = userEvent.setup();
     mount();
 
-    await user.click(screen.getByRole("button", { name: "set x" }));
+    // A level alone is not enough for a line: it still needs a place.
+    await user.click(screen.getByRole("button", { name: "set level" }));
     expect(screen.getByTestId("status")).toHaveTextContent("unconfigured");
-    expect(state.loadChartData).not.toHaveBeenCalled();
+    expect(state.loadObservations).not.toHaveBeenCalled();
 
-    await user.click(screen.getByRole("button", { name: "set y" }));
-    await waitFor(() => expect(state.loadChartData).toHaveBeenCalledTimes(1));
+    await user.click(screen.getByRole("button", { name: "set place" }));
+    await waitFor(() => expect(state.loadObservations).toHaveBeenCalledTimes(1));
     await waitFor(() =>
       expect(screen.getByTestId("status")).toHaveTextContent("ready"),
     );
   });
 
-  it("a bar with only its measure set fetches: category is implied from geography", async () => {
+  it("a map with only its level set fetches: every feature at that level is the selection", async () => {
     const user = userEvent.setup();
-    mount({
-      initialConfig: {
-        module: schema.id,
-        chartType: "line",
-        bindings: { x: "Year", y: "Total Population" },
-      },
-    });
+    mount();
 
+    await user.click(screen.getByRole("button", { name: "map" }));
+    // Entering a map settles the level itself (the one level with geometry)
+    // and clears any single place: an unfiltered map shows every county.
+    expect(JSON.parse(screen.getByTestId("geography").textContent)).toEqual({
+      subset: "Counties",
+      locations: [],
+    });
+    await waitFor(() => expect(state.loadObservations).toHaveBeenCalledTimes(1));
     await waitFor(() =>
       expect(screen.getByTestId("status")).toHaveTextContent("ready"),
     );
-
-    state.loadChartData.mockClear();
-    await user.click(screen.getByRole("button", { name: "bar" }));
-
-    // A bar keeps the measure the reader chose; category is implied from the
-    // geography already chosen (Workstream A), so both required roles resolve
-    // and the chart renders rather than sitting unconfigured.
-    expect(JSON.parse(screen.getByTestId("bindings").textContent)).toEqual({
-      y: "Total Population",
-      category: "Location",
-    });
-    await waitFor(() => expect(state.loadChartData).toHaveBeenCalledTimes(1));
-    await waitFor(() =>
-      expect(screen.getByTestId("status")).toHaveTextContent("ready"),
-    );
-  });
-
-  it("keeps auto-binding surfaces rendering straight through a switch", async () => {
-    const user = userEvent.setup();
-    mount({ autoBind: true });
-
-    await waitFor(() => expect(state.loadChartData).toHaveBeenCalled());
-    state.loadChartData.mockClear();
-
-    await user.click(screen.getByRole("button", { name: "bar" }));
-
-    await waitFor(() => expect(state.loadChartData).toHaveBeenCalled());
-    expect(screen.getByTestId("status")).not.toHaveTextContent("unconfigured");
   });
 });

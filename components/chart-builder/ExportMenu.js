@@ -84,10 +84,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/components/ui/utils";
 
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
-import {
-  fullTableUrl,
-  loadChartExportData,
-} from "@/components/chart-builder/chartData";
+import { fullTableUrl } from "@/components/chart-builder/chartData";
 import { serializeWorkspace } from "@/components/chart-builder/savedViews";
 import {
   exportCombinedImage,
@@ -941,18 +938,13 @@ export function ExportDataButton({
     return table;
   }
 
-  // One resolver for both export sources. Chart data is reloaded from the active
-  // settings with its visual Top/Bottom N cap disabled, while original data
-  // keeps its separate full-source path unchanged.
+  // One resolver for both export sources: the chart's own answer, or the
+  // original full-source table.
   async function tableFor(sourceId, chartConfig, chartResult) {
     if (sourceId === "original") {
       return resolveOriginalTable(chartConfig, chartResult);
     }
-    if (chartConfig.version === 3) return displayTable(chartConfig, chartResult);
-    return displayTable(
-      chartConfig,
-      await loadChartExportData(chartConfig, schema),
-    );
+    return displayTable(chartConfig, chartResult);
   }
 
   async function onExportCsv(sourceId) {

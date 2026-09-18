@@ -117,14 +117,17 @@ def test_backfill_passes_distinct_module_id_for_seed_archive(
     assert kwargs == {"module_id": "housing-stress-backfill"}
 
 
-def test_backfill_bootstraps_pre_cutoff_years_from_legacy_csv(monkeypatch, tmp_path):
+def test_backfill_bootstraps_legacy_rows_through_first_table_vintage(monkeypatch, tmp_path):
     paths = _configure(monkeypatch, tmp_path)
     # Legacy CSV in the old schema: column renames + raw race labels + a 2020 row
-    # (must be dropped) and a 2023 row (>= cutoff, must be dropped).
+    # (must be dropped), 2022 overlap rows (must fill gaps without replacing the
+    # built All row), and a 2023 row (> cutoff, must be dropped).
     legacy = pd.DataFrame(
         [
             {"Year": 2015, "Geographic Level": "State", "Location": "CA", "Race/ethnicity": "American Indian/Alaskan Native", "Label": "Total", "Number Over 30%": 5, "Number Over 50%": 2, "Share Over 30%": 0.1, "Share Over 50%": 0.05},
             {"Year": 2020, "Geographic Level": "State", "Location": "CA", "Race/ethnicity": "All", "Label": "Total", "Number Over 30%": 9, "Number Over 50%": 4, "Share Over 30%": 0.2, "Share Over 50%": 0.1},
+            {"Year": 2022, "Geographic Level": "State", "Location": "CA", "Race/ethnicity": "All", "Label": "Total", "Number Over 30%": 999, "Number Over 50%": 999, "Share Over 30%": 0.9, "Share Over 50%": 0.9},
+            {"Year": 2022, "Geographic Level": "State", "Location": "CA", "Race/ethnicity": "American Indian/Alaskan Native", "Label": "Total", "Number Over 30%": 7, "Number Over 50%": 3, "Share Over 30%": 0.14, "Share Over 50%": 0.06},
             {"Year": 2023, "Geographic Level": "State", "Location": "CA", "Race/ethnicity": "All", "Label": "Total", "Number Over 30%": 9, "Number Over 50%": 4, "Share Over 30%": 0.2, "Share Over 50%": 0.1},
         ]
     )
@@ -134,9 +137,13 @@ def test_backfill_bootstraps_pre_cutoff_years_from_legacy_csv(monkeypatch, tmp_p
         start_year=2022, end_year=2022, acquire_frames_fn=lambda year: {"ca": {}, "state": {}}
     )
 
-    # V3 built 2022; legacy contributes only 2015 (2020 excluded, 2023 >= cutoff dropped).
+    # V3 built 2022; legacy contributes 2015 plus missing 2022 strata. The built
+    # 2022 All row wins over its same-key legacy value.
     assert result["years_included"] == [2022]
-    assert result["legacy_years"] == [2015]
+    assert result["legacy_years"] == [2015, 2022]
     assert set(result["dataset"]["Year"]) == {2015, 2022}
     # The raw legacy race label was reconciled to the canonical value.
     assert set(result["dataset"].loc[result["dataset"]["Year"] == 2015, "Race/Ethnicity"]) == {"AIAN"}
+    rows_2022 = result["dataset"].loc[result["dataset"]["Year"] == 2022]
+    assert set(rows_2022["Race/Ethnicity"]) == {"All", "AIAN"}
+    assert rows_2022.loc[rows_2022["Race/Ethnicity"] == "All", "Number Over 30%"].item() == 30

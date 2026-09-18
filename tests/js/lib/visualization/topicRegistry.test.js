@@ -11,8 +11,11 @@ import { describe, expect, it } from "vitest";
 import { COLORS } from "@/lib/constants";
 import {
   MODULE_IDS,
+  MODULE_SCHEMAS,
   getModuleSchema,
 } from "@/lib/visualization/moduleRegistry";
+import { calculationOptionsFor } from "@/lib/data/visualization/calculationRegistry";
+import { FIELD_KINDS, UNITS } from "@/lib/visualization/fieldTypes";
 import {
   TOPICS,
   getTopicDocumentationHref,
@@ -30,13 +33,13 @@ const EXPECTED_TOPICS = [
   {
     id: "components-of-change",
     title: "Births, deaths & migration",
-    href: "/visualization-v3-review?module=components-of-change",
+    href: "/components-of-change",
     documentationHref: "/documents/components-of-change-refractor",
   },
   {
     id: "demographic-projections",
     title: "Demographic projections",
-    href: "/visualization-v3-review?module=demographic-projections",
+    href: "/demographic-projections",
     documentationHref: "/documents/age-sex-race-projections-refractor",
   },
   {
@@ -111,5 +114,21 @@ describe("landing-page topic registry", () => {
     expect(ids).not.toContain("economics");
     expect(ids).not.toContain("state-law");
     expect(ids).not.toContain("climate");
+  });
+
+  it("offers percentage-point change for every percentage and rate topic outcome", () => {
+    const rateUnits = new Set([UNITS.PERCENT, UNITS.RATE_PER_THOUSAND]);
+
+    for (const schema of Object.values(MODULE_SCHEMAS)) {
+      for (const [id, field] of Object.entries(schema.fields || {})) {
+        if (field.kind !== FIELD_KINDS.MEASURE || !rateUnits.has(field.unit)) continue;
+        const options = calculationOptionsFor(
+          { id, ...field },
+          { chartType: "line" },
+        );
+        expect(options, `${schema.id}: ${id}`).toContain("percentagePointChange");
+        expect(options, `${schema.id}: ${id}`).not.toContain("percentChange");
+      }
+    }
   });
 });

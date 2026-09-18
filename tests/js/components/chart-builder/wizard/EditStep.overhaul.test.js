@@ -27,7 +27,6 @@ vi.mock("@/components/chart-builder/wizard/StepShell", () => ({
 }));
 vi.mock("@/components/chart-builder/sections/PresetSection", () => ({ default: () => null }));
 vi.mock("@/components/chart-builder/ChartSidebar", () => ({ FooterActions: () => null }));
-vi.mock("@/components/chart-builder/LayerEditor", () => ({ default: () => null }));
 vi.mock("@/components/chart-builder/EditorActivityLog", () => ({ default: () => null }));
 vi.mock("@/components/chart-builder/ConfigActions", () => ({
   ImportConfigButton: () => null,

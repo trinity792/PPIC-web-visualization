@@ -2,7 +2,7 @@
 
 import React from "react";
 
-import { render, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
@@ -10,6 +10,7 @@ const state = vi.hoisted(() => ({
   getView: vi.fn(),
   deserialize: vi.fn(),
   deserializeWorkspace: vi.fn(),
+  logEditorEvent: vi.fn(),
 }));
 
 vi.mock("@/components/chart-builder/chartConfigStore", () => ({
@@ -19,7 +20,9 @@ vi.mock("@/components/chart-builder/savedViews", () => ({
   getView: state.getView,
   deserialize: state.deserialize,
   deserializeWorkspace: state.deserializeWorkspace,
+  isRejectedView: (result) => Boolean(result) && result.ok === false,
 }));
+vi.mock("@/lib/logs/editorLog", () => ({ logEditorEvent: state.logEditorEvent }));
 
 import ViewHydrator from "@/components/chart-builder/wizard/ViewHydrator";
 
@@ -61,6 +64,29 @@ describe("shared ViewHydrator", () => {
         config: imported,
       }),
     );
+  });
+
+  it("reports a declined view and leaves the default question in place", async () => {
+    // A v3 module reader answers an older-format or foreign-dataset view with
+    // `{ ok: false, message }`. That is a message for the reader, not a config:
+    // dispatching it would hand the store a rejection object to render.
+    const declined = { ok: false, reason: "unsupported-version", message: "Too old." };
+    state.deserialize.mockReturnValue(declined);
+    render(<ViewHydrator viewId={encodeURIComponent("old-link")} />);
+    await waitFor(() =>
+      expect(state.logEditorEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ severity: "error", detail: "Too old." }),
+      ),
+    );
+    expect(state.dispatch).not.toHaveBeenCalled();
+    // The module workbench has no activity log, so the reason is shown here.
+    expect(screen.getByRole("status")).toHaveTextContent("Too old.");
+
+    state.logEditorEvent.mockClear();
+    state.getView.mockReturnValue(declined);
+    render(<ViewHydrator viewId="local-old" />);
+    await waitFor(() => expect(state.logEditorEvent).toHaveBeenCalled());
+    expect(state.dispatch).not.toHaveBeenCalled();
   });
 
   it("does not overwrite a built-in view already used as initial config", () => {

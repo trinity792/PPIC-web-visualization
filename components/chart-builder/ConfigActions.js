@@ -28,6 +28,7 @@ import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import {
   deserialize,
   deserializeWorkspace,
+  isRejectedView,
   serialize,
   serializeWorkspace,
 } from "@/components/chart-builder/savedViews";
@@ -76,7 +77,10 @@ export function ImportConfigButton() {
         if (importedWorkspace) {
           dispatch({ type: "LOAD_WORKSPACE", workspace: importedWorkspace });
         } else {
-          dispatch({ type: "LOAD_VIEW", config: deserialize(text, schema) });
+          const imported = deserialize(text, schema);
+          // A v3 reader declines with a message rather than throwing.
+          if (isRejectedView(imported)) throw new Error(imported.message);
+          dispatch({ type: "LOAD_VIEW", config: imported });
         }
         logEditorEvent({
           severity: "info",

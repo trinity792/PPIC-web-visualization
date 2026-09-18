@@ -127,6 +127,20 @@ describe("the control follows the capability, not the chart id", () => {
     });
   });
 
+  it("explains a snapshot the service resolves itself instead of an empty picker", () => {
+    // RHNA Progress publishes no snapshot dates, so the snapshot resolves to
+    // the latest row server-side and there is nothing for the reader to pick.
+    state.editorModel = model(
+      { contract: "snapshot", availablePeriods: [], defaultPeriod: null },
+      { chartType: "bar" },
+    );
+    state.config = config({ contract: "snapshot" });
+    render(<TimeSection />);
+
+    expect(screen.getByText(/shows the latest available snapshot/i)).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: /^year$/i })).not.toBeInTheDocument();
+  });
+
   it("renders no Time section when the capability declares none", () => {
     state.editorModel = model({ contract: "none" }, { chartType: "forest" });
     state.config = config({ contract: "none" });

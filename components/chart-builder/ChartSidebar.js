@@ -45,6 +45,7 @@ import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import {
   deleteView,
   deserialize,
+  isRejectedView,
   listViews,
   saveView,
   serialize,
@@ -62,7 +63,10 @@ export function FooterActions({ scale = 1 }) {
   const [mode, setMode] = useState("export");
   const [json, setJson] = useState(() => serialize(config));
   const [name, setName] = useState(
-    () => config.labels.title || effectiveLabels(config, schema).title || "Untitled view",
+    () =>
+      (config.version === 3 ? config.presentation?.labels : config.labels)?.title ||
+      effectiveLabels(config, schema).title ||
+      "Untitled view",
   );
   const [message, setMessage] = useState("");
   const [views, setViews] = useState([]);
@@ -94,7 +98,10 @@ export function FooterActions({ scale = 1 }) {
 
   function importConfig() {
     try {
-      dispatch({ type: "LOAD_VIEW", config: deserialize(json, schema) });
+      const imported = deserialize(json, schema);
+      // A v3 reader declines with a message rather than throwing.
+      if (isRejectedView(imported)) throw new Error(imported.message);
+      dispatch({ type: "LOAD_VIEW", config: imported });
       setMessage("Configuration loaded.");
     } catch (error) {
       setMessage(error.message);

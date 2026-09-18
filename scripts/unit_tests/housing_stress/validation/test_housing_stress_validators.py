@@ -266,6 +266,22 @@ def test_validate_stratification_completeness_warns_for_missing_race():
     )
 
 
+def test_validate_stratification_completeness_rejects_globally_missing_iteration_when_required():
+    source = _matrix(races=("All",))
+    schema = _schema_config(races=["All", "White"])
+    schema["required_vintage_race_groups"] = ["All", "White"]
+
+    is_valid, messages = validate_stratification_completeness(source, schema)
+
+    assert is_valid is False
+    assert any(
+        "error" in message.lower()
+        and "vintage" in message.lower()
+        and "white" in message.lower()
+        for message in messages
+    )
+
+
 def test_validate_stratification_completeness_errors_for_missing_tenure():
     source = _matrix(tenures=tuple(TENURES[:-1]))
 

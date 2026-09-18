@@ -82,9 +82,10 @@ describe("TRANSFORMS.percentChange", () => {
 });
 
 describe("TRANSFORMS.percentagePointChange", () => {
-  it("subtracts the base value (point difference, not ratio)", () => {
-    const out = TRANSFORMS.percentagePointChange(series([5.0, 7.5]), { baseYear: 2020 });
-    expect(out.values).toEqual([0, 2.5]);
+  it("subtracts every preceding value (point difference, not ratio)", () => {
+    const out = TRANSFORMS.percentagePointChange(series([5.0, 7.5, 6.5]));
+    expect(out.years).toEqual([2021, 2022]);
+    expect(out.values).toEqual([2.5, -1]);
   });
 });
 

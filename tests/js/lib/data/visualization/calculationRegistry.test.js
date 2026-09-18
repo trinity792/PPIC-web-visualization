@@ -137,6 +137,7 @@ describe("the registry", () => {
     }
     expect(getCalculation("percentChange").label).toBe("Year over Year (Percentage)");
     expect(getCalculation("percentChange").requiredPeriods).toBe("twoOrMore");
+    expect(getCalculation("percentagePointChange").requiredPeriods).toBe("twoOrMore");
     expect(getCalculation("indexed").label).toBe("Index to Base Year");
   });
 });
@@ -275,6 +276,29 @@ describe("change calculations", () => {
       COMPONENTS_OF_CHANGE_EXPECTED.fresnoCrudeBirthRate.percentagePointChange2020to2025,
     );
     expect(rows[0].unit).toBe("percentagePoints");
+  });
+
+  it("calculates percentage-point change for every adjacent period in a range", () => {
+    const template = coc("Crude Birth Rate", { Location: "Fresno" })[0];
+    const observations = [14, 12, 13, 10].map((value, index) => ({
+      ...template,
+      period: 2020 + index,
+      value,
+    }));
+    const { rows } = applyCalculation("percentagePointChange", {
+      observations,
+      measure: rateMeasure,
+      params: {},
+      comparisonId: COMPARISON_ID,
+      timeContract: "range",
+    });
+
+    expect(rows.map((row) => [row.period, row.value, row.includedPeriods])).toEqual([
+      [2021, -2, [2020, 2021]],
+      [2022, 1, [2021, 2022]],
+      [2023, -3, [2022, 2023]],
+    ]);
+    expect(rows.every((row) => row.unit === "percentagePoints")).toBe(true);
   });
 
   it("requires exactly two ordered periods for endpoint change calculations", () => {

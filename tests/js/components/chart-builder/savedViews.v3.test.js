@@ -185,6 +185,74 @@ describe("Workstream H v3 saved views", () => {
     ).toThrow(/too large/i);
   });
 
+  it("reads v3 only for every registered module, not just the fixture id", async () => {
+    // The cutover rule: a real module page never loads a v1 or v2 view, in
+    // any of the three shapes the hydrator accepts. Only the fixture alias
+    // "projections" was v3-only before; now the registry decides.
+    const { deserialize: read, deserializeWorkspace, isRejectedView } = await savedViewsModule();
+    const { UNSUPPORTED_VERSION_MESSAGE } = await questionSpecModule();
+    const { MODULE_IDS } = await import("@/lib/visualization/moduleRegistry");
+    expect(MODULE_IDS).toContain("pophousing");
+
+    const older = {
+      version: 2,
+      module: "pophousing",
+      preset: "trend-over-time",
+      chartType: "line",
+      bindings: { x: "Year", y: "Total Population", series: "Location" },
+      filters: { subset: "Regions" },
+    };
+    const schema = { ...V3_SCHEMA, id: "pophousing" };
+
+    const single = read(JSON.stringify(older), schema);
+    expect(isRejectedView(single)).toBe(true);
+    expect(single.message).toBe(UNSUPPORTED_VERSION_MESSAGE);
+
+    // The standalone tool is v3-only too: its pasted-data views are v3 now.
+    const tool = read(
+      JSON.stringify({ version: 2, module: "byod", chartType: "line", data: { source: "inline" } }),
+      { id: "byod", inlineOnly: true },
+    );
+    expect(isRejectedView(tool)).toBe(true);
+    expect(tool.message).toBe(UNSUPPORTED_VERSION_MESSAGE);
+
+    // A workspace of older charts is declined as a whole, with the same words.
+    expect(() =>
+      deserializeWorkspace(JSON.stringify({ layout: "1x1", charts: [{ name: "A", config: older }] }), schema),
+    ).toThrow(UNSUPPORTED_VERSION_MESSAGE);
+  });
+
+  it("accepts an inline v3 view on the standalone tool and nowhere else", async () => {
+    const { deserialize: read, isRejectedView, saveView: save, listViews: list } = await savedViewsModule();
+    const inline = {
+      version: 3,
+      question: {
+        dataset: {
+          kind: "inline",
+          inline: { columns: [{ name: "Year", type: "date" }, { name: "N", type: "number" }], rows: [["2020", "1"]] },
+          bindings: { x: "Year", y: "N" },
+        },
+        outcome: { measureId: "N", unit: "number" },
+        time: { contract: "range", startYear: 2020, endYear: 2020 },
+        calculation: { id: "actual", params: {} },
+        comparisons: [{ id: "cmp_inline_1", label: "Data", dimensions: {} }],
+      },
+      presentation: { chartType: "line", labels: { title: "Mine" } },
+    };
+    const accepted = read(JSON.stringify(inline), { id: "byod", inlineOnly: true });
+    expect(isRejectedView(accepted)).toBe(false);
+    expect(accepted.question.dataset.bindings).toEqual({ x: "Year", y: "N" });
+
+    const elsewhere = read(JSON.stringify(inline), { ...V3_SCHEMA, id: "pophousing" });
+    expect(isRejectedView(elsewhere)).toBe(true);
+    expect(elsewhere.message).toMatch(/your own data/);
+
+    // Saved under the tool's own id so its Restore list can find it.
+    const saved = save("Mine", inline);
+    expect(saved.module).toBe("byod");
+    expect(list().map((view) => view.id)).toContain(saved.id);
+  });
+
   it("rejects a v3 view whose module does not match the open schema", async () => {
     const { deserialize: readV3 } = await savedViewsModule();
     const result = readV3(JSON.stringify(v3Config()), { ...V3_SCHEMA, id: "pophousing" });
