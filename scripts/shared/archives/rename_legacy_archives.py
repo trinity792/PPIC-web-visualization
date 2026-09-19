@@ -4,7 +4,7 @@ rename_legacy_archives.py — one-off migration of pre-existing archive filename
 Not part of any pipeline. Run once against the repository-local archive (there is no external
 drive yet) so every file in data/archive/ sorts correctly under the new
 {module_id}_{prefix}_{YYYY-MM-DD}.csv convention introduced by dataset_archive.py. Full context:
-docs/PPIC Summer 2026/refractor-guide/shared-archive-and-save-plan.md, Workstream E.
+docs/archive/shared-archive-and-save-guide.md, Workstream E.
 
 Data sources:
     - {archive_root}/{DIRECTORY}/*.csv — existing archived datasets under their legacy names

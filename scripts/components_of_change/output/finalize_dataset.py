@@ -69,7 +69,7 @@ def write_components_output(dataframe, output_path):
 
 
 # archive_and_save is the shared helper (scripts.shared.archives.dataset_archive), imported
-# above rather than reimplemented here — see docs/PPIC Summer 2026/refractor-guide/
-# shared-archive-and-save-plan.md, Workstream D. It replaces the former
+# above rather than reimplemented here — see docs/refractor-guide/
+# shared-archive-and-save-guide.md, Workstream D. It replaces the former
 # archive_or_delete_files + write_components_output pair, which moved (rather than copied)
 # the prior canonical file, leaving no valid canonical CSV on disk between the two steps.

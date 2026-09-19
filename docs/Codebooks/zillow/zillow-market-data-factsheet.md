@@ -2,20 +2,20 @@
 Topic: Data Sources
 Content Type: codebook
 pinned: false
-description: "Reference and fact-sheet for the Zillow Research public housing datasets (ZHVI, ZORI, for-sale listings, and sales/market-temperature) proposed as a new V3 module, covering metrics, geographies, file schema, cadence, and caveats for a California-scoped build."
+description: "Reference and fact-sheet for the Zillow Research public housing datasets (ZHVI, ZORI, for-sale listings, and sales/market-temperature) proposed as a new V3 topic, covering metrics, geographies, file schema, cadence, and caveats for a California-scoped build."
 Date Published: July 17, 2026
-Last Updated: 07/17/2026 - 12:00 PM
+Last Updated: 09/18/2026 - 02:50 PM
 ---
 
 # Zillow Market Data: Fact-Sheet and Reference
 
-Reference for the four Zillow Research public data families selected for the proposed housing-market module: home values (ZHVI), rents (ZORI), for-sale listings and inventory, and sales and market temperature. It documents what each series measures, at which geographies, on what cadence, in what file shape, and the caveats that shape how the ETL and the visualizations must treat it. It is the data-side companion to the visualization plan and the module implementation guide outline.
+Reference for the four Zillow Research public data families selected for the proposed housing-market topic: home values (ZHVI), rents (ZORI), for-sale listings and inventory, and sales and market temperature. It documents what each series measures, at which geographies, on what cadence, in what file shape, and the caveats that shape how the ETL and the visualizations must treat it. It is the data-side companion to the visualization plan and the topic implementation guide outline.
 
 > [!info] Who this document is for
-> Two audiences. A researcher deciding which Zillow series answer a policy question should read the dataset families and caveats. A programmer building the ETL and schema should read the file-schema, geography, and California-scoping sections, which define the data contract the pipeline must honor. Related project context: [[projectSpec]] and the existing [[pophousing]] module, whose annual California data this monthly national data sits alongside.
+> Two audiences. A researcher deciding which Zillow series answer a policy question should read the dataset families and caveats. A programmer building the ETL and schema should read the file-schema, geography, and California-scoping sections, which define the data contract the pipeline must honor. Related project context: [[projectSpec]] and the existing [[pophousing]] topic, whose annual California data this monthly national data sits alongside.
 
 > [!warning] No data file was provided with this request
-> This fact-sheet is compiled from the Zillow Research data catalog at [zillow.com/research/data](https://www.zillow.com/research/data/) (catalog dated July 2026) and Zillow's published methodology pages. The identifier-column lists below reflect Zillow's documented wide-CSV shape, but exact headers vary slightly by geography and drift between vintages. Confirm every column name against a freshly downloaded CSV before the schema is frozen.
+> This fact-sheet is compiled from the Zillow Research data catalog at [zillow.com/research/data](0) (catalog dated July 2026) and Zillow's published methodology pages. The identifier-column lists below reflect Zillow's documented wide-CSV shape, but exact headers vary slightly by geography and drift between vintages. Confirm every column name against a freshly downloaded CSV before the schema is frozen.
 
 ---
 
@@ -23,10 +23,10 @@ Reference for the four Zillow Research public data families selected for the pro
 
 Zillow Research publishes a large catalog of free, public housing metrics as downloadable CSVs. Every series is a **wide time series**: each row is one place, each dated column is one period, and each cell is the metric value for that place in that period. The catalog is organized into families (home values, rentals, for-sale listings, sales, days-on-market and price cuts, market heat, new construction, and affordability), and within each family a metric is published in several **cuts** that vary the housing segment (all homes, single-family only, condo, by bedroom count), the smoothing (raw versus smoothed), the seasonal adjustment, the price tier, and the cadence (monthly or weekly).
 
-The four families in scope for this module are home values, rentals, for-sale listings, and sales and market temperature. The days-on-market/price-cut family and the market heat index are treated as adjacent "market temperature" signals and are noted where they strengthen a visualization, but the core build targets the four selected families.
+The four families in scope for this topic are home values, rentals, for-sale listings, and sales and market temperature. The days-on-market/price-cut family and the market heat index are treated as adjacent "market temperature" signals and are noted where they strengthen a visualization, but the core build targets the four selected families.
 
 > [!important] Update cadence drives the refresh contract
-> Monthly series are updated on the 16th of each month; most weekly series are updated every Tuesday. Sales-latency metrics (sales count nowcast, sale price, total transaction value) publish the prior month on the 16th after a two-week estimation window. The module's "update data" path (mirroring [[pophousing]]'s refreshable pipeline) should assume a monthly refresh floor and treat the newest month of any nowcast series as provisional.
+> Monthly series are updated on the 16th of each month; most weekly series are updated every Tuesday. Sales-latency metrics (sales count nowcast, sale price, total transaction value) publish the prior month on the 16th after a two-week estimation window. The topic's "update data" path (mirroring [[pophousing]]'s refreshable pipeline) should assume a monthly refresh floor and treat the newest month of any nowcast series as provisional.
 
 ---
 
@@ -138,7 +138,7 @@ The project's data layer works in a **long** grain (one row per place per period
 
 ## Geographic Scope and California Filtering
 
-The module targets California at every geography Zillow offers, plus state and national context as comparison baselines. Filtering rules differ by file:
+The topic targets California at every geography Zillow offers, plus state and national context as comparison baselines. Filtering rules differ by file:
 
 | Target subset | Filter rule |
 |---|---|
@@ -148,7 +148,7 @@ The module targets California at every geography Zillow offers, plus state and n
 | National benchmark | Keep the `country` row (`RegionName` "United States") as an optional overlay series |
 
 > [!warning] Metros can cross state lines and places are not additive
-> Some metropolitan areas span more than one state, so a `, CA` suffix filter is a heuristic that needs a reviewed allow-list. Separately, ZHVI and ZORI are indices, so ZIP-level values cannot be summed or averaged into a county value, and county values cannot be rolled into a state value. Unlike the DoF population pipeline, this module must not compute regional or state aggregates from finer geographies; it consumes Zillow's own published geography rows at each level.
+> Some metropolitan areas span more than one state, so a `, CA` suffix filter is a heuristic that needs a reviewed allow-list. Separately, ZHVI and ZORI are indices, so ZIP-level values cannot be summed or averaged into a county value, and county values cannot be rolled into a state value. Unlike the DoF population pipeline, this topic must not compute regional or state aggregates from finer geographies; it consumes Zillow's own published geography rows at each level.
 
 ### Alignment with the existing California geography model
 
@@ -160,7 +160,7 @@ The [[pophousing]] schema recognizes the levels `City`, `Town`, `County`, `Regio
 
 The following properties of the data must be honored by both the ETL and the visualization layer.
 
-| Caveat | Consequence for the module |
+| Caveat | Consequence for the topic |
 |---|---|
 | Indices are non-additive | Never sum or average ZHVI/ZORI across places; consume published rows per geography. |
 | Raw versus smoothed, and seasonal adjustment | Expose the cut as a data-source choice or filter; never silently mix cuts within one series. |
@@ -168,7 +168,7 @@ The following properties of the data must be honored by both the ETL and the vis
 | Coverage differs by family and geography | Listings, sales, days-on-market, and market heat are metro/U.S. only; ZHVI and ZORI reach county and ZIP. Gate finer-geography chart options on data availability. |
 | Coverage start differs by series | ZHVI from ~2000, ZORI from ~2015, listings/sales from ~2018; a shared date axis must handle ragged starts. |
 | ZIP coverage is sparse in rural areas | Expect missing ZIPs in low-density counties; surface a notice on empty joins rather than dropping silently. |
-| Monthly and weekly cadences coexist | Standardize on monthly for the core module; treat weekly as an optional higher-resolution cut. |
+| Monthly and weekly cadences coexist | Standardize on monthly for the core topic; treat weekly as an optional higher-resolution cut. |
 | Download paths change | Key acquisition on filename cut-tokens and validate the fetched header, not a hardcoded URL. |
 
 > [!danger] Refresh must not overwrite good data with a bad fetch
@@ -178,22 +178,22 @@ The following properties of the data must be honored by both the ETL and the vis
 
 ## Citation, Licensing, and Attribution
 
-Zillow provides this data free for public use and asks that it be cited as the source. ZHVI has a dedicated user guide covering correct citation and how to make calculations (such as growth rates) with the index. Charts and exports produced by the module should carry a "Source: Zillow Research" attribution, and any derived growth or ratio metric should follow the ZHVI user guide's guidance rather than differencing the index naively.
+Zillow provides this data free for public use and asks that it be cited as the source. ZHVI has a dedicated user guide covering correct citation and how to make calculations (such as growth rates) with the index. Charts and exports produced by the topic should carry a "Source: Zillow Research" attribution, and any derived growth or ratio metric should follow the ZHVI user guide's guidance rather than differencing the index naively.
 
 | Resource | URL |
 |---|---|
-| Data catalog | [zillow.com/research/data](https://www.zillow.com/research/data/) |
-| ZHVI methodology | [zillow.com/research/methodology-neural-zhvi-32128](https://www.zillow.com/research/methodology-neural-zhvi-32128) |
-| ZHVI user guide | [zillow.com/research/zhvi-user-guide](https://www.zillow.com/research/zhvi-user-guide/) |
-| ZORI methodology | [zillow.com/research/methodology-zori-repeat-rent-27092](https://www.zillow.com/research/methodology-zori-repeat-rent-27092/) |
-| Market heat index methodology | [zillow.com/research/market-heat-index-methodology-34057](https://www.zillow.com/research/market-heat-index-methodology-34057/) |
+| Data catalog | [zillow.com/research/data](0) |
+| ZHVI methodology | [zillow.com/research/methodology-neural-zhvi-32128](0) |
+| ZHVI user guide | [zillow.com/research/zhvi-user-guide](0) |
+| ZORI methodology | [zillow.com/research/methodology-zori-repeat-rent-27092](0) |
+| Market heat index methodology | [zillow.com/research/market-heat-index-methodology-34057](0) |
 
 ---
 
 ## Open Questions for Data Scoping
 
-- [ ] Which cut is canonical for the module: smoothed-and-seasonally-adjusted for presentation, with raw available as an alternate, or the reverse?
+- [ ] Which cut is canonical for the topic: smoothed-and-seasonally-adjusted for presentation, with raw available as an alternate, or the reverse?
 - [ ] Which specific metrics within each family are in the first release versus deferred (the sales and days-on-market families each publish dozens of cuts)?
 - [ ] Is weekly cadence in scope for v1, or monthly-only with weekly deferred?
-- [ ] Does the module include ZHVF/ZORF forecasts, or values and rents only?
+- [ ] Does the topic include ZHVF/ZORF forecasts, or values and rents only?
 - [ ] What is the authoritative source for the Zillow-to-PPIC geography crosswalk (FIPS join, name match, or a maintained lookup)?

@@ -63,8 +63,8 @@ def prepare_output(df, schema_config):
 
 
 # archive_and_save is the shared helper (scripts.shared.archives.dataset_archive), imported
-# above rather than reimplemented here — see docs/PPIC Summer 2026/refractor-guide/
-# shared-archive-and-save-plan.md, Workstream C. This module has two callers (the live
+# above rather than reimplemented here — see docs/refractor-guide/
+# shared-archive-and-save-guide.md, Workstream C. This module has two callers (the live
 # pipeline and the backfill driver) that archive into the same directory under different
 # module_id values ("housing-stress" / "housing-stress-backfill") so the live archive and
 # the deep-history seed archive never collide on name.

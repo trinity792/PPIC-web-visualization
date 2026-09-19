@@ -81,7 +81,7 @@ def prepare_projections_output(df, schema_config):
 
 
 # archive_and_save is the shared helper (scripts.shared.archives.dataset_archive), imported
-# above rather than reimplemented here — see docs/PPIC Summer 2026/refractor-guide/
-# shared-archive-and-save-plan.md, Workstream B. This was the module the 189MB-to-2MB
+# above rather than reimplemented here — see docs/refractor-guide/
+# shared-archive-and-save-guide.md, Workstream B. This was the module the 189MB-to-2MB
 # streamed-hash optimization was written for; it is now shared behavior, not local to
 # this module.

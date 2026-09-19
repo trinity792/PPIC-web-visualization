@@ -12,16 +12,16 @@ const root = process.cwd();
 // visualization feature — both surfaces — and renamed accordingly.
 const overhaulPath = path.join(
   root,
-  "docs/PPIC Summer 2026/specifications/visualization-specification.md",
+  "docs/specifications/visualization-specification.md",
 );
 // The graph-editor guide was archived: it describes the pre-divergence editor.
 const graphEditorPath = path.join(
   root,
-  "docs/PPIC Summer 2026/archive/graphEditor-overhaul.md",
+  "docs/archive/graphEditor-overhaul.md",
 );
 const projectSpecPath = path.join(
   root,
-  "docs/PPIC Summer 2026/specifications/projectSpec.md",
+  "docs/specifications/projectSpec.md",
 );
 
 /** The slice of a document between two headings, for section-scoped assertions. */

@@ -28,7 +28,7 @@ const root = process.cwd();
 const TRASH = path.join(root, ".trash/visualization-backend");
 const CHANGELOG = path.join(
   root,
-  "docs/PPIC Summer 2026/refractor-guide/visualization-backend-removal-changelog.md",
+  "docs/refractor-guide/visualization-backend-removal-changelog.md",
 );
 
 function walk(directory) {

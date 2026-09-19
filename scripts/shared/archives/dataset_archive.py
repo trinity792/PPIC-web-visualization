@@ -3,7 +3,7 @@ dataset_archive.py — shared conditional archive-and-save for module dataset wr
 
 Collapses the six module-local archive-and-write implementations (building_permits,
 projections, rhna_progress, housing_stress, components_of_change, pophousing) into one
-mechanism, per docs/PPIC Summer 2026/refractor-guide/shared-archive-and-save-plan.md.
+mechanism, per docs/archive/shared-archive-and-save-guide.md.
 
 Data sources:
     - pandas.DataFrame — the prepared output frame, already through the module's prepare_output

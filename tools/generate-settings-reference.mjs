@@ -13,7 +13,7 @@ const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const ROOT = path.resolve(path.dirname(SCRIPT_PATH), "..");
 const DEFAULT_DOCUMENT = path.join(
   ROOT,
-  "docs/PPIC Summer 2026/specifications/visualization-specification.md",
+  "docs/specifications/visualization-specification.md",
 );
 
 function display(value) {

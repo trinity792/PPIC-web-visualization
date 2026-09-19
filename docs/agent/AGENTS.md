@@ -2,9 +2,9 @@
 Topic: AI
 Content Type: agent instructions
 pinned: false
-description: "Top-level orientation for AI agents working on the PPIC V3 migration, which consolidates the legacy Jupyter (V1) and partial Shiny (V2) systems into a documented, tested React/Next.js site. Sets the project's goals and ground rules for contributors."
+description: "Top-level orientation for AI agents maintaining the PPIC data pipelines and V3 React/Next.js visualization site. Sets project goals, commands, sources of truth, and contributor boundaries."
 Date Published: June 22, 2026
-Last Updated: 07/17/2026 - 12:00 PM
+Last Updated: 09/18/2026 - 02:50 PM
 Status: Updating
 ---
 
@@ -12,21 +12,22 @@ Status: Updating
 
 ## Goal
 
-This is a migration/refactor project at PPIC (Public Policy Institute of California).
-The legacy codebase had two separate systems: Jupyter notebook visualizations of
-California demographic data (V1) and a partial Shiny web app (V2). This project (V3)
-consolidates everything into a React/Next.js website that reproduces all existing
-visualizations, supports adding new ones, and includes backend error handling and
-testing with pytest. When all error handling fails, the application surfaces a message
-identifying the error source. The final product should be fully documented so that
-non-developers can understand it and future contributors can extend it.
+This repository maintains PPIC data pipelines and the V3 React/Next.js visualization
+site that replaced the legacy Jupyter (V1) and partial Shiny (V2) tools. Six topic
+topics currently feed the shared application: Population and Housing, Components of
+Change, Demographic Projections, Housing Stress, Building Permits, and RHNA Progress.
+The frontend uses a shared question model, topic schemas, adapters, and chart
+renderers, and it must remain extensible to additional topics and visualizations.
+Pipelines must preserve validated data contracts and backend error handling; when
+recovery fails, the application must surface a message identifying the error source.
+The project must remain understandable to non-developers and future contributors.
 
 ## Tech stack
 
 - **Frontend:** Next.js 16, React 19, Tailwind CSS 4, Plotly.js (via react-plotly.js)
 - **Backend/ETL:** Python 3, pandas
-- **Testing:** pytest (backend); errors surface messages identifying the failure source
-- **Dev environment:** macOS, VS Code workspace, `.venv` for Python
+- **Testing:** Vitest and Playwright (frontend); pytest (backend)
+- **Dev environment:** macOS, VS Code workspace, `web-viz-venv` on Python 3.12
 
 ## Workspace
 
@@ -35,8 +36,11 @@ non-developers can understand it and future contributors can extend it.
 ## Commands
 
 - `npm run dev` — start Next.js dev server
+- `npm test` — run frontend unit tests
 - `npm run build` — production build
-- `python -m pytest` — run backend tests (from project root with .venv activated)
+- `npm run check:palette` — verify generated palette CSS
+- `npm run check:settings` — verify generated settings documentation
+- `web-viz-venv/bin/python -m pytest` — run backend tests
 
 ## Defaults
 
@@ -54,17 +58,23 @@ non-developers can understand it and future contributors can extend it.
 - Run tests before committing
 - Check `docs/agent/` for project context before architectural changes;
   if not found there, check other folders within `docs/`
-- Read `lib/pophousing_config.py` before making Population & Housing data changes —
-  it is the source of truth for regions, geographic classifications, and column definitions
-- Follow Python conventions in `docs/agent/python_conventions.md` when writing or modifying `.py` files
-- Follow `docs/agent/markdown-conventions.md` while editing markdown files.
-- Reference `docs/agent/frontend-conventions.md` before implementing any frontend UI;
+- Read `lib/pophousing_config.py` before making Population and Housing data changes;
+  it is the source of truth for that topic's regions, geographic classifications,
+  and column definitions
+- Treat `lib/config.py` as the source of shared paths and HTTP defaults, not as a
+  universal schema or geography registry
+- Use `scripts/<topic>/config/` for topic-specific Python contracts and
+  `lib/visualization/moduleSchemas/` for client-safe frontend field contracts
+- Follow Python conventions in `docs/agent/python-skill.md` when writing or modifying `.py` files
+- Follow `docs/agent/markdown-skill.md` while editing markdown files.
+- Reference `docs/agent/frontend-skill.md` before implementing any frontend UI;
   match its patterns for layout, typography, color usage, and component styling
-- Follow `docs/agent/changelog-updater-conventions.md` when adding an entry to the
+- Follow `docs/agent/changelog-updater-skill.md` when adding an entry to the
   /logs Changelog (edit `data/changelog-overlay.json`, then rebuild)
-- Use the shared constants/theme module (e.g., `constants.js`) for all colors, fonts,
-  spacing, and design tokens — never hard-code these values in individual components.
-  When a new value is needed, add it to the constants file first, then import it.
+- Use the shared constants/theme file (for example, `lib/constants.js`) for all
+  colors, fonts, spacing, and design tokens; never hard-code these values in
+  individual components. When a new value is needed, add it to the shared owner
+  first, then import it.
 
 ## Permissions
 
@@ -75,7 +85,7 @@ non-developers can understand it and future contributors can extend it.
 
 ⚠️ **Ask first:**
 - Adding new dependencies (npm or pip)
-- Modifying `lib/config.py` or a module-specific root config such as
+- Modifying `lib/config.py` or a topic-specific root config such as
   `lib/pophousing_config.py`
 - Changing data schemas or output file formats
 - Restructuring folders under `scripts/` or `lib/`
@@ -93,6 +103,8 @@ non-developers can understand it and future contributors can extend it.
 
 ## Context
 
-For full legacy codebase understanding, read `docs/PPIC Summer 2026/specifications/previous_tool_analysis.md`.
+For full legacy codebase understanding, read `docs/specifications/previous_tool_analysis.md`.
 
-For the full project spec, read `docs/PPIC Summer 2026/specifications/projectSpec.md`
+For the full project spec, read `docs/specifications/projectSpec.md`
+
+For an as-built pipeline overview, read the matching guide in `docs/topic-guides/`.

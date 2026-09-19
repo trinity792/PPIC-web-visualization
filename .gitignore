@@ -14,7 +14,7 @@ web-viz-venv/
 
 .env
 
-trinitys_notes/
+docs/trinitys_notes/*
 
 data/data-raw/
 data/archive/

@@ -4,7 +4,7 @@ change_report.py — renders the latest run record as a reviewer-facing Markdown
 Reads the JSONL run log written by run_records.py and renders the newest record for one module
 as the Markdown that becomes a data-refresh pull request's body and the Actions job summary.
 Written for the GitHub Actions workflow in
-docs/PPIC Summer 2026/explainers/github-actions-workflow-reference.md, but runnable locally
+docs/explainers/github-actions-workflow-reference.md, but runnable locally
 against any run log.
 
 The seven module pipelines do not share a `result` schema. Only `row_count` and `output_path`

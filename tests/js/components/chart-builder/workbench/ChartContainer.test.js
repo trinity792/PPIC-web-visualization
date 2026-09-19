@@ -140,7 +140,7 @@ describe("ChartContainer", () => {
 
     expect(
       screen.getByRole("link", { name: "View documentation" }),
-    ).toHaveAttribute("href", "/documents/pophousing-pipeline-refractor");
+    ).toHaveAttribute("href", "/documents/population-and-housing-topic-guide");
   });
 
   it("switches between the chart and the dataset with pressed state", async () => {

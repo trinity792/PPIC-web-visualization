@@ -122,7 +122,7 @@ def main(logger=None):
                 "    python -m scripts.pophousing.historical.build_baseline --from-current\n"
                 "    python -m scripts.pophousing.historical.build_baseline\n"
                 "See the Population & Housing refactor guide (Flagged Issues A1/A2) and "
-                "docs/PPIC Summer 2026/runbooks/pophousing-standup.md."
+                "docs/runbooks/pophousing-standup.md."
             )
         freshness_is_current, freshness_message = check_baseline_freshness(
             historical_baseline_path,

@@ -1,7 +1,7 @@
 # Shared visualization v3 fixtures
 
 Two small, hand-readable fixture families back every test named in
-`docs/PPIC Summer 2026/refractor-guide/visualization-backend-implementation-plan.md`.
+`docs/refractor-guide/visualization-backend-implementation-plan.md`.
 API route tests, calculation tests, adapter tests, table tests, and export tests
 all read their inputs from here so they cannot disagree about what *missing*,
 *suppressed*, *observed*, *projected*, or *aggregate* means.

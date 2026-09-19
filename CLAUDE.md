@@ -3,26 +3,29 @@
 ## Commands
 
 - `npm run dev` — start Next.js dev server
+- `npm test` — run frontend unit tests
 - `npm run build` — production build
-- `python -m pytest` — run backend tests (from project root with .venv activated)
+- `npm run check:palette && npm run check:settings` — verify generated frontend references
+- `web-viz-venv/bin/python -m pytest` — run backend tests from the project root
 
 ## Workflow
 
 - Review and flag changes rather than rewriting, unless asked to rewrite
-- "Follow Python conventions in `docs/agent/python-conventions.md` when writing or modifying `.py` files."
+- Follow Python conventions in `docs/agent/python-skill.md` when writing or modifying `.py` files
 - Work file-by-file; confirm before batching changes across multiple files
-- Run `python -m pytest` after backend changes
+- Run `web-viz-venv/bin/python -m pytest` after backend changes
 - Use more efficient subagents where necessary
 
 ## Project context
 
 - Read `docs/agent/AGENTS.md` for boundaries, defaults, and tech stack
-- Read `docs/agent/frontend-conventions.md` for rules when working on frontend code
-- Read `docs/agent/python-conventions.md` for rules when working on .py scripts.
-- Read `docs/PPIC Summer 2026/specifications/previous_tool_analysis.md` for legacy codebase understanding
-- Read `docs/PPIC Summer 2026/specifications/projectSpec.md` for current project spec
-- `lib/config.py` is the single source of truth for regions, geography, and column definitions
-- Follow `docs/agent/markdown-conventions.md` while editing markdown files.
+- Read `docs/agent/frontend-skill.md` for rules when working on frontend code
+- Read `docs/agent/python-skill.md` for rules when working on `.py` scripts
+- Read `docs/specifications/previous_tool_analysis.md` for legacy codebase understanding
+- Read `docs/specifications/projectSpec.md` for current project spec
+- `lib/config.py` is the source of truth for shared project paths and HTTP defaults
+- `lib/pophousing_config.py` is the source of truth for Population and Housing regions, geographic classifications, and column definitions; other topics keep their configuration under `scripts/<topic>/config/`
+- Follow `docs/agent/markdown-skill.md` while editing Markdown files
 
 ## Permissions
 

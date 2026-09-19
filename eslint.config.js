@@ -18,7 +18,7 @@ export default defineConfig([
     settings: { react: { version: "detect" } },
     rules: {
       // Props are documented in each component's JSDoc header (see
-      // docs/agent/frontend-conventions.md), not with runtime PropTypes. The
+      // docs/agent/frontend-skill.md), not with runtime PropTypes. The
       // rule was previously opted out of file by file, which meant a new file
       // that forgot the pragma failed lint for a convention the project does
       // not follow. Turned off once here instead.
