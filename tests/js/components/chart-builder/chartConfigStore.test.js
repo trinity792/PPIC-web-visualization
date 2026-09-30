@@ -309,6 +309,28 @@ describe("reduceChartConfig — the geometry level a map needs", () => {
     expect(map.presentation.comparisonPresentation).toBe("tabs");
   });
 
+  // 2026-09-29: Ranked values could not be switched off once set.
+  it("removes a v3 ranking when SET_RANKING is Off (topN null)", () => {
+    const v3 = {
+      version: 3,
+      question: {
+        dataset: { kind: "module", moduleId: "testmodule" },
+        source: "Census",
+        outcome: { measureId: "Total Widgets" },
+        geography: { subset: "Regions", locations: ["Bay Area"] },
+        time: { contract: "range", startYear: 2020, endYear: 2025 },
+        calculation: { id: "actual", params: {} },
+        comparisons: [{ id: "cmp_1", dimensions: {} }],
+      },
+      presentation: { chartType: "line", comparisonPresentation: "combined" },
+    };
+    const ranked = reduceChartConfig(v3, { type: "SET_RANKING", topN: 5, sort: "value" }, schema);
+    expect(ranked.question.calculation.params.ranking).toEqual({ n: 5, direction: "top" });
+    const off = reduceChartConfig(ranked, { type: "SET_RANKING", topN: null, sort: "value" }, schema);
+    expect(off.question.calculation.params).not.toHaveProperty("ranking");
+    expect(off.question.calculation.id).toBe("actual");
+  });
+
   it("opens a v3 Bar on the multi-year contract", () => {
     const v3 = {
       version: 3,

@@ -47,7 +47,7 @@ export default function EditorSidebar({ only, exclude, sectionProps = {} }) {
   const { config, schema } = useChartConfig();
   const { advanced } = useAdvancedMode();
   const capabilities = useEditorCapabilities();
-  const sections = visibleSectionsFor(config, schema, { only, exclude });
+  const sections = visibleSectionsFor(config, schema, { only, exclude, advanced });
 
   // A capability is a rule, not a tier: it must be true even before Advanced
   // Mode is considered, and Advanced Mode alone (with the capability absent)

@@ -189,18 +189,27 @@ export function CategoryList({
 // ── Ranking ──────────────────────────────────────────────────────────
 
 /**
- * Top/Bottom N. Changing either control re-issues the whole ranking, because
- * SET_RANKING also discards a manual arrangement that referred to a different
- * candidate set.
+ * Off, Top N, or Bottom N. Changing either control re-issues the whole ranking,
+ * because SET_RANKING also discards a manual arrangement that referred to a
+ * different candidate set. "Off" reports `topN: null`, which removes the
+ * ranking so every selected value shows again.
  *
  * Props:
+ *   enabled  {boolean}  — whether a ranking is saved; when false "Off" is selected
  *   topN     {number}
  *   sort     {string}   — "ascending" means Bottom N; anything else is Top N
  *   idPrefix {string}   — keeps ids unique when two sections mount at once
- *   onChange {Function} — ({ topN, sort }) => void
+ *   onChange {Function} — ({ topN, sort }) => void; topN is null for Off
  */
-export function RankingControls({ topN = 20, sort = "value", idPrefix = "ranking", onChange }) {
-  const direction = sort === "ascending" ? "bottom" : "top";
+export function RankingControls({
+  enabled = true,
+  topN = 20,
+  sort = "value",
+  idPrefix = "ranking",
+  onChange,
+}) {
+  const direction = !enabled ? "off" : sort === "ascending" ? "bottom" : "top";
+  const count = Number.isFinite(topN) && topN > 0 ? topN : 20;
 
   return (
     <div className="grid gap-3 rounded-lg border bg-card p-3">
@@ -208,12 +217,22 @@ export function RankingControls({ topN = 20, sort = "value", idPrefix = "ranking
       <RadioGroup
         value={direction}
         onValueChange={(value) =>
-          onChange?.({ topN, sort: value === "bottom" ? "ascending" : "value" })
+          onChange?.(
+            value === "off"
+              ? { topN: null, sort }
+              : { topN: count, sort: value === "bottom" ? "ascending" : "value" },
+          )
         }
-        className="flex items-center gap-4"
+        className="flex flex-wrap items-center gap-4"
       >
         {/* aria-label rather than a wrapping <label>: RadioGroupItem renders a
             button, which does not take its name from an enclosing label. */}
+        <div className="flex items-center gap-2">
+          <RadioGroupItem value="off" id={`${idPrefix}-off`} aria-label="Off" />
+          <Label htmlFor={`${idPrefix}-off`} className="text-sm font-normal">
+            Off
+          </Label>
+        </div>
         <div className="flex items-center gap-2">
           <RadioGroupItem value="top" id={`${idPrefix}-top`} aria-label="Top values" />
           <Label htmlFor={`${idPrefix}-top`} className="text-sm font-normal">
@@ -231,21 +250,23 @@ export function RankingControls({ topN = 20, sort = "value", idPrefix = "ranking
           </Label>
         </div>
       </RadioGroup>
-      <div className="grid gap-2">
-        <Label htmlFor={`${idPrefix}-count`}>Number of values</Label>
-        <Input
-          id={`${idPrefix}-count`}
-          type="number"
-          inputMode="numeric"
-          min={1}
-          value={topN}
-          onChange={(event) => {
-            const next = Number(event.target.value);
-            if (!Number.isFinite(next)) return;
-            onChange?.({ topN: Math.max(1, Math.trunc(next)), sort });
-          }}
-        />
-      </div>
+      {enabled ? (
+        <div className="grid gap-2">
+          <Label htmlFor={`${idPrefix}-count`}>Number of values</Label>
+          <Input
+            id={`${idPrefix}-count`}
+            type="number"
+            inputMode="numeric"
+            min={1}
+            value={count}
+            onChange={(event) => {
+              const next = Number(event.target.value);
+              if (!Number.isFinite(next)) return;
+              onChange?.({ topN: Math.max(1, Math.trunc(next)), sort });
+            }}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

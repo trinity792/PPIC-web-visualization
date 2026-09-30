@@ -28,12 +28,14 @@ import React from "react";
 import { Accordion } from "@/components/ui/accordion";
 
 import { Section } from "@/components/chart-builder/sections/primitives";
+import { useAdvancedMode } from "@/components/chart-builder/advancedMode";
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import { visibleSectionsFor } from "@/lib/visualization/sidebarSections";
 
 export default function SidebarSections({ only, exclude, sectionProps = {} }) {
   const { config, schema } = useChartConfig();
-  const sections = visibleSectionsFor(config, schema, { only, exclude });
+  const { advanced } = useAdvancedMode();
+  const sections = visibleSectionsFor(config, schema, { only, exclude, advanced });
 
   return (
     <Accordion

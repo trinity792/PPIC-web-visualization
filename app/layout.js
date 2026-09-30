@@ -19,9 +19,12 @@ const sourceSans = Source_Sans_3({
   variable: "--font-source-sans",
 });
 
+// 700 is loaded for the charts' bold text (titles, hover labels, and the
+// source box's "SOURCE:" / "NOTES:" captions); without it the browser fakes
+// bold, which barely shows at the source box's 11px.
 const inter = Inter({
   subsets: ["latin"],
-  weight: ["400"],
+  weight: ["400", "700"],
   variable: "--font-inter",
 });
 

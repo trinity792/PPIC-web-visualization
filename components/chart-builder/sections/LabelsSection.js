@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * LabelsSection.js — chart-label text plus independent label and legend visibility.
+ * LabelsSection.js — chart-label text plus independent label visibility.
  *
  * Each field placeholders the label the chart would derive from its bindings, so
  * an author sees what they are overriding before they type. A blank field means
@@ -9,10 +9,9 @@
  * value carries it: a derived title keeps tracking the data when a binding
  * changes, a typed one deliberately stops.
  *
- * The legend is visibility-only: its entries already name the series, so the
- * editor does not add a second title above them. The tooltip template moved to
- * Appearance in the workbench overhaul — it is a formatting power control, not
- * a chart label.
+ * The key (legend) is not controlled here. Its only setting is Legend Position
+ * in the Appearance section, whose "Hidden" choice replaced the Legend switch
+ * that used to sit here (renderer plan C). A saved `showLegend` is ignored.
  *
  * Props:
  *   None.
@@ -99,34 +98,6 @@ export default function LabelsSection() {
           </div>
         );
       })}
-
-      <div className="flex items-center justify-between gap-3">
-        <Label htmlFor="label-legend-visible">Legend</Label>
-        <Switch
-          id="label-legend-visible"
-          checked={
-            appearance.showLegend !== false &&
-            appearance.legendPosition !== "hidden"
-          }
-          onCheckedChange={(checked) => {
-            // `legendPosition: hidden` predates the dedicated switch. Turning
-            // the legend back on promotes that saved setting to the normal
-            // right-hand position before enabling it.
-            if (checked && appearance.legendPosition === "hidden") {
-              dispatch({
-                type: "SET_APPEARANCE",
-                key: "legendPosition",
-                value: "right",
-              });
-            }
-            dispatch({
-              type: "SET_APPEARANCE",
-              key: "showLegend",
-              value: checked,
-            });
-          }}
-        />
-      </div>
     </div>
   );
 }

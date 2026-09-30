@@ -224,3 +224,31 @@ describe("removals are reviewed one at a time", () => {
     expect(fs.readFileSync(overlay, "utf8")).not.toMatch(/\.trash\/visualization-backend/);
   });
 });
+
+import { getChartType as rendererChartType } from "@/lib/visualization/chartRegistry";
+describe("renderer plan O", () => {
+  it("only map chart types use the plotly renderer", () => {
+    for(const type of ["line", "bar", "dumbbell", "dotPlot", "forest", "heatmap", "scatter", "bubble", "pie"]) expect(rendererChartType(type).renderer, type).toBe("visx");
+    for(const type of ["choroplethMap", "symbolMap"]) expect(rendererChartType(type).renderer).toBe("plotly");
+  });
+  it("no component outside the map path imports react-plotly.js", () => {
+    const importers = sourceFiles.filter(file => /(?:from\s*|import\s*\(|require\s*\()["']react-plotly\.js["']/.test(code(file))).map(file => path.relative(root, file));
+    expect(importers).toEqual(["components/charts/PlotlyChart.js"]);
+    // Only the renderer boundary may mount PlotlyChart after the UI Kit moves.
+    const callers = sourceFiles.filter(file => /(?:from\s*|import\s*\()["'][^"']*\/PlotlyChart(?:\.js)?["']/.test(code(file))).map(file => path.relative(root, file));
+    expect(callers).toEqual(["components/charts/ChartRenderer.js"]);
+  });
+  it("recharts is not a dependency", () => {
+    const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
+    expect(pkg.dependencies).not.toHaveProperty("recharts");
+    expect(pkg.devDependencies).not.toHaveProperty("recharts");
+  });
+  it("the orphaned line section files are gone", () => {
+    expect(exists("components/charts/ComponentsOfChangeLineSection.js")).toBe(false);
+    expect(exists("components/charts/PopHousingLineSection.js")).toBe(false);
+  });
+  it("no adapter reads appearance.layout", () => {
+    const adapters = walk(path.join(root, "lib/visualization/adapters")).filter(file => /\.js$/.test(file));
+    for(const file of adapters) expect(code(file)).not.toMatch(/appearance\s*(?:\?\.)?\s*(?:\.\s*layout|layout|\[\s*["']layout["']\s*\])/);
+  });
+});

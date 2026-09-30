@@ -24,9 +24,16 @@
  * editors choose nothing on the reader's behalf, so an unanswered question is
  * where every chart starts and where every chart-type switch can land.
  *
+ * Each preview's drawable result is tagged with the renderer that produced it
+ * (`chart.renderer`, "plotly" or "visx"; renderer plan Workstream B). The
+ * registry's `rendererFor` picks it per chart type. A `renderer=visx|plotly`
+ * page address parameter asks for a preview drawing; it is ignored in embed
+ * mode (`embed=1`), so a shared embed always shows the default.
+ *
  * Data sources:
  *   - components/chart-builder/chartData.js (loadObservations; inline or API)
  *   - lib/visualization/adapters (observations → Plotly figure)
+ *   - lib/visualization/models (observations → visx chart model)
  */
 
 import React, {
@@ -45,6 +52,8 @@ import {
 } from "@/components/chart-builder/chartData";
 import { effectiveLabels } from "@/lib/visualization/deriveLabels";
 import { adaptObservations } from "@/lib/visualization/adapters";
+import { rendererFor } from "@/lib/visualization/chartRegistry";
+import { buildChartModel } from "@/lib/visualization/models";
 import { missingQuestionSelections } from "@/lib/visualization/questionReadiness";
 
 const PreviewContext = createContext(null);
@@ -101,11 +110,23 @@ function canHoldV3MapWhileLoading(state, config) {
   );
 }
 
-function adaptV3Result(config, schema, result, chartType) {
+/**
+ * The renderer preview request in the page address, or null. Read after mount
+ * (never during render), so server and first client render agree and no router
+ * hook is needed. Embeds never honor it.
+ */
+function previewRendererRequest() {
+  if (typeof window === "undefined") return null;
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("embed") === "1") return null;
+  return params.get("renderer");
+}
+
+function adapterInput(config, schema, result, chartType) {
   const summaries = new Map(
     (result.comparisons || []).map((entry) => [entry.id, entry]),
   );
-  return adaptObservations({
+  return {
     chartType: chartType || config.presentation?.chartType,
     observations: result.observations || [],
     comparisons: (config.question.comparisons || []).map((comparison) => ({
@@ -120,7 +141,29 @@ function adaptV3Result(config, schema, result, chartType) {
     appearance: config.presentation?.appearance || {},
     format: config.presentation?.format || {},
     geometry: result.geometry || null,
-  });
+  };
+}
+
+function adaptV3Result(config, schema, result, chartType, previewRenderer) {
+  const input = adapterInput(config, schema, result, chartType);
+  const renderer = rendererFor(input.chartType, previewRenderer);
+  if (renderer === "visx") {
+    return {
+      renderer,
+      chartType: input.chartType,
+      model: buildChartModel(input),
+      // What ChartFrame draws around a visx chart. Plotly charts keep their
+      // titles inside Plotly until export can draw the frame (Workstream M).
+      frame: {
+        labels: input.labels,
+        appearance: input.appearance,
+        observations: input.observations,
+        // The topic's full citations, for the source line.
+        sourceCitations: schema?.sourceCitations || null,
+      },
+    };
+  }
+  return { ...adaptObservations(input), renderer, chartType: input.chartType };
 }
 
 export function PreviewProvider({ children, deferInitialRender = false }) {
@@ -138,6 +181,10 @@ export function PreviewProvider({ children, deferInitialRender = false }) {
   // One graph div per chart slot; ExportMenu reads the active slot through the
   // compatibility `graphDivRef` below.
   const graphDivRefs = useRef({});
+  const [previewRenderer, setPreviewRenderer] = useState(null);
+  useEffect(() => {
+    setPreviewRenderer(previewRendererRequest());
+  }, []);
 
   const charts = workspace?.charts || [];
   const activeChartId = workspace?.activeChartId || charts[0]?.id;
@@ -209,7 +256,9 @@ export function PreviewProvider({ children, deferInitialRender = false }) {
         .then((next) => {
           let seriesNames = [];
           if (next.observations?.length) {
-            const figure = adaptV3Result(config, schema, next);
+            // Series names come from the Plotly adapter's traces whichever
+            // renderer draws the chart; they feed the editor, not the drawing.
+            const figure = adaptObservations(adapterInput(config, schema, next));
             seriesNames = (figure.data || [])
               .map((trace) => trace.name)
               .filter((name) => name != null && name !== "");
@@ -326,6 +375,7 @@ export function PreviewProvider({ children, deferInitialRender = false }) {
               schema,
               state.result,
               renderChartType,
+              previewRenderer,
             );
           } catch (nextError) {
             renderError = nextError;
@@ -344,7 +394,7 @@ export function PreviewProvider({ children, deferInitialRender = false }) {
           renderError,
         };
       }),
-    [activeChartId, armed, charts, previewState, schema],
+    [activeChartId, armed, charts, previewRenderer, previewState, schema],
   );
 
   const activePreview =

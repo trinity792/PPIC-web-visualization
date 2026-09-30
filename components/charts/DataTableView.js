@@ -31,15 +31,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { FORMATTERS } from "@/lib/visualization/formatters";
-
-const NUMBER = new Intl.NumberFormat("en-US");
+import { FORMATTERS, formatTableNumber } from "@/lib/visualization/formatters";
 
 function formatCell(value, column) {
   if (value === null || value === undefined || value === "") return "—";
   if (column?.type === "number" && Number.isFinite(Number(value))) {
     if (column.name === "Year") return FORMATTERS.year(Number(value));
-    return NUMBER.format(Number(value));
+    return formatTableNumber(value);
   }
   return String(value);
 }

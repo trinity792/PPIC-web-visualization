@@ -879,6 +879,15 @@ function reduceV3ChartConfig(config, action, schema) {
   }
   if (action.type === "SET_RANKING") {
     const calculation = config.question.calculation || { id: "actual", params: {} };
+    // "Off" (topN null) removes the ranking so every selected value shows.
+    if (action.topN == null) {
+      const params = { ...(calculation.params || {}) };
+      delete params.ranking;
+      return normalizeQuestion({
+        ...config,
+        question: { ...config.question, calculation: { ...calculation, params } },
+      });
+    }
     return normalizeQuestion({
       ...config,
       question: {

@@ -319,3 +319,36 @@ describe("GeographySection", () => {
     expect(container).toBeEmptyDOMElement();
   });
 });
+
+// 2026-09-29: Ranked values could not be switched off once set.
+describe("Ranked values Off", () => {
+  beforeEach(() => {
+    state.dispatch.mockClear();
+    state.schema = baseSchema;
+    state.options = { status: "ready", locations, error: null };
+  });
+  const v3 = (ranking) => ({
+    version: 3,
+    question: {
+      dataset: { kind: "module", moduleId: "pophousing" },
+      geography: { subset: "Counties", locations: ["Place 1"] },
+      calculation: { id: "actual", params: ranking ? { ranking } : {} },
+      comparisons: [],
+    },
+    presentation: { chartType: "line", appearance: {} },
+  });
+  it("shows Off when no ranking is saved, with no count to edit", () => {
+    state.config = v3(null);
+    render(<GeographySection />);
+    expect(screen.getByRole("radio", { name: "Off" })).toBeChecked();
+    expect(screen.queryByLabelText(/number of values/i)).not.toBeInTheDocument();
+  });
+  it("switches a saved ranking off", async () => {
+    const user = userEvent.setup();
+    state.config = v3({ n: 5, direction: "top" });
+    render(<GeographySection />);
+    expect(screen.getByRole("radio", { name: "Top values" })).toBeChecked();
+    await user.click(screen.getByRole("radio", { name: "Off" }));
+    expect(state.dispatch).toHaveBeenCalledWith({ type: "SET_RANKING", topN: null, sort: "value" });
+  });
+});

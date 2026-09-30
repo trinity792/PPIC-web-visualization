@@ -78,28 +78,20 @@ describe("AppearanceSection", () => {
     expect(positions).toEqual([...positions].sort((a, b) => a - b));
   });
 
-  it("moves the per-series legend and color list to Advanced Mode", () => {
+  it("removes the per-series list in both standard and advanced mode", () => {
     state.config = { ...config(), seriesNames: ["California"] };
     const basic = renderBasic();
-
     expect(screen.getByLabelText(/color palette/i)).toBeInTheDocument();
     expect(screen.queryByText("Legend items")).not.toBeInTheDocument();
-    expect(
-      screen.queryByLabelText("Legend label for California"),
-    ).not.toBeInTheDocument();
     basic.unmount();
-
     renderAdvanced();
-    expect(screen.getByText("Legend items")).toBeInTheDocument();
-    expect(
-      screen.getByLabelText("Legend label for California"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Choose a color for California" }),
-    ).toBeInTheDocument();
+    expect(screen.queryByText("Legend items")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Legend label for California")).not.toBeInTheDocument();
   });
 
-  it("keeps comparison labels in Appearance and gates color and visibility to Advanced", async () => {
+  // Owner decision 2026-09-29: the whole Comparison appearance block (labels,
+  // colors, visibility) is Advanced Mode only.
+  it("shows Comparison appearance only in Advanced Mode", async () => {
     const user = userEvent.setup();
     const comparison = {
       id: "cmp_latina",
@@ -139,20 +131,23 @@ describe("AppearanceSection", () => {
     };
 
     const basic = renderBasic();
-    const customLabel = screen.getByLabelText("Custom label");
-    expect(customLabel).toHaveAttribute("placeholder", "Latina Women");
+    expect(screen.queryByText("Comparison appearance")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Custom label")).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/comparison color/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/show this comparison/i)).not.toBeInTheDocument();
 
+    basic.unmount();
+    state.dispatch.mockClear();
+    renderAdvanced();
+    expect(screen.getByText("Comparison appearance")).toBeInTheDocument();
+    const customLabel = screen.getByLabelText("Custom label");
+    expect(customLabel).toHaveAttribute("placeholder", "Latina Women");
     fireEvent.change(customLabel, { target: { value: "SF Latinas" } });
     expect(state.dispatch).toHaveBeenLastCalledWith({
       type: "SET_COMPARISONS",
       comparisons: [{ ...comparison, customLabel: "SF Latinas" }],
     });
-
-    basic.unmount();
     state.dispatch.mockClear();
-    renderAdvanced();
     await user.click(screen.getByLabelText(/comparison color/i));
     await user.click(screen.getByRole("option", { name: "Violet" }));
     expect(state.dispatch).toHaveBeenLastCalledWith({
@@ -231,7 +226,9 @@ describe("AppearanceSection", () => {
   );
 
   it("uses an on/off switch for line markers", () => {
-    state.config = config("line", { markerMode: "auto" });
+    // Renderer plan D: markers are off unless saved "on" (the style guide
+    // avoids markers on lines), so the old seeded default "auto" reads as off.
+    state.config = config("line", { markerMode: "on" });
     const first = render(<AppearanceSection />);
     const markers = screen.getByRole("switch", { name: "Markers" });
 
@@ -245,7 +242,7 @@ describe("AppearanceSection", () => {
 
     first.unmount();
     state.dispatch.mockClear();
-    state.config = config("line", { markerMode: "off" });
+    state.config = config("line", { markerMode: "auto" });
     render(<AppearanceSection />);
     fireEvent.click(screen.getByRole("switch", { name: "Markers" }));
     expect(state.dispatch).toHaveBeenCalledWith({
@@ -275,15 +272,13 @@ describe("AppearanceSection", () => {
     });
   });
 
-  it("no longer offers Orientation — it moved to OutcomeSection (Workstream A)", () => {
-    render(<AppearanceSection />);
+  it("offers Orientation only for bar charts (renderer plan E)", () => {
+    const line = render(<AppearanceSection />);
     expect(screen.queryByLabelText(/orientation/i)).not.toBeInTheDocument();
+    line.unmount();
     state.config = config("bar");
     render(<AppearanceSection />);
-    expect(screen.queryByLabelText(/orientation/i)).not.toBeInTheDocument();
-    state.config = config("bar", { diverging: true });
-    render(<AppearanceSection />);
-    expect(screen.queryByLabelText(/orientation/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/orientation/i)).toBeInTheDocument();
   });
 
   it.each([
@@ -341,7 +336,7 @@ describe("AppearanceSection", () => {
     expect(screen.getByLabelText("Hide X-Axis")).toBeInTheDocument();
   });
 
-  it("inverts Hide X-Axis into the existing showValueAxis setting", () => {
+  it("writes Hide X-Axis to the canonical hideXAxis setting", () => {
     state.config = config("dumbbell", { showValueAxis: true });
     renderAdvanced();
     const toggle = screen.getByLabelText("Hide X-Axis");
@@ -350,8 +345,8 @@ describe("AppearanceSection", () => {
     fireEvent.click(toggle);
     expect(state.dispatch).toHaveBeenCalledWith({
       type: "SET_APPEARANCE",
-      key: "showValueAxis",
-      value: false,
+      key: "hideXAxis",
+      value: true,
     });
   });
 
@@ -732,7 +727,7 @@ describe("AppearanceSection", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("edits group and variable alignment and indentation independently", async () => {
+  it("edits group and variable alignment while hiding indentation", async () => {
     const user = userEvent.setup();
     state.config = {
       ...config("forest"),
@@ -742,8 +737,8 @@ describe("AppearanceSection", () => {
 
     expect(screen.getByLabelText("Group alignment")).toBeInTheDocument();
     expect(screen.getByLabelText("Variable alignment")).toBeInTheDocument();
-    expect(screen.getByLabelText("Group indentation (px)")).toHaveValue(0);
-    expect(screen.getByLabelText("Variable indentation (px)")).toHaveValue(0);
+    expect(screen.queryByLabelText("Group indentation (px)")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Variable indentation (px)")).not.toBeInTheDocument();
 
     await user.click(screen.getByLabelText("Group alignment"));
     await user.click(screen.getByRole("option", { name: "Center" }));
@@ -753,14 +748,9 @@ describe("AppearanceSection", () => {
       value: "center",
     });
 
-    fireEvent.change(screen.getByLabelText("Variable indentation (px)"), {
-      target: { value: "24" },
-    });
-    expect(state.dispatch).toHaveBeenCalledWith({
-      type: "SET_APPEARANCE",
-      key: "variableLabelIndent",
-      value: 24,
-    });
+    await user.click(screen.getByLabelText("Variable alignment"));
+    await user.click(screen.getByRole("option", { name: "Left" }));
+    expect(state.dispatch).toHaveBeenCalledWith({ type: "SET_APPEARANCE", key: "variableLabelAlignment", value: "left" });
   });
 
   it("shows grouped row label controls only where row grouping applies", () => {
@@ -805,5 +795,22 @@ describe("AppearanceSection", () => {
       key: "center",
       value: null,
     });
+  });
+});
+
+describe("renderer plan removed and hidden controls", () => {
+  it.each(["Tooltip template", "Group indentation (px)", "Variable indentation (px)"])("does not show %s", label => {
+    state.config = { version: 3, question: { comparisons: [] }, presentation: { chartType: "dumbbell", labels: {}, appearance: {}, bindings: { group: "Location" } } };
+    state.schema = { fields: {} };
+    renderAdvanced();
+    expect(screen.queryByLabelText(label)).not.toBeInTheDocument();
+  });
+  it("writes Hide X-Axis to hideXAxis in a version 3 view", () => {
+    state.config = { version: 3, question: { comparisons: [] }, presentation: { chartType: "dumbbell", labels: {}, appearance: {}, bindings: { group: "Location" } } };
+    state.schema = { fields: {} };
+    state.dispatch.mockClear();
+    renderAdvanced();
+    fireEvent.click(screen.getByLabelText("Hide X-Axis"));
+    expect(state.dispatch).toHaveBeenLastCalledWith({ type: "SET_APPEARANCE", key: "hideXAxis", value: true });
   });
 });

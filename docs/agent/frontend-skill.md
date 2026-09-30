@@ -15,7 +15,7 @@ Topic: Skill Guide
 Content Type: agent instructions
 pinned: false
 Date Published: June 30, 2026
-Last Updated: 09/18/2026 - 02:50 PM
+Last Updated: 09/29/2026 - 09:00 PM
 Status: Finalized
 ---
 
@@ -325,7 +325,7 @@ State lives in the lowest common ancestor of the components that need it. Avoid 
 
 ## Chart Component Conventions
 
-Since this project relies heavily on Plotly.js via `react-plotly.js`, chart components follow additional conventions.
+Charts are moving from Plotly.js (via `react-plotly.js`) to visx, one chart type at a time; see [[chart-renderer-implementation-plan]]. The line chart draws with visx (`components/charts/visx/`), maps stay on Plotly, and each chart type's renderer is declared in `lib/visualization/chartRegistry.js`. Chart components follow these conventions.
 
 ### Wrapper Pattern
 
@@ -352,25 +352,13 @@ Every chart type gets a single reusable wrapper. The wrapper accepts data and co
 
 ### Configuration Defaults
 
-Plotly `config` and `layout` defaults live in a shared utility, not repeated per chart:
+Chart style values (type sizes, line weights, spacing, export widths, the grid rule, the source box, and the hover label) live in one frozen object, `CHART_STYLE` in `lib/visualization/chartStyle.js`, built from `lib/constants.js` tokens. Every chart reads it:
 
-```js
-// lib/chartDefaults.js
-import { colors, fonts } from "@/lib/constants";
+- visx charts and `ChartFrame` read it directly;
+- the Plotly defaults in `lib/visualization/plotlyDefaults.js` (`PLOTLY_FONT`, `PLOTLY_GRID_COLOR`, `legendFor`) read their font and grid from it; and
+- the settings every chart shares (labels, typography, key placement, number formats) are read once, by `lib/visualization/models/sharedSettings.js`.
 
-export const defaultConfig = {
-  responsive: true,
-  toImageButtonOptions: { format: "svg" },
-  displaylogo: false,
-};
-
-export const defaultLayout = {
-  font: { family: fonts.sans },
-  paper_bgcolor: "transparent",
-  plot_bgcolor: "transparent",
-  margin: { t: 40, r: 20, b: 40, l: 60 },
-};
-```
+Do not repeat style values per chart. Add a missing value to `constants.js` or `chartStyle.js`, then import it.
 
 ### Brand Colors in Charts
 

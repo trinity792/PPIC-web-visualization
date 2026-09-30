@@ -573,3 +573,35 @@ describe("ExportMenu — multi-chart workspace", () => {
     );
   });
 });
+
+// Owner decision 2026-09-29: the line chart defaults to visx before image
+// export works from the drawn SVG (Workstream M), so the image dialog says so
+// plainly instead of failing inside Plotly.
+describe("image export for a visx chart", () => {
+  function renderVisx(renderer) {
+    const previews = [{ id: "c1", name: "Chart 1", config: initialConfig, result: loadedResult, plotly: { renderer } }];
+    render(
+      <ChartConfigProvider schema={schema} initialConfig={initialConfig}>
+        <ExportMenu graphDivRef={{ current: null }} loaded={loadedResult} previews={previews} graphDivRefs={{ current: {} }} />
+      </ChartConfigProvider>,
+    );
+  }
+  beforeEach(() => renderImagePreviewMock.mockClear());
+  it("shows a coming-soon notice and keeps Download off", async () => {
+    const user = userEvent.setup();
+    renderVisx("visx");
+    await user.click(screen.getByRole("button", { name: /export image/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Image export for the new line chart is coming soon/);
+    expect(screen.getByRole("button", { name: /download png/i })).toBeDisabled();
+    expect(renderImagePreviewMock).not.toHaveBeenCalled();
+    // Embedding still works.
+    expect(screen.getByRole("button", { name: /embed chart/i })).toBeEnabled();
+  });
+  it("still previews a Plotly chart", async () => {
+    const user = userEvent.setup();
+    renderVisx("plotly");
+    await user.click(screen.getByRole("button", { name: /export image/i }));
+    await waitFor(() => expect(renderImagePreviewMock).toHaveBeenCalled());
+    expect(screen.queryByText(/coming soon/)).not.toBeInTheDocument();
+  });
+});

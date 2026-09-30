@@ -1,29 +1,28 @@
 "use client";
 
 /**
- * PalettePicker.js — palette select plus advanced per-item legend controls.
+ * PalettePicker.js — the color palette select.
+ *
+ * The per-series rename, hide, and color list that used to sit below it in
+ * Advanced Mode was removed (renderer plan C): it never saved for version 3
+ * views, and the comparison label, visibility, and color controls already do
+ * that job. Saved `legendLabels`, `hiddenSeries`, and `seriesColors` are ignored.
  *
  * Props:
- *   seriesNames {string[]} — last-loaded discrete legend names (defaults to
- *                            []: only the palette select renders until data
- *                            has loaded)
+ *   seriesNames {string[]} — last-loaded discrete legend names; their count
+ *                            names the automatic PPIC palette
  *
  * Data sources:
  *   - Chart configuration from ChartConfigProvider
  *   - Named palettes and brand color tokens from lib/visualization/palettes.js
  *
  * UI Kit reference:
- *   - Implements graph-editor Select and Popover swatch-grid patterns
+ *   - Implements the graph-editor Select pattern
  */
 
 import React from "react";
 
-import { Eye, EyeOff, RotateCcw, Search } from "lucide-react";
-
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -32,7 +31,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-import { useAdvancedMode } from "@/components/chart-builder/advancedMode";
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import {
   DEFAULT_PALETTE,
@@ -40,31 +38,6 @@ import {
   palettesOfKind,
   resolveToken,
 } from "@/lib/visualization/palettes";
-
-// A curated subset of brand tokens offered as per-series overrides: the
-// 10-token default cycle plus a few extras. Deliberately NOT a free color
-// wheel — every option is a brand token.
-const SWATCH_TOKENS = [
-  "blue3",
-  "orange3",
-  "navyBlue",
-  "steelBlue",
-  "burntOrange",
-  "blue5",
-  "orange2",
-  "gray5",
-  "blue2",
-  "orange4",
-  "complementGreen",
-  "teal7",
-  "gray7",
-  "officialOrange",
-  "officialNavy",
-  "officialBlue",
-  "officialGreen",
-  "officialViolet",
-  "officialDarkGray",
-];
 
 // Where `rampFor` lands when the active palette declares no stops of its own.
 // Mirrors its `legacyRampScale`, so the select never names a palette the
@@ -74,7 +47,6 @@ const FALLBACK_RAMP = Object.freeze({
   diverging: "diverging-redblue",
 });
 
-const COLLAPSED_ITEM_LIMIT = 5;
 const AUTOMATIC_PPIC = "__automatic_ppic__";
 
 /**
@@ -115,14 +87,6 @@ export default function PalettePicker({ seriesNames = [], kind = "categorical" }
   const config = storedConfig.version === 3
     ? { ...storedConfig, appearance: storedConfig.presentation?.appearance || {} }
     : storedConfig;
-  const { advanced } = useAdvancedMode();
-  const [expanded, setExpanded] = React.useState(false);
-  const [query, setQuery] = React.useState("");
-  // The palette is a common choice; editing individual legend entries is a
-  // denser expert workflow. Keep the whole per-series list — rename,
-  // visibility, and color overrides — in Advanced Mode once a load has
-  // reported a discrete legend.
-  const showLegendItems = advanced && seriesNames.length > 0;
   const rampMode = kind !== "categorical";
   const automatic = storedConfig.version === 3 && !rampMode;
   const automaticCount = seriesNames.length || storedConfig.seriesCount || 0;
@@ -146,183 +110,33 @@ export default function PalettePicker({ seriesNames = [], kind = "categorical" }
     : rampMode
       ? FALLBACK_RAMP[kind]
       : DEFAULT_PALETTE;
-  const hasOverflow = seriesNames.length > COLLAPSED_ITEM_LIMIT;
-  const activeQuery = hasOverflow ? query.trim().toLocaleLowerCase() : "";
-  const legendLabels = config.appearance.legendLabels || {};
-  const matchingNames = activeQuery
-    ? seriesNames.filter((seriesName) =>
-        `${seriesName} ${legendLabels[seriesName] || ""}`
-          .toLocaleLowerCase()
-          .includes(activeQuery),
-      )
-    : seriesNames;
-  const visibleNames =
-    activeQuery || expanded
-      ? matchingNames
-      : matchingNames.slice(0, COLLAPSED_ITEM_LIMIT);
 
   return (
-    <div className="grid gap-3">
-      <div className="grid gap-2">
-        <Label htmlFor="appearance-palette">Color palette</Label>
-        <Select
-          value={selected}
-          onValueChange={(palette) =>
-            dispatch({
-              type: "SET_PALETTE",
-              palette: palette === AUTOMATIC_PPIC ? null : palette,
-            })
-          }
-        >
-          <SelectTrigger id="appearance-palette">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {options.map(([id, palette]) => (
-              <SelectItem key={id} value={id}>
-                <span className="flex items-center gap-2">
-                  {rampMode ? <RampSwatch scale={palette.scale} /> : null}
-                  {palette.label}
-                </span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {showLegendItems ? (
-        <div className="grid gap-2">
-          <Label>Legend items</Label>
-          {hasOverflow ? (
-            <div className="relative">
-              <Search
-                aria-hidden="true"
-                className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-              />
-              <Input
-                type="search"
-                value={query}
-                aria-label="Search legend items"
-                placeholder="Search legend items"
-                className="pl-8"
-                onChange={(event) => setQuery(event.target.value)}
-              />
-            </div>
-          ) : null}
-          <div className="grid gap-1.5">
-            {visibleNames.map((seriesName) => (
-              <LegendItemRow key={seriesName} seriesName={seriesName} />
-            ))}
-            {activeQuery && !visibleNames.length ? (
-              <p className="py-2 text-sm text-muted-foreground">
-                No legend items found.
-              </p>
-            ) : null}
-          </div>
-          {hasOverflow && !activeQuery ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="justify-start"
-              aria-expanded={expanded}
-              onClick={() => setExpanded((current) => !current)}
-            >
-              {expanded
-                ? "Show less"
-                : `Show more (${seriesNames.length - COLLAPSED_ITEM_LIMIT})`}
-            </Button>
-          ) : null}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-// ── Tightly coupled sub-components ───────────────────────────────────
-
-function LegendItemRow({ seriesName }) {
-  const { config: storedConfig, dispatch } = useChartConfig();
-  const config = storedConfig.version === 3
-    ? { ...storedConfig, appearance: storedConfig.presentation?.appearance || {} }
-    : storedConfig;
-  const override = config.appearance.seriesColors?.[seriesName];
-  const labelOverride = config.appearance.legendLabels?.[seriesName] || "";
-  const hidden = (config.appearance.hiddenSeries || []).includes(seriesName);
-
-  function setColor(token) {
-    dispatch({ type: "SET_SERIES_COLOR", seriesName, token });
-  }
-
-  function toggleHidden() {
-    dispatch({ type: "SET_SERIES_VISIBILITY", seriesName, hidden: !hidden });
-  }
-
-  return (
-    <div className="flex items-center justify-between gap-2 rounded-md border bg-card px-2 py-1.5">
-      <Input
-        value={labelOverride}
-        aria-label={`Legend label for ${seriesName}`}
-        placeholder={seriesName}
-        title={`Original label: ${seriesName}`}
-        className={`h-8 min-w-0 flex-1 ${hidden ? "text-muted-foreground line-through" : ""}`}
-        onChange={(event) =>
+    <div className="grid gap-2">
+      <Label htmlFor="appearance-palette">Color Palette</Label>
+      <Select
+        value={selected}
+        onValueChange={(palette) =>
           dispatch({
-            type: "SET_LEGEND_LABEL",
-            seriesName,
-            label: event.target.value,
+            type: "SET_PALETTE",
+            palette: palette === AUTOMATIC_PPIC ? null : palette,
           })
         }
-      />
-      <button
-        type="button"
-        onClick={toggleHidden}
-        aria-pressed={hidden}
-        aria-label={hidden ? `Show ${seriesName}` : `Hide ${seriesName}`}
-        title={hidden ? "Show in chart" : "Hide from chart"}
-        className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
       >
-        {hidden ? (
-          <EyeOff aria-hidden="true" className="size-4" />
-        ) : (
-          <Eye aria-hidden="true" className="size-4" />
-        )}
-      </button>
-      <Popover>
-        <PopoverTrigger asChild>
-          <button
-            type="button"
-            aria-label={`Choose a color for ${seriesName}`}
-            className="size-5 shrink-0 rounded-full border"
-            style={{ backgroundColor: override ? resolveToken(override) : undefined }}
-          />
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-2" align="end">
-          <div className="grid grid-cols-5 gap-1.5">
-            {SWATCH_TOKENS.map((token) => (
-              <button
-                key={token}
-                type="button"
-                aria-label={token}
-                aria-pressed={override === token}
-                onClick={() => setColor(token)}
-                className="size-6 rounded-full border"
-                style={{ backgroundColor: resolveToken(token) }}
-              />
-            ))}
-          </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="mt-2 w-full gap-1.5"
-            onClick={() => setColor(null)}
-          >
-            <RotateCcw aria-hidden="true" className="size-3.5" />
-            Reset to palette
-          </Button>
-        </PopoverContent>
-      </Popover>
+        <SelectTrigger id="appearance-palette">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map(([id, palette]) => (
+            <SelectItem key={id} value={id}>
+              <span className="flex items-center gap-2">
+                {rampMode ? <RampSwatch scale={palette.scale} /> : null}
+                {palette.label}
+              </span>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }

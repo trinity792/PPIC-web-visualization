@@ -157,3 +157,14 @@ describe("CategoriesSection", () => {
     });
   });
 });
+
+it.each(["heatmap", "pie"])("shows the Categories panel's list for a version 3 view: %s", chartType => {
+  state.config = { version: 3, question: {}, categoryNames: ["Alpha", "Bravo"], presentation: { chartType, appearance: { categoryOrder: ["Bravo", "Alpha"], hiddenCategories: ["Alpha"] } } };
+  render(<CategoriesSection />);
+  fireEvent.click(screen.getByRole("button", { name: "Categories" }));
+  const toggles = screen.getAllByRole("switch");
+  expect(toggles).toHaveLength(2);
+  expect(toggles[0]).toBeChecked();
+  expect(toggles[1]).not.toBeChecked();
+  expect(screen.getByText("Bravo").compareDocumentPosition(screen.getByText("Alpha")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});

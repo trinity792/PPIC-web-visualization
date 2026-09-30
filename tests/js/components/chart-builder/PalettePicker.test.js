@@ -1,6 +1,6 @@
 import React from "react";
 
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({ dispatch: vi.fn(), config: null }));
@@ -26,53 +26,13 @@ describe("PalettePicker legend items", () => {
     state.config = { appearance: {} };
   });
 
-  it("renames an item without changing its original lookup key", () => {
-    render(<PalettePicker seriesNames={["California"]} />);
-
-    fireEvent.change(screen.getByLabelText("Legend label for California"), {
-      target: { value: "Golden State" },
-    });
-
-    expect(state.dispatch).toHaveBeenCalledWith({
-      type: "SET_LEGEND_LABEL",
-      seriesName: "California",
-      label: "Golden State",
-    });
-  });
-
-  it("shows five items initially and expands the rest", () => {
-    render(<PalettePicker seriesNames={LEGEND_ITEMS} />);
-
-    expect(screen.getByLabelText("Legend label for Echo")).toBeInTheDocument();
-    expect(
-      screen.queryByLabelText("Legend label for Foxtrot"),
-    ).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Search legend items")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Show more (2)" }));
-
-    expect(screen.getByLabelText("Legend label for Foxtrot")).toBeInTheDocument();
-    expect(screen.getByLabelText("Legend label for Golf")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Show less" })).toBeInTheDocument();
-  });
-
-  it("searches all items even while the list is collapsed", () => {
-    render(<PalettePicker seriesNames={LEGEND_ITEMS} />);
-
-    fireEvent.change(screen.getByLabelText("Search legend items"), {
-      target: { value: "golf" },
-    });
-
-    expect(screen.getByLabelText("Legend label for Golf")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Legend label for Alpha")).not.toBeInTheDocument();
-  });
-
-  it("keeps short lists fully visible without overflow controls", () => {
-    render(<PalettePicker seriesNames={LEGEND_ITEMS.slice(0, 5)} />);
-
-    expect(screen.getAllByLabelText(/Legend label for/)).toHaveLength(5);
+  // Renderer plan C replaces the retired list/rename/search behavior.
+  it.each([[], ["California"], LEGEND_ITEMS].map(names => [names]))("keeps palette selection without the per-series list: %j", names => {
+    render(<PalettePicker seriesNames={names} />);
+    expect(screen.getByLabelText(/color palette/i)).toBeInTheDocument();
+    expect(screen.queryByText("Legend items")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Search legend items")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Show more/ })).not.toBeInTheDocument();
+    expect(screen.queryAllByLabelText(/Legend label for/)).toHaveLength(0);
   });
 
   it("names the automatic v3 palette from the rendered series count", () => {
@@ -87,4 +47,13 @@ describe("PalettePicker legend items", () => {
       "Automatic PPIC categorical · 3 groups",
     );
   });
+});
+
+it("does not show the per-series rename, hide, and color list in a version 3 view", () => {
+  state.config = { version: 3, question: { comparisons: [] }, presentation: { chartType: "line", appearance: {} } };
+  render(<PalettePicker seriesNames={["California"]} />);
+  expect(screen.getByLabelText(/color palette/i)).toBeInTheDocument();
+  expect(screen.queryByLabelText("Legend label for California")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Choose a color for California" })).not.toBeInTheDocument();
+  expect(screen.queryByText("Legend items")).not.toBeInTheDocument();
 });

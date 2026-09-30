@@ -4,7 +4,7 @@ Content Type: project specification
 pinned: true
 description: "Current product and technical specification for building, rendering, sharing, and exporting visualizations in the PPIC Data Explorer."
 Date Published: July 27, 2026
-Last Updated: 09/18/2026 - 03:18 PM
+Last Updated: 09/29/2026 - 09:00 PM
 Status: Finalized
 ---
 
@@ -134,9 +134,9 @@ The current section order is owned by `lib/visualization/sidebarSections.js`.
 | Comparisons | Which demographic or categorical groups to compare and how to present them | When the topic declares comparison dimensions |
 | Time | A range, snapshot, selected snapshots, or two periods | When the question has a time contract |
 | Geographic Level | Geographic level, locations, and eligible ranking controls | When the topic has geographic subsets |
-| Labels | Title, subtitle, axis labels, legend visibility, and related text | When the chart supports labels |
-| Appearance | Palette, legend, chart-specific styling, comparison display, and annotations | When the chart supports appearance settings |
-| Typography | Text sizes and decimal precision | When the chart supports appearance settings |
+| Labels | Title, subtitle, and axis labels, each with a show switch | When the chart supports labels |
+| Appearance | Palette, Legend Position, footnote and the source box switch, number formats, and chart-specific styling | When the chart supports appearance settings |
+| Typography | Text sizes and decimal precision | In Advanced Mode, when the chart supports appearance settings |
 
 **Outcome** also contains calculation controls. `TransformSection` remains the component that supplies part of this content, but it is not a separate sidebar section.
 
@@ -144,13 +144,20 @@ The current section order is owned by `lib/visualization/sidebarSections.js`.
 
 Advanced Mode reveals specialized choices without changing the basic workflow. Current advanced settings include:
 
-- Top or Bottom ranking;
+- Top or Bottom ranking, with an **Off** choice that removes it;
 - difference from a benchmark;
 - an explicit series binding for inline data;
-- comparison colors and visibility;
+- the Comparison appearance block (each comparison's label, color, and visibility);
 - per-comparison geography or time overrides;
-- custom diverging color stops; and
-- hiding the horizontal axis where the chart supports it.
+- custom diverging color stops;
+- hiding the horizontal axis where the chart supports it;
+- the Typography section (text sizes and decimal places);
+- horizontal and vertical line spacing and both tick increments; and
+- the line chart's Markers switch and dashed range.
+
+Settings saved from these controls still apply when Advanced Mode is off; only the controls are hidden. The section-level gate is the `advanced: true` flag on a `sidebarSections.js` descriptor.
+
+Ranking a time series ranks whole series: each place is ranked by its latest available value, and every period is kept for the places that make the cut (`rankObservations.js`). Rows with no period, such as an unbound snapshot, are still ranked one by one.
 
 Multi-chart controls are not hidden behind Advanced Mode. If the interface supports a workspace, the reader can discover it directly.
 
@@ -162,7 +169,7 @@ There are twelve registered chart families. A chart can still be unavailable for
 
 | Chart | Best used for | Important rule |
 |---|---|---|
-| Line | Change across an ordered sequence, usually time | Needs an ordered time axis and an outcome |
+| Line | Change across an ordered sequence, usually time | Needs an ordered time axis and an outcome. Drawn with visx by default (see [Chart renderers](#chart-renderers)) |
 | Bar | Comparing categories, places, or selected periods | Can be vertical or horizontal; supports grouped and diverging variants |
 | Choropleth Map | Geographic variation shown by area color | Requires joinable boundary geometry and stable place identifiers |
 | Matrix Heatmap | Patterns across many rows and periods | Encodes the outcome with a color scale |
@@ -175,7 +182,32 @@ There are twelve registered chart families. A chart can still be unavailable for
 | Symbol Map | Magnitude by place using proportional markers | Requires representative points and stable place identifiers |
 | Data Table | Exact values in searchable, sortable rows | Uses the answered question without graphical marks |
 
-The chart registry owns each chart's required roles, accepted field kinds, time contracts, calculation choices, comparison presentations, color behavior, defaults, and complexity guidance. The editor reads those declarations instead of maintaining separate chart lists.
+The chart registry owns each chart's required roles, accepted field kinds, time contracts, calculation choices, comparison presentations, color behavior, renderer, defaults, and complexity guidance. The editor reads those declarations instead of maintaining separate chart lists.
+
+### Chart renderers
+
+Charts are moving from Plotly to visx one type at a time, following [[chart-renderer-implementation-plan]]. Every registry descriptor declares `renderer: "plotly" | "visx"`.
+
+| Chart | Default renderer | Notes |
+|---|---|---|
+| Line | visx | Default since September 29, 2026, ahead of the export rebuild |
+| Choropleth Map, Symbol Map | Plotly | Stay on Plotly permanently |
+| Every other chart | Plotly | Each moves to visx in its own plan workstream |
+
+- `rendererFor(type, preview)` picks the renderer. A `?renderer=visx` or `?renderer=plotly` page-address parameter previews the other drawing for comparison. It is honored only when that drawing exists (`VISX_CHART_TYPES`) and is ignored in embeds (`embed=1`), so a shared embed always shows the default.
+- A visx chart is drawn from a chart model (`lib/visualization/models/`) inside `ChartFrame`, which draws the PPIC frame: eyebrow, title, subtitle, the drawing and its key, and the source-and-notes box.
+- Plotly charts keep their titles inside Plotly until export can draw the frame (Workstream M).
+
+#### The visx line chart
+
+- **Lines.** Lines are 2px and solid. Horizontal grid lines only. Lines break at missing and suppressed values, never drawing them as zero.
+- **Markers.** Off unless saved on, as the style guide asks; the Plotly line chart follows the same rule. A point with no neighbour always gets a marker, so it is never invisible.
+- **Dashed range.** Solid unless the reader turns it on (`appearance.dashedRange = { from, to, label }`), for example for projected years. A segment is dashed when both of its ends are inside the range.
+- **Key.** With Legend Position set to **Automatic** (the line default), each line is labeled at its end in its own color when the labels fit and there are no more than four lines; otherwise the key sits on the right. A series color too pale to read as text is darkened, keeping its hue, to 4.5:1 contrast.
+- **Hover label.** This matches PPIC's published Datawrapper charts. It labels only the point nearest the pointer, measured across and up and down, with a gray ring and a boxless label: the series name in bold, then the period and value in gray, with a white outline. The label reads leftward on the right half of the chart and drops below the point near the top. Values use the View Data number format.
+- **Keyboard.** The chart takes focus. Left and Right move along a line, Up and Down move between lines, Home and End jump to the ends, and Escape closes the label.
+- **Year labels.** The axis always labels the latest period, then steps back evenly by 1, 2, 5, 10, or more years; for example, 1991 to 2026 reads 1991, 1996, ..., 2026. The step is never finer than the data's own spacing, and a tick increment sets it.
+- **Line spacing.** Horizontal spacing adds pixels between neighbouring value gridlines and Vertical spacing between neighbouring periods. The drawing grows to fit and scrolls sideways when it is wider than the preview.
 
 ### Availability
 
@@ -326,12 +358,26 @@ The editor derives useful labels from the question, then lets the reader overrid
 
 The current interface supports:
 
-- title, subtitle, axis labels, and legend visibility;
+- title, subtitle, and axis labels, each with a show switch;
+- Legend Position (in Appearance only; **Hidden** replaces the retired Legend switch);
 - categorical palettes and sequential or diverging ramps;
-- per-comparison legend labels, colors, and visibility;
+- per-comparison legend labels, colors, and visibility (Advanced Mode);
 - chart-specific controls such as orientation, reference lines, point styles, and value labels;
-- font sizes and decimal precision; and
-- footnotes, tooltips, and annotations where supported.
+- font sizes and decimal precision (Advanced Mode); and
+- a footnote, the **Show source and notes** switch, and annotations where supported.
+
+The owner removed three controls, and saved views that still hold their settings open normally and ignore them: the Legend switch (`showLegend`), the Tooltip template (`labels.tooltip`), and the per-series rename, hide, and color list (`legendLabels`, `hiddenSeries`, `seriesColors`).
+
+Style values come from one owner, `lib/visualization/chartStyle.js`, built from `lib/constants.js` tokens, including the style guide's graph-line gray `#6C7075`, subtitle gray `#646D76`, and source-box gray `#EFF0F2`. Chart text uses Inter, whose 400 and 700 weights are loaded. `lib/visualization/models/sharedSettings.js` is the one reader for the settings every chart shares.
+
+For visx charts, the source-and-notes box follows PPIC's published Datawrapper standard:
+
+- a `#EFF0F2` box with 15px padding, 20px below the chart;
+- 11px text on 16px lines in `#6C7075`;
+- bold uppercase **SOURCE:** and **NOTES:** captions; and
+- citations separated by semicolons, with a period ending the source line.
+
+The source line cites the topic's datasets in full, not the Source filter value. For example, "DoF P-3" becomes "California Department of Finance (DOF), P-3 Population Projections". Each module schema declares a `sourceCitations` map from source id (or `default`) to citation, and `citeSources` in `datasetLabels.js` resolves it. **Show source and notes** (`appearance.showSource`) hides the whole box.
 
 Accessibility and editorial guardrails include:
 
@@ -380,6 +426,8 @@ Chart export supports:
 - PDF; and
 - an iframe embed.
 
+Image export still renders through `Plotly.toImage`. For a chart drawn with visx (currently the line chart), the image dialog shows a notice that image export is coming soon, and its Download button stays off. Embeds and data export work normally. Workstream M of [[chart-renderer-implementation-plan]] rebuilds export from the drawn SVG.
+
 Data export supports:
 
 - the data as displayed; and
@@ -414,10 +462,14 @@ ChartConfigProvider
 Answer + optional geometry
     |
     v
-adaptObservations
+rendererFor(chart type, preview request)
+    |
+    +--> "plotly": adaptObservations --> Plotly figure or DataTableView
+    |
+    +--> "visx":   buildChartModel   --> ChartFrame + visx chart
     |
     v
-Plotly figure or DataTableView
+ChartRenderer (marks data-chart-ready when drawn)
 ```
 
 Presentation-only edits such as label or palette changes reuse the existing answer when the data question has not changed. Chart switches can update an incompatible time contract, and map switches may set the supported geography and fetch the required geometry artifact.
@@ -439,7 +491,15 @@ Presentation-only edits such as label or palette changes reuse the existing answ
 | Inline question execution | `lib/tabular/toObservations.js` |
 | Observation and response validation | `lib/visualization/observationContract.js` |
 | Client request and geometry boundary | `components/chart-builder/chartData.js` |
-| Observations-to-figure rendering | `lib/visualization/adapters/index.js` |
+| Observations-to-figure rendering (Plotly) | `lib/visualization/adapters/index.js` |
+| Renderer choice per chart type | `lib/visualization/chartRegistry.js` (`renderer`, `rendererFor`) |
+| Observations-to-chart-model (visx) | `lib/visualization/models/` |
+| Drawing either renderer, and the ready signal | `components/charts/ChartRenderer.js` |
+| PPIC frame and source box | `components/charts/ChartFrame.js` |
+| Style-guide values | `lib/visualization/chartStyle.js` |
+| Shared settings reader | `lib/visualization/models/sharedSettings.js` |
+| Series order, names, and colors for both line renderers | `lib/visualization/lineSeries.js` |
+| Ranking | `lib/data/visualization/rankObservations.js` |
 | Workspace state and undo/redo | `components/chart-builder/chartConfigStore.js` |
 | Saved view and workspace serialization | `components/chart-builder/savedViews.js` |
 | Image, data, and embed export | `components/chart-builder/ExportMenu.js` and `lib/export/*` |
@@ -585,10 +645,12 @@ This block is generated from `lib/visualization/settingsRegistry.js`. It is the 
 | comparisonTimeOverride | Comparison time override | Comparisons | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.comparisons[].time | lib/data/visualization/executeQuestion.js |
 | comparisonVisibility | Comparison visibility | Appearance | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | presentation.comparisonVisibility | lib/visualization/adapters/index.js |
 | customDivergingStops | Custom diverging stops | Appearance | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | presentation.appearance.divergingStops | lib/visualization/palettes.js |
+| dashedRange | Dashed lines for a range of periods | Appearance | standard | Charts: line; datasets: All | See resolved chart and dataset capabilities | presentation.appearance.dashedRange | lib/visualization/models/lineModel.js |
 | hideXAxis | Hide horizontal axis | Appearance | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | presentation.appearance.hideXAxis | lib/visualization/adapters/index.js |
 | outcome | Outcome | Outcome | standard | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.outcome.measureId | lib/data/visualization/executeQuestion.js |
 | ranking | Ranking | Geography | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.calculation.params.ranking | lib/data/visualization/rankObservations.js |
 | seriesBinding | Series binding | Outcome | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | presentation.bindings.series | lib/tabular/toObservations.js |
+| showSource | Show source and notes | Appearance | standard | Charts: All; datasets: All | See resolved chart and dataset capabilities | presentation.appearance.showSource | components/charts/ChartFrame.js |
 | time | Time | Time | standard | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.time | components/chart-builder/sections/TimeSection.js |
 <!-- settings-reference:end -->
 
@@ -651,6 +713,7 @@ These are intentional current boundaries, not hidden fallback behavior:
 - Old version 1 and version 2 views are unsupported.
 - A topic's **View Data** table shows the full cleaned dataset, not only the chart's filtered rows.
 - Chart availability varies by topic, calculation, field roles, and geometry.
+- Image export of a visx chart (currently the line chart) is not available yet; the image dialog says so.
 
 ---
 
@@ -661,3 +724,4 @@ These are intentional current boundaries, not hidden fallback behavior:
 - [[topic-workbench-overhaul]] - Topic workbench decisions and implementation history
 - [[visualization-backend-refractor]] - Version 3 backend goals and migration record
 - [[visualization-backend-removal-changelog]] - Reviewed quarantine and removal ledger
+- [[chart-renderer-implementation-plan]] - The Plotly-to-visx renderer plan and its decisions

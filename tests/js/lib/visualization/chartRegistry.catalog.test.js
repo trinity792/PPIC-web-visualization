@@ -525,3 +525,17 @@ describe("Workstream A capability matrix", () => {
     expect(averaged.sort()).toEqual(["dataTable", "pie"]);
   });
 });
+
+// Renderer plan B/M: final defaults, with preview support for staged rollout.
+// dataTable remains the existing accessible table path, not a visx drawing.
+import * as rendererRegistry from "@/lib/visualization/chartRegistry";
+describe("renderer catalog", () => {
+  it("every chart type declares a renderer", () => {
+    for(const id of CHART_TYPE_IDS) expect(["plotly", "visx"], id).toContain(getChartType(id).renderer);
+  });
+  it.each(["choroplethMap", "symbolMap"])("maps are drawn by plotly: %s", id => expect(getChartType(id).renderer).toBe("plotly"));
+  it.each(["choroplethMap", "symbolMap"])("ignores a preview request for a type with no visx drawing: %s", id => expect(rendererRegistry.rendererFor(id, "visx")).toBe("plotly"));
+  it.each(["line", "bar", "dumbbell", "dotPlot", "forest", "heatmap", "scatter", "bubble", "pie"])("every non-map chart type defaults to visx: %s", id => expect(getChartType(id).renderer).toBe("visx"));
+  it("honors an available visx preview request", () => expect(rendererRegistry.rendererFor("line", "visx")).toBe("visx"));
+  it("ignores an unknown preview renderer", () => expect(rendererRegistry.rendererFor("line", "typo")).toBe("visx"));
+});

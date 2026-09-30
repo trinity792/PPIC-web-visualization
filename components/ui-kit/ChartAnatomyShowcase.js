@@ -9,6 +9,8 @@
  * Data sources:
  *   - Official PPIC Data Visualization Style Guide v1.0 (Chart Structure /
  *     Key Structure, pp.18–21)
+ *   - lib/visualization/chartStyle.js (the sizes, weights, and colors the
+ *     charts actually use, so this panel cannot drift from them)
  *
  * UI Kit reference:
  *   - Documents the "Chart Anatomy" and "Key / Legend" foundations
@@ -17,6 +19,11 @@
 import React from "react";
 
 import { Panel, Section } from "@/components/ui-kit/Section";
+
+import { CHART_STYLE } from "@/lib/visualization/chartStyle";
+
+const { dataLine, exportWidths, graphLine, keySwatch, partSpacing, sourceBox, tableDivider } =
+  CHART_STYLE;
 
 const ELEMENTS = [
   "Figure (eyebrow)",
@@ -39,14 +46,14 @@ const STYLE_TIPS = [
   "Only add grid lines above seven data points, spaced no more than 20px apart.",
   "Keep titles short; push qualifiers (years, dollars) into the subtitle.",
   "Not every chart needs a figure title — use it only when the content calls for it.",
-  "Allow 48px of spacing between each chart component for readability.",
-  "Sources and notes sit in their own module at the bottom, hex #EFF0F2.",
+  `Allow ${partSpacing}px of spacing between each chart component for readability.`,
+  `Sources and notes sit in their own module at the bottom, hex ${sourceBox.background}.`,
 ];
 
 const KEY_RULES = [
   "Place the key to the right of the chart, or beneath it, per the layout.",
   "Order swatches lightest to darkest for readable hierarchy.",
-  "Indicators are ≤ 20px × 20px, square — use 20px circles only if a tool forces it.",
+  `Indicators are ≤ ${keySwatch.width}px × ${keySwatch.height}px, square — use ${keySwatch.width}px circles only if a tool forces it.`,
 ];
 
 export function ChartAnatomyShowcase() {
@@ -78,10 +85,16 @@ export function ChartAnatomyShowcase() {
 
           <Heading className="mt-6">Specs & line weight</Heading>
           <dl className="mt-3 space-y-2 font-sans text-[14px]">
-            <SpecRow term="Standard widths">950px · 650px · 330px</SpecRow>
-            <SpecRow term="Data line">2px, in the series color</SpecRow>
-            <SpecRow term="Graph line">1px, #6C7075</SpecRow>
-            <SpecRow term="Row / grid line">1px, #EFF0F2</SpecRow>
+            <SpecRow term="Standard widths">
+              {exportWidths.map((width) => `${width}px`).join(" · ")}
+            </SpecRow>
+            <SpecRow term="Data line">{dataLine.width}px, in the series color</SpecRow>
+            <SpecRow term="Graph line">
+              {graphLine.width}px, {graphLine.color}
+            </SpecRow>
+            <SpecRow term="Row line">
+              {tableDivider.width}px, {tableDivider.color}
+            </SpecRow>
             <SpecRow term="Avoid">Dashed or dotted data lines</SpecRow>
           </dl>
         </Panel>

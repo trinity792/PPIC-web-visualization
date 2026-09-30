@@ -20,15 +20,14 @@ import { expect, test } from "@playwright/test";
 
 const FIXTURE_ROUTE = "/__visual/visualization-v3";
 
-/**
- * Navigates to one fixture chart and waits for Plotly to report that it has
- * finished drawing. The fixture page sets `data-plot-ready` on the container in
- * its `plotly_afterplot` handler; waiting for a selector rather than a timeout
- * is what keeps this suite from being flaky by construction.
+/** Wait for the renderer-neutral ready signal and loaded fonts (plan B).
+ * `scenario` selects tests/fixtures/visualization-v3/rendererVisual.js.
+ * Stage 1 deliberately does not implement the fixture-route renderer switch.
  */
-async function openChart(page, chart) {
-  await page.goto(`${FIXTURE_ROUTE}?chart=${chart}`);
-  await page.waitForSelector(`[data-plot-ready="true"][data-chart="${chart}"]`);
+async function openChart(page, chart, options = {}) {
+  const query = new URLSearchParams({ chart, ...options });
+  await page.goto(`${FIXTURE_ROUTE}?${query}`);
+  await page.locator(`[data-chart="${chart}"] [data-chart-ready="true"], [data-chart="${chart}"][data-chart-ready="true"]`).first().waitFor();
   await page.waitForFunction(() => document.fonts.status === "loaded");
 }
 
@@ -152,4 +151,90 @@ test.describe("full flows", () => {
     await page.getByRole("button", { name: /donut/i }).click();
     await expect(page.getByText("Select time to show this chart.")).toBeVisible();
   });
+});
+
+// Stage 1: do not record these baselines until a person reviews the chart.
+// `--update-snapshots=none` can run this suite without creating approvals.
+test.describe("renderer plan screenshots", () => {
+  test.beforeEach(async ({ page }) => page.emulateMedia({ reducedMotion: "reduce" }));
+  const cases = [
+    ["labels two lines directly", "line", "two-lines", "line-direct-labels.png"],
+    ["falls back to the key with five lines", "line", "five-lines", "line-five-series-key.png"],
+    ["draws the chosen range dashed", "line", "dashed", "line-dashed-range.png"],
+    ["shows the full PPIC frame", "line", "frame", "line-ppic-frame.png"],
+    ["fits the line chart at 330px", "line", "narrow", "line-330.png"],
+    ["fits eight comparisons without overlapping labels", "bar", "eight-comparisons", "bar-eight-comparisons.png"],
+    ["matches the approved horizontal Bar layout", "bar", "horizontal", "bar-horizontal.png"],
+    ["matches the approved stacked Bar layout", "bar", "stacked", "bar-stacked.png"],
+    ["matches the approved diverging Bar layout", "bar", "diverging", "bar-diverging.png"],
+    ["wraps long row labels", "dumbbell", "long-rows", "range-long-rows.png"],
+    ["matches the approved Dot plot layout", "dotPlot", "default", "dot-plot.png"],
+    ["matches the approved Forest layout", "forest", "default", "forest.png"],
+    ["matches the approved Scatter layout", "scatter", "default", "scatter.png"],
+    ["matches the approved Bubble layout", "bubble", "default", "bubble.png"],
+    ["matches the approved Pie layout", "pie", "default", "pie.png"],
+    ["labels a slice with a leader line", "pie", "long-slice", "pie-leader-line.png"],
+    ["matches the approved Choropleth layout", "choroplethMap", "default", "choropleth.png"],
+    ["matches the approved Symbol map layout", "symbolMap", "default", "symbol-map.png"],
+  ];
+  for(const [name, chart, scenario, filename] of cases) test(name, async ({ page }) => {
+    const renderer = ["choroplethMap", "symbolMap"].includes(chart) ? "plotly" : "visx";
+    await openChart(page, chart, { renderer, scenario, width: scenario === "narrow" ? "330" : "950" });
+    // Prove the route honored the requested scenario before comparing pixels.
+    await expect(plot(page)).toHaveAttribute("data-scenario", scenario);
+    await expect(plot(page).locator('[data-chart-ready="true"]')).toHaveAttribute("data-renderer", renderer);
+    if(scenario === "two-lines") await expect(plot(page).locator('[data-mark="direct-label"]')).toHaveCount(2);
+    if(scenario === "five-lines") {
+      await expect(plot(page).locator('[data-mark="direct-label"]')).toHaveCount(0);
+      await expect(plot(page).locator('[data-key-position="right"]')).toBeVisible();
+    }
+    if(scenario === "dashed") await expect(plot(page).locator('[data-mark="series-line"][stroke-dasharray]').first()).toBeVisible();
+    if(scenario === "frame") {
+      // The source line cites the topic's dataset, not the Source filter value.
+      for(const text of ["Figure 2", "Population", "Selected counties", "California Department of Finance (DOF), P-3 Population Projections", "Estimates may be revised."]) await expect(plot(page).getByText(text, { exact: false }).first()).toBeVisible();
+    }
+    if(scenario === "narrow") expect(Math.round((await plot(page).boundingBox()).width)).toBe(330);
+    if(scenario === "long-slice") await expect(plot(page).locator('[data-mark="leader-line"]').first()).toBeVisible();
+    await expect(plot(page)).toHaveScreenshot(filename);
+  });
+});
+
+test.describe("renderer plan embed and keyboard access", () => {
+  for(const chart of ["line", "bar", "dumbbell", "dotPlot", "forest", "heatmap", "scatter", "bubble", "pie", "choroplethMap", "symbolMap"]) {
+    test(`${chart} embed fits the frame without editor controls`, async ({ page }) => {
+      await openChart(page, chart, { embed: "1", scenario: "frame" });
+      await expect(page.getByLabel("Color Palette")).toHaveCount(0);
+      await expect(page.getByRole("button", { name: /generate chart/i })).toHaveCount(0);
+      await expect(plot(page).locator('figcaption')).toHaveText(/Population/);
+      const outer = await plot(page).boundingBox();
+      const source = await plot(page).locator('[data-frame-part="source"]').boundingBox();
+      expect(source).not.toBeNull();
+      expect(source.y + source.height).toBeLessThanOrEqual(outer.y + outer.height);
+    });
+  }
+  for(const chart of ["line", "bar", "dumbbell", "dotPlot", "forest", "heatmap", "scatter", "bubble", "pie"]) {
+    test(`${chart} tooltip is keyboard reachable with visible focus`, async ({ page }) => {
+      await openChart(page, chart, { renderer: "visx", scenario: "default" });
+      const drawing = plot(page).getByRole("img");
+      // Reach through the tab order, not element.focus(), which bypasses it.
+      for(let i = 0; i < 30; i++) {
+        await page.keyboard.press("Tab");
+        if(await drawing.evaluate(el => el === document.activeElement)) break;
+      }
+      await expect(drawing).toBeFocused();
+      const focusVisible = await drawing.evaluate(el => {
+        const style = getComputedStyle(el);
+        return (style.outlineStyle !== "none" && parseFloat(style.outlineWidth) > 0) || style.boxShadow !== "none";
+      });
+      expect(focusVisible).toBe(true);
+      await page.keyboard.press("ArrowRight");
+      await expect(page.getByRole("tooltip")).toBeVisible();
+      const bounds = await plot(page).boundingBox();
+      const tip = await page.getByRole("tooltip").boundingBox();
+      expect(tip.x).toBeGreaterThanOrEqual(bounds.x);
+      expect(tip.y).toBeGreaterThanOrEqual(bounds.y);
+      expect(tip.x + tip.width).toBeLessThanOrEqual(bounds.x + bounds.width);
+      expect(tip.y + tip.height).toBeLessThanOrEqual(bounds.y + bounds.height);
+    });
+  }
 });

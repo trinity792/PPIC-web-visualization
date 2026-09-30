@@ -2,8 +2,13 @@
  * Playwright configuration for the visual-regression suite (Workstream F).
  *
  * The Vitest suite runs in jsdom, which has no layout engine and no canvas, so
- * it can assert that a Plotly figure object is correct but not that the picture
- * is. Line, Bar, Range, and Heatmap are the four approved baselines.
+ * it can assert that a Plotly figure or a visx chart model is correct but not
+ * that the picture is. Line, Bar, Range, and Heatmap are the four approved
+ * baselines; the renderer plan adds one set per chart type as each is reviewed.
+ *
+ * The fixture page draws through the editor's ChartRenderer, which marks its
+ * container `data-chart-ready="true"` once either library has finished drawing;
+ * the spec waits for that mark and for fonts, never for a timeout.
  *
  * Playwright stays separate from Vitest because it owns a browser process and a
  * production Next.js server. Use `npm run test:visual`; install Chromium once
@@ -40,9 +45,10 @@ export default defineConfig({
 
   expect: {
     toHaveScreenshot: {
-      // Plotly renders text through the browser's own rasteriser, so a handful
-      // of subpixel differences are expected and a pixel-exact threshold would
-      // fail on every machine but the one that recorded the baseline.
+      // Plotly and visx (SVG) both render text through the browser's own
+      // rasteriser, so a handful of subpixel differences are expected and a
+      // pixel-exact threshold would fail on every machine but the one that
+      // recorded the baseline.
       maxDiffPixelRatio: 0.002,
       animations: "disabled",
       caret: "hide",

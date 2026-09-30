@@ -185,3 +185,40 @@ describe("rankObservations", () => {
     expect(input).toEqual(snapshot);
   });
 });
+
+// 2026-09-29: ranking a time series ranked single place-year rows, so a line
+// chart's "Top 2" kept the two largest values across all years and lost years.
+describe("rankObservations over a time series", () => {
+  const row = (place, period, value, status = OBSERVATION_STATUS.AVAILABLE) => ({
+    comparisonId: "cmp", comparisonLabel: "Population", geographyId: place, geographyLabel: place,
+    categoryId: null, categoryLabel: null, period, value: status === OBSERVATION_STATUS.AVAILABLE ? value : null, status,
+  });
+  const rows = [
+    row("Fresno", 2020, 10), row("Fresno", 2025, 30),
+    row("Kern", 2020, 50), row("Kern", 2025, 20),
+    row("Merced", 2020, 5), row("Merced", 2025, 40),
+  ];
+  it("keeps every period of each ranked place", () => {
+    const { rows: ranked } = rankObservations(rows, { n: 2, labelKey: "geographyLabel" });
+    expect(ranked.map(r => [r.geographyLabel, r.period])).toEqual([
+      ["Merced", 2020], ["Merced", 2025], ["Fresno", 2020], ["Fresno", 2025],
+    ]);
+  });
+  it("ranks places by their latest available value", () => {
+    // Kern has the largest single value (50 in 2020) but the smallest latest one.
+    const { rows: ranked } = rankObservations(rows, { n: 1, direction: "bottom", labelKey: "geographyLabel" });
+    expect(new Set(ranked.map(r => r.geographyLabel))).toEqual(new Set(["Kern"]));
+    expect(ranked.every(r => r.rank === 1)).toBe(true);
+  });
+  it("uses the last available year when the latest one is missing", () => {
+    const withGap = [...rows.filter(r => !(r.geographyLabel === "Merced" && r.period === 2025)), row("Merced", 2025, null, OBSERVATION_STATUS.MISSING)];
+    const { rows: ranked } = rankObservations(withGap, { n: 1, labelKey: "geographyLabel" });
+    // Merced falls back to 5 (2020); Fresno's 30 now leads.
+    expect(new Set(ranked.map(r => r.geographyLabel))).toEqual(new Set(["Fresno"]));
+  });
+  it("keeps a ranked place's missing years as gaps", () => {
+    const withGap = [...rows, row("Merced", 2030, null, OBSERVATION_STATUS.MISSING)];
+    const { rows: ranked } = rankObservations(withGap, { n: 1, labelKey: "geographyLabel" });
+    expect(ranked.map(r => [r.period, r.status])).toEqual([[2020, "available"], [2025, "available"], [2030, "missing"]]);
+  });
+});

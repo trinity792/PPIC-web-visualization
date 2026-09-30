@@ -49,10 +49,10 @@ describe("LabelsSection", () => {
     });
   });
 
-  it("renders Legend as a toggle with no legend-title text field", () => {
+  it("leaves legend placement to Appearance with no duplicate toggle", () => {
     render(<LabelsSection />);
     expect(screen.getAllByLabelText(/^Title$/i)).toHaveLength(1);
-    expect(screen.getByRole("switch", { name: "Legend" })).toBeInTheDocument();
+    expect(screen.queryByRole("switch", { name: "Legend" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/^Legend Title$/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/tooltip template/i)).not.toBeInTheDocument();
 
@@ -76,7 +76,6 @@ describe("LabelsSection", () => {
       "Show subtitle",
       "Show X-axis label",
       "Show Y-axis label",
-      "Legend",
     ]) {
       expect(screen.getByLabelText(name)).toBeChecked();
     }
@@ -101,20 +100,18 @@ describe("LabelsSection", () => {
     expect(screen.getByLabelText(/^X-Axis Label$/i)).toBeEnabled();
   });
 
-  it("restores a legacy hidden legend to the right when shown", () => {
-    state.config.appearance = { legendPosition: "hidden" };
+  it("ignores a legacy showLegend value without restoring a removed control", () => {
+    state.config.appearance = { showLegend: false, legendPosition: "hidden" };
     render(<LabelsSection />);
-
-    fireEvent.click(screen.getByLabelText("Legend"));
-    expect(state.dispatch).toHaveBeenNthCalledWith(1, {
-      type: "SET_APPEARANCE",
-      key: "legendPosition",
-      value: "right",
-    });
-    expect(state.dispatch).toHaveBeenNthCalledWith(2, {
-      type: "SET_APPEARANCE",
-      key: "showLegend",
-      value: true,
-    });
+    expect(screen.queryByLabelText("Legend")).not.toBeInTheDocument();
+    expect(state.dispatch).not.toHaveBeenCalled();
   });
+});
+
+// Renderer plan C: the visibility control duplicates Legend Position.
+it("does not show Show legend in a version 3 view", () => {
+  state.config = { version: 3, question: { comparisons: [] }, presentation: { chartType: "line", appearance: {}, labels: {}, bindings: {} } };
+  state.schema = { fields: {} };
+  render(<LabelsSection />);
+  expect(screen.queryByRole("switch", { name: /^(Legend|Show legend)$/i })).not.toBeInTheDocument();
 });

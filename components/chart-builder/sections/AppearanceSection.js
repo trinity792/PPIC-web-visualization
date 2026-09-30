@@ -12,8 +12,10 @@
  * contract, not a preference — the tested one — because it is what keeps the
  * common case from being buried under options nine charts out of ten ignore.
  *
- * Typography moved to its own section; the tooltip template arrived here from
- * Labels.
+ * Typography moved to its own section. The renderer plan (Workstream C) removed
+ * the Tooltip template field — every chart uses the standard tooltip format —
+ * and hid the row label indents until they are built; saved values are kept
+ * but not shown.
  *
  * Props:
  *   None (local controls receive appearance values and an onChange callback).
@@ -47,6 +49,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 import { useAdvancedMode } from "@/components/chart-builder/advancedMode";
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
+import { usePreview } from "@/components/chart-builder/wizard/PreviewContext";
 import {
   hasComparisonDimensions,
   resolveLabels,
@@ -62,6 +65,7 @@ import {
   supportsRole,
 } from "@/lib/visualization/fieldTypes";
 import { impliedBindings } from "@/lib/visualization/impliedRoles";
+import { showsSourceBox } from "@/lib/visualization/models/sharedSettings";
 import { bindableFields } from "@/lib/visualization/inlineMapping";
 import {
   OFFICIAL_COMPARISON_COLOR_NAMES,
@@ -74,7 +78,6 @@ import {
 import { RAMP_SHADE_GROUPS } from "@/lib/visualization/ppicRamps";
 
 const NONE = "__none__";
-const GROUPED_LABEL_INDENT_MAX = 200;
 
 // ── Line spacing ─────────────────────────────────────────────────────
 
@@ -128,6 +131,10 @@ export function LineSpacingControls({ lineAxes, appearance, onChange }) {
       {axes.has("vertical")
         ? spacingControl("Vertical", "verticalLinePadding")
         : null}
+      <p className="col-span-full text-xs text-muted-foreground">
+        Adds space between neighbouring values: horizontal between gridlines,
+        vertical between periods. A chart wider than the preview scrolls.
+      </p>
     </div>
   );
 }
@@ -405,21 +412,19 @@ function GroupedRowLabelControls({ appearance, onChange }) {
       name: "Group",
       alignmentKey: "groupLabelAlignment",
       alignmentDefault: "left",
-      indentKey: "groupLabelIndent",
     },
     {
       name: "Variable",
       alignmentKey: "variableLabelAlignment",
       alignmentDefault: "right",
-      indentKey: "variableLabelIndent",
     },
   ];
 
   return (
     <div className="grid gap-3 rounded-lg border bg-card p-3">
       <p className="text-sm font-medium">Grouped row labels</p>
-      {rows.map(({ name, alignmentKey, alignmentDefault, indentKey }) => (
-        <div className="grid grid-cols-2 gap-3" key={name}>
+      {rows.map(({ name, alignmentKey, alignmentDefault }) => (
+        <div className="grid gap-3" key={name}>
           <div className="grid gap-2">
             <Label htmlFor={`appearance-${alignmentKey}`}>
               {name} alignment
@@ -438,37 +443,121 @@ function GroupedRowLabelControls({ appearance, onChange }) {
               </SelectContent>
             </Select>
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor={`appearance-${indentKey}`}>
-              {name} indentation (px)
-            </Label>
-            <Input
-              id={`appearance-${indentKey}`}
-              type="number"
-              inputMode="numeric"
-              min="0"
-              max={String(GROUPED_LABEL_INDENT_MAX)}
-              step="1"
-              value={appearance[indentKey] ?? 0}
-              onChange={(event) => {
-                const value = Number(event.target.value);
-                onChange(
-                  indentKey,
-                  Number.isFinite(value)
-                    ? Math.min(
-                        GROUPED_LABEL_INDENT_MAX,
-                        Math.max(0, Math.round(value)),
-                      )
-                    : 0,
-                );
-              }}
-            />
-          </div>
         </div>
       ))}
-      <p className="text-xs text-muted-foreground">
-        Indentation moves labels inward from their selected alignment edge.
-      </p>
+    </div>
+  );
+}
+
+// ── Dashed range (line charts) ───────────────────────────────────────
+
+const DEFAULT_DASHED_LABEL = "Projected";
+
+/**
+ * The loaded answer's ordered periods and observations. The section also
+ * renders outside a PreviewProvider (standalone tests and previews), where
+ * `usePreview` throws; the context read itself always runs, so hook order is
+ * unchanged either way.
+ */
+function useLoadedPeriods() {
+  let result = null;
+  try {
+    result = usePreview()?.result || null;
+  } catch {
+    result = null;
+  }
+  const observations = result?.observations || [];
+  const periods = Array.isArray(result?.periods) && result.periods.length
+    ? result.periods
+    : [...new Set(observations.map((row) => row.period))];
+  const projected = periods.filter((period) =>
+    observations.some(
+      (row) => String(row.period) === String(period) && row.valueKind === "projected",
+    ),
+  );
+  return { periods, projected };
+}
+
+/**
+ * Lines are solid by default (the style guide); this dashes the segments
+ * between two chosen periods, for example projected years. Saved as
+ * `appearance.dashedRange = { from, to, label }`; switching it off removes it.
+ */
+function DashedRangeControls({ dashedRange, onChange }) {
+  const { periods, projected } = useLoadedPeriods();
+  const enabled = Boolean(dashedRange);
+  const label = dashedRange?.label ?? DEFAULT_DASHED_LABEL;
+  const periodFor = (value) => periods.find((period) => String(period) === value);
+  const projectedRange = projected.length
+    ? { from: projected[0], to: projected.at(-1) }
+    : null;
+
+  return (
+    <div className="grid gap-3">
+      <div className="flex items-center justify-between gap-3">
+        <Label htmlFor="appearance-dashed-range">Dashed lines for a range of periods</Label>
+        <Switch
+          id="appearance-dashed-range"
+          checked={enabled}
+          onCheckedChange={(checked) =>
+            onChange(
+              checked
+                ? {
+                  ...(projectedRange || { from: periods[0], to: periods.at(-1) }),
+                  label: DEFAULT_DASHED_LABEL,
+                }
+                : undefined,
+            )
+          }
+        />
+      </div>
+      {enabled ? (
+        <div className="grid gap-3 rounded-lg border bg-card p-3">
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              ["from", "Start period"],
+              ["to", "End period"],
+            ].map(([key, name]) => (
+              <div className="grid gap-2" key={key}>
+                <Label htmlFor={`appearance-dashed-${key}`}>{name}</Label>
+                <Select
+                  value={dashedRange[key] == null ? undefined : String(dashedRange[key])}
+                  onValueChange={(value) => onChange({ ...dashedRange, [key]: periodFor(value) })}
+                >
+                  <SelectTrigger id={`appearance-dashed-${key}`}>
+                    <SelectValue placeholder="Choose a period" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {periods.map((period) => (
+                      <SelectItem key={String(period)} value={String(period)}>
+                        {String(period)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ))}
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="appearance-dashed-label">Range label</Label>
+            <Input
+              id="appearance-dashed-label"
+              value={label}
+              onChange={(event) => onChange({ ...dashedRange, label: event.target.value })}
+            />
+          </div>
+          {projectedRange ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => onChange({ ...dashedRange, ...projectedRange, label })}
+            >
+              Use projected periods
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -511,7 +600,10 @@ const DEFAULT_COLOR_BUCKETS = [
  */
 function DivergingStopsControls() {
   const { config, dispatch } = useChartConfig();
-  const { appearance } = config;
+  // Version 3 keeps appearance under presentation; reading `config.appearance`
+  // alone crashed the section for a v3 diverging heatmap or map.
+  const appearance =
+    (config.version === 3 ? config.presentation?.appearance : config.appearance) || {};
   const stops = Array.isArray(appearance.divergingStops) ? appearance.divergingStops : null;
   const setStops = (next) =>
     dispatch({ type: "SET_APPEARANCE", key: "divergingStops", value: next });
@@ -620,7 +712,10 @@ function DivergingStopsControls() {
  */
 function DivergingStyleControls() {
   const { config, dispatch } = useChartConfig();
-  const { appearance } = config;
+  // Version 3 keeps appearance under presentation; reading `config.appearance`
+  // alone crashed the section for a v3 diverging bar.
+  const appearance =
+    (config.version === 3 ? config.presentation?.appearance : config.appearance) || {};
   const setAppearance = (key, value) =>
     dispatch({ type: "SET_APPEARANCE", key, value });
 
@@ -743,7 +838,10 @@ function DivergingStyleControls() {
  */
 function ValueAxisRangeControls() {
   const { config, dispatch } = useChartConfig();
-  const { appearance } = config;
+  // Version 3 keeps appearance under presentation; reading `config.appearance`
+  // alone crashed the section for a v3 diverging bar.
+  const appearance =
+    (config.version === 3 ? config.presentation?.appearance : config.appearance) || {};
   const setAppearance = (key, value) =>
     dispatch({ type: "SET_APPEARANCE", key, value });
 
@@ -957,6 +1055,9 @@ export default function AppearanceSection() {
     dispatch({ type: "SET_APPEARANCE", key, value });
 
   const { advanced } = useAdvancedMode();
+  // A chart that labels its data directly (the line chart) defaults to
+  // "Automatic": direct labels when they fit, otherwise a key on the right.
+  const legendDefault = chart?.defaults?.legendPosition || "right";
   const isRangeFamily = ["dumbbell", "dotPlot", "forest"].includes(config.chartType);
   const isSymbolMap = config.chartType === "symbolMap";
   // The Color scale (sequential/diverging) select belongs to the types that
@@ -1019,7 +1120,9 @@ export default function AppearanceSection() {
         kind={paletteKind}
       />
 
-      {storedConfig.version === 3 && hasComparisonDimensions(schema) ? (
+      {/* Comparison labels, colors, and visibility are Advanced Mode only
+          (owner, 2026-09-29); saved values still apply in standard mode. */}
+      {storedConfig.version === 3 && hasComparisonDimensions(schema) && advanced ? (
         <ComparisonAppearanceControls
           config={storedConfig}
           dispatch={dispatch}
@@ -1031,13 +1134,16 @@ export default function AppearanceSection() {
       <div className="grid gap-2">
         <Label htmlFor="appearance-legend">Legend Position</Label>
         <Select
-          value={appearance.legendPosition || "right"}
+          value={appearance.legendPosition || legendDefault}
           onValueChange={(value) => setAppearance("legendPosition", value)}
         >
           <SelectTrigger id="appearance-legend">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
+            {legendDefault === "automatic" ? (
+              <SelectItem value="automatic">Automatic</SelectItem>
+            ) : null}
             <SelectItem value="right">Right</SelectItem>
             <SelectItem value="bottom">Bottom</SelectItem>
             <SelectItem value="hidden">Hidden</SelectItem>
@@ -1045,19 +1151,26 @@ export default function AppearanceSection() {
         </Select>
       </div>
 
-      <LineSpacingControls
-        lineAxes={chart?.lineAxes}
-        appearance={appearance}
-        onChange={setAppearance}
-      />
+      {/* Line spacing, both tick increments, Markers, and the dashed range are
+          fine-tuning, so they sit behind Advanced Mode (owner, 2026-09-29);
+          saved values still apply in standard mode. */}
+      {advanced ? (
+        <LineSpacingControls
+          lineAxes={chart?.lineAxes}
+          appearance={appearance}
+          onChange={setAppearance}
+        />
+      ) : null}
 
-      <TickIncrementControls
-        config={config}
-        fields={tickFields}
-        ranges={config.axisRanges}
-        appearance={appearance}
-        onChange={setAppearance}
-      />
+      {advanced ? (
+        <TickIncrementControls
+          config={config}
+          fields={tickFields}
+          ranges={config.axisRanges}
+          appearance={appearance}
+          onChange={setAppearance}
+        />
+      ) : null}
 
       <NumberTypeControls
         fields={tickFields}
@@ -1066,9 +1179,26 @@ export default function AppearanceSection() {
       />
 
       <div className="grid gap-2">
-        <Label htmlFor="appearance-footnote">Footnote</Label>
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor="appearance-footnote">Footnote</Label>
+          {/* The whole gray source-and-notes box under the chart. */}
+          <div className="flex items-center gap-2">
+            <Label
+              htmlFor="appearance-show-source"
+              className="text-xs font-normal text-muted-foreground"
+            >
+              Show source and notes
+            </Label>
+            <Switch
+              id="appearance-show-source"
+              checked={showsSourceBox(appearance)}
+              onCheckedChange={(checked) => setAppearance("showSource", checked)}
+            />
+          </div>
+        </div>
         <Textarea
           id="appearance-footnote"
+          disabled={!showsSourceBox(appearance)}
           value={config.labels?.footnote || ""}
           placeholder="Optional source note shown beneath the chart"
           onChange={(event) =>
@@ -1106,17 +1236,25 @@ export default function AppearanceSection() {
         />
       ) : null}
 
-      {config.chartType === "line" ? (
+      {config.chartType === "line" && advanced ? (
         <div className="flex items-center justify-between gap-3">
           <Label htmlFor="appearance-markers">Markers</Label>
           <Switch
             id="appearance-markers"
-            checked={appearance.markerMode !== "off"}
+            // Off unless saved on: the style guide avoids markers on lines.
+            checked={appearance.markerMode === "on"}
             onCheckedChange={(checked) =>
               setAppearance("markerMode", checked ? "on" : "off")
             }
           />
         </div>
+      ) : null}
+
+      {config.chartType === "line" && advanced ? (
+        <DashedRangeControls
+          dashedRange={appearance.dashedRange}
+          onChange={(value) => setAppearance("dashedRange", value)}
+        />
       ) : null}
 
       {/* Orientation moved to OutcomeSection (Workstream A): it is the one
@@ -1370,17 +1508,6 @@ export default function AppearanceSection() {
         </>
       ) : null}
 
-      <div className="grid gap-2">
-        <Label htmlFor="appearance-tooltip">Tooltip template</Label>
-        <Textarea
-          id="appearance-tooltip"
-          value={config.labels?.tooltip || ""}
-          placeholder="Leave blank for the chart default"
-          onChange={(event) =>
-            dispatch({ type: "SET_LABEL", key: "tooltip", value: event.target.value })
-          }
-        />
-      </div>
     </div>
   );
 }

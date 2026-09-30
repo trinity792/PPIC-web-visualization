@@ -47,6 +47,19 @@ export function hasCategories(config) {
 
 export default function CategoriesSection() {
   const { config, dispatch } = useChartConfig();
+  // Version 3 keeps the ranking on the question; version 2 on filters/appearance.
+  const v3Ranking = config.version === 3 ? config.question?.calculation?.params?.ranking : undefined;
+  const ranking = config.version === 3
+    ? {
+        enabled: Boolean(v3Ranking),
+        topN: v3Ranking?.n ?? 20,
+        sort: v3Ranking?.direction === "bottom" ? "ascending" : "value",
+      }
+    : {
+        enabled: config.filters?.topN != null,
+        topN: config.filters?.topN ?? 20,
+        sort: config.appearance?.sort || "value",
+      };
   const { advanced } = useAdvancedMode();
   const [open, setOpen] = useState(false);
 
@@ -93,8 +106,9 @@ export default function CategoriesSection() {
           {advanced ? (
             <RankingControls
               idPrefix="categories-ranking"
-              topN={config.filters?.topN ?? 20}
-              sort={config.appearance?.sort || "value"}
+              enabled={ranking.enabled}
+              topN={ranking.topN}
+              sort={ranking.sort}
               onChange={({ topN, sort }) => dispatch({ type: "SET_RANKING", topN, sort })}
             />
           ) : null}

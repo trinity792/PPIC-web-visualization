@@ -143,3 +143,13 @@ describe("visibleSectionsFor", () => {
     );
   });
 });
+
+// Owner decision 2026-09-29: Typography is Advanced Mode only.
+describe("Advanced Mode sections", () => {
+  it("drops Typography outside Advanced Mode and keeps it inside", () => {
+    const standard = visibleSectionsFor(config("line"), schema, { advanced: false }).map((item) => item.value);
+    expect(standard).not.toContain("typography");
+    expect(standard).toContain("appearance");
+    expect(visibleSectionsFor(config("line"), schema, { advanced: true }).map((item) => item.value)).toContain("typography");
+  });
+});

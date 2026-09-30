@@ -4,7 +4,7 @@ Content Type: project specification
 pinned: true
 description: "The current source of truth for the PPIC Data Explorer product, topic pipelines, application architecture, API boundaries, operational logs, documentation, and contributor standards."
 Date Published: June 23, 2026
-Last Updated: 09/18/2026 - 03:24 PM
+Last Updated: 09/29/2026 - 09:00 PM
 Status: Updating
 ---
 
@@ -148,7 +148,7 @@ The topic guides own exact column definitions, source discovery rules, cleaning 
 |---|---|
 | Web application | Next.js 16 and React 19 |
 | Styling and components | Tailwind CSS 4, Radix-based UI components, shared PPIC tokens |
-| Charting | Plotly.js through `react-plotly.js` |
+| Charting | Plotly.js through `react-plotly.js` for most chart types and both maps; `@visx/scale`, `@visx/shape`, `@visx/axis`, `@visx/grid`, and `@visx/group` (pinned at 4.0.0) for the line chart, migrating chart by chart per [[chart-renderer-implementation-plan]] |
 | Pipeline language | Python 3.12 |
 | Data processing | pandas and NumPy |
 | Source access | Requests, Beautiful Soup, OpenPyXL, and xlrd |
@@ -211,9 +211,10 @@ Topic configuration has several owners by design.
 | Shared project paths and HTTP defaults | `lib/config.py` |
 | Population & Housing geography and legacy-compatible constants | `lib/pophousing_config.py` |
 | Topic-specific Python paths, sources, and schemas | `scripts/<topic>/config/` |
-| Client-safe fields, measures, time, geography, and capabilities | `lib/visualization/moduleSchemas/` |
+| Client-safe fields, measures, time, geography, capabilities, and source citations | `lib/visualization/moduleSchemas/` |
 | Landing and navigation topic directory | `lib/visualization/topicRegistry.js` |
-| Chart families and their capabilities | `lib/visualization/chartRegistry.js` |
+| Chart families, their capabilities, and their renderer | `lib/visualization/chartRegistry.js` |
+| Chart style-guide values (type sizes, spacing, colors, export widths) | `lib/visualization/chartStyle.js` |
 | Version 3 question wire format | `lib/visualization/questionSpec.js` |
 | Approved settings inventory | `lib/visualization/settingsRegistry.js` |
 | Shared Python dependency declarations | `pyproject.toml` |
@@ -414,10 +415,10 @@ ChartConfigProvider
 adaptObservations
         |
         v
-PlotlyChart or DataTableView
+ChartRenderer (PlotlyChart or a visx chart) or DataTableView
 ```
 
-`PreviewContext` owns the preview states: idle, unconfigured, loading, invalid, empty, error, and ready. Presentation-only edits reuse the answered question when possible.
+`PreviewContext` owns the preview states: idle, unconfigured, loading, invalid, empty, error, and ready, and tags each ready result with the renderer that produced it. Presentation-only edits reuse the answered question when possible.
 
 ### API boundary
 
@@ -470,7 +471,9 @@ Curated topic adapters and inline tables both produce the observation contract d
 
 `lib/visualization/adapters/index.js` converts observations into Plotly figures. Production editor charts do not render through `toPlotly.js`; that file remains live for UI Kit examples.
 
-`ExportMenu` and `lib/export/*` own image, data, spreadsheet, and embed output. `DataTableView` renders exact values both as a chart family and inside the topic workbench's data view.
+The chart renderer is migrating from Plotly to visx, one chart type at a time, under the plan of record at [[chart-renderer-implementation-plan]]. Every descriptor in `chartRegistry.js` declares a `renderer` of `"plotly"` or `"visx"`; `VISX_CHART_TYPES` lists the chart types with a visx drawing (currently only `line`), and `rendererFor(type, preview)` resolves the active renderer, honoring a `?renderer=visx|plotly` page-address preview request only when that renderer exists for the type and never in embed mode. Stage 1 (writing every test) and Stage 2 groundwork (Workstreams A, B, and C) are done. Stage 3's line chart (Workstream D) is also done, and the line chart's default renderer is now visx. Bar, range, dot plot, forest, heatmap, scatter and bubble, and pie charts remain on Plotly pending Workstreams E through K; maps (Workstream L) stay on Plotly permanently. `components/charts/ChartRenderer.js` is the one place that draws a tagged preview result, either `PlotlyChart` or the matching visx component, and it marks its container `data-chart-ready="true"` once drawing finishes, which screenshot tests wait on instead of Plotly's own ready callback. A visx chart draws from a chart model built by `lib/visualization/models/` (`buildChartModel`, `lineModel.js`) and sits inside `components/charts/ChartFrame.js`, which reproduces PPIC's published chart frame: eyebrow, title, subtitle, the drawing and its key, then a source-and-notes box matching the PPIC Datawrapper standard. A "Show source and notes" switch can hide that box; its source line now cites each topic's dataset in full through a `sourceCitations` map on every module schema, resolved by `citeSources` in `lib/visualization/datasetLabels.js`, rather than showing a raw Source filter value. Shared style-guide values (type sizes, line weights, spacing, export widths, the grid rule, the source box, and hover labels) live in `lib/visualization/chartStyle.js`, the one owner both Plotly and visx read from.
+
+`ExportMenu` and `lib/export/*` own image, data, spreadsheet, and embed output. `DataTableView` renders exact values both as a chart family and inside the topic workbench's data view. Image export (PNG, SVG, JPG, and PDF) of a visx-rendered chart, currently the line chart, is not yet implemented and shows a "coming soon" notice, because export still calls `Plotly.toImage`; CSV export and embeds work on either renderer. Workstream M replaces this once every chart type has moved to visx.
 
 ### Views and persistence
 
@@ -718,7 +721,7 @@ See [[new-topic-process]] for the working process and templates.
 
 ### Add a chart family
 
-1. Add one chart descriptor and capabilities entry to `chartRegistry.js`.
+1. Add one chart descriptor and capabilities entry to `chartRegistry.js`, declaring its `renderer` (`"plotly"` until the chart's visx workstream lands, per [[chart-renderer-implementation-plan]]).
 2. Define required roles, time contracts, calculations, comparison presentations, color encoding, defaults, limits, and skeleton shape.
 3. Add an observation adapter branch.
 4. Add only the settings the chart consumes.
@@ -761,6 +764,8 @@ These are the important current boundaries:
 - `/api/pophousing/update` needs an authenticated, process-capable deployment boundary.
 - Some live code still uses legacy `module` identifiers.
 - Quarantined visualization code remains recoverable until its removal ledger records a reviewed decision.
+- The chart renderer migration from Plotly to visx is mid-flight: only the line chart draws with visx today, every other chart type still draws with Plotly, and maps stay on Plotly permanently. See [[chart-renderer-implementation-plan]].
+- Image export (PNG, SVG, JPG, PDF) of a visx-rendered chart is not yet implemented and shows a "coming soon" notice; CSV export and embeds are unaffected.
 - The project specification remains `Updating` because topics and product capabilities continue to evolve; each section describes current behavior unless explicitly marked historical.
 
 ---

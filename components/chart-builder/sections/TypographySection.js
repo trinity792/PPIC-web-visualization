@@ -16,6 +16,7 @@
  *
  * Data sources:
  *   - Chart configuration from ChartConfigProvider
+ *   - lib/visualization/models/sharedSettings.js (TYPOGRAPHY_LIMITS)
  *
  * UI Kit reference:
  *   - Implements the number-input form pattern
@@ -27,19 +28,24 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
+import { TYPOGRAPHY_LIMITS } from "@/lib/visualization/models/sharedSettings";
 
 /**
- * [appearance key, label, min, max, fallback]. Ranges are the type-scale bounds
- * the PPIC chart style allows; decimal places is a precision cap, not a size.
+ * [appearance key, label, min, max, fallback]. The ranges and fallbacks come
+ * from sharedSettings.js, which clamps saved values to the same limits when a
+ * chart is drawn; decimal places is a precision cap, not a size.
  */
 const TYPOGRAPHY_FIELDS = [
-  ["titleFontSize", "Title Size", 14, 32, 20],
-  ["subtitleFontSize", "Subtitle Size", 11, 24, 18],
-  ["axisFontSize", "Axis Label Size", 9, 20, 14],
-  ["legendFontSize", "Legend Text Size", 10, 20, 14],
-  ["dataLabelFontSize", "Data Label Size", 9, 22, 14],
-  ["decimalPlaces", "Decimal Places", 0, 6, 2],
-];
+  ["titleFontSize", "Title Size"],
+  ["subtitleFontSize", "Subtitle Size"],
+  ["axisFontSize", "Axis Label Size"],
+  ["legendFontSize", "Legend Text Size"],
+  ["dataLabelFontSize", "Data Label Size"],
+  ["decimalPlaces", "Decimal Places"],
+].map(([key, label]) => {
+  const { min, max, fallback } = TYPOGRAPHY_LIMITS[key];
+  return [key, label, min, max, fallback];
+});
 
 export default function TypographySection() {
   const { config: storedConfig, dispatch } = useChartConfig();

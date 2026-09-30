@@ -221,6 +221,7 @@ export default function GeographySection() {
         advanced ? (
           <RankingControls
             idPrefix="geography-ranking"
+            enabled={v3 ? Boolean(ranking) : config.filters?.topN != null}
             topN={config.filters?.topN ?? 20}
             sort={config.appearance?.sort || "value"}
             onChange={({ topN, sort }) => dispatch({ type: "SET_RANKING", topN, sort })}

@@ -198,6 +198,7 @@ function useExportCharts(previews, config, loaded) {
         name: preview.name,
         config: preview.config,
         result: preview.result,
+        renderer: preview.plotly?.renderer || "plotly",
       }));
     }
     return [
@@ -210,6 +211,12 @@ function useExportCharts(previews, config, loaded) {
     ];
   }, [previews, config, loaded]);
 }
+
+// Image export still asks Plotly for the picture, so a chart drawn with visx
+// has nothing to export until export works from the drawn SVG (renderer plan,
+// Workstream M). Owner decision 2026-09-29: say so plainly rather than fail.
+const VISX_IMAGE_EXPORT_NOTICE =
+  "Image export for the new line chart is coming soon. Use Export data for the numbers, or Embed chart to share the live chart.";
 
 const MAX_EMBED_URL_LENGTH = 16000;
 
@@ -342,6 +349,7 @@ export function ExportChartButton({
   const embed = useMemo(() => embedInfo(config, workspace), [config, workspace]);
   const exportCharts = useExportCharts(previews, config, loaded);
   const multi = exportCharts.length > 1;
+  const imageExportUnavailable = exportCharts.some((chart) => chart.renderer === "visx");
   const devicePresetSelected = IMAGE_SIZE_PRESETS.some(
     (preset) => preset.id === sizeSelection,
   );
@@ -427,6 +435,10 @@ export function ExportChartButton({
   // A stale render is ignored if the dialog closes or dimensions change.
   useEffect(() => {
     if (!imageOpen) return undefined;
+    if (imageExportUnavailable) {
+      setImagePreview({ status: "error", src: null, error: VISX_IMAGE_EXPORT_NOTICE });
+      return undefined;
+    }
     if (!dimensionsValid) {
       setImagePreview({ status: "idle", src: null, error: null });
       return undefined;
@@ -470,6 +482,7 @@ export function ExportChartButton({
   }, [
     dimensionsValid,
     exportCharts,
+    imageExportUnavailable,
     exportHeight,
     exportWidth,
     graphDivRef,

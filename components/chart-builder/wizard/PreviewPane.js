@@ -4,8 +4,10 @@
  * PreviewPane.js — the wizard's right-column chart preview.
  *
  * Renders the shared PreviewContext state (loading / invalid / empty / error /
- * ready) and mounts the Plotly chart, handing its graph div up to the context
- * so the Export step can drive image export off the same rendered figure.
+ * ready) and draws the chart through ChartRenderer, which picks Plotly or visx
+ * from the result's renderer tag. A visx chart sits inside ChartFrame; a Plotly
+ * chart hands its graph div up to the context so the Export step can drive
+ * image export off the same rendered figure.
  * This is the extracted render half of ModuleEditor's former ChartWorkspace.
  *
  * Props:
@@ -36,8 +38,9 @@ import {
 
 import CaliforniaCountiesOutline from "@/components/charts/CaliforniaCountiesOutline";
 import DataTableView from "@/components/charts/DataTableView";
+import ChartFrame from "@/components/charts/ChartFrame";
+import ChartRenderer from "@/components/charts/ChartRenderer";
 import GraphTabs from "@/components/charts/GraphTabs";
-import PlotlyChart from "@/components/charts/PlotlyChart";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { cn } from "@/components/ui/utils";
 
@@ -336,7 +339,9 @@ function ChartSlot({ preview, layout, multi, embedded, onGraphDiv }) {
         </div>
       ) : null}
 
-      <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden px-2 pt-2 sm:px-4">
+      {/* Bottom padding matches the sides, so the chart's gray source box
+          does not sit flush against the container's bottom border. */}
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden px-2 pt-2 pb-2 sm:px-4 sm:pb-4">
         {status === "idle" ? (
           <ChartSkeleton shape={skeletonShapeFor(chartType, appearance)} />
         ) : null}
@@ -399,19 +404,28 @@ function ChartSlot({ preview, layout, multi, embedded, onGraphDiv }) {
             />
           </div>
         ) : null}
-        {status === "ready" && plotly?.data && !renderError ? (
-          <PlotlyChart
+        {status === "ready" && plotly?.renderer === "visx" && !renderError ? (
+          <ChartFrame
             key={renderChartType || chartType}
-            {...plotly}
-            // Embeds are read-only output: hide Plotly's modebar (zoom/pan/etc.)
-            // so the shared chart shows no interactive editor controls.
-            config={
-              embedded
-                ? { ...plotly.config, displayModeBar: false }
-                : plotly.config
-            }
+            labels={plotly.frame?.labels}
+            appearance={plotly.frame?.appearance}
+            observations={plotly.frame?.observations}
+            sourceCitations={plotly.frame?.sourceCitations}
+            summary={plotly.model?.summary ?? null}
+            legend={plotly.model?.key ?? null}
             height={height}
-            className="min-w-0 w-full"
+          >
+            {({ width, height: drawingHeight }) => (
+              <ChartRenderer result={plotly} width={width} height={drawingHeight} />
+            )}
+          </ChartFrame>
+        ) : null}
+        {status === "ready" && plotly?.data && plotly.renderer !== "visx" && !renderError ? (
+          <ChartRenderer
+            key={renderChartType || chartType}
+            result={plotly}
+            height={height}
+            embedded={embedded}
             onGraphDiv={(graphDiv) => onGraphDiv(id, graphDiv)}
           />
         ) : null}
