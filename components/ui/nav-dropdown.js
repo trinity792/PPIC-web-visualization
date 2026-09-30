@@ -5,6 +5,7 @@
  *   label {string}        — text shown on the trigger button
  *   items {Array<{href: string, label: string}>} — menu links, in display order
  *   className {string}    — optional extra classes on the wrapper
+ *   disabled {boolean}   — suspends the menu while navbar search is open
  *
  * Behavior:
  *   - Opens on pointer hover and stays open while the pointer is over the
@@ -12,8 +13,8 @@
  *     dead gap between them).
  *   - Closes when a menu item is clicked (the link then navigates), when the
  *     pointer leaves the wrapper, on blur, or on Escape.
- *   - Keyboard accessible: the trigger toggles on Enter/Space and focus opens
- *     the menu; Escape closes it and returns focus to the trigger.
+ *   - Enter/Space toggles the menu; arrow keys move between items.
+ *     Escape closes it and returns focus to the trigger.
  *
  * Data sources:
  *   - Menu links are passed in via the `items` prop
@@ -30,8 +31,10 @@ import { ChevronDown } from "lucide-react";
 
 import { cn } from "@/components/ui/utils";
 
-export default function NavDropdown({ label, items, className }) {
+export default function NavDropdown({ label, items, className, disabled = false }) {
   const [open, setOpen] = React.useState(false);
+  const menuOpen = open && !disabled;
+  const menuId = React.useId();
   const wrapperRef = React.useRef(null);
   const triggerRef = React.useRef(null);
   const closeTimer = React.useRef(null);
@@ -44,9 +47,10 @@ export default function NavDropdown({ label, items, className }) {
   }, []);
 
   const openNow = React.useCallback(() => {
+    if (disabled) return;
     cancelClose();
     setOpen(true);
-  }, [cancelClose]);
+  }, [cancelClose, disabled]);
 
   // Delay closing so a quick diagonal move from the trigger toward a menu item
   // (which briefly leaves the hover region) doesn't dismiss the menu.
@@ -61,6 +65,9 @@ export default function NavDropdown({ label, items, className }) {
   }, [cancelClose]);
 
   React.useEffect(() => cancelClose, [cancelClose]);
+  React.useEffect(() => {
+    if (disabled) close();
+  }, [disabled, close]);
 
   // Close when focus moves entirely outside the wrapper (e.g. tabbing away).
   const handleBlur = React.useCallback(
@@ -75,11 +82,23 @@ export default function NavDropdown({ label, items, className }) {
   const handleKeyDown = React.useCallback(
     (event) => {
       if (event.key === "Escape") {
+        event.stopPropagation();
         close();
         triggerRef.current?.focus();
+      } else if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+        event.preventDefault();
+        const links = [...wrapperRef.current.querySelectorAll('[role="menuitem"]')];
+        const current = links.indexOf(document.activeElement);
+        const index = event.key === "Home" ? 0
+          : event.key === "End" ? links.length - 1
+          : event.key === "ArrowDown" ? (current + 1) % links.length
+          : current <= 0 ? links.length - 1 : current - 1;
+        openNow();
+        // Wait for React to remove inert before moving focus into the panel.
+        requestAnimationFrame(() => links[index]?.focus());
       }
     },
-    [close],
+    [close, openNow],
   );
 
   return (
@@ -88,7 +107,6 @@ export default function NavDropdown({ label, items, className }) {
       className={cn("relative", className)}
       onMouseEnter={openNow}
       onMouseLeave={scheduleClose}
-      onFocus={openNow}
       onBlur={handleBlur}
       onKeyDown={handleKeyDown}
     >
@@ -96,16 +114,18 @@ export default function NavDropdown({ label, items, className }) {
         ref={triggerRef}
         type="button"
         aria-haspopup="menu"
-        aria-expanded={open}
+        aria-expanded={menuOpen}
+        aria-controls={menuId}
+        disabled={disabled}
         onClick={() => setOpen((prev) => !prev)}
-        className="flex items-center gap-1 font-body text-sm hover:underline"
+        className="ppic-nav-link flex items-center gap-1 text-sm"
       >
         {label}
         <ChevronDown
           aria-hidden="true"
           className={cn(
-            "size-4 transition-transform duration-150",
-            open && "rotate-180",
+            "size-4 transition-transform duration-200 motion-reduce:transition-none",
+            menuOpen && "rotate-180",
           )}
         />
       </button>
@@ -116,10 +136,11 @@ export default function NavDropdown({ label, items, className }) {
           pointer travel diagonally toward a menu item without leaving the
           wrapper and dismissing the menu. */}
       <div
-        className={cn(
-          "absolute right-0 top-full z-40 pt-2",
-          open ? "block" : "hidden",
-        )}
+        id={menuId}
+        className="ppic-nav-reveal absolute left-0 top-full z-40 pt-2 lg:left-auto lg:right-0"
+        data-open={menuOpen}
+        aria-hidden={!menuOpen}
+        inert={!menuOpen}
       >
         <div
           role="menu"
@@ -132,7 +153,7 @@ export default function NavDropdown({ label, items, className }) {
               href={item.href}
               role="menuitem"
               onClick={close}
-              className="block px-4 py-2 text-sm hover:bg-ppic-brand-soft hover:text-black"
+              className="block px-4 py-2 text-sm tracking-normal transition-colors hover:text-ppic-official-orange focus-visible:text-ppic-official-orange motion-reduce:transition-none"
             >
               {item.label}
             </Link>

@@ -119,6 +119,9 @@
   --ppic-neutral-400: #595f61;
   --ppic-neutral-500: #383b3d;
   --ppic-neutral-600: #191b1c;
+
+  /* Official style-guide colors */
+  --ppic-official-orange: #ca4f1a;
   /* ppic-palette:end */
 
   /* Semantic */
@@ -130,6 +133,11 @@
   --ppic-surface: #f2f2f2;
   --ppic-card: #fafafa;
   --ppic-border: #c2c9cc;
+
+  /* Shared navbar motion: links, topic panel, and expandable search. */
+  --nav-motion-duration: 200ms;
+  --nav-reveal-offset: 0.5rem;
+  --nav-underline-height: 2px;
 
   /* Document (Markdown) rendering */
   --ppic-body-font-weight: 400;
@@ -296,6 +304,7 @@
   --color-ppic-neutral-500: var(--ppic-neutral-500);
   --color-ppic-neutral-600: var(--ppic-neutral-600);
   --color-ppic-brand: var(--ppic-brand);
+  --color-ppic-official-orange: var(--ppic-official-orange);
   --color-ppic-brand-soft: var(--ppic-brand-soft);
   --color-ppic-data-blue: var(--ppic-data-blue);
   --color-ppic-data-teal: var(--ppic-data-teal);
@@ -309,6 +318,8 @@
   --font-heading: var(--font-source-sans), sans-serif;
   --font-body: var(--font-source-sans), sans-serif;
   --font-sans: var(--font-inter), sans-serif;
+  /* PPIC's Adobe Fonts kit, loaded in app/layout.js; used by the navbar. */
+  --font-proxima: "proxima-nova", "Proxima Nova", Helvetica, Arial, -apple-system, sans-serif;
   --font-serif: var(--font-source-serif), "Source Serif 4", Georgia, "Times New Roman", serif;
 }
 
@@ -346,6 +357,57 @@ body {
   width: 100%;
   max-width: var(--page-max-width, none);
   margin-inline: auto;
+}
+
+@layer components {
+  .ppic-nav-link {
+    @apply relative inline-flex items-center py-3 text-black no-underline;
+  }
+
+  .ppic-nav-link::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    bottom: 0;
+    height: var(--nav-underline-height);
+    background: var(--ppic-brand);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform var(--nav-motion-duration) ease;
+  }
+
+  .ppic-nav-link:is(:hover, :focus-visible, [aria-expanded="true"])::after {
+    transform: scaleX(1);
+  }
+
+  .ppic-nav-reveal {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(calc(-1 * var(--nav-reveal-offset)));
+    transition:
+      opacity var(--nav-motion-duration) ease,
+      transform var(--nav-motion-duration) ease,
+      visibility var(--nav-motion-duration);
+  }
+
+  .ppic-nav-reveal[data-open="true"] {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateY(0);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ppic-nav-link::after,
+    .ppic-nav-reveal {
+      transition: none;
+      transform: none;
+    }
+
+    .ppic-nav-link::after { opacity: 0; }
+    .ppic-nav-link:is(:hover, :focus-visible, [aria-expanded="true"])::after { opacity: 1; }
+  }
 }
 
 /* ============================================================================

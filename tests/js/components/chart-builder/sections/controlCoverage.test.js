@@ -27,11 +27,14 @@ const spacing = ["Horizontal Line Spacing (px)", "Vertical Line Spacing (px)"];
 // A line's horizontal axis is its implied temporal field, so its tick
 // increment shows even with no bindings (Build, Workstream C).
 const lineYearTick = "Horizontal tick increment (Year)";
-const ADVANCED_ONLY = new Set([...typography, ...spacing, lineYearTick, "Markers", "Dashed lines for a range of periods", "Start period", "End period", "Range label"]);
+// Owner decision 2026-09-30 (bar references): Show values, Sort, and Stack
+// totals are standard; the other new bar controls are Advanced Mode only.
+const barAdvanced = ["Label which series", "Label position", "Bars along", "Color bars by"];
+const ADVANCED_ONLY = new Set([...typography, ...spacing, lineYearTick, "Markers", "Dashed lines for a range of periods", "Start period", "End period", "Range label", ...barAdvanced]);
 const row = ["Group alignment", "Variable alignment", "Show point values"];
 const expected = {
   line: [...shared, ...typography, ...spacing, lineYearTick, "Markers", "Dashed lines for a range of periods", "Start period", "End period", "Range label"],
-  bar: [...shared, ...typography, ...spacing, "Orientation", "Diverging bars", "Stacking", "Space between groups", "Center reference", "Reference line", "Reference line label", "Range minimum", "Range maximum", "Track rail", "Minimal axis", "Threshold colors"],
+  bar: [...shared, ...typography, ...spacing, "Orientation", "Diverging bars", "Stacking", "Space between groups", "Center reference", "Reference line", "Reference line label", "Range minimum", "Range maximum", "Track rail", "Minimal axis", "Threshold colors", "Show values", "Stack totals", "Sort", ...barAdvanced],
   dumbbell: [...shared, ...typography, ...spacing, ...row, "First Line Only"],
   dotPlot: [...shared, ...typography, ...spacing, ...row, "Latina Women", "White Women", "Marker size"],
   forest: [...shared, ...typography, ...spacing, ...row, "Interval ends", "Estimate marker", "Line of no effect", "Value axis center"],
@@ -49,7 +52,11 @@ function controls(container) {
 }
 for(const type of Object.keys(expected)) for(const advanced of [false,true]) {
   it(`${type} shows exactly the controls in its settings table (${advanced ? "advanced" : "standard"})`, () => {
-    state.config = config(type, { diverging: type === "bar", showPointLabels: true, symbolGradient: true, colorScale: "diverging", dashedRange: { from: 2025, to: 2030, label: "Projected" } });
+    // Bar: Show values reveals the two label controls and stacking reveals
+    // Stack totals. Color bars by needs several comparisons and several
+    // periods, which the mocked preview's lineRows already have.
+    const barGates = type === "bar" ? { showValueLabels: true, stackMode: "stacked" } : {};
+    state.config = config(type, { diverging: type === "bar", showPointLabels: true, symbolGradient: true, colorScale: "diverging", dashedRange: { from: 2025, to: 2030, label: "Projected" }, ...barGates });
     // No axis bindings: the axis-dependent controls are enumerated separately
     // below with a meaningful numeric binding and range.
     state.config.presentation.bindings = ["dumbbell", "dotPlot", "forest"].includes(type) ? { group: "Location" } : {};

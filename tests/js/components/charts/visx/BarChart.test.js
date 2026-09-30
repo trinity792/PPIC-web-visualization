@@ -23,11 +23,13 @@ it("asks for fewer categories when the minimum bar width cannot fit", () => {
   expect(container.querySelectorAll('[data-mark="bar"]')).toHaveLength(0);
 });
 it("draws no vertical grid lines", () => expect(draw().container.querySelectorAll('[data-grid="vertical"]')).toHaveLength(0));
-it("draws horizontal bars with right-aligned labels", () => {
+// Owner decision 2026-09-30: left-aligned, as PPIC's published charts show
+// (the style guide shows right-aligned).
+it("draws horizontal bars with left-aligned labels", () => {
   const { container } = draw({ orientation: "horizontal" });
   const labels = container.querySelectorAll('[data-mark="category-label"]');
   expect(labels).toHaveLength(2);
-  for (const label of labels) expect(label).toHaveAttribute("text-anchor", "end");
+  for (const label of labels) expect(label).toHaveAttribute("text-anchor", "start");
   const bar = container.querySelector('[data-mark="bar"]');
   expect(Number(bar.getAttribute("width"))).toBeGreaterThan(0);
 });

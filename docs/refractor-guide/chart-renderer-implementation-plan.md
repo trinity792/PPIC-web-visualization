@@ -4,14 +4,14 @@ Content Type: implementation plan
 pinned: false
 description: "A tests-first plan for moving every chart except maps from Plotly to visx, one chart type at a time, so each chart follows the PPIC Data Visualization Style Guide and every editor control works. Written for programmers continuing the visualization work."
 Date Published: September 26, 2026
-Last Updated: 09/29/2026 - 09:00 PM
+Last Updated: 09/30/2026 - 08:55 AM
 Status: Updating
 ---
 
 # Chart Renderer: Implementation Plan
 
 > [!info] Who this is for and how to read it
-> This plan is for whoever builds the new chart drawing code, whether a person or a model. Nothing in it is built yet. The work runs in five stages, in order: write every test, lay the groundwork, fix the charts one type at a time, rebuild export, then handle everything outside the chart. Each workstream (a group of related changes) says what is wrong today, the steps to fix it, which documents it makes out of date, and the tests to write. Words that may be unfamiliar are defined in the [Glossary](#glossary) at the end.
+> This plan is for whoever builds the new chart drawing code, whether a person or a model. Nothing in it is built yet. The work runs in five stages, in order: write every test, lay the groundwork, fix the charts one type at a time, rebuild export, then handle everything outside the chart. An optional sixth stage adds extras shared across chart types, such as callouts and panels. Each workstream (a group of related changes) says what is wrong today, the steps to fix it, which documents it makes out of date, and the tests to write. Words that may be unfamiliar are defined in the [Glossary](#glossary) at the end.
 
 Today every chart in the app is drawn by Plotly, a charting library that makes many layout and style choices for us. The PPIC Data Visualization Style Guide (`docs/ref/Data Visualization Style Guide_062321-1 5 3.pdf`) asks for things Plotly makes hard or impossible: lines labeled directly in their own color, square key swatches no larger than 20px, and a separate gray source-and-notes box under the chart. A test of a different approach on a colleague's project ([older_ca_lfp_projections](https://github.com/emcghee73/older_ca_lfp_projections)) showed that visx, a small set of React chart building blocks, produces a line chart much closer to the guide.
 
@@ -23,10 +23,12 @@ This plan keeps Plotly for the two map types. It does not change how data is fet
 
 ## The Order of Work
 
-The work runs in five stages. A stage starts only when the one before it is done, except that charts in Stage 3 can be worked on side by side once Stage 2 is finished.
+The work runs in five stages, plus an optional sixth. A stage starts only when the one before it is done, except that charts in Stage 3 can be worked on side by side once Stage 2 is finished. Stage 6 holds nice-to-have extras, and nothing in Stages 1 to 5 waits for it.
 
-> [!note] Progress, September 29, 2026
+> [!note] Progress, September 30, 2026
 > Stage 1 (tests) is written. Stage 2 (A, B, C) and Workstream D (line chart) are built. The line chart's screenshot baselines await review. Workstreams E to O remain.
+>
+> On September 30 the owner collected twelve published PPIC bar charts (`mockups/bar chart reference/`). Workstream E was widened to cover them, and the owner decided its eleven new rows the same day (ten Build, one Remove). The features they share with other chart types (callouts, highlights, context gray, custom label text, and panels) went into a new optional Workstream P.
 
 | Stage | What happens | Workstreams |
 |---|---|---|
@@ -35,6 +37,7 @@ The work runs in five stages. A stage starts only when the one before it is done
 | 3. Chart by chart | Each chart type is rebuilt, reviewed until it looks right, and has each of its controls made to work, removed, or hidden. | D to L |
 | 4. Export | Export is rebuilt to work from the drawn picture. Each chart type becomes the default only once its export works. | M |
 | 5. Other externalities | Embeds, saved views, shared links, the click-through tests, cleanup, and project documents. | N, O |
+| 6. Extras (optional) | Features shared across chart types that are nice to have once the charts look right. Each chart type can adopt them after its own workstream is done. | P |
 
 | # | Workstream | Stage | Depends on |
 |---|---|---|---|
@@ -43,7 +46,7 @@ The work runs in five stages. A stage starts only when the one before it is done
 | C | Every chart sits inside the same PPIC frame, and the settings every chart shares work | 2 | A, B |
 | D | Line chart | 3 | C |
 | E | Bar chart | 3 | C |
-| F | Range chart (dumbbell) | 3 | C |
+| F | Range chart (dumbbell) | 3 | C, and the row label helper from E |
 | G | Dot plot | 3 | C, F |
 | H | Forest plot | 3 | C, F |
 | I | Heatmap | 3 | C |
@@ -53,6 +56,7 @@ The work runs in five stages. A stage starts only when the one before it is done
 | M | Export works from the picture the chart already draws | 4 | D to L |
 | N | Embeds, saved views, shared links, and click-through tests keep working | 5 | M |
 | O | Plotly is loaded only for maps, and the old code and documents are cleaned up | 5 | N |
+| P | Shared extras: callouts, highlights, context gray, custom label text, and panels | 6 | D, E. Nothing depends on P. |
 
 > [!warning] Users keep seeing the Plotly charts until Stage 4, except the line chart
 > Stage 3 builds each visx chart behind a preview switch (Workstream B). Users keep seeing the Plotly version of every chart until that chart's export works in Stage 4. This follows the decision that export stays on Plotly in the short term, and it means Stage 3 can be reviewed without affecting anyone.
@@ -77,6 +81,8 @@ These were settled with the project owner. They are recorded here so no one has 
 | Order of work | Write all tests first, then go chart type by chart type, then export, then everything else. |
 | Broken controls | The owner decides for each one whether to build it, remove it, or hide it until later. |
 | Priority | Long-term reliability comes first, because the project may become public. |
+| Row label alignment | Decided September 30, 2026. Row labels on horizontal bars, range charts, dot plots, and forest plots are left-aligned by default, as PPIC's published charts show. The guide's right alignment is still available through the alignment setting. |
+| Shared extras | Decided September 30, 2026. Callouts with arrows, highlighted categories, a context gray series, custom label text, and panels are built once in Workstream P, after the charts look right. Nothing else in this plan depends on them. Panels split a chart by comparison only. Two different measures side by side wait for a later plan, because they need a question with more than one outcome. |
 
 > [!important] Choices this plan makes that you can overrule
 > The plan makes a few smaller choices, each following the style guide. Change any of them before Stage 1 starts if you disagree.
@@ -133,6 +139,9 @@ Every control that does nothing today appears in a settings table, either in Wor
 | **Hide** | Take the control out of the editor for now, keeping the saved setting, so it can be built later. | The control is not shown for that chart, and an old saved value is kept when the view is saved again. |
 
 Every row now has a decision, so every test can be written. A new control added later needs a decision before its test is written. Leaving a control that does nothing in a public tool is not an option this plan offers.
+
+> [!note] Rows added after Stage 1
+> Workstream E gained rows on September 30, 2026, after the owner collected PPIC's published bar charts, and Workstream P was added the same day. E's new rows were decided the same day. P's one Pending row (panel value scale) is decided before P starts. Their tests are written at the start of their own workstream, before any of its feature code, following the rules in Step 2. Three Stage 1 tests change as a result; Workstream E's Tests section names them.
 
 > [!note] How "Build" was read for settings that have no control
 > Where the Suggested column recommended a behavior with no control (bubble size by area, slice value labels), Build means build that behavior with no control. Where it left the choice open or recommended against a control (marker size, heatmap cell values, donut hole), Build means add a control. The chart workstreams below spell out each one.
@@ -597,9 +606,37 @@ Screenshot cases in `tests/visual/visualization-v3.spec.js`:
 
 Only the shared controls, palette, and line spacing reach the bar chart. Every bar-only control does nothing, including the whole diverging bar group. There is also no longer a control to turn diverging bars on or to change orientation. The version 3 Outcome section (`V3Outcome` in `OutcomeSection.js`) does not include the Orientation and Diverging switches the older editor had. The diverging controls only appear when a saved or built-in view already has `diverging` set, for example in the RHNA topic's schema, and the adapter ignores `diverging` and `orientation` too. Stacking (`stackMode`) is read by the adapter but has no control.
 
-Guide rules that matter most: the value axis starts at zero, horizontal bars have right-aligned category labels centered on each bar, bars are at least 10px wide, a stacked series is shaded dark to light, and there are no vertical grid lines.
+The bar chart type in `lib/visualization/chartRegistry.js` also declares defaults that nothing uses: `sort: "value"`, `showValueLabels: false`, `mirror: false`, and a third stacking choice, `stackMode: "percent"`. No control writes them, and `barFigure` reads none of them; it only knows `stackMode: "stacked"`. The registry's `sort: "value"` describes a sorted chart that users never see.
+
+Guide rules that matter most: the value axis starts at zero, bars are at least 10px wide, a stacked series is shaded dark to light, and there are no vertical grid lines. The guide also shows right-aligned category labels on horizontal bars, but PPIC's published charts left-align them, and the owner chose the published look (September 30, 2026).
+
+### What PPIC publishes
+
+On September 30, 2026 the owner collected twelve bar charts from PPIC publications, saved in `mockups/bar chart reference/`. They vary far more than the guide's examples. The table lists what each one needs and where this plan covers it: **E** is this workstream, **P** is the optional extras in [Workstream P](#workstream-p---shared-extras-callouts-emphasis-custom-labels-and-panels), and **Tabs** is the existing Tabs comparison presentation. The pictures are the standard a bar chart is reviewed against in step 7 of the chart recipe, alongside the guide.
+
+| Reference (publication, chart) | What it shows | Covered by |
+|---|---|---|
+| Homelessness and Drug Use, "Beds in permanent housing increased substantially after 2013" | Stacked columns along 18 years. White labels inside one series only. The other series in light gray as context, with gray key text. Key above. Every other year labeled, the latest in bold. | E: bars along periods, stacking, labels for chosen series, key above. P: context gray. Not planned: bold latest year. |
+| Homelessness and Drug Use, Figure 13 | One series. A label above each bar with custom text, such as "(12%*)". | E: labels outside the bar. P: custom label text. |
+| Homelessness and Drug Use, Figure 15 | 50 states sorted largest first. Category labels turned 90 degrees. Two categories highlighted in their own colors. Two callouts with arrows. | E: sorting, turned labels. P: highlight, callouts. |
+| Employment Before, During, and After Prison | Two panels (Before prison, After prison) with bold panel titles. A different color for each category. Labels above. No value axis. Wrapped category labels. | P: panels, and highlighting every category. E: minimal axis on ordinary bars, wrapped labels, labels outside. |
+| Racial Disparities in Law Enforcement Stops, Figure 3 | Four panels with independent value scales. Grouped 2019 and 2023 bars. Labels only on 2023, showing the change since 2019. One key below. | P: panels, independent scales, custom label text. E: labels for chosen series. Not planned: labels that compute change. |
+| Racial Disparities in Law Enforcement Stops, Figure 6 | Negative values around a darker zero line. Categories nested inside agencies, with divider lines. Labels only on 2023, past each bar's tip. Key centered above. | E |
+| Is College Worth It, "College graduates have greater success on the job market" | Tabs. Two measures side by side sharing one set of row labels. A gray track rail behind each bar. Labels inside at the bar's start, moved outside when the bar is too short. | Tabs. E: track rail on ordinary bars, label placement. Deferred: two measures side by side. |
+| Is College Worth It, "At public colleges, nontuition costs are a large part of overall expenses" | Horizontal stacked bars. Dollar value axis. Left-aligned row labels. Key above. | E |
+| Is College Worth It, "Students at public colleges are less likely to take out loans" | Two measures side by side. Dotted row dividers. Values shortened, such as "15.8K". | Deferred: two measures side by side. Not planned: row dividers, shortened numbers. |
+| Is College Worth It, "Students who do not graduate are more likely to have loans in default" | Two stacked shades of one color. Series named at the right instead of in a key. A bold total above each stack. | E: stacking dark to light, direct series labels, stack totals. |
+| Is College Worth It, "Most California 9th graders will not earn a bachelor's degree" | Grouped columns. White labels inside the top of each bar. Wrapped category labels. Key above. | E |
+| Transfer-Level Courses at California Community Colleges, Figure 10 | Horizontal bars stacked to 100%. Rows grouped under bold headers (2-year, 3-year, 4-year). Segment labels in white or dark text, whichever reads better. No label on a segment too small to hold one. Key above. | E |
+
+> [!note] What is deferred or not planned, and why
+> - **Two measures side by side** (the two college charts that set a rate beside a second measure) need a question that carries more than one outcome. This plan does not change the question or how data is fetched, so they wait for a later plan. The owner chose panels by comparison only (September 30, 2026).
+> - **Labels that compute change** ("−35,868" beside a 2023 bar) need a new calculation. Until one exists, an author can type them with P's custom label text.
+> - **Not planned:** a bold latest period label, dotted row dividers, and shortened numbers such as "15.8K". Each is small. Add the first two to P, and shortened numbers to the shared number types in Workstream C, if the owner wants them.
 
 ### Bar chart settings
+
+Rows marked **New, September 30** come from the PPIC references above. The owner decided them on September 30, 2026. Their tests are written at the start of this workstream, before its feature code (see "Rows added after Stage 1" in [Stage 1](#stage-1---write-every-test-first)).
 
 | Control | Setting | Today | Suggested | Decision |
 |---|---|---|---|---|
@@ -615,21 +652,69 @@ Guide rules that matter most: the value axis starts at zero, horizontal bars hav
 | Track rail | `trackRail` | Does nothing | Follows the diverging decision | Build |
 | Minimal axis | `minimalAxis` | Does nothing | Follows the diverging decision | Build |
 | Threshold colors | `colorBuckets` | Does nothing | Follows the diverging decision | Build |
+| Key above the chart (New, September 30) | `legendPosition: "top"` | No such choice | Build. Add Top to the shared Legend Position choices (`LEGEND_POSITIONS` in `sharedSettings.js`, placed by `ChartFrame` and `ChartKey`), so every chart type gains it, and make it the bar chart's default. Every reference with a key puts it above the chart. | Build |
+| Show values (New, September 30) | `showValueLabels` | Declared in the registry, no control, never read | Build a switch, off by default. Standard mode. | Build |
+| Label which series (New, September 30) | `valueLabelSeries` | New | Build, the way the dot plot's `pointLabelSeries` works. All series by default. Advanced Mode only. | Build |
+| Label position (New, September 30) | `valueLabelPosition` | New | Build: Automatic, Inside the bar, or Outside the bar. Automatic follows step 6. Advanced Mode only. | Build |
+| Stack totals (New, September 30) | `showStackTotals` | New | Build, shown only for stacked bars, off by default. | Build |
+| Stacked to 100% (New, September 30) | `stackMode: "percent"` | Declared, never read | Build, as a third Stacking choice. | Build |
+| Sort (New, September 30) | `sort` | Declared default `"value"`, no control, never read | Build a Sort choice: Data order, Largest first, or Smallest first. The default is Data order, which is what users see today, and the registry default changes to match. Dragging locations sets a custom order and shows the choice as Custom. Standard mode. | Build |
+| Bars along (New, September 30) | `categoryAxis` | New | Build: Locations (today) or Periods, for one bar per year as in the permanent housing chart. Advanced Mode only. | Build |
+| Color bars by (New, September 30) | `barColorBy` | New | Build, shown only when the bars show several comparisons and several periods: Each series (today, for example "Latina Women · 2025"), Comparison, or Period. The one not chosen becomes an inner category nested under each location. The default is Each series, so no chart changes color. Advanced Mode only. | Build |
+| Track rail and Minimal axis without diverging (New, September 30) | `trackRail`, `minimalAxis` | Shown only when Diverging bars is on | Build. Move both out of the diverging group, because the references use them on ordinary bars. The diverging group keeps five controls. | Build |
+| Population pyramid (New, September 30) | `mirror` | Declared in the registry, no control, never read | Hide. No reference uses it, and diverging bars already draw bars from a center. | Remove |
 
 ### Steps
 
 Follow [What every chart goes through](#what-every-chart-goes-through). Chart-specific points:
 
-1. **Model** in `lib/visualization/models/barModel.js`, using `axisScale.js` for the value axis. Bars grouped by comparison keep today's grouping and colors from `barFigure`.
-2. **Drawing** in `components/charts/visx/BarChart.js`. Enforce the 10px minimum bar width by reducing the gap between bars first. When even that is not enough, show a notice asking the reader to show fewer categories, rather than drawing bars thinner than the guide allows.
-3. **Hover** shows the category, comparison, and value of the bar under the pointer.
-4. **Orientation.** Horizontal bars put right-aligned category labels to the left of each bar, centered on it.
-5. **Diverging bars.** Bars grow left and right (or up and down) from the center value, with the reference line and its label drawn across the chart. Build all seven diverging settings: center, reference line and label, manual value axis range, track rail, minimal axis, and threshold colors.
-6. **Bring back three controls** in `AppearanceSection.js`, shown only for bar charts: an Orientation choice (vertical or horizontal, saved as `orientation`), a Diverging bars switch (`diverging`), and a Stacking choice (side by side or stacked, saved as `stackMode`). The seven diverging controls keep appearing only when Diverging bars is on, as they do today. Views that already set `diverging`, such as the RHNA topic's built-in views, keep their setting.
+1. **Model** in `lib/visualization/models/barModel.js`, using `axisScale.js` for the value axis. Bars keep today's grouping, series names, and colors from `barFigure`; reuse `colorsForLineSeries`, as the line model does, and do not copy it. For each bar the model holds its category, inner category if any, series, value, start and end (for stacks and diverging bars), a stable key (step 10), and its label text and placement (step 6). Colors come from one function in the model, so P can replace it.
+2. **Categories.**
+   - **Along the axis.** Locations by default. With Bars along set to Periods, each period is a category, and `periodTicks` from Workstream D thins the labels at narrow widths.
+   - **Order.** A dragged order (`categoryOrder`) wins. Otherwise the Sort choice applies: grouped bars sort by the first visible series, and stacked bars by the stack total. Missing values sort last.
+   - **Nested categories.** When Color bars by leaves an inner category, locations become outer groups. On vertical bars, the outer label sits below the inner labels, with 1px divider lines in the axis color between groups (Figure 6). On horizontal bars, the outer label is a bold header row above its rows (Figure 10). With one location, the outer level is left out.
+3. **Row labels for horizontal bars.** New file `lib/visualization/chartLayout/rowLabels.js`. E builds it because E comes before F, and F, G, and H reuse it. Given the labels, the text size, a maximum width, and the alignment, it returns the label column width and each label's position. Long labels wrap onto a second line rather than being cut off. Labels are left-aligned by default (owner, September 30, 2026), and centered on their bar or row.
+4. **Drawing** in `components/charts/visx/BarChart.js`.
+   - Enforce the 10px minimum bar width by reducing the gap between bars first. When even that is not enough, show a notice asking the reader to show fewer categories, rather than drawing bars thinner than the guide allows.
+   - Category labels on vertical bars wrap onto two lines first. When they still overlap, they turn 90 degrees (Figure 15). The 10px notice applies only after both.
+   - When values go below zero, the zero line is drawn as an axis line (1px, axis color), not as a pale grid line (Figure 6).
+   - The drawing receives its plot area from its caller rather than assuming it owns the whole frame, so P's panel grid can draw several bar charts in one SVG.
+5. **Hover** shows the category, series, and value of the bar under the pointer, formatted as the View Data table formats it, and follows the keyboard rules in the chart recipe. On a stacked bar it also shows the stack total.
+6. **Value labels.** When Show values is on:
+   - The text is the value in the shared number format from `sharedSettings.js`, at the data label size.
+   - **Automatic** placement puts labels outside the bar when the chart has one series or only some series are labeled (Figures 13 and 6), and inside otherwise (the 9th graders chart). Stacked segments are always labeled inside.
+   - **Inside** labels sit at the end of a vertical bar and at the start of a horizontal bar, in white or dark text, whichever contrasts more with the bar. Add that choice to `lib/visualization/chartLayout/contrast.js` as one function; the heatmap's cell values (Workstream I) reuse it.
+   - **Outside** labels sit just past the bar's end, which is below the tip for a negative vertical bar. They are in the axis label color when every series is labeled, and in the series' readable color (`readableTextColor`) when only some are, so a reader can tell which series they belong to.
+   - An inside label that does not fit moves outside. An outside label that would leave the plot moves inside. A stacked segment too small for its label shows no label, and its value stays in hover and View Data.
+   - Stack totals are bold, in the axis label color, just past the end of each stack.
+   - Labels never overlap each other or another bar. When they would at the current width, the chart leaves those labels out and keeps the values in hover.
+7. **Direct series labels for stacks.** When Legend Position is Automatic and bars are stacked, each series is named once, to the right of the last stack and level with its segment, instead of in a key (the loans-in-default chart). Reuse `directLabels.js` from Workstream D, so labels are pushed apart the same way and use the same readable text color rule. When they do not fit, or there are more than four series, fall back to the key.
+8. **Orientation.** Horizontal bars put the row labels from step 3 to the left of each bar.
+9. **Diverging bars.** Bars grow left and right (or up and down) from the center value, with the reference line and its label drawn across the chart. Build all seven diverging settings: center, reference line and label, manual value axis range, track rail, minimal axis, and threshold colors. Track rail and Minimal axis also work on ordinary bars (owner, September 30, 2026): the rail is a full-length gray bar behind each bar in the source box color, and the minimal axis leaves out the value axis and its grid lines, which suits charts with value labels.
+10. **Leave room for the extras.** Workstream P adds callouts, highlights, context gray, custom label text, and panels to bars later. E does not build them and does not wait for them, but must not block them. Give every bar a stable key made of its comparison, location, and period, and put it on the bar as `data-key`. Keep the color function (step 1) and the plot area (step 4) as described.
+11. **Controls** in `AppearanceSection.js`, shown only for bar charts:
+    - Bring back three: an Orientation choice (vertical or horizontal, saved as `orientation`), a Diverging bars switch (`diverging`), and a Stacking choice (side by side, stacked, or stacked to 100%, saved as `stackMode`).
+    - Add the other New, September 30 controls, in the mode each row names: Show values, Sort, and Stack totals in Standard Mode; Label which series, Label position, Bars along, and Color bars by in Advanced Mode. Top joins the shared Legend Position choices.
+    - The five remaining diverging controls keep appearing only when Diverging bars is on, as they do today. Track rail and Minimal axis move out of the diverging group and show for every bar chart.
+    - Views that already set `diverging`, such as the RHNA topic's built-in views, keep their setting.
+    - Register every new setting in `lib/visualization/settingsRegistry.js`.
+12. **Remove `mirror`.** Delete it from the bar chart's defaults in `chartRegistry.js`. A saved view that still holds `mirror` opens without error and ignores it. Change the registry's `sort` default from `"value"` to data order at the same time, so the registry describes what users see.
+
+### What this makes out of date
+
+- [[visualization-specification]], section "Chart catalog": the bar chart's description (value labels, sorting, stacking to 100%, nested categories, key above).
+- [[visualization-specification]], section "Settings reference", and the generated settings reference. Regenerate it with `npm run generate:settings`, and do not edit it by hand.
+- Workstream F in this plan: row labels now come from E and default to left-aligned. F has been updated to match.
 
 ### Tests
 
-New files: `tests/js/lib/visualization/models/barModel.test.js` and `tests/js/components/charts/visx/BarChart.test.js`.
+> [!warning] Three Stage 1 tests change with the September 30 decisions
+> These were written in Stage 1 and assume the old defaults. Change them at the start of this workstream, and say why in the commit, as the Markers default change did.
+> - `tests/js/components/charts/visx/BarChart.test.js`, `draws horizontal bars with right-aligned labels`: rename it `draws horizontal bars with left-aligned labels` and expect `text-anchor` `start`.
+> - `tests/js/lib/visualization/chartLayout/rowLabels.test.js`, `right-aligns row labels by default`: rename it `left-aligns row labels by default` and expect `start`.
+> - `tests/js/components/chart-builder/sections/controlCoverage.test.js`, the `bar` list: add the seven new controls (Show values, Label which series, Label position, Stack totals, Sort, Bars along, Color bars by) and the Top legend choice, and keep Track rail and Minimal axis visible without Diverging bars. Add one `bar` row to `tests/js/lib/visualization/settingsCoverage.test.js` for each new Build setting, and add `mirror` to the bar chart's removed settings.
+
+Written in Stage 1, in `tests/js/lib/visualization/models/barModel.test.js` and `tests/js/components/charts/visx/BarChart.test.js`:
 
 | Test | What it checks |
 |---|---|
@@ -639,7 +724,7 @@ New files: `tests/js/lib/visualization/models/barModel.test.js` and `tests/js/co
 | `never draws a bar narrower than 10px` | The guide rule. |
 | `draws no vertical grid lines` | The guide rule. |
 | `orders bars by the dragged location order` | Dragging locations reorders the bars. |
-| `draws horizontal bars with right-aligned labels` | The guide's horizontal bar rule. |
+| `draws horizontal bars with left-aligned labels` | The published charts' rule. Renamed on September 30 (see the warning above). |
 | `stacks series dark to light` | The guide's stacked column rule. |
 | `draws bars from the center value` | Diverging bars grow from `center`. |
 | `draws the reference line and its label` | `referenceValue` and `referenceLabel`, including a reference value of 0, because 0 is a real setting. |
@@ -649,16 +734,79 @@ New files: `tests/js/lib/visualization/models/barModel.test.js` and `tests/js/co
 | `colors bars by threshold` | `colorBuckets`. |
 | `shows the bar's value on hover` | Hover. |
 
+Added September 30, 2026, to `barModel.test.js`. Expected values are typed by hand from the shared fixtures.
+
+| Test | What it checks |
+|---|---|
+| `defaults the key to the top for bar charts` | `legendPosition` falls back to `"top"` for bars only. |
+| `keeps data order when nothing is saved` | No chart reorders on switching. |
+| `sorts largest first and smallest first` | `sort`. |
+| `sorts stacked bars by their totals` | Stacks sort by the whole stack. |
+| `lets a dragged order win over the sort choice` | `categoryOrder` beats `sort`. |
+| `stacks each bar to 100 percent` | Each stack's segments add up to 100. |
+| `puts periods along the axis when Bars along is Periods` | `categoryAxis`. |
+| `nests the inner category under each location` | `barColorBy`, with the expected outer and inner order typed out. |
+| `keeps today's series and colors when Color bars by is not saved` | Compare with `adaptObservations` output. |
+| `labels only the chosen series` | `valueLabelSeries`. |
+| `places labels outside for one series and inside for several` | Automatic placement. |
+| `moves an inside label outside when the bar is too short` | The fit rule. |
+| `leaves out a label on a segment too small to hold it` | Stacked segments. |
+| `labels a negative bar past its tip` | Outside labels on negative bars. |
+| `shows a total for each stack` | `showStackTotals`. |
+| `gives every bar a stable key` | Comparison, location, and period, the same at every width. |
+| `ignores a saved mirror setting` | `mirror` is removed; an old view opens and draws ordinary bars. |
+
+Added September 30, 2026, to `BarChart.test.js`:
+
+| Test | What it checks |
+|---|---|
+| `writes inside labels in white on dark bars and dark on light bars` | The contrast rule. |
+| `colors outside labels by series when only some series are labeled` | Readers can tell which series a label belongs to. |
+| `wraps a long category label onto two lines` | The first fitting step. |
+| `turns category labels 90 degrees when wrapping is not enough` | The second fitting step, with 50 categories. |
+| `draws the zero line as an axis line when values go negative` | Figure 6. |
+| `draws divider lines between nested groups` | Vertical nested categories. |
+| `draws bold group headers for nested horizontal rows` | Horizontal nested categories. |
+| `names stacked series at the right when the key is Automatic` | Direct series labels. |
+| `falls back to the key when stacked series names do not fit` | The fallback. |
+| `never overlaps two value labels` | Labels that would collide are left out. |
+| `shows the stack total on hover` | Hover on stacks. |
+| `puts each bar's stable key on the drawing` | The `data-key` hook P needs. |
+
+Moved from Workstream F to `tests/js/lib/visualization/chartLayout/rowLabels.test.js` (already written in Stage 1):
+
+| Test | What it checks |
+|---|---|
+| `left-aligns row labels by default` | The published charts' default. Renamed on September 30. |
+| `wraps a long row label instead of cutting it off` | Readability. |
+| `honors <alignment> alignment` | One case each for left, center, and right. |
+
 New file: `tests/js/components/chart-builder/sections/AppearanceSection.bar.test.js`:
 
 | Test | What it checks |
 |---|---|
 | `shows Orientation, Diverging bars, and Stacking only for bar charts` | The restored controls. |
-| `shows the seven diverging controls only when Diverging bars is on` | Today's gating is kept. |
+| `shows the diverging controls only when Diverging bars is on` | Today's gating is kept for the controls that stay in the group. |
 | `keeps diverging on for a view that already set it` | RHNA's built-in views are unchanged. |
+| `offers Top as a legend position and defaults bar charts to it` | The new key placement. |
+| `shows Stack totals only for stacked bars` | The gating. |
+| `shows Color bars by only when bars show several comparisons and several periods` | The gating. |
+| `shows Track rail and Minimal axis without Diverging bars` | The un-gated controls. |
 
-Screenshot cases: `matches the approved Bar comparison layout` (existing test, new baseline after review), `fits eight comparisons without overlapping labels`, and one case each for horizontal, stacked, and diverging bars if they are Build.
+Screenshot cases in `tests/visual/visualization-v3.spec.js`. Cases that need more than two counties use a new hand-built fixture in `tests/fixtures/visualization-v3/`, for example 50 categories for the turned labels.
 
+| Test | What it checks |
+|---|---|
+| `matches the approved Bar comparison layout` | Existing test. Its new baseline is recorded after review. |
+| `fits eight comparisons without overlapping labels` | Crowding. |
+| `draws horizontal bars` | Left-aligned row labels, inside value labels. |
+| `draws stacked bars` | Dark to light, stack totals. |
+| `draws diverging bars` | Center, reference line and label. |
+| `labels values inside and outside bars` | The placement rules, including a short bar. |
+| `stacks to 100 percent with nested row groups` | Figure 10. |
+| `turns labels for fifty categories` | Figure 15, without its callouts. |
+| `nests categories around negative values` | Figure 6. |
+| `names stacked series directly` | The loans-in-default chart. |
 ---
 
 ## Workstream F - Range chart (dumbbell)
@@ -667,13 +815,13 @@ Screenshot cases: `matches the approved Bar comparison layout` (existing test, n
 
 Every range-only control does nothing. The "Hide X-Axis" switch (Advanced Mode) writes `showValueAxis`, which nothing reads, while the charts read a different setting, `hideXAxis`, which no control writes.
 
-This workstream also builds the row label helper that the dot plot (G) and forest plot (H) reuse, because all three draw one row per category with a label at the left.
+It reuses the row label helper, `rowLabels.js`, that Workstream E builds for horizontal bars. The dot plot (G) and forest plot (H) reuse it too, because all of them draw one row per category with a label at the left.
 
 ### Range chart settings
 
 | Control | Setting | Today | Suggested | Decision |
 |---|---|---|---|---|
-| Group row label alignment | `groupLabelAlignment` | Does nothing | Build, defaulting to right-aligned as the guide shows for horizontal bars | Build |
+| Group row label alignment | `groupLabelAlignment` | Does nothing | Build, defaulting to left-aligned as PPIC's published charts show (owner, September 30, 2026; the guide shows right-aligned) | Build |
 | Variable row label alignment | `variableLabelAlignment` | Does nothing | Build, same default | Build |
 | Group row label indent | `groupLabelIndent` | Does nothing | Hide. Alignment covers the common need. | Hide |
 | Variable row label indent | `variableLabelIndent` | Does nothing | Hide | Hide |
@@ -685,18 +833,16 @@ This workstream also builds the row label helper that the dot plot (G) and fores
 
 Follow [What every chart goes through](#what-every-chart-goes-through). Chart-specific points:
 
-1. **New file `lib/visualization/chartLayout/rowLabels.js`**, shared with G and H. Given category labels, the text size, and the alignment setting, it returns the label column width and each label's position. Long labels wrap onto a second line rather than being cut off.
+1. **Row labels** come from `lib/visualization/chartLayout/rowLabels.js`, built in Workstream E (step 3). Pass the alignment settings through to it; with nothing saved, labels are left-aligned.
 2. **Model** in `lib/visualization/models/rangeModel.js`, and **drawing** in `components/charts/visx/RangeChart.js`. The connector always runs from the start value to the end value, so a chart drawn from swapped endpoints is caught by a test, not only by a picture.
 3. **Hide X-Axis.** If Build, the switch writes `hideXAxis`. When a saved view holds `showValueAxis: false`, treat it as `hideXAxis: true` when the view opens, so old views keep what their authors chose.
 
 ### Tests
 
-New files: `tests/js/lib/visualization/chartLayout/rowLabels.test.js`, `tests/js/lib/visualization/models/rangeModel.test.js`, and `tests/js/components/charts/visx/RangeChart.test.js`.
+New files: `tests/js/lib/visualization/models/rangeModel.test.js` and `tests/js/components/charts/visx/RangeChart.test.js`. The row label cases in `rowLabels.test.js` moved to Workstream E.
 
 | Test | What it checks |
 |---|---|
-| `right-aligns row labels by default` | The guide default. |
-| `wraps a long row label instead of cutting it off` | Readability. |
 | `draws the connector from the start value to the end value` | Direction is right. |
 | `keeps a row with one missing endpoint, without a connector` | Honest charts. |
 | `opens an old view with showValueAxis false as hideXAxis true` | Old views keep what their authors chose. |
@@ -1085,6 +1231,134 @@ Remove or rewrite the `toPlotly.*.test.js` files together with `toPlotly.js`, st
 
 ---
 
+## Stage 6 - Extras
+
+Stage 6 holds features that are nice to have once the charts look right. Nothing in Stages 2 to 5 waits for it. It can start for a chart type as soon as that chart's screenshot baselines are approved, before or after export (Workstream M).
+
+---
+
+## Workstream P - Shared extras: callouts, emphasis, custom labels, and panels
+
+### Why this is separate
+
+PPIC's published charts use a few features that belong to no single chart type (see [What PPIC publishes](#what-ppic-publishes) in Workstream E): a callout pointing at one data point, highlighted categories, a series drawn in gray as context, a label with custom text, and one chart split into panels. The owner wants all five (September 30, 2026), but only after the charts look right, and nothing else in this plan may depend on them. So they are built once, here, as shared pieces. The bar chart (E) and line chart (D) adopt them in this workstream. Each of F to L can adopt them later as a small follow-up, and none of those workstreams waits for P.
+
+### What exists today
+
+- **Annotations are already saved, but never drawn.** `presentation.annotations` is part of every saved view (`questionSpec.js`, `chartSpec.js`, `defaultQuestions.js`), and the editor's store has `ADD_ANNOTATION` and `REMOVE_ANNOTATION` (`components/chart-builder/chartConfigStore.js`). No control sends either action, and no chart draws annotations. Build on this field; do not add a second one.
+- **Comparisons can be combined or tabbed, nothing else.** `CAPABILITIES` in `lib/visualization/chartRegistry.js` offers `combined` and `tabs` for bars and lines. There is no way to show every comparison at once, each in its own panel.
+- **The per-series color list is gone.** Workstream C removed the per-series rename, hide, and color list. Emphasis must go through the comparison controls that were kept, not bring that list back.
+
+### Extras settings
+
+| Feature | Setting | Today | Suggested | Decision |
+|---|---|---|---|---|
+| Callout: text with an optional arrow to one data point | `presentation.annotations[]`, kind `callout` | Saved field and store actions, no control, never drawn | Build | Build |
+| Highlight categories | `appearance.highlight` (`{ categories, baseColor }`) | New | Build | Build |
+| Context gray series | A new choice in the comparison color control | New | Build | Build |
+| Custom label text | `appearance.labelOverrides` | New | Build | Build |
+| Panels | `presentation.comparisonPresentation: "panels"` | New | Build, for bar and line first | Build |
+| Panel value scale | `appearance.panelScale` | New | Build: Shared by default, or Independent (Figure 3 in the police stops report) | Pending |
+
+### Steps
+
+1. **Callouts, model.** New file `lib/visualization/models/annotations.js`. It reads `presentation.annotations` and returns, for each callout whose target is in the data, where the target sits on the chart's own scales, the text, the side, and whether to draw an arrow.
+   - A callout points at data, not pixels. Its target names a comparison, a location, and a period, whichever the chart type needs (the stable key from E step 10), so it stays on its bar or point at every width and after the data refreshes.
+   - Side: Automatic, Above, Below, Left, or Right. Automatic puts the text above the target unless the side with the most room is clearly better. The text sits a fixed distance from its target, wraps at a maximum width, and stays inside the plot.
+   - Style: text at the data label size in the axis label color, and a 1px arrow in the axis color with a small head, as in Figure 15 of the homelessness report. Add these values to `chartStyle.js`.
+   - A callout whose target is not in the data is left out, and the editor lists it with a warning so the author can fix or delete it. It never throws.
+   - Before choosing field names, check the shapes the store actions already save in `chartConfigStore.test.js` and `savedViews.v3.test.js`, and keep any saved annotation opening without error.
+2. **Callouts, drawing.** New file `components/charts/visx/Callout.js`. Callouts are drawn inside the chart's own SVG, so export (M) copies them with no extra work. Callout text is also added to the screen-reader caption that `ChartFrame` writes.
+3. **Highlight categories.** New file `lib/visualization/models/emphasis.js`, called from each chart model's one color function (E step 1). With `appearance.highlight` set, the chosen categories take palette colors in order, skipping the base color, and every other category takes the base color. The base color is a choice that defaults to Navy, matching Figure 15 (orange and yellow-green highlights on navy bars). Highlighting every category gives each its own color, as in the prison chart. On line charts the same setting picks lines. Keys, direct labels, and hover follow the new colors.
+4. **Context gray.** Add a light gray named token for context series to `lib/constants.js`, or reuse `gray2` if the owner agrees it matches the permanent housing chart, and offer it as a choice in the kept comparison color control. The series draws in that gray. Its key text and labels use `readableTextColor`, so they stay readable; the reference's pale key text would fail the 4.5 to 1 rule. Hover still works on it.
+5. **Custom label text.** `appearance.labelOverrides` maps a bar's or point's stable key to text. The text replaces that one value label, and shows even when Show values is off, as in Figure 13 of the homelessness report, where "(12%*)" is the only label. A key not in the data is ignored, and the editor lists it with a warning. This applies to chart types that have value labels: bar now, and dot plot, range, and pie once their workstreams are done.
+6. **Panels.**
+   - Add `"panels"` to the `comparison` capability of bar and line in `chartRegistry.js`. The question and the data fetch do not change: panels split the same observations by comparison, as tabs do.
+   - New file `lib/visualization/chartLayout/panels.js`. Given the frame's width and height and the number of panels, it returns each panel's box: two columns at 650px and wider, one column below that. At most six panels; more gives a validation message suggesting Tabs.
+   - New file `components/charts/visx/PanelGrid.js`. It draws each panel with the chart type's own drawing component, all inside one SVG, so export needs no change. Each panel has a title (its comparison label) at the key title size, bold, in the subtitle color. The whole figure shares one key, placed by `ChartFrame`.
+   - Every panel uses the same category order. With a shared scale, every panel uses the same value axis, so panels can be compared honestly. With an independent scale (if `panelScale` is Build), each panel shows its own value axis.
+   - Hover and arrow keys move within a panel, and Tab moves between panels.
+7. **Line chart adoption.** Callouts point at a period on a line. Highlight picks lines, and the rest take the base color. Context gray and panels work as for bars. Custom label text does not apply, because line charts have no value labels.
+8. **Editor.**
+   - New section `components/chart-builder/sections/AnnotationsSection.js`, Advanced Mode only, shown for chart types that have adopted P. It lists callouts (text, a target picked from the data, side, and an arrow switch) and custom labels (a target and its text). Register it in `lib/visualization/sidebarSections.js`.
+   - Add `UPDATE_ANNOTATION` next to the add and remove actions, and check that all three change a version 3 view. The per-series actions did not (Workstream C).
+   - Highlight goes in the Appearance section: a list of the chart's categories or lines to highlight, and a base color choice.
+   - Panels is a third choice in the presentation control in `ComparisonsSection.js`, next to Combined and Tabs.
+   - Register every new setting in `lib/visualization/settingsRegistry.js`, and regenerate the settings reference with `npm run generate:settings`.
+9. **Chart types that have not adopted P.** A saved view holding P's settings opens on any chart type without error. The settings are ignored there but kept, as a Hide decision keeps them, so switching back to a bar or line chart restores them.
+
+### What this makes out of date
+
+- [[visualization-specification]], sections "Labels, appearance, and accessibility" and "Settings reference", and the part that describes comparison presentations (panels join combined and tabs).
+- [[projectSpec]], the chart registry description: bar and line offer the panels presentation.
+
+### Tests
+
+P was added after Stage 1, so its tests are written at the start of this workstream, before its feature code, following the rules in [Stage 1](#stage-1---write-every-test-first). Each chart type that adopts P later adds its own cases in the same files. Add one row per P setting for bar and line to `settingsCoverage.test.js` and `controlCoverage.test.js`.
+
+New file: `tests/js/lib/visualization/models/annotations.test.js`:
+
+| Test | What it checks |
+|---|---|
+| `anchors a callout to its data point at every width` | The same target lands on the same bar at 950px and 330px. |
+| `leaves out a callout whose target is not in the data` | No crash, and the callout is reported for the editor's warning. |
+| `keeps callout text inside the plot` | A callout on the last bar is not clipped. |
+| `opens a view saved with the existing annotation shape` | Nothing saved before P breaks. |
+
+New file: `tests/js/lib/visualization/models/emphasis.test.js`:
+
+| Test | What it checks |
+|---|---|
+| `draws every category that is not highlighted in the base color` | Highlight. |
+| `gives highlighted categories palette colors in order, skipping the base color` | Expected colors typed out by hand. |
+| `highlights lines on a line chart` | The same setting on lines. |
+| `draws a context gray series with readable key text` | Context gray, and the key text reaches 4.5 to 1. |
+| `shows custom label text in place of the value` | `labelOverrides`. |
+| `shows a custom label even when Show values is off` | Figure 13. |
+| `ignores a custom label whose bar is not in the data` | Reported, not thrown. |
+
+New file: `tests/js/lib/visualization/chartLayout/panels.test.js`:
+
+| Test | What it checks |
+|---|---|
+| `lays out two columns at 650px and one at 330px` | The grid rule. |
+| `gives every panel the same value scale by default` | Honest comparison. |
+| `gives each panel its own scale when independent` | `panelScale`, if Build. |
+| `keeps category order the same in every panel` | Readers compare like with like. |
+| `refuses more than six panels and suggests tabs` | The limit. |
+
+New files: `tests/js/components/charts/visx/Callout.test.js` and `tests/js/components/charts/visx/PanelGrid.test.js`:
+
+| Test | What it checks |
+|---|---|
+| `draws an arrow from the callout text to its target` | The arrow switch. |
+| `adds callout text to the screen-reader caption` | Accessibility. |
+| `draws callouts and panel titles inside the chart's SVG` | Export (M) copies them with no extra work. |
+| `draws one panel per comparison, each with its title` | Panels. |
+| `moves between panels with Tab` | Keyboard use. |
+
+New file: `tests/js/components/chart-builder/sections/AnnotationsSection.test.js`:
+
+| Test | What it checks |
+|---|---|
+| `adds, edits, and removes a callout on a version 3 view` | All three actions change the view. |
+| `offers only targets that are in the data` | The target picker. |
+| `shows Annotations only for chart types that have adopted P` | Bar and line. |
+| `offers Panels as a comparison presentation for bar and line` | The new choice. |
+
+Extend `tests/js/components/chart-builder/savedViews.renderer.test.js` (Workstream N) when both exist:
+
+| Test | What it checks |
+|---|---|
+| `keeps annotations, highlight, and custom labels through save and reopen` | P's settings survive. |
+| `opens a view with P's settings as a chart type that has not adopted P` | Ignored without error, and kept. |
+
+If Workstream M has landed, add `exports callouts and panels` to `tests/js/lib/export/exportSvgChart.test.js`. If it has not, the `draws callouts and panel titles inside the chart's SVG` case above keeps the way open, and M does not change for P.
+
+Screenshot cases: `draws a callout with an arrow` and `highlights two categories` (Figure 15), `draws a context gray series` (the permanent housing chart), and `draws a two-by-two panel grid` (Figure 3 of the police stops report).
+
+---
+
 ## Glossary
 
 | Term | Meaning here |
@@ -1097,7 +1371,15 @@ Remove or rewrite the `toPlotly.*.test.js` files together with `toPlotly.js`, st
 | **Chart model** | A plain description of what to draw (series, points, axis ranges, labels), built from observations before any drawing happens. |
 | **Adapter** | Today's code that turns observations into Plotly's settings object. |
 | **Frame** | The PPIC parts around a chart: eyebrow, title, subtitle, key, and the source and notes box. |
-| **Direct label** | A series name written at the end of its line, instead of in a key. |
+| **Direct label** | A series name written at the end of its line, or beside its segment of a stacked bar, instead of in a key. |
+| **Value label** | A bar's value written on or just past the bar. |
+| **Stack total** | The sum of a stacked bar's segments, written past the end of the stack. |
+| **Nested categories** | Bars grouped twice, for example races inside each agency, with the outer group labeled below the inner labels or as a header row. |
+| **Track rail** | A full-length pale bar drawn behind each bar, so the reader sees how far each bar is from the maximum. |
+| **Callout** | A short note placed on the chart, often with an arrow, pointing at one data point. |
+| **Highlight** | Drawing chosen categories or lines in their own colors and everything else in one base color. |
+| **Context gray** | A series drawn in light gray, so it gives context without drawing the eye. |
+| **Panels** | One chart split into several small charts, one per comparison, side by side. Also called small multiples. |
 | **Baseline (screenshot)** | An approved picture a screenshot test compares against. |
 | **Fixture** | Fixed test data that never changes, so tests give the same result every time. |
 | **jsdom** | The fake browser the unit tests run in. It has no screen and cannot measure sizes. |

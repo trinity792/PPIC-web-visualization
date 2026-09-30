@@ -50,6 +50,10 @@ export default function RootLayout({ children }) {
       suppressHydrationWarning
       className={`${orbitron.variable} ${sourceSans.variable} ${inter.variable} ${sourceSerif.variable}`}
     >
+      <head>
+        <link rel="preconnect" href="https://use.typekit.net" crossOrigin="anonymous" />
+        <link rel="stylesheet" href="https://use.typekit.net/oxl2ffg.css" />
+      </head>
       <body
         className="font-body"
         style={{ "--page-max-width": PAGE_LAYOUT.maxWidth }}

@@ -1,9 +1,11 @@
 import { expect, it } from "vitest";
 import { rowLabels } from "@/lib/visualization/chartLayout/rowLabels";
-it("right-aligns row labels by default", () => {
+// Owner decision 2026-09-30: left-aligned by default, as PPIC's published
+// charts show (the style guide shows right-aligned).
+it("left-aligns row labels by default", () => {
   const result = rowLabels({ labels: ["San Francisco", "Los Angeles"], fontSize: 14, maxWidth: 160 });
   expect(result.width).toBeGreaterThan(0);
-  expect(result.labels.map(l => l.textAnchor)).toEqual(["end", "end"]);
+  expect(result.labels.map(l => l.textAnchor)).toEqual(["start", "start"]);
   expect(result.labels[0].x).toBe(result.labels[1].x);
 });
 it("wraps a long row label instead of cutting it off", () => {

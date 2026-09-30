@@ -112,6 +112,8 @@ function generateBlock() {
       lines.push(`  --ppic-${ramp.prefix}-${stopLabel(i)}: ${hex.toLowerCase()};`);
     }
   }
+  lines.push("", "  /* Official style-guide colors */");
+  lines.push(`  --ppic-official-orange: ${COLORS.officialOrange.toLowerCase()};`);
   lines.push(`  ${END_MARKER}`);
   return lines.join("\n");
 }
