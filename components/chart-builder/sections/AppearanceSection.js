@@ -50,6 +50,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAdvancedMode } from "@/components/chart-builder/advancedMode";
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import { usePreview } from "@/components/chart-builder/wizard/PreviewContext";
+import { CategoryList, orderedCategories } from "@/components/chart-builder/sections/categoryControls";
 import {
   hasComparisonDimensions,
   resolveLabels,
@@ -65,7 +66,9 @@ import {
   supportsRole,
 } from "@/lib/visualization/fieldTypes";
 import { impliedBindings } from "@/lib/visualization/impliedRoles";
+import { buildBarModel } from "@/lib/visualization/models/barModel";
 import { showsSourceBox } from "@/lib/visualization/models/sharedSettings";
+import { previewInput } from "@/lib/visualization/previewInput";
 import { bindableFields } from "@/lib/visualization/inlineMapping";
 import {
   OFFICIAL_COMPARISON_COLOR_NAMES,
@@ -78,6 +81,7 @@ import {
 import { RAMP_SHADE_GROUPS } from "@/lib/visualization/ppicRamps";
 
 const NONE = "__none__";
+const EMPTY_NAMES = Object.freeze([]);
 
 // ── Line spacing ─────────────────────────────────────────────────────
 
@@ -459,13 +463,16 @@ const DEFAULT_DASHED_LABEL = "Projected";
  * `usePreview` throws; the context read itself always runs, so hook order is
  * unchanged either way.
  */
-function useLoadedPeriods() {
-  let result = null;
+function useLoadedResult() {
   try {
-    result = usePreview()?.result || null;
+    return usePreview()?.result || null;
   } catch {
-    result = null;
+    return null;
   }
+}
+
+function useLoadedPeriods() {
+  const result = useLoadedResult();
   const observations = result?.observations || [];
   const periods = Array.isArray(result?.periods) && result.periods.length
     ? result.periods
@@ -564,29 +571,25 @@ function DashedRangeControls({ dashedRange, onChange }) {
 
 // ── Diverging-bar styling ────────────────────────────────────────────
 
-// Brand tokens offered for threshold bucket colors — the on-track dashboard
-// scale plus a few extras. Not a free color wheel: every option is a brand token.
-const BUCKET_TOKENS = [
-  "blue3",
-  "teal5",
-  "orange1",
-  "orange3",
-  "navyBlue",
-  "steelBlue",
-  "burntOrange",
-  "complementGreen",
-  "gray5",
+// Threshold colors come only from the style guide's official colors (owner,
+// 2026-09-30), saved by name as comparison colors are. Views saved with the
+// older brand tokens ("blue3") still draw.
+const BUCKET_COLORS = OFFICIAL_COMPARISON_COLOR_NAMES;
+
+// The on-track bucket set, applied when threshold coloring is switched on: the
+// thresholds of the retired RHNA landing dashboard (RegionalOnTrackBars.js, now
+// in `.trash/landing-overhaul/`), cool when on track and warm when behind.
+const DEFAULT_COLOR_BUCKETS = [
+  { at: 1.0, color: "Navy" },
+  { at: 0.7, color: "Blue" },
+  { at: 0.5, color: "Orange" },
+  { at: null, color: "Red" },
 ];
 
-// The on-track bucket set, applied when threshold coloring is switched on.
-// Mirrors the bucketColor thresholds of the retired RHNA landing dashboard
-// (RegionalOnTrackBars.js, now in `.trash/landing-overhaul/`).
-const DEFAULT_COLOR_BUCKETS = [
-  { at: 1.0, color: "blue3" },
-  { at: 0.7, color: "teal5" },
-  { at: 0.5, color: "orange1" },
-  { at: null, color: "orange3" },
-];
+/** A saved threshold color as hex: an official name, or an older brand token. */
+function bucketHex(color) {
+  return officialComparisonColor(color) ?? resolveToken(color);
+}
 
 /**
  * A hand-picked diverging ramp: three stops (low / middle / high) or five,
@@ -706,9 +709,9 @@ function DivergingStopsControls() {
 }
 
 /**
- * Dashboard-style styling for the diverging bar: a fixed value range, a
- * background track rail, minimal axis chrome, and threshold ("traffic-light")
- * bucket colors.
+ * Threshold ("traffic-light") bucket colors for the diverging bar. The track
+ * rail and minimal axis that used to sit here apply to every bar chart now
+ * (renderer plan E, owner decision 2026-09-30), so they live in BarControls.
  */
 function DivergingStyleControls() {
   const { config, dispatch } = useChartConfig();
@@ -726,22 +729,6 @@ function DivergingStyleControls() {
 
   return (
     <>
-      <div className="flex items-center justify-between gap-3">
-        <Label htmlFor="appearance-track-rail">Track rail</Label>
-        <Switch
-          id="appearance-track-rail"
-          checked={Boolean(appearance.trackRail)}
-          onCheckedChange={(checked) => setAppearance("trackRail", checked)}
-        />
-      </div>
-      <div className="flex items-center justify-between gap-3">
-        <Label htmlFor="appearance-minimal-axis">Minimal axis</Label>
-        <Switch
-          id="appearance-minimal-axis"
-          checked={Boolean(appearance.minimalAxis)}
-          onCheckedChange={(checked) => setAppearance("minimalAxis", checked)}
-        />
-      </div>
       <div className="grid gap-2">
         <div className="flex items-center justify-between gap-3">
           <Label htmlFor="appearance-threshold-colors">Threshold colors</Label>
@@ -779,20 +766,21 @@ function DivergingStyleControls() {
                       type="button"
                       aria-label={`Choose a color for threshold ${index + 1}`}
                       className="size-5 shrink-0 rounded-full border"
-                      style={{ backgroundColor: resolveToken(bucket.color) }}
+                      style={{ backgroundColor: bucketHex(bucket.color) }}
                     />
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-2" align="end">
                     <div className="grid grid-cols-5 gap-1.5">
-                      {BUCKET_TOKENS.map((token) => (
+                      {BUCKET_COLORS.map((name) => (
                         <button
-                          key={token}
+                          key={name}
                           type="button"
-                          aria-label={token}
-                          aria-pressed={bucket.color === token}
-                          onClick={() => updateBucket(index, { color: token })}
+                          aria-label={name}
+                          title={name}
+                          aria-pressed={bucket.color === name}
+                          onClick={() => updateBucket(index, { color: name })}
                           className="size-6 rounded-full border"
-                          style={{ backgroundColor: resolveToken(token) }}
+                          style={{ backgroundColor: officialComparisonColor(name) }}
                         />
                       ))}
                     </div>
@@ -883,6 +871,312 @@ function ValueAxisRangeControls() {
         Leaving both blank fits the axis to the data.
       </p>
     </div>
+  );
+}
+
+// ── Bar chart ────────────────────────────────────────────────────────
+
+const ALL_SERIES = "__all__";
+const SORT_CHOICES = Object.freeze([
+  ["data", "Data order"],
+  ["descending", "Largest first"],
+  ["ascending", "Smallest first"],
+]);
+
+/**
+ * The names of the series the bar chart draws, from the loaded answer and the
+ * current settings, so a control keyed by series name offers exactly what the
+ * chart shows (Color bars by and Bars along change the series). Falls back to
+ * the editor's rendered series names before anything has loaded.
+ */
+function useBarSeriesNames(storedConfig, schema, fallback) {
+  const result = useLoadedResult();
+  return React.useMemo(() => {
+    if (storedConfig.version !== 3 || !result?.observations?.length) return fallback;
+    try {
+      return buildBarModel(previewInput(storedConfig, schema, result, "bar")).series.map(
+        (entry) => entry.label,
+      );
+    } catch {
+      return fallback;
+    }
+  }, [storedConfig, schema, result, fallback]);
+}
+
+/**
+ * The bar chart's own controls (renderer plan E; owner decisions 2026-09-26
+ * and 2026-09-30). Orientation, Diverging bars, and Stacking came back after
+ * the version 3 Outcome section dropped them; Stack totals shows only for
+ * stacked bars, and the two value-label refinements only once Show values is
+ * on. Track rail, Label which series, Label position, Bars along, and Color bars by are
+ * fine-tuning, so they sit behind Advanced Mode; saved values still apply in
+ * standard mode. Color bars by appears only when the bars show several
+ * comparisons and several periods, the one case it changes anything.
+ */
+function BarControls({ storedConfig, schema, appearance, onChange, advanced, seriesNames }) {
+  const result = useLoadedResult();
+  const observations = result?.observations || [];
+  const names = useBarSeriesNames(storedConfig, schema, seriesNames);
+  const diverging = Boolean(appearance.diverging);
+  const stackMode = ["stacked", "percent"].includes(appearance.stackMode)
+    ? appearance.stackMode
+    : "none";
+  // A dragged location order wins over the Sort choice, and reads as Custom.
+  const custom = Array.isArray(appearance.categoryOrder) && appearance.categoryOrder.length > 0;
+  const sort = custom
+    ? "custom"
+    : ["descending", "ascending"].includes(appearance.sort) ? appearance.sort : "data";
+  const perSeries = appearance.valueLabelSeries || {};
+  const onlySeries = names.find(
+    (name) => perSeries[name] !== false && names.every((other) => other === name || perSeries[other] === false),
+  );
+  const labelSeries = names.length > 1 && onlySeries ? onlySeries : ALL_SERIES;
+  const severalComparisons = new Set(observations.map((row) => row.comparisonId)).size > 1;
+  const severalPeriods = new Set(observations.map((row) => String(row.period))).size > 1;
+
+  return (
+    <>
+      <div className="grid gap-2">
+        <Label htmlFor="appearance-orientation">Orientation</Label>
+        <Select
+          value={appearance.orientation || (diverging ? "horizontal" : "vertical")}
+          onValueChange={(value) => onChange("orientation", value)}
+        >
+          <SelectTrigger id="appearance-orientation">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="vertical">Vertical</SelectItem>
+            <SelectItem value="horizontal">Horizontal</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="flex items-center justify-between gap-3">
+        <Label htmlFor="appearance-diverging">Diverging bars</Label>
+        <Switch
+          id="appearance-diverging"
+          checked={diverging}
+          onCheckedChange={(checked) => onChange("diverging", checked)}
+        />
+      </div>
+
+      <div className="grid gap-2">
+        <Label htmlFor="appearance-stacking">Stacking</Label>
+        <Select value={stackMode} onValueChange={(value) => onChange("stackMode", value)}>
+          <SelectTrigger id="appearance-stacking">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">Side by side</SelectItem>
+            <SelectItem value="stacked">Stacked</SelectItem>
+            <SelectItem value="percent">Stacked to 100%</SelectItem>
+          </SelectContent>
+        </Select>
+        {diverging && stackMode !== "none" ? (
+          <p className="text-xs text-muted-foreground">
+            Diverging bars are drawn side by side.
+          </p>
+        ) : null}
+      </div>
+
+      {stackMode === "stacked" ? (
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor="appearance-stack-totals">Stack totals</Label>
+          <Switch
+            id="appearance-stack-totals"
+            checked={appearance.showStackTotals === true}
+            onCheckedChange={(checked) => onChange("showStackTotals", checked)}
+          />
+        </div>
+      ) : null}
+
+      <div className="grid gap-2">
+        <Label htmlFor="appearance-sort">Sort</Label>
+        <Select
+          value={sort}
+          onValueChange={(value) => {
+            if (value === "custom") return;
+            // Choosing a sort replaces a dragged order, which would otherwise win.
+            if (custom) onChange("categoryOrder", undefined);
+            onChange("sort", value);
+          }}
+        >
+          <SelectTrigger id="appearance-sort">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {SORT_CHOICES.map(([value, label]) => (
+              <SelectItem key={value} value={value}>
+                {label}
+              </SelectItem>
+            ))}
+            {custom ? <SelectItem value="custom">Custom</SelectItem> : null}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {names.length > 1 ? (
+        <div className="grid gap-2">
+          <p id="appearance-series-order" className="text-sm font-medium">
+            Bar order within groups
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Drag to reorder. A stack starts from the first at its base.
+          </p>
+          <div role="group" aria-labelledby="appearance-series-order">
+            <CategoryList
+              names={orderedCategories(names, appearance.seriesOrder)}
+              collapsed={names.length}
+              reorderable
+              visibilityControls={false}
+              onReorder={(value) => onChange("seriesOrder", value)}
+            />
+          </div>
+        </div>
+      ) : null}
+
+      <div className="grid gap-2">
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor="appearance-group-gap">Space between groups</Label>
+          <span className="text-xs tabular-nums text-muted-foreground">
+            {Number(appearance.groupGap ?? 0.75).toFixed(2)}
+          </span>
+        </div>
+        <Slider
+          id="appearance-group-gap"
+          min={0}
+          max={3}
+          step={0.25}
+          value={[Number(appearance.groupGap ?? 0.75)]}
+          onValueChange={([value]) => onChange("groupGap", value)}
+          aria-label="Space between groups"
+          thumbLabels={["Space between groups"]}
+        />
+      </div>
+
+      <div className="flex items-center justify-between gap-3">
+        <Label htmlFor="appearance-show-values">Show values</Label>
+        <Switch
+          id="appearance-show-values"
+          checked={appearance.showValueLabels === true}
+          onCheckedChange={(checked) => onChange("showValueLabels", checked)}
+        />
+      </div>
+
+      {appearance.showValueLabels === true && advanced ? (
+        <div className="grid gap-3 pl-4">
+          <div className="grid gap-2">
+            <Label htmlFor="appearance-label-series" className="text-sm font-normal">
+              Label which series
+            </Label>
+            <Select
+              value={labelSeries}
+              onValueChange={(value) =>
+                onChange(
+                  "valueLabelSeries",
+                  value === ALL_SERIES
+                    ? undefined
+                    : Object.fromEntries(names.map((name) => [name, name === value])),
+                )
+              }
+            >
+              <SelectTrigger id="appearance-label-series">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_SERIES}>All series</SelectItem>
+                {names.length > 1
+                  ? names.map((name) => (
+                    <SelectItem key={name} value={name}>
+                      Only {name}
+                    </SelectItem>
+                  ))
+                  : null}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="appearance-label-position" className="text-sm font-normal">
+              Label position
+            </Label>
+            <Select
+              value={["inside", "outside"].includes(appearance.valueLabelPosition) ? appearance.valueLabelPosition : "automatic"}
+              onValueChange={(value) => onChange("valueLabelPosition", value)}
+            >
+              <SelectTrigger id="appearance-label-position">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="automatic">Automatic</SelectItem>
+                <SelectItem value="inside">Inside the bar</SelectItem>
+                <SelectItem value="outside">Outside the bar</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Owner, 2026-09-30: fine-tuning, so Advanced Mode only. */}
+      {advanced ? (
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor="appearance-track-rail">Track rail</Label>
+          <Switch
+            id="appearance-track-rail"
+            checked={Boolean(appearance.trackRail)}
+            onCheckedChange={(checked) => onChange("trackRail", checked)}
+          />
+        </div>
+      ) : null}
+      <div className="flex items-center justify-between gap-3">
+        <Label htmlFor="appearance-minimal-axis">Minimal axis</Label>
+        <Switch
+          id="appearance-minimal-axis"
+          checked={Boolean(appearance.minimalAxis)}
+          onCheckedChange={(checked) => onChange("minimalAxis", checked)}
+        />
+      </div>
+
+      {advanced ? (
+        <div className="grid gap-2">
+          <Label htmlFor="appearance-bars-along">Bars along</Label>
+          <Select
+            value={appearance.categoryAxis === "period" ? "period" : "location"}
+            onValueChange={(value) => onChange("categoryAxis", value)}
+          >
+            <SelectTrigger id="appearance-bars-along">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="location">Locations</SelectItem>
+              <SelectItem value="period">Periods</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
+
+      {advanced && severalComparisons && severalPeriods && appearance.categoryAxis !== "period" ? (
+        <div className="grid gap-2">
+          <Label htmlFor="appearance-color-bars-by">Color bars by</Label>
+          <Select
+            value={["comparison", "period"].includes(appearance.barColorBy) ? appearance.barColorBy : "series"}
+            onValueChange={(value) => onChange("barColorBy", value)}
+          >
+            <SelectTrigger id="appearance-color-bars-by">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="series">Each series</SelectItem>
+              <SelectItem value="comparison">Comparison</SelectItem>
+              <SelectItem value="period">Period</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            The other one becomes a group inside each location.
+          </p>
+        </div>
+      ) : null}
+    </>
   );
 }
 
@@ -1141,9 +1435,10 @@ export default function AppearanceSection() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {legendDefault === "automatic" ? (
+            {chart?.directLabels || legendDefault === "automatic" ? (
               <SelectItem value="automatic">Automatic</SelectItem>
             ) : null}
+            <SelectItem value="top">Top</SelectItem>
             <SelectItem value="right">Right</SelectItem>
             <SelectItem value="bottom">Bottom</SelectItem>
             <SelectItem value="hidden">Hidden</SelectItem>
@@ -1209,7 +1504,7 @@ export default function AppearanceSection() {
 
       {/* ---- Everything below here is chart-type-conditional ---- */}
 
-      {chart?.roleConstraints?.group && config.bindings?.group ? (
+      {storedConfig.version !== 3 && chart?.roleConstraints?.group && config.bindings?.group ? (
         <div className="grid gap-2">
           <div className="flex items-center justify-between gap-3">
             <Label htmlFor="appearance-group-gap">Space between groups</Label>
@@ -1225,6 +1520,7 @@ export default function AppearanceSection() {
             value={[Number(appearance.groupGap ?? 0.75)]}
             onValueChange={([value]) => setAppearance("groupGap", value)}
             aria-label="Space between groups"
+            thumbLabels={["Space between groups"]}
           />
         </div>
       ) : null}
@@ -1257,11 +1553,19 @@ export default function AppearanceSection() {
         />
       ) : null}
 
-      {/* Orientation moved to OutcomeSection (Workstream A): it is the one
-          degree of freedom the Outcome section still asks about explicitly,
-          alongside the category/measure choice it otherwise infers. The
-          Diverging bars switch lives there too, beside orientation
-          (Workstream B). */}
+      {/* Version 3 bars: Orientation and Diverging bars came back here after
+          the version 3 Outcome section dropped them (renderer plan E). The
+          older editor still asks for both in OutcomeSection. */}
+      {storedConfig.version === 3 && config.chartType === "bar" ? (
+        <BarControls
+          storedConfig={storedConfig}
+          schema={schema}
+          appearance={appearance}
+          onChange={setAppearance}
+          advanced={advanced}
+          seriesNames={config.seriesNames || EMPTY_NAMES}
+        />
+      ) : null}
 
       {/* Diverging bars pivot around a reference value (0 by default; set 1.0 for
           a pace ratio, a survey-neutral midpoint, etc.). Gated on the

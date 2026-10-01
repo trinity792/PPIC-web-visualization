@@ -114,4 +114,23 @@ describe("v3 geography-aware labels", () => {
       yAxis: "Population",
     });
   });
+
+  // Renderer plan E: the X-Axis and Y-Axis labels name the horizontal and
+  // vertical axes, so a horizontal bar puts the measure on X.
+  it("puts the measure on the horizontal axis for horizontal bars", () => {
+    const spec = v3({ subset: "Regions", locations: ["Bay Area", "Central Coast", "Far North", "Inland Empire"] });
+    spec.presentation.chartType = "bar";
+    spec.presentation.appearance = { orientation: "horizontal" };
+    expect(deriveLabels(spec, v3Schema)).toMatchObject({ xAxis: "Population", yAxis: "Location" });
+    spec.presentation.appearance = { diverging: true };
+    expect(deriveLabels(spec, v3Schema)).toMatchObject({ xAxis: "Population", yAxis: "Location" });
+  });
+
+  it("names the time field when bars run along periods", () => {
+    const spec = v3({ subset: "Regions", locations: ["Bay Area", "Central Coast", "Far North", "Inland Empire"] });
+    spec.presentation.chartType = "bar";
+    spec.presentation.appearance = { categoryAxis: "period" };
+    expect(deriveLabels(spec, v3Schema).xAxis).not.toBe("Location");
+    expect(deriveLabels(spec, v3Schema).yAxis).toBe("Population");
+  });
 });

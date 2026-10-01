@@ -270,9 +270,12 @@ describe("descriptor metadata", () => {
         "area",
       ]),
     );
+    // The population pyramid (`mirror`) was removed by the owner on
+    // 2026-09-30 (renderer plan E); stacking stays a bar variant.
     expect(getChartType("bar").defaults).toEqual(
-      expect.objectContaining({ stackMode: expect.any(String), mirror: expect.any(Boolean) }),
+      expect.objectContaining({ stackMode: expect.any(String) }),
     );
+    expect(getChartType("bar").defaults).not.toHaveProperty("mirror");
     expect(getChartType("line").defaults).toEqual(
       expect.objectContaining({ area: expect.any(Boolean) }),
     );

@@ -209,14 +209,14 @@ describe("selected snapshots and the Donut average", () => {
     expect(within(list).queryByRole("checkbox", { name: "Select 2021" })).not.toBeInTheDocument();
   });
 
-  it("shows the selected count and a clear action", async () => {
+  it("lists the selected years and offers a clear action", async () => {
     const user = userEvent.setup();
     state.config = config({ contract: "selectedSnapshots", years: [2020, 2025] });
     render(<TimeSection />);
 
     await user.click(screen.getByRole("combobox", { name: /^years$/i }));
     expect(screen.getByRole("combobox", { name: /^years$/i })).toHaveTextContent(
-      "2 years selected",
+      "2020, 2025",
     );
     await user.click(screen.getByRole("button", { name: /clear years/i }));
     expect(state.dispatch).toHaveBeenCalledWith({
@@ -248,7 +248,7 @@ describe("selected snapshots and the Donut average", () => {
     render(<TimeSection />);
 
     expect(screen.getByRole("combobox", { name: /^years$/i })).toHaveTextContent(
-      "3 years selected",
+      "2020, 2025, 2030",
     );
     expect(screen.queryByRole("radiogroup", { name: /year display/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/show each year in tabs/i)).not.toBeInTheDocument();

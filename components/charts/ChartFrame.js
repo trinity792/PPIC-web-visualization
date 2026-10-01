@@ -2,8 +2,8 @@
 
 /**
  * ChartFrame.js — the PPIC chart parts around a visx drawing, in the style
- * guide's order: eyebrow, title, subtitle, the drawing with its key (right or
- * below), then the gray source-and-notes box, styled as PPIC publishes it (bold
+ * guide's order: eyebrow, title, subtitle, the drawing with its key (above,
+ * right, or below), then the gray source-and-notes box, styled as PPIC publishes it (bold
  * uppercase "SOURCE:" and "NOTES:" captions, 11px gray text, 20px below the chart).
  *
  * Each part is left out entirely, not left as an empty gap, when it has no text
@@ -13,7 +13,8 @@
  * read the label and typography settings in one way.
  *
  * ChartFrame is the one owner of size: it measures the width it is given and
- * hands the drawing an exact `{ width, height }`. Drawings never measure
+ * hands the drawing an exact `{ width, height }`. It also holds the chart's
+ * hover focus (chartFocus.js), so the key can show only the hovered series. Drawings never measure
  * themselves, which keeps them testable in jsdom. Until it has measured, the
  * drawing area holds its height but draws nothing.
  *
@@ -28,8 +29,8 @@
  *                                   source ids are shown
  *   summary      {string|null}    — written summary, read to screen readers only
  *   legend       {Object|null}    — { entries, position, title } for ChartKey; drawn
- *                                   only for "right" or "bottom" ("automatic" and
- *                                   "hidden" leave the key to the chart)
+ *                                   only for "top", "right", or "bottom" ("automatic"
+ *                                   and "hidden" leave the key to the chart)
  *   height       {number|null}    — drawing height in px; when omitted the drawing
  *                                   fills the height the frame is given
  *   className    {string}         — optional classes for the frame
@@ -43,6 +44,7 @@
 
 import React from "react";
 
+import { ChartFocusProvider } from "@/components/charts/chartFocus";
 import ChartKey from "@/components/charts/visx/ChartKey";
 import { cn } from "@/components/ui/utils";
 
@@ -126,11 +128,11 @@ export default function ChartFrame({
   const fixedHeight = Number.isFinite(height) && height > 0 ? height : null;
   const drawingHeight = fixedHeight ?? (size.height > 0 ? size.height : CHART_HEIGHTS.preview);
   const width = Math.floor(size.width);
-  const keyPosition = legend?.position === "bottom" ? "bottom" : "right";
+  const keyPosition = ["top", "bottom"].includes(legend?.position) ? legend.position : "right";
   const key =
     // "automatic" belongs to the chart: it labels its data directly or draws
     // its own fallback key, because only it knows whether the labels fit.
-    legend && ["right", "bottom"].includes(legend.position) && legend.entries?.length ? (
+    legend && ["top", "right", "bottom"].includes(legend.position) && legend.entries?.length ? (
       <ChartKey
         entries={legend.entries}
         legendPosition={keyPosition}
@@ -141,6 +143,7 @@ export default function ChartFrame({
   const hasHeader = Boolean(shown.eyebrow || shown.title || shown.subtitle);
 
   return (
+    <ChartFocusProvider>
     <figure data-chart-frame="" className={cn("m-0 flex w-full min-w-0 flex-col", className)}>
       {hasHeader ? (
         <div data-frame-part="header" className="flex flex-col gap-1">
@@ -169,11 +172,12 @@ export default function ChartFrame({
       <div
         className={cn(
           "flex min-w-0",
-          keyPosition === "bottom" ? "flex-col" : "flex-row items-start",
+          keyPosition === "right" ? "flex-row items-start" : "flex-col",
           fixedHeight ? null : "min-h-0 flex-1",
         )}
         style={{ gap: partSpacing, marginTop: hasHeader ? partSpacing : 0 }}
       >
+        {keyPosition === "top" ? key : null}
         <div
           ref={drawingRef}
           data-frame-part="chart"
@@ -185,7 +189,7 @@ export default function ChartFrame({
         >
           {width > 0 ? children({ width, height: Math.floor(drawingHeight) }) : null}
         </div>
-        {key}
+        {keyPosition === "top" ? null : key}
       </div>
 
       {sources.length || footnote ? (
@@ -214,5 +218,6 @@ export default function ChartFrame({
 
       {summary ? <figcaption className="sr-only">{summary}</figcaption> : null}
     </figure>
+    </ChartFocusProvider>
   );
 }

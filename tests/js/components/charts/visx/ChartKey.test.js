@@ -28,3 +28,14 @@ it("draws a line sample for line series", () => {
   expect(line.getAttribute("stroke-dasharray")).toBeTruthy();
   expect(container.querySelector("rect")).toBeNull();
 });
+
+// Owner, 2026-09-30: hiding the other entries made the key too dim; their
+// samples fade as their bars do, and every label stays readable.
+it("fades the other entries' samples while one series is focused, keeping every label", () => {
+  const { container } = render(<ChartKey legendPosition="top" focusId="b" entries={[{ id: "a", label: "A", color: "#CA4F1A" }, { id: "b", label: "B", color: "#293B54" }]} />);
+  const entries = [...container.querySelectorAll("li")];
+  expect(entries.map(li => li.style.visibility)).toEqual(["", ""]);
+  expect(entries.map(li => li.querySelector("[data-key-swatch]").style.backgroundColor)).toEqual(["rgb(239, 202, 186)", "rgb(41, 59, 84)"]);
+  expect(entries.map(li => li.textContent)).toEqual(["A", "B"]);
+  expect(container.querySelector('[data-key-position="top"]')).toBeInTheDocument();
+});

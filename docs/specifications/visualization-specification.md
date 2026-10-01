@@ -4,7 +4,7 @@ Content Type: project specification
 pinned: true
 description: "Current product and technical specification for building, rendering, sharing, and exporting visualizations in the PPIC Data Explorer."
 Date Published: July 27, 2026
-Last Updated: 09/29/2026 - 09:00 PM
+Last Updated: 09/30/2026 - 06:15 PM
 Status: Finalized
 ---
 
@@ -170,7 +170,7 @@ There are twelve registered chart families. A chart can still be unavailable for
 | Chart | Best used for | Important rule |
 |---|---|---|
 | Line | Change across an ordered sequence, usually time | Needs an ordered time axis and an outcome. Drawn with visx by default (see [Chart renderers](#chart-renderers)) |
-| Bar | Comparing categories, places, or selected periods | Can be vertical or horizontal; supports grouped and diverging variants |
+| Bar | Comparing categories, places, or selected periods | Vertical or horizontal; grouped, stacked, stacked to 100%, and diverging variants; optional value labels. A visx drawing exists (see [Chart renderers](#chart-renderers)) |
 | Choropleth Map | Geographic variation shown by area color | Requires joinable boundary geometry and stable place identifiers |
 | Matrix Heatmap | Patterns across many rows and periods | Encodes the outcome with a color scale |
 | Range | The gap between exactly two values per category | Uses two periods of the same measure |
@@ -191,6 +191,7 @@ Charts are moving from Plotly to visx one type at a time, following [[chart-rend
 | Chart | Default renderer | Notes |
 |---|---|---|
 | Line | visx | Default since September 29, 2026, ahead of the export rebuild |
+| Bar | visx | Default since September 30, 2026, ahead of the export rebuild |
 | Choropleth Map, Symbol Map | Plotly | Stay on Plotly permanently |
 | Every other chart | Plotly | Each moves to visx in its own plan workstream |
 
@@ -208,6 +209,21 @@ Charts are moving from Plotly to visx one type at a time, following [[chart-rend
 - **Keyboard.** The chart takes focus. Left and Right move along a line, Up and Down move between lines, Home and End jump to the ends, and Escape closes the label.
 - **Year labels.** The axis always labels the latest period, then steps back evenly by 1, 2, 5, 10, or more years; for example, 1991 to 2026 reads 1991, 1996, ..., 2026. The step is never finer than the data's own spacing, and a tick increment sets it.
 - **Line spacing.** Horizontal spacing adds pixels between neighbouring value gridlines and Vertical spacing between neighbouring periods. The drawing grows to fit and scrolls sideways when it is wider than the preview.
+
+#### The visx bar chart
+
+Built September 30, 2026 (Workstream E), following the style guide and the PPIC bar charts in `mockups/bar chart reference/`. It is the default bar drawing; `?renderer=plotly` shows the Plotly version.
+
+- **Bars.** The value axis starts at zero, and no bar is narrower than 10px: the gap between groups shrinks first, and when even that is not enough the chart asks for fewer categories. Vertical bars draw horizontal grid lines; horizontal bars draw none, since theirs would be vertical. Missing and suppressed values are gaps, never zero-height bars.
+- **Layouts.** Orientation, Stacking (side by side, stacked, or stacked to 100%), and Diverging bars (bars grow from a center value, with an optional reference line, manual value range, and threshold colors). A stack is shaded dark to light: the series' own colors are handed out darkest first from the bottom segment up. In Advanced Mode, **Bars along** puts periods on the axis instead of locations, and **Color bars by** (shown when the bars have several comparisons and several periods) colors by comparison or period and nests the other inside each location, with dividers on vertical bars and bold header rows on horizontal ones.
+- **Order.** **Sort** chooses data order, largest first, or smallest first; a dragged location order wins and shows as Custom. A view saved with the old `sort: "value"` default draws in data order, as it always did. **Bar order within groups** is a drag list of the series (for example the years), which also orders each stack from its base up and the key; each series keeps its color.
+- **Labels.** Category labels wrap onto two lines, then angle 45 degrees when that is not enough, and turn 90 degrees only when the bars are too close for angled labels. Horizontal bars use left-aligned row labels, as PPIC's published charts do. **Show values** writes each value inside the bar (white or dark text, whichever reads better) or just past its end; Automatic places them outside for one series or when only some series are labeled, and moves any label that does not fit. **Stack totals** adds a bold total past each stack. Labels never overlap; a value that cannot be labeled stays in hover and View Data.
+- **Key.** The key sits above the chart by default. With one series, its entry names what the bars measure and the value axis title is not repeated above the axis (unless the key is hidden). With **Automatic**, stacked vertical bars name each series beside the last stack instead, falling back to a key on the right when the names do not fit.
+- **Track rail and minimal axis.** Both work on every bar chart, not only diverging ones. Track rail is in Advanced Mode.
+- **Threshold colors.** Only the style guide's ten official colors are offered.
+- **Hover.** This matches PPIC's published bar charts: the information goes on the chart, with no floating box. With several series, the hovered series keeps its color and shows all of its values, the others fade to a 30% tint, and so do their swatches in the key. A stack labels the hovered series in every segment only when all of them fit; otherwise only the hovered value shows, past the end of its stack. With one series, the hovered bar darkens (official orange to official red) and shows its value above it in bold, unless it is already labeled. Hover numbers take the hovered bar's color, darkened just enough to read outside a bar, and white or dark gray inside one. The hovered category label turns bold; the others keep their gray. Screen readers hear the series, category, value, and any stack total.
+- **Keyboard.** The chart takes focus; the arrow keys step through the bars, Home and End jump to the first and last, and Escape clears the hover.
+- **Axis labels.** X-Axis and Y-Axis name the horizontal and vertical axes, so a horizontal bar's automatic labels put the measure on X.
 
 ### Availability
 
@@ -359,7 +375,7 @@ The editor derives useful labels from the question, then lets the reader overrid
 The current interface supports:
 
 - title, subtitle, and axis labels, each with a show switch;
-- Legend Position (in Appearance only; **Hidden** replaces the retired Legend switch);
+- Legend Position (in Appearance only; **Top**, **Right**, **Bottom**, or **Hidden**, plus **Automatic** on charts that can name their series directly; **Hidden** replaces the retired Legend switch);
 - categorical palettes and sequential or diverging ramps;
 - per-comparison legend labels, colors, and visibility (Advanced Mode);
 - chart-specific controls such as orientation, reference lines, point styles, and value labels;
@@ -635,8 +651,11 @@ This block is generated from `lib/visualization/settingsRegistry.js`. It is the 
 <!-- settings-reference:start -->
 | ID | Setting | Section | Mode | Applies to | Values or limits | Config key | Consumer |
 |---|---|---|---|---|---|---|---|
+| barColorBy | Color bars by | Appearance | advanced | Charts: bar; datasets: All | series, comparison, period | presentation.appearance.barColorBy | lib/visualization/models/barModel.js |
+| barSort | Sort | Appearance | standard | Charts: bar; datasets: All | data, descending, ascending | presentation.appearance.sort | lib/visualization/models/barModel.js |
 | benchmarkDifference | Difference from benchmark | Outcome | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.calculation.params.benchmark | lib/data/visualization/calculationRegistry.js |
 | calculation | Transformation | Outcome | standard | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.calculation.id | lib/data/visualization/calculationRegistry.js |
+| categoryAxis | Bars along | Appearance | advanced | Charts: bar; datasets: All | location, period | presentation.appearance.categoryAxis | lib/visualization/models/barModel.js |
 | comparisonColor | Comparison color | Appearance | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.comparisons[].color | lib/visualization/palettes.js |
 | comparisonGeographyOverride | Comparison geography override | Comparisons | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.comparisons[].geography | lib/data/visualization/executeQuestion.js |
 | comparisonLegendLabel | Comparison legend label | Appearance | standard | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.comparisons[].customLabel | lib/visualization/adapters/index.js |
@@ -650,8 +669,13 @@ This block is generated from `lib/visualization/settingsRegistry.js`. It is the 
 | outcome | Outcome | Outcome | standard | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.outcome.measureId | lib/data/visualization/executeQuestion.js |
 | ranking | Ranking | Geography | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.calculation.params.ranking | lib/data/visualization/rankObservations.js |
 | seriesBinding | Series binding | Outcome | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | presentation.bindings.series | lib/tabular/toObservations.js |
+| seriesOrder | Bar order within groups | Appearance | standard | Charts: bar; datasets: All | Series names in a dragged order (data order by default) | presentation.appearance.seriesOrder | lib/visualization/models/barModel.js |
 | showSource | Show source and notes | Appearance | standard | Charts: All; datasets: All | See resolved chart and dataset capabilities | presentation.appearance.showSource | components/charts/ChartFrame.js |
+| showStackTotals | Stack totals | Appearance | standard | Charts: bar; datasets: All | On or off, for stacked bars (off by default) | presentation.appearance.showStackTotals | lib/visualization/models/barModel.js |
+| showValueLabels | Show values | Appearance | standard | Charts: bar; datasets: All | On or off (off by default) | presentation.appearance.showValueLabels | lib/visualization/models/barModel.js |
 | time | Time | Time | standard | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.time | components/chart-builder/sections/TimeSection.js |
+| valueLabelPosition | Label position | Appearance | advanced | Charts: bar; datasets: All | automatic, inside, outside | presentation.appearance.valueLabelPosition | lib/visualization/models/barModel.js |
+| valueLabelSeries | Label which series | Appearance | advanced | Charts: bar; datasets: All | All series, or one series by name | presentation.appearance.valueLabelSeries | lib/visualization/models/barModel.js |
 <!-- settings-reference:end -->
 
 Run `npm run check:settings` to verify that this block matches the registry.

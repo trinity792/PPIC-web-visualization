@@ -4,7 +4,7 @@ Content Type: implementation plan
 pinned: false
 description: "A tests-first plan for moving every chart except maps from Plotly to visx, one chart type at a time, so each chart follows the PPIC Data Visualization Style Guide and every editor control works. Written for programmers continuing the visualization work."
 Date Published: September 26, 2026
-Last Updated: 09/30/2026 - 08:55 AM
+Last Updated: 09/30/2026 - 06:15 PM
 Status: Updating
 ---
 
@@ -26,9 +26,9 @@ This plan keeps Plotly for the two map types. It does not change how data is fet
 The work runs in five stages, plus an optional sixth. A stage starts only when the one before it is done, except that charts in Stage 3 can be worked on side by side once Stage 2 is finished. Stage 6 holds nice-to-have extras, and nothing in Stages 1 to 5 waits for it.
 
 > [!note] Progress, September 30, 2026
-> Stage 1 (tests) is written. Stage 2 (A, B, C) and Workstream D (line chart) are built. The line chart's screenshot baselines await review. Workstreams E to O remain.
+> Stage 1 (tests) is written. Stage 2 (A, B, C) and Workstreams D (line chart) and E (bar chart) are built. The line and bar screenshot baselines await review. Workstreams F to O remain.
 >
-> On September 30 the owner collected twelve published PPIC bar charts (`mockups/bar chart reference/`). Workstream E was widened to cover them, and the owner decided its eleven new rows the same day (ten Build, one Remove). The features they share with other chart types (callouts, highlights, context gray, custom label text, and panels) went into a new optional Workstream P.
+> On September 30 the owner collected twelve published PPIC bar charts (`mockups/bar chart reference/`). Workstream E was widened to cover them, and the owner decided its eleven new rows the same day (ten Build, one Remove). The features they share with other chart types (callouts, highlights, context gray, custom label text, and panels) went into a new optional Workstream P. Workstream E was built the same day, and after two rounds of owner review the bar chart became visx by default, as the line chart had (see the exception below).
 
 | Stage | What happens | Workstreams |
 |---|---|---|
@@ -58,10 +58,12 @@ The work runs in five stages, plus an optional sixth. A stage starts only when t
 | O | Plotly is loaded only for maps, and the old code and documents are cleaned up | 5 | N |
 | P | Shared extras: callouts, highlights, context gray, custom label text, and panels | 6 | D, E. Nothing depends on P. |
 
-> [!warning] Users keep seeing the Plotly charts until Stage 4, except the line chart
+> [!warning] Users keep seeing the Plotly charts until Stage 4, except the line and bar charts
 > Stage 3 builds each visx chart behind a preview switch (Workstream B). Users keep seeing the Plotly version of every chart until that chart's export works in Stage 4. This follows the decision that export stays on Plotly in the short term, and it means Stage 3 can be reviewed without affecting anyone.
 >
 > **Exception, September 29, 2026.** The owner made visx the line chart's default ahead of Workstream M, for review. Until M lands, a line chart's image dialog says image export is coming soon, and its Download button stays off; data export and embeds work. `?renderer=plotly` still shows the Plotly line. The approved legacy `line-comparisons` screenshot stays a Plotly picture until a visx baseline is approved.
+>
+> **Exception, September 30, 2026.** The owner made visx the bar chart's default too, on the same terms as the line chart: the image dialog's notice now names line and bar charts, `?renderer=plotly` still shows the Plotly bar, and the legacy bar screenshot stays a Plotly picture until a visx baseline is approved. Views from the older (version 2) editor still draw with Plotly.
 
 ---
 
@@ -651,7 +653,7 @@ Rows marked **New, September 30** come from the PPIC references above. The owner
 | Value axis range (manual) | `valueRange` | Does nothing | Follows the diverging decision | Build |
 | Track rail | `trackRail` | Does nothing | Follows the diverging decision | Build |
 | Minimal axis | `minimalAxis` | Does nothing | Follows the diverging decision | Build |
-| Threshold colors | `colorBuckets` | Does nothing | Follows the diverging decision | Build |
+| Threshold colors | `colorBuckets` | Does nothing | Follows the diverging decision. The picker offers only the style guide's ten official colors, saved by name; the default set is Navy, Blue, Orange, and Red (owner, after review). Views saved with older brand tokens still draw. | Build |
 | Key above the chart (New, September 30) | `legendPosition: "top"` | No such choice | Build. Add Top to the shared Legend Position choices (`LEGEND_POSITIONS` in `sharedSettings.js`, placed by `ChartFrame` and `ChartKey`), so every chart type gains it, and make it the bar chart's default. Every reference with a key puts it above the chart. | Build |
 | Show values (New, September 30) | `showValueLabels` | Declared in the registry, no control, never read | Build a switch, off by default. Standard mode. | Build |
 | Label which series (New, September 30) | `valueLabelSeries` | New | Build, the way the dot plot's `pointLabelSeries` works. All series by default. Advanced Mode only. | Build |
@@ -661,6 +663,7 @@ Rows marked **New, September 30** come from the PPIC references above. The owner
 | Sort (New, September 30) | `sort` | Declared default `"value"`, no control, never read | Build a Sort choice: Data order, Largest first, or Smallest first. The default is Data order, which is what users see today, and the registry default changes to match. Dragging locations sets a custom order and shows the choice as Custom. Standard mode. | Build |
 | Bars along (New, September 30) | `categoryAxis` | New | Build: Locations (today) or Periods, for one bar per year as in the permanent housing chart. Advanced Mode only. | Build |
 | Color bars by (New, September 30) | `barColorBy` | New | Build, shown only when the bars show several comparisons and several periods: Each series (today, for example "Latina Women · 2025"), Comparison, or Period. The one not chosen becomes an inner category nested under each location. The default is Each series, so no chart changes color. Advanced Mode only. | Build |
+| Bar order within groups (New, September 30) | `seriesOrder` | New | Build (owner, after review): a drag list of the series, for example which year's bar comes first in each group. It also orders a stack from its base up and the key. Each series keeps its color. Data order by default. Shown when there are two or more series. Standard mode. | Build |
 | Track rail and Minimal axis without diverging (New, September 30) | `trackRail`, `minimalAxis` | Shown only when Diverging bars is on | Build. Move both out of the diverging group, because the references use them on ordinary bars. The diverging group keeps five controls. | Build |
 | Population pyramid (New, September 30) | `mirror` | Declared in the registry, no control, never read | Hide. No reference uses it, and diverging bars already draw bars from a center. | Remove |
 
@@ -676,10 +679,11 @@ Follow [What every chart goes through](#what-every-chart-goes-through). Chart-sp
 3. **Row labels for horizontal bars.** New file `lib/visualization/chartLayout/rowLabels.js`. E builds it because E comes before F, and F, G, and H reuse it. Given the labels, the text size, a maximum width, and the alignment, it returns the label column width and each label's position. Long labels wrap onto a second line rather than being cut off. Labels are left-aligned by default (owner, September 30, 2026), and centered on their bar or row.
 4. **Drawing** in `components/charts/visx/BarChart.js`.
    - Enforce the 10px minimum bar width by reducing the gap between bars first. When even that is not enough, show a notice asking the reader to show fewer categories, rather than drawing bars thinner than the guide allows.
-   - Category labels on vertical bars wrap onto two lines first. When they still overlap, they turn 90 degrees (Figure 15). The 10px notice applies only after both.
+   - Category labels on vertical bars wrap onto two lines first. When they still overlap, they angle 45 degrees while the bars are at least two text heights apart, and turn 90 degrees only when the bars are closer than that (Figure 15; owner, September 30, 2026). The 10px notice applies only after these.
    - When values go below zero, the zero line is drawn as an axis line (1px, axis color), not as a pale grid line (Figure 6).
+   - With one series, the key entry names what the bars measure (the value axis title, or the measure when that title is off), and the value axis title is not repeated above the axis (owner, September 30, 2026). With the key hidden, the title stays.
    - The drawing receives its plot area from its caller rather than assuming it owns the whole frame, so P's panel grid can draw several bar charts in one SVG.
-5. **Hover** shows the category, series, and value of the bar under the pointer, formatted as the View Data table formats it, and follows the keyboard rules in the chart recipe. On a stacked bar it also shows the stack total.
+5. **Hover** follows PPIC's published bar charts, not the line chart's point label (owner, September 30, 2026): the information goes on the chart, with no floating box. With several series, the hovered bar's series keeps its color and shows every one of its values, the other series fade to a 30% tint of their own color (their value labels step back), and the key fades the other entries' swatches the same way, keeping every label readable (owner, after review: hiding them made the key too dim). A stack labels the hovered series inside every segment only when all of them fit; otherwise only the hovered value shows, past the end of its stack and beyond any total, so every stack behaves the same (owner, after review). With one series, the hovered bar darkens (official orange to official red `#832522`; other colors lose lightness in Lab, keeping their hue) and its value appears above it in bold, unless its value is already shown. Hover numbers take the hovered bar's color: outside a bar, its fill darkened only as far as 4.5:1 contrast needs; inside, white or dark gray, whichever reads on it (owner, after review). The hovered category label turns bold and dark; the others keep their gray, which is light enough already (owner, September 30, 2026). The hovered value carries `role="tooltip"` with the series, category, and any stack total for screen readers. The key around the chart learns the hovered series through a small shared focus (`components/charts/chartFocus.js`), which `ChartFrame` provides. Keyboard use follows the chart recipe.
 6. **Value labels.** When Show values is on:
    - The text is the value in the shared number format from `sharedSettings.js`, at the data label size.
    - **Automatic** placement puts labels outside the bar when the chart has one series or only some series are labeled (Figures 13 and 6), and inside otherwise (the 9th graders chart). Stacked segments are always labeled inside.
@@ -705,6 +709,19 @@ Follow [What every chart goes through](#what-every-chart-goes-through). Chart-sp
 - [[visualization-specification]], section "Chart catalog": the bar chart's description (value labels, sorting, stacking to 100%, nested categories, key above).
 - [[visualization-specification]], section "Settings reference", and the generated settings reference. Regenerate it with `npm run generate:settings`, and do not edit it by hand.
 - Workstream F in this plan: row labels now come from E and default to left-aligned. F has been updated to match.
+
+> [!note] As built, September 30, 2026
+> Workstream E is built. Its screenshot baselines are not recorded; they wait for review. Where the build settled something the steps above left open:
+> - **Reference line.** A diverging chart draws a separate reference line only when a reference value (0 included) or label is set. Otherwise the baseline at the center marks it, so an explicit 0 still changes the chart.
+> - **Horizontal bars** draw no value grid lines (they would be vertical) and stop growing at 36px thick, so a short list does not become blocks. A short chart leaves space below it; check this at review.
+> - **Label which series** is one dropdown: All series, or Only one named series. It saves the same `valueLabelSeries` map. The editor names the series from the bar model (through the new `lib/visualization/previewInput.js`, shared with `PreviewContext`), so the choices match the chart after Color bars by or Bars along change the series.
+> - **The series behind a bar** come from the new `lib/visualization/barSeries.js`, which the Plotly bar adapter now uses too, so both renderers draw the same series, names, and colors.
+> - **Bar controls are version 3 only.** The older editor keeps Orientation and Diverging bars in its Outcome section; showing them in Appearance too would draw each control twice there.
+> - **Automatic axis labels** for a version 3 horizontal bar put the measure on X (`deriveLabels.js`), matching the older editor's labels.
+> - **Stage 1 tests changed** beyond the three named below: `chartRegistry.catalog.test.js` no longer expects `mirror` in the bar defaults; the Orientation case in `AppearanceSection.test.js` now renders a version 3 bar; and `AppearanceSection.bar.test.js` gates six diverging controls instead of eight, because Track rail and Minimal axis left the group.
+> - **The Projections topic's "Age pyramid" example** (`demographicProjections.js`) still sets `mirror: true`. With `mirror` removed it draws ordinary horizontal bars.
+> - **Second owner review (September 30, 2026).** Track rail moved to Advanced Mode (Minimal axis stays standard). Hover numbers take the hovered bar's color. A stack labels the hovered series everywhere or only past the hovered stack. Threshold colors offer only the official colors; the Plotly bar resolves the official names too. The Outcome section's bare "Sum" now reads "Combined values are added together."
+> - **Owner review in the editor (September 30, 2026).** Four changes followed. The key no longer hides the other series on hover; their swatches fade instead. A hovered stacked segment too small for its value now shows it past the stack; before, nothing appeared. **Bar order within groups** (`seriesOrder`) was added, reusing the location list's drag rows. The Time section's Years box lists the chosen years ("2025, 2026") instead of a count.
 
 ### Tests
 
@@ -749,11 +766,11 @@ Added September 30, 2026, to `barModel.test.js`. Expected values are typed by ha
 | `keeps today's series and colors when Color bars by is not saved` | Compare with `adaptObservations` output. |
 | `labels only the chosen series` | `valueLabelSeries`. |
 | `places labels outside for one series and inside for several` | Automatic placement. |
-| `moves an inside label outside when the bar is too short` | The fit rule. |
-| `leaves out a label on a segment too small to hold it` | Stacked segments. |
-| `labels a negative bar past its tip` | Outside labels on negative bars. |
+| `labels stacked segments inside` | Stacked segments never take outside labels. |
 | `shows a total for each stack` | `showStackTotals`. |
 | `gives every bar a stable key` | Comparison, location, and period, the same at every width. |
+| `names a single series' key entry after the value axis` | One series' key says what is measured. |
+| `keeps series names in the key and the axis title when there are several series or no key` | The rule's limits. |
 | `ignores a saved mirror setting` | `mirror` is removed; an old view opens and draws ordinary bars. |
 
 Added September 30, 2026, to `BarChart.test.js`:
@@ -761,6 +778,9 @@ Added September 30, 2026, to `BarChart.test.js`:
 | Test | What it checks |
 |---|---|
 | `writes inside labels in white on dark bars and dark on light bars` | The contrast rule. |
+| `moves an inside label outside when the bar is too short` | The fit rule. It needs sizes in px, so it is a drawing test. |
+| `leaves out a label on a segment too small to hold it` | Stacked segments. |
+| `labels a negative bar past its tip` | Outside labels on negative bars. |
 | `colors outside labels by series when only some series are labeled` | Readers can tell which series a label belongs to. |
 | `wraps a long category label onto two lines` | The first fitting step. |
 | `turns category labels 90 degrees when wrapping is not enough` | The second fitting step, with 50 categories. |
@@ -772,6 +792,22 @@ Added September 30, 2026, to `BarChart.test.js`:
 | `never overlaps two value labels` | Labels that would collide are left out. |
 | `shows the stack total on hover` | Hover on stacks. |
 | `puts each bar's stable key on the drawing` | The `data-key` hook P needs. |
+| `draws the track rail and minimal axis without diverging bars` | The un-gated settings. |
+| `moves between bars with the arrow keys` | Keyboard use. |
+| `darkens the hovered bar of a single series to the official red` | One-series hover. |
+| `darkens other colors while keeping their hue` | Lab darkening. |
+| `shows a single series' hovered value above the bar in bold` | Figure 15's hover. |
+| `only darkens a bar whose value is already shown` | Figure 13's hover. |
+| `fades the other series and labels every bar of the hovered one` | The beds chart's hover; the faded fill is typed out (`#BFC4CC`). |
+| `hides the faded series' value labels while another series is hovered` | Faded series step back. |
+| `labels a stacked series in every stack or only past the hovered one` | Stacked hover is the same in every stack. |
+| `writes hover numbers in the hovered bar's color` | Hover color. |
+| `fades the other series in the key, as on the bars` | The key follows the hover without hiding entries. |
+| `shows a stacked segment's value past the stack when it does not fit inside` | Stacked hover. |
+| `bolds the hovered category label and leaves the others as they are` | Category emphasis. |
+| `angles category labels 45 degrees when the bars have room` | Sparse bars with long labels. |
+| `leaves the value axis title to the key for a single series` | The key names the value. |
+| `draws no hover changes once the pointer leaves` | Hover clears. |
 
 Moved from Workstream F to `tests/js/lib/visualization/chartLayout/rowLabels.test.js` (already written in Stage 1):
 
@@ -792,6 +828,8 @@ New file: `tests/js/components/chart-builder/sections/AppearanceSection.bar.test
 | `shows Stack totals only for stacked bars` | The gating. |
 | `shows Color bars by only when bars show several comparisons and several periods` | The gating. |
 | `shows Track rail and Minimal axis without Diverging bars` | The un-gated controls. |
+| `keeps the label controls in Advanced Mode behind Show values` | Label which series and Label position. |
+| `saves the new bar settings in appearance` | Show values, Sort, and Stacked to 100%. |
 
 Screenshot cases in `tests/visual/visualization-v3.spec.js`. Cases that need more than two counties use a new hand-built fixture in `tests/fixtures/visualization-v3/`, for example 50 categories for the turned labels.
 

@@ -81,3 +81,16 @@ it("formats the source box as PPIC publishes it", () => {
   // Citations are separated by semicolons and the line ends with a period.
   expect(sourceLine).toHaveTextContent("Source: DoF P-3; Census cc-est.");
 });
+
+// Hover on a bar chart focuses one series; the frame's key fades the others.
+import { useChartFocus } from "@/components/charts/chartFocus";
+function Focuses({ id }) {
+  const { setFocusId } = useChartFocus();
+  React.useEffect(() => setFocusId(id), [id, setFocusId]);
+  return null;
+}
+it("fades the other series in the frame's key", () => {
+  const legend = { position: "top", entries: [{ id: "a", label: "A", color: "#CA4F1A" }, { id: "b", label: "B", color: "#293B54" }] };
+  const { container } = render(<ChartFrame legend={legend} height={200}>{() => <Focuses id="b" />}</ChartFrame>);
+  expect([...container.querySelectorAll('[data-key-position="top"] li')].map(li => li.hasAttribute("data-faded"))).toEqual([true, false]);
+});

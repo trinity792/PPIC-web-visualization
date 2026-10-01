@@ -4,7 +4,7 @@ Content Type: agent instructions
 pinned: false
 description: "Top-level orientation for AI agents maintaining the PPIC data pipelines and V3 React/Next.js visualization site. Sets project goals, commands, sources of truth, and contributor boundaries."
 Date Published: June 22, 2026
-Last Updated: 09/29/2026 - 09:00 PM
+Last Updated: 09/30/2026 - 06:15 PM
 Status: Updating
 ---
 
@@ -24,7 +24,7 @@ The project must remain understandable to non-developers and future contributors
 
 ## Tech stack
 
-- **Frontend:** Next.js 16, React 19, Tailwind CSS 4, visx (`@visx/*`, pinned; the line chart) and Plotly.js (via react-plotly.js; maps and the charts not yet moved to visx)
+- **Frontend:** Next.js 16, React 19, Tailwind CSS 4, visx (`@visx/*`, pinned; the line and bar charts) and Plotly.js (via react-plotly.js; maps and the charts not yet moved to visx)
 - **Backend/ETL:** Python 3, pandas
 - **Testing:** Vitest and Playwright (frontend); pytest (backend)
 - **Dev environment:** macOS, VS Code workspace, `web-viz-venv` on Python 3.12

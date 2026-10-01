@@ -17,6 +17,29 @@ export function rendererVisualScenario(chartType, scenario = "default") {
     fixture.comparisons = ["Group A", "Group B", "Group C", "Group D", "Group E", "Group F", "Group G", "Group H"].map((label,i) => ({ id: `comparison-${i}`, label }));
     fixture.observations = fixture.comparisons.map((c,i) => ({ ...lineRows[i % 6], period: 2025, comparisonId: c.id, comparisonLabel: c.label }));
   }
+  // Bar layouts from the PPIC references (renderer plan E, 2026-09-30).
+  const twoPeriods = () => observations.filter(r => r.comparisonId !== "black" && [2020, 2025].includes(r.period));
+  if(scenario === "values-inside-outside") fixture.appearance.showValueLabels = true;
+  if(scenario === "percent-nested") {
+    fixture.observations = twoPeriods();
+    Object.assign(fixture.appearance, { orientation: "horizontal", stackMode: "percent", barColorBy: "comparison", showValueLabels: true });
+  }
+  if(scenario === "fifty-categories") {
+    fixture.comparisons = [comparisons[0]];
+    fixture.observations = Array.from({ length: 50 }, (_, i) => ({ ...fixture.observations[0], geographyId: `state-${i}`, geographyLabel: `S${String(i).padStart(2, "0")}`, value: 1000 + ((i * 37) % 50) * 400 }));
+    fixture.appearance.sort = "descending";
+  }
+  if(scenario === "negative-nested") {
+    fixture.observations = twoPeriods().map(r => ({ ...r, value: r.comparisonId === "white" ? -r.value / 40 : r.value / 40 }));
+    Object.assign(fixture.appearance, { barColorBy: "period", showValueLabels: true, valueLabelSeries: { "2020": false, "2025": true } });
+  }
+  if(scenario === "nine-regions") {
+    const regions = ["Bay Area", "Central Coast", "Far North", "Inland Empire", "Los Angeles (Regional)", "North San Joaquin Valley", "Sacramento (Regional)", "San Diego (Regional)", "South San Joaquin Valley"];
+    const totals = [7700000, 1500000, 1250000, 4700000, 13900000, 1650000, 2450000, 3500000, 2950000];
+    fixture.comparisons = [comparisons[0]];
+    fixture.observations = regions.map((name, i) => ({ ...fixture.observations[0], geographyId: `region-${i}`, geographyLabel: name, value: totals[i] }));
+  }
+  if(scenario === "stacked-direct") Object.assign(fixture.appearance, { stackMode: "stacked", legendPosition: "automatic", showStackTotals: true });
   if(scenario === "long-rows") fixture.observations = lineRows.slice(0,3).map(r => ({ ...r, categoryId: "long", categoryLabel: "San Francisco residents aged sixty five and older" }));
   if(scenario === "long-slice") fixture.observations = fixture.observations.map(r => ({ ...r, categoryLabel: r.categoryId === "0-4" ? "Residents aged zero through four years in San Francisco" : r.categoryLabel }));
   return fixture;

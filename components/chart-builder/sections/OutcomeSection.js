@@ -243,10 +243,13 @@ function V3Outcome({ config, dispatch, schema, advanced, editorModel }) {
         </label>
       ) : null}
       {measure.aggregation && measure.aggregation !== "notAllowed" ? (
-        <div className="text-sm">
-          <p>{measure.aggregation === "weightedMean" ? "Weighted mean" : "Sum"}</p>
-          {measure.weightField ? <p>Weighted by {measure.weightField.toLowerCase()}.</p> : null}
-        </div>
+        // How the measure combines across places and periods, said as a
+        // sentence rather than a bare "Sum" (owner, 2026-09-30).
+        <p className="text-xs text-muted-foreground">
+          {measure.aggregation === "weightedMean"
+            ? `Combined values are a weighted mean${measure.weightField ? `, weighted by ${measure.weightField.toLowerCase()}` : ""}.`
+            : "Combined values are added together."}
+        </p>
       ) : null}
     </div>
   );

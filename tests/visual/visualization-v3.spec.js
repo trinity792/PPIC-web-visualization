@@ -167,6 +167,12 @@ test.describe("renderer plan screenshots", () => {
     ["matches the approved horizontal Bar layout", "bar", "horizontal", "bar-horizontal.png"],
     ["matches the approved stacked Bar layout", "bar", "stacked", "bar-stacked.png"],
     ["matches the approved diverging Bar layout", "bar", "diverging", "bar-diverging.png"],
+    ["labels values inside and outside bars", "bar", "values-inside-outside", "bar-value-labels.png"],
+    ["stacks to 100 percent with nested row groups", "bar", "percent-nested", "bar-percent-nested.png"],
+    ["turns labels for fifty categories", "bar", "fifty-categories", "bar-fifty-categories.png"],
+    ["nests categories around negative values", "bar", "negative-nested", "bar-negative-nested.png"],
+    ["names stacked series directly", "bar", "stacked-direct", "bar-stacked-direct.png"],
+    ["angles labels for nine regions", "bar", "nine-regions", "bar-nine-regions.png"],
     ["wraps long row labels", "dumbbell", "long-rows", "range-long-rows.png"],
     ["matches the approved Dot plot layout", "dotPlot", "default", "dot-plot.png"],
     ["matches the approved Forest layout", "forest", "default", "forest.png"],
@@ -194,6 +200,11 @@ test.describe("renderer plan screenshots", () => {
       for(const text of ["Figure 2", "Population", "Selected counties", "California Department of Finance (DOF), P-3 Population Projections", "Estimates may be revised."]) await expect(plot(page).getByText(text, { exact: false }).first()).toBeVisible();
     }
     if(scenario === "narrow") expect(Math.round((await plot(page).boundingBox()).width)).toBe(330);
+    if(scenario === "values-inside-outside") await expect(plot(page).locator('[data-mark="value-label"][data-placement="outside"]').first()).toBeVisible();
+    if(scenario === "percent-nested") await expect(plot(page).locator('[data-mark="group-label"]')).toHaveCount(2);
+    if(scenario === "fifty-categories") await expect(plot(page).locator('[data-mark="category-label"][transform]')).toHaveCount(50);
+    if(scenario === "nine-regions") await expect(plot(page).locator('[data-mark="category-label"][transform*="rotate(-45"]')).toHaveCount(9);
+    if(scenario === "stacked-direct") await expect(plot(page).locator('[data-mark="direct-label"]')).toHaveCount(2);
     if(scenario === "long-slice") await expect(plot(page).locator('[data-mark="leader-line"]').first()).toBeVisible();
     await expect(plot(page)).toHaveScreenshot(filename);
   });

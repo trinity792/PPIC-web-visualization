@@ -276,7 +276,10 @@ describe("AppearanceSection", () => {
     const line = render(<AppearanceSection />);
     expect(screen.queryByLabelText(/orientation/i)).not.toBeInTheDocument();
     line.unmount();
-    state.config = config("bar");
+    // A version 3 bar: the version 3 Outcome section dropped Orientation, so it
+    // came back here. The older editor still asks for it in OutcomeSection, and
+    // showing it in both would draw two Orientation controls there.
+    state.config = { version: 3, question: { comparisons: [] }, presentation: { chartType: "bar", labels: {}, appearance: {}, bindings: {} } };
     render(<AppearanceSection />);
     expect(screen.getByLabelText(/orientation/i)).toBeInTheDocument();
   });

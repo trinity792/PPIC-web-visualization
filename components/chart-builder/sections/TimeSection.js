@@ -137,9 +137,10 @@ function PeriodPopover({ periods, selected, multiple = false, onChange }) {
   const [query, setQuery] = useState("");
   const selectedSet = new Set(selected);
   const filtered = periods.filter((period) => String(period).includes(query.trim()));
+  // The chosen years themselves (owner, 2026-09-30), truncated when long.
   const summary = multiple
     ? selected.length
-      ? `${selected.length} ${selected.length === 1 ? "year" : "years"} selected`
+      ? selected.join(", ")
       : "Select years"
     : selected[0] ?? "Select a year";
 
@@ -167,8 +168,10 @@ function PeriodPopover({ periods, selected, multiple = false, onChange }) {
           aria-expanded={open}
           className="w-full justify-between font-normal"
         >
-          <span>{summary}</span>
-          <ChevronsUpDown aria-hidden="true" className="size-4 text-muted-foreground" />
+          <span className="min-w-0 truncate" title={multiple && selected.length ? summary : undefined}>
+            {summary}
+          </span>
+          <ChevronsUpDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-(--radix-popover-trigger-width) p-2">

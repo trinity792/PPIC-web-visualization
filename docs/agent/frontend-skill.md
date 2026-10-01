@@ -15,7 +15,7 @@ Topic: Skill Guide
 Content Type: agent instructions
 pinned: false
 Date Published: June 30, 2026
-Last Updated: 09/29/2026 - 09:00 PM
+Last Updated: 09/30/2026 - 06:15 PM
 Status: Finalized
 ---
 
@@ -325,7 +325,7 @@ State lives in the lowest common ancestor of the components that need it. Avoid 
 
 ## Chart Component Conventions
 
-Charts are moving from Plotly.js (via `react-plotly.js`) to visx, one chart type at a time; see [[chart-renderer-implementation-plan]]. The line chart draws with visx (`components/charts/visx/`), maps stay on Plotly, and each chart type's renderer is declared in `lib/visualization/chartRegistry.js`. Chart components follow these conventions.
+Charts are moving from Plotly.js (via `react-plotly.js`) to visx, one chart type at a time; see [[chart-renderer-implementation-plan]]. The line and bar charts draw with visx (`components/charts/visx/`), maps stay on Plotly, and each chart type's renderer is declared in `lib/visualization/chartRegistry.js`. Chart components follow these conventions.
 
 ### Wrapper Pattern
 

@@ -50,10 +50,10 @@ import {
   loadObservationGeometry,
   loadObservations,
 } from "@/components/chart-builder/chartData";
-import { effectiveLabels } from "@/lib/visualization/deriveLabels";
 import { adaptObservations } from "@/lib/visualization/adapters";
 import { rendererFor } from "@/lib/visualization/chartRegistry";
 import { buildChartModel } from "@/lib/visualization/models";
+import { previewInput } from "@/lib/visualization/previewInput";
 import { missingQuestionSelections } from "@/lib/visualization/questionReadiness";
 
 const PreviewContext = createContext(null);
@@ -122,30 +122,8 @@ function previewRendererRequest() {
   return params.get("renderer");
 }
 
-function adapterInput(config, schema, result, chartType) {
-  const summaries = new Map(
-    (result.comparisons || []).map((entry) => [entry.id, entry]),
-  );
-  return {
-    chartType: chartType || config.presentation?.chartType,
-    observations: result.observations || [],
-    comparisons: (config.question.comparisons || []).map((comparison) => ({
-      ...comparison,
-      label:
-        summaries.get(comparison.id)?.label ||
-        comparison.label ||
-        comparison.id,
-    })),
-    presentation: config.presentation,
-    labels: effectiveLabels(config, schema),
-    appearance: config.presentation?.appearance || {},
-    format: config.presentation?.format || {},
-    geometry: result.geometry || null,
-  };
-}
-
 function adaptV3Result(config, schema, result, chartType, previewRenderer) {
-  const input = adapterInput(config, schema, result, chartType);
+  const input = previewInput(config, schema, result, chartType);
   const renderer = rendererFor(input.chartType, previewRenderer);
   if (renderer === "visx") {
     return {
@@ -258,7 +236,7 @@ export function PreviewProvider({ children, deferInitialRender = false }) {
           if (next.observations?.length) {
             // Series names come from the Plotly adapter's traces whichever
             // renderer draws the chart; they feed the editor, not the drawing.
-            const figure = adaptObservations(adapterInput(config, schema, next));
+            const figure = adaptObservations(previewInput(config, schema, next));
             seriesNames = (figure.data || [])
               .map((trace) => trace.name)
               .filter((name) => name != null && name !== "");

@@ -4,17 +4,25 @@
  * ChartKey.js — the PPIC chart key (legend) shared by every visx chart.
  *
  * Square swatches no larger than the guide's 20px, an optional key title, and
- * right or bottom placement. It is ordinary HTML inside ChartFrame, not drawn
+ * top, right, or bottom placement. A key above or below the chart runs in a
+ * wrapping row, as PPIC's published charts draw it. It is ordinary HTML inside ChartFrame, not drawn
  * in the chart's SVG, so long labels wrap normally. A series drawn as a line
  * gets a short line sample instead of a square, dashed when the series is.
+ *
+ * While the reader hovers one series (the chart's focus), the other entries'
+ * samples fade exactly as their bars do, so the key still names every series
+ * and matches what the chart shows. Labels stay at full strength (owner,
+ * 2026-09-30: hiding them made the key too dim).
  *
  * Props:
  *   entries        {Array<Object>} — [{ id, label, color, kind?, dashed? }];
  *                                    kind "line" draws a line sample
- *   legendPosition {string}        — "right" | "bottom" | "hidden"; hidden renders nothing
+ *   legendPosition {string}        — "top" | "right" | "bottom" | "hidden"; hidden renders nothing
  *   title          {string|null}   — optional key title
  *   fontSize       {number|null}   — key text size in px (Legend Text Size);
  *                                    defaults to the guide's 14px
+ *   focusId        {string|null}   — the focused series; defaults to the
+ *                                    surrounding ChartFrame's focus
  *
  * Data sources:
  *   - Via props from parent (ChartFrame, from the chart model)
@@ -25,15 +33,18 @@
 
 import React from "react";
 
+import { useChartFocus } from "@/components/charts/chartFocus";
 import { cn } from "@/components/ui/utils";
 
+import { tint } from "@/lib/visualization/chartLayout/contrast";
 import { CHART_STYLE } from "@/lib/visualization/chartStyle";
 
 const { keySwatch, dataLine, text } = CHART_STYLE;
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
-function Swatch({ entry }) {
+function Swatch({ entry, faded = false }) {
+  const color = faded ? tint(entry.color, CHART_STYLE.bar.hover.fadeShare) : entry.color;
   if (entry.kind === "line") {
     const middle = keySwatch.height / 2;
     return (
@@ -49,7 +60,7 @@ function Swatch({ entry }) {
           x2={keySwatch.width}
           y1={middle}
           y2={middle}
-          stroke={entry.color}
+          stroke={color}
           strokeWidth={dataLine.width}
           strokeDasharray={entry.dashed ? "4 3" : undefined}
         />
@@ -61,16 +72,25 @@ function Swatch({ entry }) {
       aria-hidden="true"
       className="shrink-0"
       data-key-swatch=""
-      style={{ width: keySwatch.width, height: keySwatch.height, backgroundColor: entry.color }}
+      style={{ width: keySwatch.width, height: keySwatch.height, backgroundColor: color }}
     />
   );
 }
 
 // ── Component ────────────────────────────────────────────────────────
 
-export default function ChartKey({ entries = [], legendPosition = "right", title = null, fontSize = null }) {
+export default function ChartKey({
+  entries = [],
+  legendPosition = "right",
+  title = null,
+  fontSize = null,
+  focusId = null,
+}) {
+  const frameFocus = useChartFocus().focusId;
+  const focus = focusId ?? frameFocus;
+  const focused = entries.some((entry) => entry.id === focus) ? focus : null;
   if (legendPosition === "hidden" || !entries.length) return null;
-  const position = legendPosition === "bottom" ? "bottom" : "right";
+  const position = ["top", "bottom"].includes(legendPosition) ? legendPosition : "right";
 
   return (
     <div data-key-position={position} className="min-w-0">
@@ -90,7 +110,7 @@ export default function ChartKey({ entries = [], legendPosition = "right", title
       <ul
         className={cn(
           "flex gap-x-4 gap-y-2",
-          position === "bottom" ? "flex-row flex-wrap" : "flex-col",
+          position === "right" ? "flex-col" : "flex-row flex-wrap",
         )}
         style={{
           fontFamily: text.key.fontFamily,
@@ -99,8 +119,12 @@ export default function ChartKey({ entries = [], legendPosition = "right", title
         }}
       >
         {entries.map((entry) => (
-          <li key={entry.id ?? entry.label} className="flex items-center gap-2">
-            <Swatch entry={entry} />
+          <li
+            key={entry.id ?? entry.label}
+            className="flex items-center gap-2"
+            data-faded={focused && entry.id !== focused ? "" : undefined}
+          >
+            <Swatch entry={entry} faded={Boolean(focused) && entry.id !== focused} />
             <span>{entry.label}</span>
           </li>
         ))}

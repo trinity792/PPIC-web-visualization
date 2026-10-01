@@ -214,9 +214,10 @@ function useExportCharts(previews, config, loaded) {
 
 // Image export still asks Plotly for the picture, so a chart drawn with visx
 // has nothing to export until export works from the drawn SVG (renderer plan,
-// Workstream M). Owner decision 2026-09-29: say so plainly rather than fail.
+// Workstream M). Owner decisions 2026-09-29 (line) and 2026-09-30 (bar): say
+// so plainly rather than fail.
 const VISX_IMAGE_EXPORT_NOTICE =
-  "Image export for the new line chart is coming soon. Use Export data for the numbers, or Embed chart to share the live chart.";
+  "Image export for the new line and bar charts is coming soon. Use Export data for the numbers, or Embed chart to share the live chart.";
 
 const MAX_EMBED_URL_LENGTH = 16000;
 

@@ -20,7 +20,9 @@ const TABLE = {
     ["valueLabelPosition", "outside", { showValueLabels: true }],
     ["showStackTotals", true, { stackMode: "stacked" }],
     // Data order is San Francisco first; Los Angeles has the larger values.
-    ["sort", "descending"]],
+    ["sort", "descending"],
+    // Owner, 2026-09-30: the order of the bars within each group.
+    ["seriesOrder", ["White Women", "Latina Women"]]],
   dumbbell: [...SHARED, ...AXES.filter(([key]) => key !== "verticalTickIncrement"), ...ROWS, ["horizontalNumberType", "usd"], ["pointLabelsFirstLineOnly", true]],
   dotPlot: [...SHARED, ...AXES.filter(([key]) => key !== "verticalTickIncrement"), ...ROWS, ["horizontalNumberType", "usd"], ["pointLabelSeries", { "White Women": false }], ["markerSize", 14]],
   forest: [...SHARED, ...AXES.filter(([key]) => key !== "verticalTickIncrement"), ...ROWS, ["horizontalNumberType", "usd"], ["endpointStyle", "diamonds"], ["pointStyle", "dot"], ["noEffectValue", 0], ["center", 45000]],
