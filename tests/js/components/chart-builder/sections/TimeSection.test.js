@@ -156,8 +156,26 @@ describe("the control follows the capability, not the chart id", () => {
     state.config = config({ contract: "twoPeriods", startYear: 2020, endYear: 2025 });
     render(<TimeSection />);
 
-    expect(screen.getByLabelText(/first year/i)).toHaveValue("2020");
-    expect(screen.getByLabelText(/second year/i)).toHaveValue("2025");
+    // The editor's standard select box shows its choice as text.
+    expect(screen.getByRole("combobox", { name: /first year/i })).toHaveTextContent("2020");
+    expect(screen.getByRole("combobox", { name: /second year/i })).toHaveTextContent("2025");
+  });
+
+  it("saves a picked year as a number", async () => {
+    const user = userEvent.setup();
+    state.editorModel = model(
+      { contract: "twoPeriods", availablePeriods: AVAILABLE },
+      { chartType: "dumbbell" },
+    );
+    state.config = config({ contract: "twoPeriods", startYear: 2020, endYear: 2025 });
+    render(<TimeSection />);
+
+    await user.click(screen.getByRole("combobox", { name: /second year/i }));
+    await user.click(screen.getByRole("option", { name: "2030" }));
+    expect(state.dispatch).toHaveBeenCalledWith({
+      type: "SET_TIME",
+      time: { contract: "twoPeriods", startYear: 2020, endYear: 2030 },
+    });
   });
 
   it("does not let a two-period control pick the same year twice", async () => {
@@ -169,7 +187,7 @@ describe("the control follows the capability, not the chart id", () => {
     state.config = config({ contract: "twoPeriods", startYear: 2020, endYear: 2025 });
     render(<TimeSection />);
 
-    await user.click(screen.getByLabelText(/second year/i));
+    await user.click(screen.getByRole("combobox", { name: /second year/i }));
     // A change from 2020 to 2020 is not a change, and the calculation that
     // needs two periods has nothing to subtract.
     expect(screen.getByRole("option", { name: "2020" })).toHaveAttribute(

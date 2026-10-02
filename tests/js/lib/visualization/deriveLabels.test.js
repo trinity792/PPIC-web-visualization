@@ -126,6 +126,13 @@ describe("v3 geography-aware labels", () => {
     expect(deriveLabels(spec, v3Schema)).toMatchObject({ xAxis: "Population", yAxis: "Location" });
   });
 
+  // Renderer plan F: a range chart's values run along the horizontal axis.
+  it("puts the measure on the horizontal axis for range charts", () => {
+    const spec = v3({ subset: "Regions", locations: ["Bay Area", "Central Coast", "Far North", "Inland Empire"] });
+    spec.presentation.chartType = "dumbbell";
+    expect(deriveLabels(spec, v3Schema)).toMatchObject({ xAxis: "Population", yAxis: "" });
+  });
+
   it("names the time field when bars run along periods", () => {
     const spec = v3({ subset: "Regions", locations: ["Bay Area", "Central Coast", "Far North", "Inland Empire"] });
     spec.presentation.chartType = "bar";

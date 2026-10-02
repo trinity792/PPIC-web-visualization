@@ -751,9 +751,10 @@ describe("AppearanceSection", () => {
       value: "center",
     });
 
+    // Left is the default now (owner, 2026-09-30), so choose Right.
     await user.click(screen.getByLabelText("Variable alignment"));
-    await user.click(screen.getByRole("option", { name: "Left" }));
-    expect(state.dispatch).toHaveBeenCalledWith({ type: "SET_APPEARANCE", key: "variableLabelAlignment", value: "left" });
+    await user.click(screen.getByRole("option", { name: "Right" }));
+    expect(state.dispatch).toHaveBeenCalledWith({ type: "SET_APPEARANCE", key: "variableLabelAlignment", value: "right" });
   });
 
   it("shows grouped row label controls only where row grouping applies", () => {

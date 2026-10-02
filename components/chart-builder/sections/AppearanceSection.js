@@ -67,6 +67,7 @@ import {
 } from "@/lib/visualization/fieldTypes";
 import { impliedBindings } from "@/lib/visualization/impliedRoles";
 import { buildBarModel } from "@/lib/visualization/models/barModel";
+import { buildRangeModel } from "@/lib/visualization/models/rangeModel";
 import { showsSourceBox } from "@/lib/visualization/models/sharedSettings";
 import { previewInput } from "@/lib/visualization/previewInput";
 import { bindableFields } from "@/lib/visualization/inlineMapping";
@@ -399,6 +400,45 @@ function NumberTypeControls({ fields, appearance, onChange }) {
   );
 }
 
+// ── Range chart choices ──────────────────────────────────────────────
+
+// Renderer plan F (owner, 2026-10-01, from PPIC's published range plots). The
+// first choice in each list is the default.
+const RANGE_STYLE_CHOICES = Object.freeze([
+  { value: "dots", label: "Dots" },
+  { value: "arrow", label: "Arrow" },
+]);
+const VALUE_AXIS_POSITION_CHOICES = Object.freeze([
+  { value: "bottom", label: "Bottom" },
+  { value: "top", label: "Top" },
+]);
+const POINT_LABEL_END_CHOICES = Object.freeze([
+  { value: "both", label: "Both ends" },
+  { value: "start", label: "Start only" },
+  { value: "end", label: "End only" },
+]);
+
+function RangeChoice({ id, label, value, choices, onChange }) {
+  const current = choices.some((choice) => choice.value === value) ? value : choices[0].value;
+  return (
+    <div className="grid gap-2">
+      <Label htmlFor={id}>{label}</Label>
+      <Select value={current} onValueChange={onChange}>
+        <SelectTrigger id={id}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {choices.map((choice) => (
+            <SelectItem key={choice.value} value={choice.value}>
+              {choice.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
 // ── Grouped row labels ───────────────────────────────────────────────
 
 function usesGroupedRowLabels(config) {
@@ -410,23 +450,41 @@ function usesGroupedRowLabels(config) {
     : config.appearance?.orientation === "horizontal";
 }
 
-function GroupedRowLabelControls({ appearance, onChange }) {
+/**
+ * Which row label alignments apply. A version 3 range chart always labels its
+ * rows, and draws group headers when it shows several comparisons in several
+ * locations (rangeModel.js), so its controls follow the drawn chart rather
+ * than a `group` binding that version 3 views rarely set (renderer plan F).
+ */
+function rowLabelControls(config, rangeHasGroups) {
+  if (config.version === 3 && config.chartType === "dumbbell") {
+    return { group: rangeHasGroups || Boolean(config.bindings?.group), variable: true };
+  }
+  const grouped = usesGroupedRowLabels(config);
+  return { group: grouped, variable: grouped };
+}
+
+// Both default to left, as PPIC's published charts align row labels (owner,
+// 2026-09-30); the style guide's right alignment is still a choice.
+function GroupedRowLabelControls({ appearance, onChange, show }) {
   const rows = [
     {
       name: "Group",
       alignmentKey: "groupLabelAlignment",
       alignmentDefault: "left",
+      shown: show.group,
     },
     {
       name: "Variable",
       alignmentKey: "variableLabelAlignment",
-      alignmentDefault: "right",
+      alignmentDefault: "left",
+      shown: show.variable,
     },
-  ];
+  ].filter((row) => row.shown);
 
   return (
     <div className="grid gap-3 rounded-lg border bg-card p-3">
-      <p className="text-sm font-medium">Grouped row labels</p>
+      <p className="text-sm font-medium">{show.group ? "Grouped row labels" : "Row labels"}</p>
       {rows.map(({ name, alignmentKey, alignmentDefault }) => (
         <div className="grid gap-3" key={name}>
           <div className="grid gap-2">
@@ -882,6 +940,28 @@ const SORT_CHOICES = Object.freeze([
   ["descending", "Largest first"],
   ["ascending", "Smallest first"],
 ]);
+
+/**
+ * Whether the loaded range chart draws group headers, so the Group alignment
+ * control shows only when it has something to align.
+ */
+function useRangeHasGroups(storedConfig, schema) {
+  const result = useLoadedResult();
+  return React.useMemo(() => {
+    if (
+      storedConfig.version !== 3 ||
+      storedConfig.presentation?.chartType !== "dumbbell" ||
+      !result?.observations?.length
+    ) {
+      return false;
+    }
+    try {
+      return buildRangeModel(previewInput(storedConfig, schema, result, "dumbbell")).groups.length > 0;
+    } catch {
+      return false;
+    }
+  }, [storedConfig, schema, result]);
+}
 
 /**
  * The names of the series the bar chart draws, from the loaded answer and the
@@ -1349,6 +1429,7 @@ export default function AppearanceSection() {
     dispatch({ type: "SET_APPEARANCE", key, value });
 
   const { advanced } = useAdvancedMode();
+  const rowLabels = rowLabelControls(config, useRangeHasGroups(storedConfig, schema));
   // A chart that labels its data directly (the line chart) defaults to
   // "Automatic": direct labels when they fit, otherwise a key on the right.
   const legendDefault = chart?.defaults?.legendPosition || "right";
@@ -1525,10 +1606,11 @@ export default function AppearanceSection() {
         </div>
       ) : null}
 
-      {usesGroupedRowLabels(config) ? (
+      {rowLabels.group || rowLabels.variable ? (
         <GroupedRowLabelControls
           appearance={appearance}
           onChange={setAppearance}
+          show={rowLabels}
         />
       ) : null}
 
@@ -1670,13 +1752,37 @@ export default function AppearanceSection() {
 
       {isRangeFamily ? (
         <>
+          {config.chartType === "dumbbell" ? (
+            <RangeChoice
+              id="appearance-range-style"
+              label="Range style"
+              value={appearance.rangeStyle}
+              choices={RANGE_STYLE_CHOICES}
+              onChange={(value) => setAppearance("rangeStyle", value)}
+            />
+          ) : null}
+          {config.chartType === "dumbbell" && advanced ? (
+            <RangeChoice
+              id="appearance-value-axis-position"
+              label="Value axis position"
+              value={appearance.valueAxisPosition}
+              choices={VALUE_AXIS_POSITION_CHOICES}
+              onChange={(value) => setAppearance("valueAxisPosition", value)}
+            />
+          ) : null}
           {advanced ? (
             <div className="flex items-center justify-between gap-3">
               <Label htmlFor="appearance-hide-x-axis">Hide X-Axis</Label>
+              {/* Saved as hideXAxis (renderer plan F); a view saved with the
+                  old showValueAxis: false opens with it on. */}
               <Switch
                 id="appearance-hide-x-axis"
-                checked={appearance.showValueAxis === false}
-                onCheckedChange={(checked) => setAppearance("showValueAxis", !checked)}
+                checked={
+                  typeof appearance.hideXAxis === "boolean"
+                    ? appearance.hideXAxis
+                    : appearance.showValueAxis === false
+                }
+                onCheckedChange={(checked) => setAppearance("hideXAxis", checked)}
               />
             </div>
           ) : null}
@@ -1702,6 +1808,17 @@ export default function AppearanceSection() {
                 onCheckedChange={(checked) =>
                   setAppearance("pointLabelsFirstLineOnly", checked)
                 }
+              />
+            </div>
+          ) : null}
+          {config.chartType === "dumbbell" && appearance.showPointLabels && advanced ? (
+            <div className="pl-4">
+              <RangeChoice
+                id="appearance-point-label-ends"
+                label="Label which end"
+                value={appearance.pointLabelEnds}
+                choices={POINT_LABEL_END_CHOICES}
+                onChange={(value) => setAppearance("pointLabelEnds", value)}
               />
             </div>
           ) : null}

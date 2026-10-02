@@ -31,12 +31,15 @@ const lineYearTick = "Horizontal tick increment (Year)";
 // totals are standard; the other new bar controls are Advanced Mode only.
 // Track rail joined them after the owner's review the same day.
 const barAdvanced = ["Track rail", "Label which series", "Label position", "Bars along", "Color bars by"];
-const ADVANCED_ONLY = new Set([...typography, ...spacing, lineYearTick, "Markers", "Dashed lines for a range of periods", "Start period", "End period", "Range label", ...barAdvanced]);
+// Owner decision 2026-10-01 (PPIC range references): Range style is standard;
+// Value axis position and Label which end are Advanced Mode only.
+const rangeAdvanced = ["Value axis position", "Label which end"];
+const ADVANCED_ONLY = new Set([...typography, ...spacing, lineYearTick, "Markers", "Dashed lines for a range of periods", "Start period", "End period", "Range label", ...barAdvanced, ...rangeAdvanced]);
 const row = ["Group alignment", "Variable alignment", "Show point values"];
 const expected = {
   line: [...shared, ...typography, ...spacing, lineYearTick, "Markers", "Dashed lines for a range of periods", "Start period", "End period", "Range label"],
   bar: [...shared, ...typography, ...spacing, "Orientation", "Diverging bars", "Stacking", "Space between groups", "Center reference", "Reference line", "Reference line label", "Range minimum", "Range maximum", "Minimal axis", "Threshold colors", "Show values", "Stack totals", "Sort", ...barAdvanced],
-  dumbbell: [...shared, ...typography, ...spacing, ...row, "First Line Only"],
+  dumbbell: [...shared, ...typography, ...spacing, ...row, "First Line Only", "Range style", ...rangeAdvanced],
   dotPlot: [...shared, ...typography, ...spacing, ...row, "Latina Women", "White Women", "Marker size"],
   forest: [...shared, ...typography, ...spacing, ...row, "Interval ends", "Estimate marker", "Line of no effect", "Value axis center"],
   heatmap: [...shared, ...typography, ...spacing, "Color scale", "Invert color scale", "Show cell values"],

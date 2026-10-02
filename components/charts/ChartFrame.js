@@ -5,6 +5,9 @@
  * guide's order: eyebrow, title, subtitle, the drawing with its key (above,
  * right, or below), then the gray source-and-notes box, styled as PPIC publishes it (bold
  * uppercase "SOURCE:" and "NOTES:" captions, 11px gray text, 20px below the chart).
+ * The gaps between parts follow PPIC's published charts (`CHART_STYLE.frameGap`:
+ * 20px below the title block, 12px between the key and the chart), not the
+ * guide's 48px.
  *
  * Each part is left out entirely, not left as an empty gap, when it has no text
  * or its show switch is off; "Show source and notes" (`showSource`) switches
@@ -33,6 +36,10 @@
  *                                   and "hidden" leave the key to the chart)
  *   height       {number|null}    — drawing height in px; when omitted the drawing
  *                                   fills the height the frame is given
+ *   fitContent   {boolean}        — the drawing sizes itself (the range chart's
+ *                                   rows), so the frame does not reserve the
+ *                                   full height and the source box follows the
+ *                                   drawing directly
  *   className    {string}         — optional classes for the frame
  *
  * Data sources:
@@ -57,7 +64,7 @@ import {
 } from "@/lib/visualization/models/sharedSettings";
 import { CHART_HEIGHTS } from "@/lib/constants";
 
-const { text, partSpacing, sourceBox } = CHART_STYLE;
+const { text, frameGap, sourceBox } = CHART_STYLE;
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -100,6 +107,7 @@ export default function ChartFrame({
   summary = null,
   legend = null,
   height = null,
+  fitContent = false,
   className = "",
 }) {
   const drawingRef = React.useRef(null);
@@ -126,7 +134,10 @@ export default function ChartFrame({
   const sources = showSource ? citeSources(observations, sourceCitations) : [];
   const footnote = showSource ? shown.footnote : null;
   const fixedHeight = Number.isFinite(height) && height > 0 ? height : null;
-  const drawingHeight = fixedHeight ?? (size.height > 0 ? size.height : CHART_HEIGHTS.preview);
+  // A drawing that sizes itself is never handed its own measured height,
+  // which would feed back into it.
+  const drawingHeight = fixedHeight ??
+    (size.height > 0 && !fitContent ? size.height : CHART_HEIGHTS.preview);
   const width = Math.floor(size.width);
   const keyPosition = ["top", "bottom"].includes(legend?.position) ? legend.position : "right";
   const key =
@@ -173,9 +184,12 @@ export default function ChartFrame({
         className={cn(
           "flex min-w-0",
           keyPosition === "right" ? "flex-row items-start" : "flex-col",
-          fixedHeight ? null : "min-h-0 flex-1",
+          fixedHeight || fitContent ? null : "min-h-0 flex-1",
         )}
-        style={{ gap: partSpacing, marginTop: hasHeader ? partSpacing : 0 }}
+        style={{
+          gap: keyPosition === "right" ? frameGap.keySide : frameGap.key,
+          marginTop: hasHeader ? frameGap.header : 0,
+        }}
       >
         {keyPosition === "top" ? key : null}
         <div
@@ -184,8 +198,12 @@ export default function ChartFrame({
           // A drawing may grow past the size it was given (line spacing adds
           // room between values). With a set height the frame grows with it;
           // with a measured height it scrolls, so the size never feeds back.
-          className={cn("min-w-0 flex-1", fixedHeight ? null : "overflow-y-auto")}
-          style={{ minHeight: fixedHeight ?? undefined }}
+          className={cn(
+            "min-w-0",
+            fitContent ? null : "flex-1",
+            fixedHeight || fitContent ? null : "overflow-y-auto",
+          )}
+          style={{ minHeight: fitContent ? undefined : fixedHeight ?? undefined }}
         >
           {width > 0 ? children({ width, height: Math.floor(drawingHeight) }) : null}
         </div>

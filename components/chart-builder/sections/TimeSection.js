@@ -10,6 +10,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/components/ui/utils";
 
@@ -19,35 +26,38 @@ function joinYears(years) {
   return `${years.slice(0, -1).join(", ")}, and ${years.at(-1)}`;
 }
 
-function YearSelect({ label, value, periods, disabledPeriod, active, onFocus, onChange }) {
+/**
+ * One year from a list, in the editor's standard select box (the same one
+ * Geographic level uses). Periods keep their own type: a numeric year is saved
+ * as a number, not as the select's string value.
+ */
+function YearSelect({ label, value, periods, disabledPeriod, onChange }) {
+  const id = `time-${label.toLowerCase().replace(/\s+/g, "-")}`;
   return (
-    <label className="grid gap-1 text-sm">
-      <span>{label}</span>
-      <select
-        aria-label={label}
-        value={value ?? ""}
-        onFocus={onFocus}
-        onChange={(event) => {
-          const selected = periods.find(
-            (period) => String(period) === event.target.value,
-          );
-          onChange(selected ?? event.target.value);
-        }}
+    <div className="grid gap-2">
+      <Label htmlFor={id}>{label}</Label>
+      <Select
+        value={value == null ? undefined : String(value)}
+        onValueChange={(next) =>
+          onChange(periods.find((period) => String(period) === next) ?? next)
+        }
       >
-        <option value="">Select a year</option>
-        {periods.map((period) => (
-          <option
-            key={period}
-            value={period}
-            disabled={period === disabledPeriod}
-            aria-disabled={period === disabledPeriod ? "true" : undefined}
-            aria-hidden={active === false ? "true" : undefined}
-          >
-            {period}
-          </option>
-        ))}
-      </select>
-    </label>
+        <SelectTrigger id={id} aria-label={label}>
+          <SelectValue placeholder="Select a year" />
+        </SelectTrigger>
+        <SelectContent>
+          {periods.map((period) => (
+            <SelectItem
+              key={period}
+              value={String(period)}
+              disabled={period === disabledPeriod}
+            >
+              {period}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
   );
 }
 
@@ -237,7 +247,6 @@ export default function TimeSection() {
   const calculation = config.question?.calculation;
   const minimumPeriod =
     calculation?.id === "indexed" ? calculation.params?.baseYear : null;
-  const [activeEndpoint, setActiveEndpoint] = useState(null);
 
   if (capability.contract === "none") return null;
   const empty =
@@ -294,8 +303,6 @@ export default function TimeSection() {
             value={current.startYear}
             periods={periods}
             disabledPeriod={capability.distinctRequired ? current.endYear : undefined}
-            active={activeEndpoint ? activeEndpoint === "first" : undefined}
-            onFocus={() => setActiveEndpoint("first")}
             onChange={(startYear) => dispatch({ type: "SET_TIME", time: { ...current, startYear } })}
           />
           <YearSelect
@@ -303,8 +310,6 @@ export default function TimeSection() {
             value={current.endYear}
             periods={periods}
             disabledPeriod={capability.distinctRequired ? current.startYear : undefined}
-            active={activeEndpoint ? activeEndpoint === "second" : undefined}
-            onFocus={() => setActiveEndpoint("second")}
             onChange={(endYear) => dispatch({ type: "SET_TIME", time: { ...current, endYear } })}
           />
         </div>

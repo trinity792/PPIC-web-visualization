@@ -574,7 +574,7 @@ describe("ExportMenu — multi-chart workspace", () => {
   });
 });
 
-// Owner decisions 2026-09-29 and 2026-09-30: the line and bar charts default
+// Owner decisions 2026-09-29, 2026-09-30, and 2026-10-01: the line, bar, and range charts default
 // to visx before image
 // export works from the drawn SVG (Workstream M), so the image dialog says so
 // plainly instead of failing inside Plotly.
@@ -592,7 +592,7 @@ describe("image export for a visx chart", () => {
     const user = userEvent.setup();
     renderVisx("visx");
     await user.click(screen.getByRole("button", { name: /export image/i }));
-    expect(await screen.findByRole("alert")).toHaveTextContent(/Image export for the new line and bar charts is coming soon/);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Image export for the new line, bar, and range charts is coming soon/);
     expect(screen.getByRole("button", { name: /download png/i })).toBeDisabled();
     expect(renderImagePreviewMock).not.toHaveBeenCalled();
     // Embedding still works.

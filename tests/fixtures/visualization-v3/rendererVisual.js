@@ -40,6 +40,10 @@ export function rendererVisualScenario(chartType, scenario = "default") {
     fixture.observations = regions.map((name, i) => ({ ...fixture.observations[0], geographyId: `region-${i}`, geographyLabel: name, value: totals[i] }));
   }
   if(scenario === "stacked-direct") Object.assign(fixture.appearance, { stackMode: "stacked", legendPosition: "automatic", showStackTotals: true });
+  // Range layouts (renderer plan F, 2026-10-01).
+  if(scenario === "grouped-rows") Object.assign(fixture, { observations: observations.filter(r => r.comparisonId !== "black"), periods: [2020, 2030] });
+  if(scenario === "point-values") Object.assign(fixture, { observations: observations.filter(r => r.comparisonId === "latina" || (r.comparisonId === "white" && r.geographyId === "06037")), comparisons, periods: [2020, 2030], appearance: { showPointLabels: true } });
+  if(scenario === "arrows") Object.assign(fixture, { observations: observations.filter(r => r.comparisonId !== "black"), periods: [2020, 2030], appearance: { rangeStyle: "arrow", showPointLabels: true, pointLabelEnds: "end", valueAxisPosition: "top" } });
   if(scenario === "long-rows") fixture.observations = lineRows.slice(0,3).map(r => ({ ...r, categoryId: "long", categoryLabel: "San Francisco residents aged sixty five and older" }));
   if(scenario === "long-slice") fixture.observations = fixture.observations.map(r => ({ ...r, categoryLabel: r.categoryId === "0-4" ? "Residents aged zero through four years in San Francisco" : r.categoryLabel }));
   return fixture;

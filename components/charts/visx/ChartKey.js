@@ -7,7 +7,8 @@
  * top, right, or bottom placement. A key above or below the chart runs in a
  * wrapping row, as PPIC's published charts draw it. It is ordinary HTML inside ChartFrame, not drawn
  * in the chart's SVG, so long labels wrap normally. A series drawn as a line
- * gets a short line sample instead of a square, dashed when the series is.
+ * gets a short line sample instead of a square, dashed when the series is; the
+ * range chart's two ends get a dot sample.
  *
  * While the reader hovers one series (the chart's focus), the other entries'
  * samples fade exactly as their bars do, so the key still names every series
@@ -16,7 +17,8 @@
  *
  * Props:
  *   entries        {Array<Object>} — [{ id, label, color, kind?, dashed? }];
- *                                    kind "line" draws a line sample
+ *                                    kind "line" draws a line sample, kind
+ *                                    "dot" a dot
  *   legendPosition {string}        — "top" | "right" | "bottom" | "hidden"; hidden renders nothing
  *   title          {string|null}   — optional key title
  *   fontSize       {number|null}   — key text size in px (Legend Text Size);
@@ -45,6 +47,21 @@ const { keySwatch, dataLine, text } = CHART_STYLE;
 
 function Swatch({ entry, faded = false }) {
   const color = faded ? tint(entry.color, CHART_STYLE.bar.hover.fadeShare) : entry.color;
+  if (entry.kind === "dot") {
+    // The range chart's ends, drawn as the chart draws them.
+    const { dotRadius } = CHART_STYLE.range;
+    return (
+      <svg
+        aria-hidden="true"
+        className="shrink-0"
+        width={dotRadius * 2}
+        height={keySwatch.height}
+        data-key-sample="dot"
+      >
+        <circle cx={dotRadius} cy={keySwatch.height / 2} r={dotRadius} fill={color} />
+      </svg>
+    );
+  }
   if (entry.kind === "line") {
     const middle = keySwatch.height / 2;
     return (

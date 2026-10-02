@@ -39,3 +39,8 @@ it("fades the other entries' samples while one series is focused, keeping every 
   expect(entries.map(li => li.textContent)).toEqual(["A", "B"]);
   expect(container.querySelector('[data-key-position="top"]')).toBeInTheDocument();
 });
+
+it("draws a dot sample for each of the range chart's ends", () => {
+  const { container } = render(<ChartKey entries={[{ id: "start", label: "2020", color: "#2D4059", kind: "dot" }, { id: "end", label: "2030", color: "#E36A36", kind: "dot" }]} legendPosition="top" />);
+  expect([...container.querySelectorAll('[data-key-sample="dot"] circle')].map(c => c.getAttribute("fill"))).toEqual(["#2D4059", "#E36A36"]);
+});

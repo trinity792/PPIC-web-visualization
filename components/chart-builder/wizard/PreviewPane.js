@@ -414,6 +414,7 @@ function ChartSlot({ preview, layout, multi, embedded, onGraphDiv }) {
             summary={plotly.model?.summary ?? null}
             legend={plotly.model?.key ?? null}
             height={height}
+            fitContent={Boolean(plotly.model?.fitContent)}
           >
             {({ width, height: drawingHeight }) => (
               <ChartRenderer result={plotly} width={width} height={drawingHeight} />

@@ -256,6 +256,7 @@ export default function VisualizationV3Fixture({
               summary={result.model?.summary ?? null}
               legend={result.model?.key ?? null}
               height={PLOT_HEIGHT}
+              fitContent={Boolean(result.model?.fitContent)}
             >
               {({ width: drawingWidth, height }) => (
                 <ChartRenderer result={result} width={drawingWidth} height={height} />

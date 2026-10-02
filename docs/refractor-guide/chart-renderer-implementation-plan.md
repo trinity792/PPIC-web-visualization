@@ -4,7 +4,7 @@ Content Type: implementation plan
 pinned: false
 description: "A tests-first plan for moving every chart except maps from Plotly to visx, one chart type at a time, so each chart follows the PPIC Data Visualization Style Guide and every editor control works. Written for programmers continuing the visualization work."
 Date Published: September 26, 2026
-Last Updated: 09/30/2026 - 06:15 PM
+Last Updated: 10/01/2026 - 02:00 PM
 Status: Updating
 ---
 
@@ -27,6 +27,8 @@ The work runs in five stages, plus an optional sixth. A stage starts only when t
 
 > [!note] Progress, September 30, 2026
 > Stage 1 (tests) is written. Stage 2 (A, B, C) and Workstreams D (line chart) and E (bar chart) are built. The line and bar screenshot baselines await review. Workstreams F to O remain.
+>
+> **October 1, 2026.** Workstream F (range chart) is built and, after owner review against six published PPIC range plots, is the visx default, as the line and bar charts are. Its screenshot baselines await review. Workstreams G to O remain.
 >
 > On September 30 the owner collected twelve published PPIC bar charts (`mockups/bar chart reference/`). Workstream E was widened to cover them, and the owner decided its eleven new rows the same day (ten Build, one Remove). The features they share with other chart types (callouts, highlights, context gray, custom label text, and panels) went into a new optional Workstream P. Workstream E was built the same day, and after two rounds of owner review the bar chart became visx by default, as the line chart had (see the exception below).
 
@@ -58,12 +60,14 @@ The work runs in five stages, plus an optional sixth. A stage starts only when t
 | O | Plotly is loaded only for maps, and the old code and documents are cleaned up | 5 | N |
 | P | Shared extras: callouts, highlights, context gray, custom label text, and panels | 6 | D, E. Nothing depends on P. |
 
-> [!warning] Users keep seeing the Plotly charts until Stage 4, except the line and bar charts
+> [!warning] Users keep seeing the Plotly charts until Stage 4, except the line, bar, and range charts
 > Stage 3 builds each visx chart behind a preview switch (Workstream B). Users keep seeing the Plotly version of every chart until that chart's export works in Stage 4. This follows the decision that export stays on Plotly in the short term, and it means Stage 3 can be reviewed without affecting anyone.
 >
 > **Exception, September 29, 2026.** The owner made visx the line chart's default ahead of Workstream M, for review. Until M lands, a line chart's image dialog says image export is coming soon, and its Download button stays off; data export and embeds work. `?renderer=plotly` still shows the Plotly line. The approved legacy `line-comparisons` screenshot stays a Plotly picture until a visx baseline is approved.
 >
 > **Exception, September 30, 2026.** The owner made visx the bar chart's default too, on the same terms as the line chart: the image dialog's notice now names line and bar charts, `?renderer=plotly` still shows the Plotly bar, and the legacy bar screenshot stays a Plotly picture until a visx baseline is approved. Views from the older (version 2) editor still draw with Plotly.
+>
+> **Exception, October 1, 2026.** The owner made visx the range chart's default on the same terms: the image dialog's notice now names line, bar, and range charts, `?renderer=plotly` still shows the Plotly range chart, the legacy `range-two-period` screenshot stays a Plotly picture until a visx baseline is approved, and version 2 views still draw with Plotly.
 
 ---
 
@@ -855,6 +859,18 @@ Every range-only control does nothing. The "Hide X-Axis" switch (Advanced Mode) 
 
 It reuses the row label helper, `rowLabels.js`, that Workstream E builds for horizontal bars. The dot plot (G) and forest plot (H) reuse it too, because all of them draw one row per category with a label at the left.
 
+### What PPIC publishes
+
+On October 1, 2026 the owner collected six published PPIC range plots, saved in `mockups/range chart reference/`. They are the standard a range chart is reviewed against, alongside the guide. Ignore the gap between each chart and its source box; some are older drafts.
+
+| Reference (file) | What it shows | Covered by |
+|---|---|---|
+| Clearance rates, adjusted and observed (`clearance-rates-adjusted-vs-observed.png`) | Three groups with bold gray headers. Each end in its own color (Observed navy, Adjusted orange), named once above the first row with a short tick. Every value labeled outside the range in its end's color. Dotted row lines. A zero line in each group; the axis shows only 0.0. | F: end colors, end names, value labels, row lines, zero line, groups. Deferred: two measures as the two ends (they need a question with more than one outcome). Not planned: an axis per group. |
+| Price increases, two colors (`price-increases-two-colors-draft.png`) | Start in blue, end in orange. Only the start values labeled. Axis on top in percent. Vertical grid lines and dotted row lines. | F: end colors, Label which end, Value axis position, grid and row lines. |
+| Price increases, arrows (`price-increases-arrows.png`) | Arrows from 0 to each value, the value at the arrowhead. Two rows highlighted in navy. Axis on top. | F: Range style, Value axis position. P: highlight. |
+| Employment rates, arrows (`employment-rates-arrows.png`) | Arrows from the earlier to the later period, pointing left for a decline. Only the end value labeled. Ends named above the first row with ticks. The axis starts at 65%. | F: Range style, end names, Label which end, value axis range. |
+| Business regulations, two tabs (`business-regulations-tab-a.png`, `business-regulations-tab-c.png`) | Six dots per row (minimum, quartiles, median, CA, maximum) on a gray band from minimum to maximum, each named above the first row in its color. Tabs. | G (dot plot): several dots per row and a band. Tabs: the existing presentation. |
+
 ### Range chart settings
 
 | Control | Setting | Today | Suggested | Decision |
@@ -866,6 +882,13 @@ It reuses the row label helper, `rowLabels.js`, that Workstream E builds for hor
 | Hide X-Axis (Advanced Mode) | `showValueAxis` | Does nothing | Build, as one setting (`hideXAxis`) shared by every chart that has the control | Build |
 | Show point values | `showPointLabels` | Does nothing | Build. The guide favors labeling data directly. | Build |
 | First line only | `pointLabelsFirstLineOnly` | Does nothing | Build if Show point values is Build, otherwise Remove | Build |
+| Color of each end (New, October 1) | none: the start takes the palette's first color, the end its second | Each row in its comparison's color | Build. Default Navy for the start and Orange for the end, both dots filled, as the clearance-rate and price charts show. A chosen categorical palette supplies the two colors instead. The row labels name the rows, so comparison colors no longer apply. | Build |
+| End names above the first row (New, October 1) | `legendPosition: "automatic"` | A key | Build. Automatic, the new default, names each end once above the first row, in its color with a short tick (the clearance-rate and employment charts). Top, Right, and Bottom draw a key instead. | Remove (owner, after review the same day): no Automatic choice for range charts; the key sits on top by default, and a saved "automatic" draws it on top. |
+| Value axis range (New, October 1) | none | Starts at zero | Build. Fit the data with round ends (the employment chart starts at 65%), and draw a darker line at zero whenever the axis reaches it. | Build |
+| Grid and row lines (New, October 1) | none | No grid | Build. A light vertical grid line at each tick and a dotted guide line along every row, as all six references show. This departs from the guide's rule against vertical grid lines, because the published look wins. | Build |
+| Range style (New, October 1) | `rangeStyle` | New | Build: Dots (a connector between two dots) or Arrow (from the start to the end, with the value at the arrowhead), as the price and employment charts show. Dots by default. Standard mode. | Build |
+| Label which end (New, October 1) | `pointLabelEnds` | New | Build, under Show point values: Both ends, Start only, or End only. Both by default. Advanced Mode only. | Build |
+| Value axis position (New, October 1) | `valueAxisPosition` | New | Build: Bottom or Top; the references use both. Bottom by default. Advanced Mode only. | Build |
 
 ### Steps
 
@@ -888,6 +911,23 @@ New files: `tests/js/lib/visualization/models/rangeModel.test.js` and `tests/js/
 | `shows only the first line of a two-line value label` | `pointLabelsFirstLineOnly`. |
 
 Screenshot cases: `matches the approved Range layout` (existing test, new baseline after review) and `wraps long row labels`.
+
+> [!note] As built, October 1, 2026
+> Workstream F is built and, after owner review the same day, is the default range drawing (see the October 1 exception at the top of this plan). Its screenshot baselines are not recorded; they wait for review. Where the build settled something the steps above left open:
+> - **Rows.** One comparison gives one row per category. Several comparisons and one location give one row per comparison. Several of each make each location a group with a bold header row (Group alignment) holding one row per comparison (Variable alignment). Rows keep data order; the registry's `sort: "difference"` default is still not read by either renderer.
+> - **Row order (owner, October 1, 2026).** The range chart joined the line and bar charts as a place chart (`PLACE_CATEGORY_CHART_TYPES` in `GeographySection.js`): dragging locations in the Geographic Level list sets `categoryOrder`, which orders the rows or groups, and Ranked values sits there in Advanced Mode. Before, the range chart showed the fallback Categories panel, which is always empty in version 3 (previews never send `categoryNames`) and saved settings the chart does not read. The dot plot, forest plot, heatmap, and pie still show that empty panel; their workstreams should decide the same question.
+> - **Time section.** The two-period First year and Second year boxes now use the editor's standard select (the one Geographic level uses) instead of a plain browser select.
+> - **Owner review against the PPIC references (October 1, 2026).** The first build colored both dots by comparison (hollow start, filled end), put a key above the chart, started the axis at zero, and drew no grid lines. The owner replaced all four with the rows decided above: one color per end (`officialComparisonColor` Navy and Orange, or a categorical palette's first two), end names above the first row on Automatic (built, then removed at the next review: the key sits on top by default and the chart offers no Automatic), an axis that fits the data (`axisScale` gained `includeZero: false`) with a zero line, and grid and row lines. Range style, Label which end, and Value axis position were added to this workstream because no other workstream covered them. The visx and Plotly range charts now color differently; Plotly still colors by comparison through `comparisonColors`, which moved from the adapter into `palettes.js`.
+> - **Spacing (owner, October 1, 2026).** The frame drew too much space around the key and above the source box. `ChartFrame` now uses `CHART_STYLE.frameGap` (20px below the title block, 12px between a top or bottom key and the chart, 24px beside a right key) instead of the guide's 48px `partSpacing`, which stays as the guide's documented value. This tightens every visx chart, not only the range chart. The range model sets `fitContent`, so the frame no longer reserves the full drawing height and the source box follows the chart's last row. Horizontal bars leave the same space below them and can opt in the same way.
+> - **Style values** (`CHART_STYLE.range`): 6px dot radius, a 6px `officialGray` connector, a 3px arrow with a 7px head, 1px `officialGray` grid lines, 1px dotted `gray3` row lines, and a 1px `chartAxis` zero line. They approximate the references; check them at review.
+> - **Point values** sit outside each row's range, left of the lower end and right of the higher, in the end's color, so they never cover the connector. The plot keeps room for them and for the end names.
+> - **Hover** follows the bar chart: no floating box. The hovered row's label turns bold and both values appear beside its ends; with several comparisons the others fade to a 30% tint.
+> - **Row label controls in version 3.** Version 3 views rarely set a `group` binding, which the controls used to require. A version 3 range chart now always shows Variable alignment, and shows Group alignment when the loaded chart draws groups. The Variable default in the editor changed from right to left, matching the drawing.
+> - **Hide X-Axis** writes `hideXAxis`. `readQuestion` (`questionSpec.js`) turns a saved `showValueAxis: false` into `hideXAxis: true` when a view opens. The registry defaults of all three range-family charts now declare `hideXAxis: false` instead of `showValueAxis: true`, so switching to another chart type parks the setting instead of hiding that chart's axis (the Plotly adapter reads `hideXAxis` for every chart).
+> - **Automatic axis labels** for a version 3 range chart put the measure on X and leave Y blank (`deriveLabels.js`). Before, the measure landed on Y, the row axis, for both renderers.
+> - **First line only** labels the first row only, as `toPlotly.js` always drew it. The Stage 1 test read it as the first text line of a two-line label, but no range label has two lines, so that reading would have left the switch doing nothing. The test was rewritten as `labels only the first row when First line only is on`.
+> - **Other Stage 1 tests changed.** `settingsCoverage.test.js` tests `groupLabelAlignment: "right"` instead of `"left"`, since left is now the default; the alignment case in `AppearanceSection.test.js` chooses Right for the same reason.
+> - **Not done.** The two line spacing controls still do nothing on the range chart, as on the bar chart. The chart grows taller rather than squeezing rows, and a short chart leaves space below it, as horizontal bars do.
 
 ---
 

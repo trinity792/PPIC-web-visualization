@@ -313,6 +313,14 @@ describe("GeographySection", () => {
     expect(screen.getByRole("button", { name: /categories/i })).toBeInTheDocument();
   });
 
+  // Owner, 2026-10-01 (renderer plan F): a range chart's rows are places.
+  it("lets the location list order a range chart's rows", () => {
+    state.config = baseConfig({ chartType: "dumbbell", filters: { subset: "Counties", locations: ["Place 1", "Place 2"], topN: 6 } });
+    render(<GeographySection />);
+    expect(screen.getAllByRole("button", { name: /drag to reorder/i }).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: /^categories$/i })).not.toBeInTheDocument();
+  });
+
   it("hides entirely for bring-your-own-data with no geographic subsets", () => {
     state.schema = { id: "byod", apiPath: null, subsets: {}, fields: {} };
     const { container } = render(<GeographySection />);

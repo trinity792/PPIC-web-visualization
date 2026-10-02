@@ -94,3 +94,17 @@ it("fades the other series in the frame's key", () => {
   const { container } = render(<ChartFrame legend={legend} height={200}>{() => <Focuses id="b" />}</ChartFrame>);
   expect([...container.querySelectorAll('[data-key-position="top"] li')].map(li => li.hasAttribute("data-faded"))).toEqual([true, false]);
 });
+
+// Owner, 2026-10-01: tighter spacing than the guide's 48px, as PPIC publishes.
+it("puts 20px below the title block and 12px between a top key and the chart", () => {
+  const legend = { position: "top", entries: [{ id: "a", label: "2020", color: "#2D4059" }] };
+  const { container } = render(frame({ legend, height: 400 }));
+  const body = container.querySelector('[data-frame-part="chart"]').parentElement;
+  expect(body).toHaveStyle({ marginTop: "20px", gap: "12px" });
+});
+it("lets a drawing that sizes itself end where it ends", () => {
+  const { container } = render(frame({ height: 400, fitContent: true }));
+  const chart = container.querySelector('[data-frame-part="chart"]');
+  expect(chart.style.minHeight).toBe("");
+  expect(chart.className).not.toMatch(/flex-1/);
+});

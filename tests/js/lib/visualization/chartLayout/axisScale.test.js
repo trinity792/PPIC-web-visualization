@@ -26,3 +26,16 @@ it("fits fewer period labels at narrow widths", () => {
   expect(periodLabelCount(330)).toBe(4);
   expect(periodLabelCount(950)).toBe(13);
 });
+// Renderer plan F (owner, 2026-10-01): a range chart fits its data, as PPIC's
+// published range plots do (one starts at 65%).
+it("fits the data without zero when includeZero is false", () => {
+  const result = axisScale({ min: 65.4, max: 91, includeZero: false });
+  expect(result.domain[0]).toBeGreaterThan(0);
+  expect(result.domain[0]).toBeLessThanOrEqual(65.4);
+  expect(result.domain[1]).toBeGreaterThanOrEqual(91);
+});
+it("still reaches across zero when the data does", () => {
+  const result = axisScale({ min: -4.7, max: 2.4, includeZero: false });
+  expect(result.domain[0]).toBeLessThan(0);
+  expect(result.domain[1]).toBeGreaterThan(0);
+});

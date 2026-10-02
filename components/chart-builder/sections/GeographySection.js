@@ -67,7 +67,9 @@ const COLLAPSED_LOCATION_COUNT = 7;
  * A diverging bar needs no entry of its own (Workstream B): it retired to a
  * `bar` variant flag, so its `chartType` is "bar" and already matches here.
  */
-const PLACE_CATEGORY_CHART_TYPES = new Set(["line", "bar"]);
+// The range chart joined on 2026-10-01 (renderer plan F, owner): its rows are
+// places, so dragging locations sets the row order.
+const PLACE_CATEGORY_CHART_TYPES = new Set(["line", "bar", "dumbbell"]);
 
 /** Whether a schema offers any geography at all (bring-your-own-data does not). */
 export function hasGeographicSubsets(config, schema) {

@@ -4,7 +4,7 @@ Content Type: project specification
 pinned: true
 description: "Current product and technical specification for building, rendering, sharing, and exporting visualizations in the PPIC Data Explorer."
 Date Published: July 27, 2026
-Last Updated: 09/30/2026 - 06:15 PM
+Last Updated: 10/01/2026 - 02:00 PM
 Status: Finalized
 ---
 
@@ -173,7 +173,7 @@ There are twelve registered chart families. A chart can still be unavailable for
 | Bar | Comparing categories, places, or selected periods | Vertical or horizontal; grouped, stacked, stacked to 100%, and diverging variants; optional value labels. A visx drawing exists (see [Chart renderers](#chart-renderers)) |
 | Choropleth Map | Geographic variation shown by area color | Requires joinable boundary geometry and stable place identifiers |
 | Matrix Heatmap | Patterns across many rows and periods | Encodes the outcome with a color scale |
-| Range | The gap between exactly two values per category | Uses two periods of the same measure |
+| Range | The gap between exactly two values per category | Uses two periods of the same measure. Drawn with visx by default (see [Chart renderers](#chart-renderers)) |
 | Dot Plot | Several series as dots on one shared value axis | Uses category, series, and value roles |
 | Forest / Whisker Plot | Estimates and confidence intervals | Uses lower bound, upper bound, and an optional estimate |
 | Scatter | The relationship between two numeric measures | Each point needs an observation unit |
@@ -192,6 +192,7 @@ Charts are moving from Plotly to visx one type at a time, following [[chart-rend
 |---|---|---|
 | Line | visx | Default since September 29, 2026, ahead of the export rebuild |
 | Bar | visx | Default since September 30, 2026, ahead of the export rebuild |
+| Range | visx | Default since October 1, 2026, ahead of the export rebuild |
 | Choropleth Map, Symbol Map | Plotly | Stay on Plotly permanently |
 | Every other chart | Plotly | Each moves to visx in its own plan workstream |
 
@@ -224,6 +225,19 @@ Built September 30, 2026 (Workstream E), following the style guide and the PPIC 
 - **Hover.** This matches PPIC's published bar charts: the information goes on the chart, with no floating box. With several series, the hovered series keeps its color and shows all of its values, the others fade to a 30% tint, and so do their swatches in the key. A stack labels the hovered series in every segment only when all of them fit; otherwise only the hovered value shows, past the end of its stack. With one series, the hovered bar darkens (official orange to official red) and shows its value above it in bold, unless it is already labeled. Hover numbers take the hovered bar's color, darkened just enough to read outside a bar, and white or dark gray inside one. The hovered category label turns bold; the others keep their gray. Screen readers hear the series, category, value, and any stack total.
 - **Keyboard.** The chart takes focus; the arrow keys step through the bars, Home and End jump to the first and last, and Escape clears the hover.
 - **Axis labels.** X-Axis and Y-Axis name the horizontal and vertical axes, so a horizontal bar's automatic labels put the measure on X.
+
+#### The visx range chart
+
+Built October 1, 2026 (Workstream F), following PPIC's published range plots in `mockups/range chart reference/`. It is the default range drawing; `?renderer=plotly` shows the Plotly version.
+
+- **Rows.** One row per category, labeled at the left, with a dotted guide line along it. With several comparisons and several locations, each location becomes a group with a bold header row, holding one row per comparison. With several comparisons and one location, each row is a comparison. Rows keep data order until the reader drags the locations in the Geographic Level list, which orders the rows (or the groups); Ranked values sits there too in Advanced Mode. The empty Categories panel no longer shows for range charts.
+- **Ends.** Each end has its own color on every row: Navy for the start and Orange for the end, or the first two colors of a chosen categorical palette. **Range style** chooses Dots (a filled dot at each end, joined by a thick light gray bar) or Arrow (an arrow from the start to the end in the end's color, pointing left for a decline). A row missing either value keeps its label and the mark it has, with no connector.
+- **Key.** A key names the two ends' periods with a dot in each end's color, above the chart by default. Range charts offer no Automatic position; a view saved with "automatic" draws the key on top. The chart is only as tall as its rows, so the source box follows it directly.
+- **Row labels.** Group and Variable alignment are left by default, as PPIC's published charts show. In a version 3 view Variable alignment always shows, and Group alignment shows when the chart draws groups. The row label indents stay hidden.
+- **Value axis.** Fits the data with round ends instead of starting at zero, and draws a darker line at zero whenever the axis reaches it. A light vertical grid line marks each labeled tick, departing from the guide's rule against vertical grid lines as the published charts do. Labels thin out when they would touch. **Value axis position** (Advanced Mode) puts the axis at the bottom or the top. **Hide X-Axis** (Advanced Mode) saves `hideXAxis` and leaves out the labels and grid lines but keeps the zero line. A view saved with the old `showValueAxis: false` opens with it on, and a saved `hideXAxis` wins. The automatic X-Axis label is the measure.
+- **Point values.** **Show point values** writes each value just outside the row's range, left of the lower end and right of the higher one, in its end's color. **Label which end** (Advanced Mode) labels both ends, the start only, or the end only. **First line only** labels the first row only.
+- **Hover.** The information goes on the chart, as on the bar chart. The hovered row's label turns bold, and both of its values appear beside its ends in bold. With several comparisons, the other comparisons' rows fade to a 30% tint. Screen readers hear the row, both periods, and both values.
+- **Keyboard.** The chart takes focus; the arrow keys step through the rows, Home and End jump to the first and last, and Escape clears the hover.
 
 ### Availability
 
@@ -393,6 +407,8 @@ For visx charts, the source-and-notes box follows PPIC's published Datawrapper s
 - bold uppercase **SOURCE:** and **NOTES:** captions; and
 - citations separated by semicolons, with a period ending the source line.
 
+The other gaps in the frame also follow PPIC's published charts rather than the guide's 48px (`CHART_STYLE.frameGap`, October 1, 2026): 20px below the title block, 12px between a key above or below the chart and the chart, and 24px beside a key on the right.
+
 The source line cites the topic's datasets in full, not the Source filter value. For example, "DoF P-3" becomes "California Department of Finance (DOF), P-3 Population Projections". Each module schema declares a `sourceCitations` map from source id (or `default`) to citation, and `citeSources` in `datasetLabels.js` resolves it. **Show source and notes** (`appearance.showSource`) hides the whole box.
 
 Accessibility and editorial guardrails include:
@@ -442,7 +458,7 @@ Chart export supports:
 - PDF; and
 - an iframe embed.
 
-Image export still renders through `Plotly.toImage`. For a chart drawn with visx (currently the line chart), the image dialog shows a notice that image export is coming soon, and its Download button stays off. Embeds and data export work normally. Workstream M of [[chart-renderer-implementation-plan]] rebuilds export from the drawn SVG.
+Image export still renders through `Plotly.toImage`. For a chart drawn with visx (currently the line, bar, and range charts), the image dialog shows a notice that image export is coming soon, and its Download button stays off. Embeds and data export work normally. Workstream M of [[chart-renderer-implementation-plan]] rebuilds export from the drawn SVG.
 
 Data export supports:
 
@@ -667,6 +683,8 @@ This block is generated from `lib/visualization/settingsRegistry.js`. It is the 
 | dashedRange | Dashed lines for a range of periods | Appearance | standard | Charts: line; datasets: All | See resolved chart and dataset capabilities | presentation.appearance.dashedRange | lib/visualization/models/lineModel.js |
 | hideXAxis | Hide horizontal axis | Appearance | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | presentation.appearance.hideXAxis | lib/visualization/adapters/index.js |
 | outcome | Outcome | Outcome | standard | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.outcome.measureId | lib/data/visualization/executeQuestion.js |
+| pointLabelEnds | Label which end | Appearance | advanced | Charts: dumbbell; datasets: All | both, start, end | presentation.appearance.pointLabelEnds | lib/visualization/models/rangeModel.js |
+| rangeStyle | Range style | Appearance | standard | Charts: dumbbell; datasets: All | dots, arrow | presentation.appearance.rangeStyle | lib/visualization/models/rangeModel.js |
 | ranking | Ranking | Geography | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.calculation.params.ranking | lib/data/visualization/rankObservations.js |
 | seriesBinding | Series binding | Outcome | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | presentation.bindings.series | lib/tabular/toObservations.js |
 | seriesOrder | Bar order within groups | Appearance | standard | Charts: bar; datasets: All | Series names in a dragged order (data order by default) | presentation.appearance.seriesOrder | lib/visualization/models/barModel.js |
@@ -674,6 +692,7 @@ This block is generated from `lib/visualization/settingsRegistry.js`. It is the 
 | showStackTotals | Stack totals | Appearance | standard | Charts: bar; datasets: All | On or off, for stacked bars (off by default) | presentation.appearance.showStackTotals | lib/visualization/models/barModel.js |
 | showValueLabels | Show values | Appearance | standard | Charts: bar; datasets: All | On or off (off by default) | presentation.appearance.showValueLabels | lib/visualization/models/barModel.js |
 | time | Time | Time | standard | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.time | components/chart-builder/sections/TimeSection.js |
+| valueAxisPosition | Value axis position | Appearance | advanced | Charts: dumbbell; datasets: All | bottom, top | presentation.appearance.valueAxisPosition | lib/visualization/models/rangeModel.js |
 | valueLabelPosition | Label position | Appearance | advanced | Charts: bar; datasets: All | automatic, inside, outside | presentation.appearance.valueLabelPosition | lib/visualization/models/barModel.js |
 | valueLabelSeries | Label which series | Appearance | advanced | Charts: bar; datasets: All | All series, or one series by name | presentation.appearance.valueLabelSeries | lib/visualization/models/barModel.js |
 <!-- settings-reference:end -->
@@ -737,7 +756,7 @@ These are intentional current boundaries, not hidden fallback behavior:
 - Old version 1 and version 2 views are unsupported.
 - A topic's **View Data** table shows the full cleaned dataset, not only the chart's filtered rows.
 - Chart availability varies by topic, calculation, field roles, and geometry.
-- Image export of a visx chart (currently the line chart) is not available yet; the image dialog says so.
+- Image export of a visx chart (currently the line, bar, and range charts) is not available yet; the image dialog says so.
 
 ---
 
