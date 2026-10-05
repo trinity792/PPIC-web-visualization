@@ -23,6 +23,7 @@ import {
   applyChartType,
   classifyChange,
   normalizeQuestion,
+  readOutcomes,
   readQuestion,
   serializeQuestion,
 } from "@/lib/visualization/questionSpec";
@@ -33,7 +34,7 @@ function baseSpec(overrides = {}) {
     question: {
       dataset: { kind: "module", moduleId: "projections" },
       source: "DoF P-3",
-      outcome: { measureId: "Population" },
+      outcomes: [{ role: "y", measureId: "Population" }],
       geography: { subset: "Counties", locations: ["San Francisco", "Los Angeles"] },
       time: { contract: "range", startYear: 2020, endYear: 2030 },
       calculation: { id: "actual", params: {} },
@@ -104,7 +105,7 @@ describe("questionSpec v3 serialization", () => {
       question: {
         comparisons: baseSpec().question.comparisons,
         time: baseSpec().question.time,
-        outcome: baseSpec().question.outcome,
+        outcomes: baseSpec().question.outcomes,
         calculation: baseSpec().question.calculation,
         geography: baseSpec().question.geography,
         source: baseSpec().question.source,
@@ -189,7 +190,7 @@ describe("questionSpec change classification", () => {
   it("classifies an outcome, time, geography, or calculation change as structural", () => {
     const before = normalizeQuestion(baseSpec());
     const cases = {
-      outcome: { ...baseSpec().question, outcome: { measureId: "Households" } },
+      outcomes: { ...baseSpec().question, outcomes: [{ role: "y", measureId: "Households" }] },
       time: {
         ...baseSpec().question,
         time: { contract: "range", startYear: 2025, endYear: 2030 },
@@ -302,4 +303,92 @@ describe("questionSpec chart-specific presentation memory", () => {
     const after = applyChartType(before, "heatmap");
     expect(after.question).toEqual(before.question);
   });
+});
+
+/**
+ * Workstream Q: `question.outcomes` (a list of { role, measureId }) replaces
+ * `question.outcome`. A view saved with the old field opens as a one-entry
+ * list, so every saved view, embed, and shared link keeps working.
+ */
+describe("questionSpec v3 outcomes list (Workstream Q)", () => {
+  function oldShape(outcome) {
+    const question = { ...baseSpec().question, outcome };
+    delete question.outcomes;
+    return { ...baseSpec(), question };
+  }
+
+  it("turns an old outcome into a one-entry outcomes list", () => {
+    const plain = normalizeQuestion(oldShape({ measureId: "Population" }));
+    expect(plain.question.outcomes).toEqual([{ role: "y", measureId: "Population" }]);
+
+    // A pasted outcome's unit stays on the y entry.
+    const pasted = normalizeQuestion(
+      oldShape({ measureId: "Share", measureLabel: "Share", unit: "percent" }),
+    );
+    expect(pasted.question.outcomes).toHaveLength(1);
+    expect(pasted.question.outcomes[0]).toMatchObject({
+      role: "y",
+      measureId: "Share",
+      unit: "percent",
+    });
+
+    expect(readOutcomes(oldShape({ measureId: "Population" }).question)).toEqual([
+      { role: "y", measureId: "Population" },
+    ]);
+  });
+
+  it("keeps an outcomes list as saved, y first", () => {
+    const outcomes = [
+      { role: "y", measureId: "Population" },
+      { role: "x", measureId: "Households" },
+    ];
+    const spec = normalizeQuestion({
+      ...baseSpec(),
+      question: { ...oldShape({}).question, outcomes },
+    });
+    expect(spec.question.outcomes).toEqual(outcomes);
+  });
+
+  it("saves only outcomes, never both fields", () => {
+    const both = normalizeQuestion({
+      ...baseSpec(),
+      question: {
+        ...baseSpec().question,
+        outcomes: [{ role: "y", measureId: "Households" }],
+      },
+    });
+    expect(both.question).toHaveProperty("outcomes");
+    expect(both.question).not.toHaveProperty("outcome");
+
+    const old = serializeQuestion(oldShape({ measureId: "Population" }));
+    expect(old.question).toHaveProperty("outcomes");
+    expect(old.question).not.toHaveProperty("outcome");
+
+    const opened = readQuestion(oldShape({ measureId: "Population" }));
+    expect(opened.ok).toBe(true);
+    expect(opened.spec.question).not.toHaveProperty("outcome");
+    expect(opened.spec.question.outcomes).toEqual([{ role: "y", measureId: "Population" }]);
+  });
+
+  it("classifies a change to an extra measure as structural", () => {
+    const one = oldShape({ measureId: "Population" });
+    const two = {
+      ...one,
+      question: {
+        ...one.question,
+        outcomes: [
+          { role: "y", measureId: "Population" },
+          { role: "x", measureId: "Households" },
+        ],
+      },
+    };
+    expect(classifyChange(one, two)).toBe("structural");
+  });
+});
+
+it("does not resurrect a cleared extra measure after it was restored from parking", () => {
+  const scatter = { ...baseSpec(), question: { ...baseSpec().question, outcomes: [{ role: "y", measureId: "Population" }, { role: "x", measureId: "Households" }] }, presentation: { chartType: "scatter" } };
+  const restored = applyChartType(applyChartType(scatter, "line"), "scatter");
+  restored.question.outcomes = [{ role: "y", measureId: "Population" }];
+  expect(applyChartType(applyChartType(restored, "line"), "scatter").question.outcomes).toEqual([{ role: "y", measureId: "Population" }]);
 });

@@ -9,6 +9,14 @@
  * registered type missing from the list still appears, appended, so a new chart
  * type is never silently unreachable.
  *
+ * A chart family (`CHART_FAMILIES` in the registry) is ONE tile: Scatter
+ * stands for the scatter, bubble, and dot plot charts (owner, 2026-10-05).
+ * Choosing it opens the first variant this surface can draw, and a Variant
+ * control under the grid switches between them. Each variant stays its own
+ * chart type, so choosing one dispatches SET_CHART_TYPE exactly as a tile
+ * does. A variant this surface cannot draw (scatter and bubble on a module,
+ * which has one outcome measure) omits the unavailable variants.
+ *
  * Both editor shells render this one grid: the wizard's retired Chart Type
  * *step* once grouped the tiles into named families, and Workstream F kept
  * that layout briefly as a `grouped` prop, but the standalone tool now reads
@@ -20,7 +28,8 @@
  *
  * Data sources:
  *   - Chart configuration and module schema from ChartConfigProvider
- *   - lib/visualization/chartRegistry.js (labels and the registered id set)
+ *   - lib/visualization/chartRegistry.js (labels, families, and the registered id set)
+ *   - The editor model's chartChoices (which types this question can draw, and why not)
  *
  * UI Kit reference:
  *   - Implements the selectable tile-grid pattern
@@ -29,26 +38,45 @@
 import React from "react";
 
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
+import GraphTabs from "@/components/charts/GraphTabs";
 import { cn } from "@/components/ui/utils";
 import { isChartTypeAvailable } from "@/lib/visualization/chartAvailability";
-import { CHART_TYPE_IDS, getChartType } from "@/lib/visualization/chartRegistry";
+import {
+  CHART_FAMILIES,
+  CHART_TYPE_IDS,
+  chartFamilyOf,
+  getChartType,
+} from "@/lib/visualization/chartRegistry";
 
 // Mockup order, reading left-to-right across the two columns. Range sits with
-// the other per-category comparison forms rather than at the end.
+// the other per-category comparison forms rather than at the end. "scatter"
+// is the Scatter family's tile (scatter, bubble, dot plot), in the dot plot's
+// old place.
 const TILE_ORDER = [
   "line",
   "bar",
   "choroplethMap",
   "forest",
   "symbolMap",
-  "dotPlot",
+  "scatter",
   "dumbbell",
   "pie",
-  "scatter",
-  "bubble",
   "heatmap",
   "dataTable",
 ];
+
+/**
+ * One tile per chart type, or per family: a family's id stands for all of its
+ * variants. A tile is offered when any chart it stands for is available.
+ */
+function tileFor(id) {
+  const family = Object.hasOwn(CHART_FAMILIES, id) ? CHART_FAMILIES[id] : chartFamilyOf(id);
+  if (family) {
+    return { id: family.id, label: family.label, purpose: family.purpose, ids: family.variants.map((variant) => variant.id), family };
+  }
+  const chart = getChartType(id);
+  return { id, label: chart.label, purpose: chart.purpose, ids: [id], family: null };
+}
 
 /**
  * Declared order first, then any registered type the list forgot, filtered by
@@ -57,23 +85,28 @@ const TILE_ORDER = [
  * geometry to join to). Without the availability
  * check, a descriptor dropped from `TILE_ORDER` alone would reappear here as a
  * stray appended tile, and a map type would be offered on a module that holds
- * no geometry for it.
+ * no geometry for it. A family's variants are never appended on their own.
  */
-function orderedChartTypes(schema) {
+function orderedTiles(schema) {
   const known = new Set(TILE_ORDER);
-  const ids = [...TILE_ORDER, ...CHART_TYPE_IDS.filter((id) => !known.has(id))];
-  return ids.filter((id) => isChartTypeAvailable(id, schema));
+  const inFamily = (id) => Boolean(chartFamilyOf(id));
+  const ids = [...TILE_ORDER, ...CHART_TYPE_IDS.filter((id) => !known.has(id) && !inFamily(id))];
+  return ids
+    .map((id) => {
+      const tile = tileFor(id);
+      return { ...tile, ids: tile.ids.filter((chartId) => isChartTypeAvailable(chartId, schema)) };
+    })
+    .filter((tile) => tile.ids.length > 0);
 }
 
-function ChartTypeTile({ id, selected, disabled = false, onSelect }) {
-  const chart = getChartType(id);
+function ChartTypeTile({ tile, selected, disabled = false, onSelect }) {
   return (
     <button
       type="button"
       aria-pressed={selected}
       disabled={disabled}
       onClick={onSelect}
-      title={chart.purpose}
+      title={tile.purpose}
       className={cn(
         "rounded-full border px-3 py-2 text-center text-sm transition-colors",
         selected
@@ -81,31 +114,75 @@ function ChartTypeTile({ id, selected, disabled = false, onSelect }) {
           : "border-border bg-card text-foreground hover:border-ppic-brand/50 hover:bg-muted/60",
       )}
     >
-      {chart.label}
+      {tile.label}
     </button>
+  );
+}
+
+/** The selected family's variants, with the reason any of them is unavailable. */
+function VariantControl({ tile, selectedId, choiceOf, onSelect }) {
+  const variants = tile.family.variants.filter((variant) => tile.ids.includes(variant.id));
+  const reasons = [
+    ...new Set(
+      variants
+        .filter((variant) => !choiceOf(variant.id).available)
+        .map((variant) => choiceOf(variant.id).reason)
+        .filter(Boolean),
+    ),
+  ];
+  return (
+    <div className="grid gap-1.5" data-chart-variants={tile.id}>
+      <GraphTabs
+        label="Variant"
+        options={variants.map((variant) => ({
+          value: variant.id,
+          label: variant.label,
+          disabled: !choiceOf(variant.id).available && variant.id !== selectedId,
+        }))}
+        value={selectedId}
+        onValueChange={onSelect}
+      />
+      {reasons.map((reason) => (
+        <p key={reason} className="m-0 text-xs text-muted-foreground">
+          {reason}
+        </p>
+      ))}
+    </div>
   );
 }
 
 export default function ChartTypeSection() {
   const { config, dispatch, schema, editorModel } = useChartConfig();
-  const ids = orderedChartTypes(schema);
-  const available = new Map(
-    (editorModel?.chartChoices || []).map((choice) => [choice.id, choice.available]),
-  );
+  const tiles = orderedTiles(schema);
+  const choices = new Map((editorModel?.chartChoices || []).map((choice) => [choice.id, choice]));
+  // A type the editor model says nothing about is available.
+  const choiceOf = (id) => choices.get(id) || { available: true };
   const selectedId = config.presentation?.chartType || config.chartType;
   const select = (id) => dispatch({ type: "SET_CHART_TYPE", chartType: id });
+  const selectedTile = tiles.find((tile) => tile.ids.includes(selectedId));
+
+  /** A family tile keeps its current variant, else opens the first one available. */
+  const selectTile = (tile) => {
+    if (tile.ids.includes(selectedId)) return;
+    select(tile.ids.find((id) => choiceOf(id).available) ?? tile.ids[0]);
+  };
 
   return (
-    <div className="grid grid-cols-2 gap-2">
-      {ids.map((id) => (
-        <ChartTypeTile
-          key={id}
-          id={id}
-          selected={selectedId === id}
-          disabled={available.has(id) && !available.get(id)}
-          onSelect={() => select(id)}
-        />
-      ))}
+    <div className="grid gap-3">
+      <div className="grid grid-cols-2 gap-2">
+        {tiles.map((tile) => (
+          <ChartTypeTile
+            key={tile.id}
+            tile={tile}
+            selected={tile.ids.includes(selectedId)}
+            disabled={tile.ids.every((id) => !choiceOf(id).available)}
+            onSelect={() => selectTile(tile)}
+          />
+        ))}
+      </div>
+      {selectedTile?.family ? (
+        <VariantControl tile={selectedTile} selectedId={selectedId} choiceOf={choiceOf} onSelect={select} />
+      ) : null}
     </div>
   );
 }

@@ -115,12 +115,61 @@ describe("tableToObservations per chart family", () => {
   });
 
   it("carries a scatter's x and a bubble's size as extra measures", () => {
-    const [row] = tableToObservations(TABLE, {
+    const rows = tableToObservations(TABLE, {
       chartType: "bubble",
       bindings: { x: "Population", y: "Share", size: "Low", unit: "Region" },
       measure: { id: "Share" },
     });
-    expect(row).toMatchObject({ xValue: 100, value: 0.4, sizeValue: 90, categoryLabel: "North" });
+    expect(rows.slice(0, 3)).toMatchObject([
+      { value: 0.4, categoryLabel: "North" },
+      { measureRole: "x", value: 100, categoryLabel: "North" },
+      { measureRole: "size", value: 90, categoryLabel: "North" },
+    ]);
+  });
+
+  it("turns a pasted scatter table into one row per measure", () => {
+    // Workstream Q: pasted data takes the module shape, one row per measure,
+    // the extra measures tagged with their role and each with its own status.
+    const rows = tableToObservations(TABLE, {
+      chartType: "scatter",
+      bindings: { x: "Population", y: "Share", unit: "Region" },
+      measure: { id: "Share" },
+    });
+
+    // 4 table rows x 2 measures.
+    expect(rows).toHaveLength(8);
+    expect(rows.some((row) => "xValue" in row)).toBe(false);
+    const y = rows.filter((row) => row.measureRole === undefined);
+    const x = rows.filter((row) => row.measureRole === "x");
+    expect(y).toHaveLength(4);
+    expect(x).toHaveLength(4);
+    expect(y.every((row) => row.measureId === "Share")).toBe(true);
+    expect(x.every((row) => row.measureId === "Population")).toBe(true);
+    expect(x[0]).toMatchObject({ value: 100, status: "available", categoryLabel: "North" });
+    // South 2020 has an empty Share cell: the y row is missing, its x is not.
+    const southY = y.find((row) => row.categoryLabel === "South" && row.period == null && row.value === null);
+    expect(southY?.status).toBe("missing");
+    expect(x.filter((row) => row.categoryLabel === "South").map((row) => row.value)).toEqual([80, 120]);
+  });
+
+  it("turns a pasted bubble table into x and size rows, and keeps a forest weight on sizeValue", () => {
+    const bubble = tableToObservations(TABLE, {
+      chartType: "bubble",
+      bindings: { x: "Population", y: "Share", size: "Low", unit: "Region" },
+      measure: { id: "Share" },
+    });
+    expect(bubble).toHaveLength(12);
+    expect(bubble.filter((row) => row.measureRole === "size").map((row) => row.value)).toEqual([
+      90, 140, 70, 110,
+    ]);
+    expect(bubble.some((row) => "sizeValue" in row)).toBe(false);
+
+    const forest = tableToObservations(TABLE, {
+      chartType: "forest",
+      bindings: { category: "Region", start: "Low", end: "High", point: "Population", size: "Share" },
+      measure: { id: "Population" },
+    });
+    expect(forest.every((row) => "sizeValue" in row)).toBe(true);
   });
 
   it("still accepts the chart-agnostic part names", () => {
@@ -201,4 +250,14 @@ describe("executeInlineQuestion", () => {
     expect(result.status).toBe("blocked");
     expect(result.issues[0]).toMatchObject({ code: "inlineQuestionIncomplete", level: "blocking" });
   });
+});
+
+it("ranks a pasted scatter by x and retains the same place's y", () => {
+  const spec = inlineSpec({ chartType: "scatter", bindings: { x: "Share", y: "Population", unit: "Region" }, calculation: { id: "actual", params: { ranking: { role: "x", n: 1, direction: "top" } } } });
+  spec.question.dataset.inline = { ...TABLE, rows: [TABLE.rows[0], TABLE.rows[3]] };
+  const result = executeInlineQuestion(spec);
+  expect(result.observations).toHaveLength(2);
+  expect(result.observations.every(row => row.categoryLabel === "North")).toBe(true);
+  expect(result.observations.find(row => !row.measureRole).value).toBe(100);
+  expect(result.observations.find(row => row.measureRole === "x").value).toBe(0.4);
 });

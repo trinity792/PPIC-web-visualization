@@ -147,6 +147,37 @@ describe("Workstream D Advanced Mode boundaries", () => {
     expect(standard).not.toHaveProperty("recommendedChartType");
   });
 
+  // Workstream Q replaces the October 5 gate: a topic offers scatter once it
+  // holds two measures and bubble once it holds three; otherwise the chart is
+  // not offered at all (no disabled tile with a reason). The dot plot stays.
+  it("offers scatter and bubble on a module only when it holds enough measures", async () => {
+    const { resolveEditorModel: resolve } = await resolveEditorModel();
+    const measure = (id) => ({ kind: "measure", label: id, unit: "number", calculations: ["actual"] });
+    const topic = (count) => ({
+      id: "components-of-change",
+      fields: Object.fromEntries(Array.from({ length: count }, (_, i) => [`M${i}`, measure(`M${i}`)])),
+    });
+    const spec = () => v3Question({ outcomes: [{ role: "y", measureId: "M0" }], outcome: undefined });
+    const offered = (count, chart, mode) => {
+      const choice = resolve({ spec: spec(), schema: topic(count), mode })
+        .chartChoices.find((entry) => entry.id === chart);
+      return Boolean(choice?.available);
+    };
+    for (const mode of ["standard", "advanced"]) {
+      expect(offered(1, "scatter", mode), `${mode} one measure scatter`).toBe(false);
+      expect(offered(1, "bubble", mode), `${mode} one measure bubble`).toBe(false);
+      expect(offered(2, "scatter", mode), `${mode} two measure scatter`).toBe(true);
+      expect(offered(2, "bubble", mode), `${mode} two measure bubble`).toBe(false);
+      expect(offered(3, "bubble", mode), `${mode} three measure bubble`).toBe(true);
+      expect(offered(1, "dotPlot", mode), `${mode} dot plot`).toBe(true);
+    }
+    // The old reason is gone with the gate: nothing says "paste a table" here.
+    const hidden = resolve({ spec: spec(), schema: topic(1) }).chartChoices.find(
+      (entry) => entry.id === "scatter",
+    );
+    expect(hidden?.reason).toBeUndefined();
+  });
+
   it("does not serialize Advanced Mode", async () => {
     const { normalizeQuestion, serializeQuestion } = await questionSpecModule();
     const wire = serializeQuestion(

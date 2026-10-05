@@ -31,8 +31,11 @@ const TABLE = {
   dotPlot: [...SHARED, ...AXES.filter(([key]) => key !== "verticalTickIncrement"), ...ROWS, ["horizontalNumberType", "usd"], ["pointLabelSeries", { "White Women": false }], ["markerSize", 14]],
   forest: [...SHARED, ...AXES.filter(([key]) => key !== "verticalTickIncrement"), ...ROWS, ["horizontalNumberType", "usd"], ["endpointStyle", "diamonds"], ["pointStyle", "dot"], ["noEffectValue", 0], ["center", 45000]],
   heatmap: [...SHARED, ...AXES.filter(([key]) => !key.endsWith("TickIncrement")), ["invertScale", true], ["categoryOrder", ["5-9", "0-4", "10-14"]], ["hiddenCategories", ["0-4"]], ["showCellValues", false]],
-  scatter: [...SHARED, ...AXES, ["horizontalNumberType", "usd"], ["verticalNumberType", "percent"]],
-  bubble: [...SHARED, ...AXES, ["horizontalNumberType", "usd"], ["verticalNumberType", "percent"]],
+  // The vertical axis starts at zero (owner, 2026-10-05), so the fixture's
+  // 0-50,000 axis already steps by 10,000; 5,000 is the increment that differs.
+  // Point labels and Fit both axes are the scatter family's own (renderer plan J).
+  scatter: [...SHARED, ...AXES.filter(([key]) => key !== "verticalTickIncrement"), ["verticalTickIncrement", 5000], ["horizontalNumberType", "usd"], ["verticalNumberType", "percent"], ["pointLabels", "off"], ["fitAxes", true]],
+  bubble: [...SHARED, ...AXES.filter(([key]) => key !== "verticalTickIncrement"), ["verticalTickIncrement", 5000], ["horizontalNumberType", "usd"], ["verticalNumberType", "percent"], ["pointLabels", "off"], ["fitAxes", true]],
   pie: [...SHARED, ["categoryOrder", ["5-9", "0-4", "10-14"]], ["hiddenCategories", ["0-4"]], ["hole", 0.4]],
   choroplethMap: [...SHARED, ["invertScale", true]],
   symbolMap: [...SHARED, ["invertScale", true, { symbolGradient: true }], ["symbolGradient", true]],

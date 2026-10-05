@@ -759,3 +759,96 @@ describe("Workstream D Outcome and Transformation", () => {
     expect(screen.queryByLabelText(/^sex$/i)).not.toBeInTheDocument();
   });
 });
+
+/**
+ * Workstream Q - a module scatter or bubble asks for its extra measures here.
+ * Pasted data keeps its column mapping (InlineRoles); other charts keep the
+ * single "Outcome" select.
+ */
+describe("Workstream Q extra measure selects", () => {
+  const pointSchema = {
+    ...v3Schema,
+    fields: {
+      ...v3Schema.fields,
+      "Net Migration": {
+        kind: "measure",
+        label: "Net migration",
+        unit: "people",
+        chartRoles: ["yMeasure"],
+        calculations: ["actual"],
+      },
+    },
+  };
+
+  function pointConfig(chartType, outcomes) {
+    const base = v3Config("Total Population");
+    const question = { ...base.question, outcomes };
+    delete question.outcome;
+    return {
+      ...base,
+      question,
+      presentation: { chartType, comparisonPresentation: "combined" },
+      editorModel: { ...base.editorModel, chartType },
+    };
+  }
+  const yOnly = [{ role: "y", measureId: "Total Population" }];
+
+  beforeEach(() => {
+    state.dispatch.mockClear();
+    state.schema = pointSchema;
+  });
+
+  it("labels the outcome as the vertical axis and shows a select per extra role, without the measures already chosen", async () => {
+    const user = userEvent.setup();
+    state.config = pointConfig("bubble", [
+      ...yOnly,
+      { role: "x", measureId: "Crude Birth Rate" },
+    ]);
+    renderV3(<OutcomeSection />);
+
+    expect(screen.getByRole("combobox", { name: "Outcome (vertical axis)" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Horizontal axis" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Bubble size" })).toBeInTheDocument();
+
+    // The horizontal select offers its own choice and the unused measure, but
+    // not the measure already plotted vertically.
+    await user.click(screen.getByRole("combobox", { name: "Horizontal axis" }));
+    expect(screen.getByRole("option", { name: "Crude birth rate" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Net migration" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Total population" })).not.toBeInTheDocument();
+    await user.keyboard("{Escape}");
+
+    // The size select offers neither chosen measure.
+    await user.click(screen.getByRole("combobox", { name: "Bubble size" }));
+    expect(screen.getByRole("option", { name: "Net migration" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Total population" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Crude birth rate" })).not.toBeInTheDocument();
+  });
+
+  it("sets an extra measure for its own role", async () => {
+    const user = userEvent.setup();
+    state.config = pointConfig("scatter", yOnly);
+    renderV3(<OutcomeSection />);
+
+    // The editor chooses nothing for the reader: the select starts empty.
+    const horizontal = screen.getByRole("combobox", { name: "Horizontal axis" });
+    expect(horizontal).not.toHaveTextContent(/Crude birth rate|Net migration|Total population/);
+    expect(screen.queryByRole("combobox", { name: "Bubble size" })).not.toBeInTheDocument();
+    await user.click(horizontal);
+    await user.click(screen.getByRole("option", { name: "Net migration" }));
+    expect(state.dispatch).toHaveBeenCalledWith({
+      type: "SET_OUTCOME",
+      role: "x",
+      outcome: { measureId: "Net Migration" },
+    });
+  });
+
+  it("keeps the single Outcome select on a chart with one measure", () => {
+    state.config = pointConfig("line", yOnly);
+    renderV3(<OutcomeSection />);
+
+    expect(screen.getByRole("combobox", { name: "Outcome" })).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Horizontal axis" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Bubble size" })).not.toBeInTheDocument();
+  });
+});

@@ -995,3 +995,90 @@ describe("reduceChartConfig — v2 actions", () => {
     expect(changedGeo.geoUnmatched).toEqual(["Alpine", "Sierra"]);
   });
 });
+
+// Workstream Q: a module question can hold extra measures for a chart's roles.
+describe("reduceChartConfig — several measures (Workstream Q)", () => {
+  const pointSpec = (chartType, outcomes, calculation = { id: "actual", params: {} }) => ({
+    version: 3,
+    question: {
+      dataset: { kind: "module", moduleId: "testmodule" },
+      source: "Census",
+      outcomes,
+      geography: { subset: "Regions", locations: ["Bay Area"] },
+      time: { contract: "snapshot", year: 2025 },
+      calculation,
+      comparisons: [{ id: "cmp_1", dimensions: {} }],
+    },
+    presentation: { chartType, comparisonPresentation: "combined" },
+  });
+  const both = [
+    { role: "y", measureId: "Total Widgets" },
+    { role: "x", measureId: "Spare Widgets" },
+  ];
+
+  it("keeps today's callers working: SET_OUTCOME without a role sets the y measure", () => {
+    const next = dispatch(pointSpec("line", [{ role: "y", measureId: "Total Widgets" }]), {
+      type: "SET_OUTCOME",
+      outcome: { measureId: "Spare Widgets" },
+    });
+    expect(next.question.outcomes).toEqual([{ role: "y", measureId: "Spare Widgets" }]);
+    expect(next.question).not.toHaveProperty("outcome");
+  });
+
+  it("sets an extra role and removes it again when the measure is emptied", () => {
+    const start = pointSpec("scatter", [{ role: "y", measureId: "Total Widgets" }]);
+    const withX = dispatch(start, {
+      type: "SET_OUTCOME",
+      role: "x",
+      outcome: { measureId: "Spare Widgets" },
+    });
+    expect(withX.question.outcomes).toEqual(both);
+
+    for (const empty of [{ measureId: "" }, null]) {
+      const cleared = dispatch(withX, { type: "SET_OUTCOME", role: "x", outcome: empty });
+      expect(cleared.question.outcomes).toEqual([{ role: "y", measureId: "Total Widgets" }]);
+    }
+  });
+
+  it("resets the calculation when any measure changes", () => {
+    const changed = { id: "percentChange", params: {} };
+    const start = pointSpec("scatter", [{ role: "y", measureId: "Total Widgets" }], changed);
+
+    const extra = dispatch(start, {
+      type: "SET_OUTCOME",
+      role: "x",
+      outcome: { measureId: "Spare Widgets" },
+    });
+    expect(extra.question.calculation).toEqual({ id: "actual", params: {} });
+
+    const y = dispatch(pointSpec("scatter", both, changed), {
+      type: "SET_OUTCOME",
+      outcome: { measureId: "Spare Widgets" },
+    });
+    expect(y.question.calculation).toEqual({ id: "actual", params: {} });
+  });
+
+  it("parks extra measures when switching to a line chart and restores them on return", () => {
+    const scatter = pointSpec("scatter", both);
+
+    const line = dispatch(scatter, { type: "SET_CHART_TYPE", chartType: "line" });
+    // A line chart's request fetches only its own measure.
+    expect(line.question.outcomes).toEqual([{ role: "y", measureId: "Total Widgets" }]);
+    // Parked with the chart that owns it, as chart-owned appearance settings are.
+    expect(JSON.stringify(line.presentation.charts?.scatter)).toContain("Spare Widgets");
+
+    const back = dispatch(line, { type: "SET_CHART_TYPE", chartType: "scatter" });
+    expect(back.question.outcomes).toEqual(both);
+  });
+
+  it("keeps the horizontal measure from scatter to bubble and parks only the size going back", () => {
+    // A third, distinct measure: the same measure in two roles is never valid.
+    // The store does not look measures up, so it need not be in the schema.
+    const bubble = pointSpec("bubble", [...both, { role: "size", measureId: "Widget Weight" }]);
+
+    const scatter = dispatch(bubble, { type: "SET_CHART_TYPE", chartType: "scatter" });
+    expect(scatter.question.outcomes).toEqual(both);
+    const again = dispatch(scatter, { type: "SET_CHART_TYPE", chartType: "bubble" });
+    expect(again.question.outcomes).toEqual(bubble.question.outcomes);
+  });
+});

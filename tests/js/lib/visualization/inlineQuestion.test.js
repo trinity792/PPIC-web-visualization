@@ -123,11 +123,12 @@ describe("derived question parts", () => {
       inline: TABLE,
       bindings: { x: "Year", y: "Population", series: "Region" },
     });
-    expect(spec.question.outcome).toEqual({
+    expect(spec.question.outcomes).toEqual([{
+      role: "y",
       measureId: "Population",
       measureLabel: "Population",
       unit: "number",
-    });
+    }]);
     expect(spec.question.comparisons).toHaveLength(2);
   });
 });

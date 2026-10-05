@@ -4,7 +4,7 @@ Content Type: implementation plan
 pinned: false
 description: "A tests-first implementation plan for replacing chart-shaped data requests with a shared question, comparison, capability, and observation system for programmers continuing the visualization refactor."
 Date Published: August 28, 2026
-Last Updated: 09/18/2026 - 02:50 PM
+Last Updated: 10/05/2026 - 02:52 PM
 Status: Draft
 ---
 
@@ -45,7 +45,7 @@ No existing v1 or v2 saved view or shared link must continue to open. The new ve
 | Comparison construction | Users can generate a regular cross-product from checkboxes or add irregular combinations one at a time. Both interfaces write the same comparison list. |
 | Comparison limit | Ten comparisons are allowed. The interface prevents an eleventh. |
 | Overlap | Aggregate and subgroup comparisons may overlap. Labels and additional information must make the overlap visible. |
-| Multiple outcomes | Deferred in Standard and Advanced modes. |
+| Multiple outcomes | Chart-role measures are implemented in renderer Workstream Q (`outcomes`: y, x, size). Per-comparison outcomes remain deferred. |
 | Time | Incompatible chart switches clear the active time selection and show `Select time to show this chart`. Projection snapshots default to the declared reporting year. |
 | Multiple donut years | Users choose automatic year tabs or an arithmetic mean. The mean is labeled as an average and lists its included years. |
 | Comparison display | Maps and heatmaps use tabs. Lines show one descriptively labeled line per comparison by default and may use tabs. Other chart families use only presentations declared in their capabilities. |
@@ -122,7 +122,7 @@ The repository uses Vitest, Testing Library, and jsdom. `package.json` has no br
 
 ### The contract the rest of the work reads
 
-Version 3 separates `question` from `presentation`. The question owns the topic or inline dataset, source, one outcome, shared geography, shared time, one calculation, and the ordered list of comparisons. The presentation owns chart type, tab mode, chart-specific state, labels, formatting, annotations, and appearance.
+Version 3 separates `question` from `presentation`. The question owns the topic or inline dataset, source, a shared list of chart-role measures, shared geography, shared time, one calculation, and the ordered list of comparisons. The presentation owns chart type, tab mode, chart-specific state, labels, formatting, annotations, and appearance.
 
 Do not carry `Group`, `Series`, `comparisonMode`, `filters.tabColumn`, `filters.tabValue`, or `filters.tabOrder` into the v3 question as generic concepts. Keep a role only when a renderer genuinely needs that role. Keep presentation tabs as explicit presentation state, not as a filter that changes the stored population definition.
 
@@ -134,7 +134,8 @@ The observation response uses rows with these required meanings:
 |---|---|
 | `comparisonId` | Stable id from the request. |
 | `comparisonLabel` | Resolved custom or derived label used by chart, table, and export. |
-| `measureId`, `measureLabel`, `unit` | The one shared outcome and its display metadata. |
+| `measureId`, `measureLabel`, `unit` | Each row's own measure and its display metadata. |
+| `measureRole` | Optional chart role: x or size; y rows remain untagged. |
 | `period` | The observation period, or the derived result's display period. |
 | `geographyId`, `geographyLabel` | Stable geographic identity and display label when applicable. |
 | `categoryId`, `categoryLabel` | A non-geographic category when the chart needs one. |
@@ -324,7 +325,7 @@ Rewrite `tests/js/lib/visualization/transformRegistry.test.js` as eligibility an
 
 ### Request and response boundary
 
-Add a POST query handler to each topic's existing API route. The request body carries one v3 question. It includes all comparisons, the one shared outcome, shared geography and time, optional Advanced overrides, and the calculation. Do not encode ten comparison objects in URL parameters.
+Add a POST query handler to each topic's existing API route. The request body carries one v3 question. It includes all comparisons, the shared `outcomes` list, shared geography and time, optional Advanced overrides, and the calculation. Do not encode ten comparison objects in URL parameters.
 
 Keep narrow GET endpoints such as location-option lookups if the editor still needs them. Stop using GET chart views such as `line`, `category`, `twoPeriod`, `matrix`, and `geo` for v3 chart data. A POST response returns the common observation contract regardless of the selected renderer.
 
@@ -481,7 +482,7 @@ New file: `tests/js/components/chart-builder/sections/ComparisonsSection.test.js
 | `edits a card without changing its identity` | Stable id, color, and custom label survive an edit. |
 | `prevents an eleventh comparison before mutation` | Add controls disable and the limit message appears. |
 | `shows geography and time overrides only in Advanced Mode` | Standard Mode retains shared values. |
-| `never shows an outcome override` | Multiple outcomes remain deferred in both modes. |
+| `never shows an outcome override` | Per-comparison outcomes remain deferred in both modes; chart-role measures are shared by every comparison. |
 
 New file: `tests/js/components/chart-builder/sections/TimeSection.test.js`.
 

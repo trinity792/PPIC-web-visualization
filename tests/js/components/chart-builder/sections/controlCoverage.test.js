@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { config, schema, lineRows } from "@/tests/fixtures/visualization-v3/renderer";
 const state = vi.hoisted(() => ({ config: null, schema: null, dispatch: vi.fn() }));
@@ -40,10 +40,15 @@ const expected = {
   line: [...shared, ...typography, ...spacing, lineYearTick, "Markers", "Dashed lines for a range of periods", "Start period", "End period", "Range label"],
   bar: [...shared, ...typography, ...spacing, "Orientation", "Diverging bars", "Stacking", "Space between groups", "Center reference", "Reference line", "Reference line label", "Range minimum", "Range maximum", "Minimal axis", "Threshold colors", "Show values", "Stack totals", "Sort", ...barAdvanced],
   dumbbell: [...shared, ...typography, ...spacing, ...row, "First Line Only", "Range style", ...rangeAdvanced],
-  dotPlot: [...shared, ...typography, ...spacing, ...row, "Latina Women", "White Women", "Marker size"],
+  // Show values for names the dots the chart draws (renderer plan G): the
+  // fixture's question holds one comparison over three periods, so the dots
+  // are the years. The Plotly-derived seriesNames are only the fallback.
+  dotPlot: [...shared, ...typography, ...spacing, ...row, "2020", "2025", "2030", "Marker size"],
   forest: [...shared, ...typography, ...spacing, ...row, "Interval ends", "Estimate marker", "Line of no effect", "Value axis center"],
   heatmap: [...shared, ...typography, ...spacing, "Color scale", "Invert color scale", "Show cell values"],
-  scatter: [...shared, ...typography, ...spacing], bubble: [...shared, ...typography, ...spacing],
+  // Owner decisions 2026-10-05 (renderer plan J): point names and the axes' start.
+  scatter: [...shared, ...typography, ...spacing, "Point labels", "Fit both axes to the data"],
+  bubble: [...shared, ...typography, ...spacing, "Point labels", "Fit both axes to the data"],
   pie: [...shared, ...typography, "Donut hole"],
   choroplethMap: [...shared, ...typography, "Color scale", "Invert color scale"],
   symbolMap: [...shared, ...typography, "Color gradient", "Invert color scale"],
@@ -107,4 +112,67 @@ it("keeps both tick increments in Advanced Mode only", () => {
   expect(controls(container).filter(name => /number type/i.test(name))).toEqual([
     "Horizontal number type (Population)", "Vertical number type (Population)",
   ]);
+});
+
+// Workstream Q: the extra-measure selects and Rank by are controls too. A
+// module scatter shows its Horizontal axis select and a bubble adds Bubble
+// size, and Rank by shows only with Ranked values and several measures.
+import OutcomeSection from "@/components/chart-builder/sections/OutcomeSection";
+import GeographySection from "@/components/chart-builder/sections/GeographySection";
+
+const qSchema = {
+  id: "housing", inlineOnly: false, subsets: { Counties: ["County"] },
+  time: { availablePeriods: [2025], reportingPeriods: [2025], defaultReportingPeriod: 2025 },
+  filterDimensions: [],
+  fields: {
+    Year: { kind: "temporal", label: "Year" },
+    M0: { kind: "measure", label: "Measure 0", unit: "number", calculations: ["actual"] },
+    M1: { kind: "measure", label: "Measure 1", unit: "number", calculations: ["actual"] },
+    M2: { kind: "measure", label: "Measure 2", unit: "number", calculations: ["actual"] },
+  },
+};
+function moduleQuestion(chartType, outcomes, ranking) {
+  return {
+    version: 3,
+    question: {
+      dataset: { kind: "module", moduleId: "housing" }, source: "ACS", outcomes,
+      geography: { subset: "Counties", locations: ["Alameda"] },
+      time: { contract: "snapshot", year: 2025 },
+      calculation: { id: "actual", params: ranking ? { ranking } : {} },
+      comparisons: [{ id: "cmp_1", dimensions: {} }],
+    },
+    presentation: { chartType, comparisonPresentation: "combined" },
+    editorModel: { chartType, calculations: ["actual", "ranking"] },
+  };
+}
+const y = { role: "y", measureId: "M0" };
+const x = { role: "x", measureId: "M1" };
+const size = { role: "size", measureId: "M2" };
+function measureControls(chartType, outcomes, ranking) {
+  state.schema = qSchema;
+  state.config = moduleQuestion(chartType, outcomes, ranking);
+  const { container } = render(<AdvancedModeProvider defaultAdvanced><OutcomeSection /><GeographySection /></AdvancedModeProvider>);
+  return controls(container).filter(name => /^(Outcome|Horizontal axis|Bubble size|Rank by)/.test(name));
+}
+
+it("scatter shows the vertical and horizontal measure selects", () => {
+  expect(measureControls("scatter", [y, x])).toEqual(["Horizontal axis", "Outcome (vertical axis)"].sort());
+});
+it("bubble shows the vertical, horizontal, and size selects", () => {
+  expect(measureControls("bubble", [y, x, size])).toEqual(["Bubble size", "Horizontal axis", "Outcome (vertical axis)"].sort());
+});
+it("line shows only the single Outcome select", () => {
+  expect(measureControls("line", [y])).toEqual(["Outcome"]);
+});
+it("Rank by shows with Ranked values on a chart of several measures, and not otherwise", () => {
+  const ranking = { n: 5, direction: "top" };
+  expect(measureControls("scatter", [y, x], ranking)).toContain("Rank by");
+  cleanup();
+  // One measure: nothing to rank by but the outcome itself.
+  expect(measureControls("scatter", [y], ranking)).not.toContain("Rank by");
+  cleanup();
+  expect(measureControls("line", [y], ranking)).not.toContain("Rank by");
+});
+it("Rank by is absent while Ranked values is off", () => {
+  expect(measureControls("scatter", [y, x])).not.toContain("Rank by");
 });

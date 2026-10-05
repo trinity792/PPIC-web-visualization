@@ -37,6 +37,7 @@
  *   - Implements the select and draggable list-row patterns
  */
 
+import { outcomeFor, readOutcomes } from "@/lib/visualization/questionSpec";
 import React, { useState } from "react";
 
 import { GripVertical } from "lucide-react";
@@ -127,10 +128,10 @@ function InlineRoles({ config, dispatch }) {
 
 function V3Outcome({ config, dispatch, schema, advanced, editorModel }) {
   const inline = config.question?.dataset?.kind === "inline";
-  const measureId = config.question?.outcome?.measureId;
+  const measureId = outcomeFor(config.question)?.measureId;
   const measure =
     schema.fields?.[measureId] ||
-    (inline && measureId ? { unit: config.question.outcome.unit || "number" } : {});
+    (inline && measureId ? { unit: outcomeFor(config.question)?.unit || "number" } : {});
   const calculation = config.question?.calculation || { id: "actual", params: {} };
   const modelCalculations = editorModel?.calculations || config.editorModel?.calculations || [];
   let calculations = calculationOptionsFor({ id: measureId, ...measure });
@@ -144,6 +145,10 @@ function V3Outcome({ config, dispatch, schema, advanced, editorModel }) {
     calculations = calculations.filter((id) => !["benchmarkDifference", "ranking"].includes(id));
   }
   const measures = Object.entries(schema.fields || {}).filter(([, field]) => isMeasure(field));
+  const extras = getChartType(config.presentation?.chartType)?.additionalOutcomeRoles || [];
+  const outcomes = readOutcomes(config.question);
+  const outcomeRoles = [{ role: "y", label: extras.length ? "Outcome (vertical axis)" : "Outcome" }, ...extras];
+  calculations = calculations.filter((id) => outcomes.every((entry) => calculationOptionsFor({ id: entry.measureId, ...(schema.fields?.[entry.measureId] || entry) }).includes(id)));
   const benchmarkAllowed =
     advanced &&
     (editorModel?.calculations || config.editorModel?.calculations || calculations).includes(
@@ -177,18 +182,21 @@ function V3Outcome({ config, dispatch, schema, advanced, editorModel }) {
       {inline ? (
         <InlineRoles config={config} dispatch={dispatch} />
       ) : (
-        <div className="grid gap-2">
-          <Label htmlFor="v3-outcome">Outcome</Label>
-          <Select
-            value={measureId}
-            onValueChange={(value) => dispatch({ type: "SET_OUTCOME", outcome: { measureId: value } })}
-          >
-            <SelectTrigger id="v3-outcome" aria-label="Outcome"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {measures.map(([id, field]) => <SelectItem key={id} value={id}>{field.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
+        outcomeRoles.map(({ role, label }) => (
+          <div className="grid gap-2" key={role}>
+            <Label htmlFor={`v3-outcome-${role}`}>{label}</Label>
+            <Select
+              value={outcomeFor(config.question, role)?.measureId || ""}
+              onValueChange={(value) => dispatch({ type: "SET_OUTCOME", ...(role !== "y" ? { role } : {}), outcome: { measureId: value } })}
+            >
+              <SelectTrigger id={`v3-outcome-${role}`} aria-label={label}><SelectValue placeholder="Select a measure" /></SelectTrigger>
+              <SelectContent>
+                {measures.filter(([id]) => !outcomes.some((entry) => entry.role !== role && entry.measureId === id))
+                  .map(([id, field]) => <SelectItem key={id} value={id}>{field.label || id}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        ))
       )}
       {inline && !measureId ? null : (
       <div className="grid gap-2">

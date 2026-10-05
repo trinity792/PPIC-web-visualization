@@ -42,3 +42,27 @@ it("keeps dashedRange through save and reopen", () => {
   const restored = deserialize(serialize(original), schema);
   expect(restored.presentation.appearance.dashedRange).toEqual({ from: 2025, to: 2030, label: "Projected" });
 });
+
+it.each(["scatter", "bubble"])("preserves %s measures in saved, shared, and embedded views", async type => {
+  const { serializeWorkspace, deserializeWorkspace } = await import("@/components/chart-builder/savedViews");
+  const original = config(type);
+  saveView(`Q ${type}`, original);
+  const stored = listViews().find(view => view.name === `Q ${type}`);
+  expect(deserialize(serialize(stored.config), schema).question.outcomes).toEqual(original.question.outcomes);
+
+  const shared = new URL(`https://example.test/?view=${encodeURIComponent(serialize(original))}`);
+  expect(deserialize(shared.searchParams.get("view"), schema).question.outcomes).toEqual(original.question.outcomes);
+  const embed = new URL(`https://example.test/?embed=1&view=${encodeURIComponent(serializeWorkspace({ charts: [original], activeChartId: 0 }))}`);
+  expect(deserializeWorkspace(embed.searchParams.get("view"), schema).charts[0].question.outcomes).toEqual(original.question.outcomes);
+});
+
+it("migrates an old single-outcome saved view and link without changing its chart", () => {
+  const old = config("line");
+  old.question.outcome = { measureId: "Population", unit: "people" };
+  delete old.question.outcomes;
+  const link = new URL(`https://example.test/?view=${encodeURIComponent(JSON.stringify(old))}`);
+  const restored = deserialize(link.searchParams.get("view"), schema);
+  expect(restored.presentation).toEqual(old.presentation);
+  expect(restored.question.outcomes).toEqual([{ role: "y", measureId: "Population", unit: "people" }]);
+  expect(JSON.parse(serialize(restored)).question).not.toHaveProperty("outcome");
+});

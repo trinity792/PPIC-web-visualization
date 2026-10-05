@@ -133,6 +133,44 @@ describe("v3 geography-aware labels", () => {
     expect(deriveLabels(spec, v3Schema)).toMatchObject({ xAxis: "Population", yAxis: "" });
   });
 
+  // Renderer plan G: the dot plot lays out its rows as the range chart does.
+  it("puts the measure on the horizontal axis for dot plots", () => {
+    const spec = v3({ subset: "Regions", locations: ["Bay Area", "Central Coast", "Far North", "Inland Empire"] });
+    spec.presentation.chartType = "dotPlot";
+    expect(deriveLabels(spec, v3Schema)).toMatchObject({ xAxis: "Population", yAxis: "" });
+  });
+
+  // Renderer plan J: a pasted scatter plots its bound x column across.
+  it("names a pasted scatter's two measures on their axes", () => {
+    const spec = v3({ subset: "Regions", locations: ["Bay Area"] });
+    spec.presentation.chartType = "scatter";
+    spec.question.outcome = { measureId: "HHI" };
+    spec.question.dataset = { kind: "inline", bindings: { x: "LQ_Q5", y: "HHI", unit: "Region" } };
+    expect(deriveLabels(spec, v3Schema)).toMatchObject({ title: "HHI vs LQ_Q5", xAxis: "LQ_Q5", yAxis: "HHI" });
+  });
+
+  // Workstream Q: a module scatter names its horizontal and vertical measures.
+  it("names a module scatter's two measures on their axes", () => {
+    const schema = {
+      fields: {
+        ...v3Schema.fields,
+        Households: { kind: "measure", label: "Households" },
+      },
+    };
+    const spec = v3({ subset: "Counties", locations: ["Alameda", "Fresno", "Marin", "Napa"] });
+    spec.presentation.chartType = "scatter";
+    delete spec.question.outcome;
+    spec.question.outcomes = [
+      { role: "y", measureId: "Population" },
+      { role: "x", measureId: "Households" },
+    ];
+    expect(deriveLabels(spec, schema)).toMatchObject({
+      title: "Population vs Households",
+      xAxis: "Households",
+      yAxis: "Population",
+    });
+  });
+
   it("names the time field when bars run along periods", () => {
     const spec = v3({ subset: "Regions", locations: ["Bay Area", "Central Coast", "Far North", "Inland Empire"] });
     spec.presentation.chartType = "bar";

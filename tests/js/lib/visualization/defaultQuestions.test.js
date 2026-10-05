@@ -50,7 +50,7 @@ describe("the default v3 question every module opens on", () => {
       expect(new Set(spec.question.comparisons.map((entry) => entry.id)).size).toBe(
         spec.question.comparisons.length,
       );
-      expect(schema.fields[spec.question.outcome.measureId]?.kind, moduleId).toBe("measure");
+      expect(schema.fields[spec.question.outcomes[0].measureId]?.kind, moduleId).toBe("measure");
       expect(spec.question.geography, moduleId).toEqual({ subset: "", locations: [] });
       if (moduleId === "rhna-progress") {
         // Snapshot-versioned dataset with no static period list yet (see

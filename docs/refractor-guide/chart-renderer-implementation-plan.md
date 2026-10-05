@@ -4,7 +4,7 @@ Content Type: implementation plan
 pinned: false
 description: "A tests-first plan for moving every chart except maps from Plotly to visx, one chart type at a time, so each chart follows the PPIC Data Visualization Style Guide and every editor control works. Written for programmers continuing the visualization work."
 Date Published: September 26, 2026
-Last Updated: 10/01/2026 - 02:00 PM
+Last Updated: 10/05/2026 - 08:30 PM
 Status: Updating
 ---
 
@@ -17,18 +17,20 @@ Today every chart in the app is drawn by Plotly, a charting library that makes m
 
 A check of the editor also found 44 controls that save a setting the chart never uses, and three that do not save at all. This plan fixes both problems together. Each chart type is rebuilt in visx, and each control shown for that chart is either made to work, removed, or hidden, as the project owner decides.
 
-This plan keeps Plotly for the two map types. It does not change how data is fetched or calculated. The question, comparison, and observation system from [[visualization-backend-implementation-plan]] stays exactly as it is. Only the last step, turning prepared observations into a picture, changes.
+This plan keeps Plotly for the two map types. Apart from Workstream Q (Stage 7), which lets a module question ask for a second and third measure, it does not change how data is fetched or calculated. The question, comparison, and observation system from [[visualization-backend-implementation-plan]] stays exactly as it is. Only the last step, turning prepared observations into a picture, changes.
 
 ---
 
 ## The Order of Work
 
-The work runs in five stages, plus an optional sixth. A stage starts only when the one before it is done, except that charts in Stage 3 can be worked on side by side once Stage 2 is finished. Stage 6 holds nice-to-have extras, and nothing in Stages 1 to 5 waits for it.
+The work runs in five stages, plus an optional sixth and a seventh. A stage starts only when the one before it is done, except that charts in Stage 3 can be worked on side by side once Stage 2 is finished. Stage 6 holds nice-to-have extras, and nothing in Stages 1 to 5 waits for it. Stage 7 lets a module question ask for more than one measure; it needs only the scatter family (G and J), so it can start before Stages 4 to 6.
 
 > [!note] Progress, September 30, 2026
 > Stage 1 (tests) is written. Stage 2 (A, B, C) and Workstreams D (line chart) and E (bar chart) are built. The line and bar screenshot baselines await review. Workstreams F to O remain.
 >
 > **October 1, 2026.** Workstream F (range chart) is built and, after owner review against six published PPIC range plots, is the visx default, as the line and bar charts are. Its screenshot baselines await review. Workstreams G to O remain.
+>
+> **October 5, 2026.** Workstreams G (dot plot) and J (scatter and bubble charts) are built together and are the visx default, on the same terms as the line, bar, and range charts. The owner merged the three into one Scatter tile with a Variant choice (see the October 5 note in Workstream J). Their screenshot baselines await review. Workstreams H, I, and K to O remain. The same day the owner asked for Workstream Q (Stage 7), so that modules can offer scatter and bubble charts, and decided all twelve of its questions.
 >
 > On September 30 the owner collected twelve published PPIC bar charts (`mockups/bar chart reference/`). Workstream E was widened to cover them, and the owner decided its eleven new rows the same day (ten Build, one Remove). The features they share with other chart types (callouts, highlights, context gray, custom label text, and panels) went into a new optional Workstream P. Workstream E was built the same day, and after two rounds of owner review the bar chart became visx by default, as the line chart had (see the exception below).
 
@@ -40,6 +42,7 @@ The work runs in five stages, plus an optional sixth. A stage starts only when t
 | 4. Export | Export is rebuilt to work from the drawn picture. Each chart type becomes the default only once its export works. | M |
 | 5. Other externalities | Embeds, saved views, shared links, the click-through tests, cleanup, and project documents. | N, O |
 | 6. Extras (optional) | Features shared across chart types that are nice to have once the charts look right. Each chart type can adopt them after its own workstream is done. | P |
+| 7. More than one outcome | A module question can ask for a second and third measure, so modules can draw scatter and bubble charts. The only stage that changes the question and the data fetch. | Q |
 
 | # | Workstream | Stage | Depends on |
 |---|---|---|---|
@@ -59,13 +62,16 @@ The work runs in five stages, plus an optional sixth. A stage starts only when t
 | N | Embeds, saved views, shared links, and click-through tests keep working | 5 | M |
 | O | Plotly is loaded only for maps, and the old code and documents are cleaned up | 5 | N |
 | P | Shared extras: callouts, highlights, context gray, custom label text, and panels | 6 | D, E. Nothing depends on P. |
+| Q | A module question can ask for a second and third measure | 7 | G, J |
 
-> [!warning] Users keep seeing the Plotly charts until Stage 4, except the line, bar, and range charts
+> [!warning] Users keep seeing the Plotly charts until Stage 4, except the line, bar, range, dot plot, scatter, and bubble charts
 > Stage 3 builds each visx chart behind a preview switch (Workstream B). Users keep seeing the Plotly version of every chart until that chart's export works in Stage 4. This follows the decision that export stays on Plotly in the short term, and it means Stage 3 can be reviewed without affecting anyone.
 >
 > **Exception, September 29, 2026.** The owner made visx the line chart's default ahead of Workstream M, for review. Until M lands, a line chart's image dialog says image export is coming soon, and its Download button stays off; data export and embeds work. `?renderer=plotly` still shows the Plotly line. The approved legacy `line-comparisons` screenshot stays a Plotly picture until a visx baseline is approved.
 >
 > **Exception, September 30, 2026.** The owner made visx the bar chart's default too, on the same terms as the line chart: the image dialog's notice now names line and bar charts, `?renderer=plotly` still shows the Plotly bar, and the legacy bar screenshot stays a Plotly picture until a visx baseline is approved. Views from the older (version 2) editor still draw with Plotly.
+>
+> **Exception, October 5, 2026.** The dot plot, scatter, and bubble charts are visx by default on the same terms: the image dialog's notice now names line, bar, range, and scatter charts, and `?renderer=plotly` still shows the Plotly versions. None of the three had a legacy screenshot.
 >
 > **Exception, October 1, 2026.** The owner made visx the range chart's default on the same terms: the image dialog's notice now names line, bar, and range charts, `?renderer=plotly` still shows the Plotly range chart, the legacy `range-two-period` screenshot stays a Plotly picture until a visx baseline is approved, and version 2 views still draw with Plotly.
 
@@ -915,7 +921,7 @@ Screenshot cases: `matches the approved Range layout` (existing test, new baseli
 > [!note] As built, October 1, 2026
 > Workstream F is built and, after owner review the same day, is the default range drawing (see the October 1 exception at the top of this plan). Its screenshot baselines are not recorded; they wait for review. Where the build settled something the steps above left open:
 > - **Rows.** One comparison gives one row per category. Several comparisons and one location give one row per comparison. Several of each make each location a group with a bold header row (Group alignment) holding one row per comparison (Variable alignment). Rows keep data order; the registry's `sort: "difference"` default is still not read by either renderer.
-> - **Row order (owner, October 1, 2026).** The range chart joined the line and bar charts as a place chart (`PLACE_CATEGORY_CHART_TYPES` in `GeographySection.js`): dragging locations in the Geographic Level list sets `categoryOrder`, which orders the rows or groups, and Ranked values sits there in Advanced Mode. Before, the range chart showed the fallback Categories panel, which is always empty in version 3 (previews never send `categoryNames`) and saved settings the chart does not read. The dot plot, forest plot, heatmap, and pie still show that empty panel; their workstreams should decide the same question.
+> - **Row order (owner, October 1, 2026).** The range chart joined the line and bar charts as a place chart (`PLACE_CATEGORY_CHART_TYPES` in `GeographySection.js`): dragging locations in the Geographic Level list sets `categoryOrder`, which orders the rows or groups, and Ranked values sits there in Advanced Mode. Before, the range chart showed the fallback Categories panel, which is always empty in version 3 (previews never send `categoryNames`) and saved settings the chart does not read. The forest plot, heatmap, and pie still show that empty panel; their workstreams should decide the same question. (The dot plot joined the place charts on October 5, 2026, in Workstream G.)
 > - **Time section.** The two-period First year and Second year boxes now use the editor's standard select (the one Geographic level uses) instead of a plain browser select.
 > - **Owner review against the PPIC references (October 1, 2026).** The first build colored both dots by comparison (hollow start, filled end), put a key above the chart, started the axis at zero, and drew no grid lines. The owner replaced all four with the rows decided above: one color per end (`officialComparisonColor` Navy and Orange, or a categorical palette's first two), end names above the first row on Automatic (built, then removed at the next review: the key sits on top by default and the chart offers no Automatic), an axis that fits the data (`axisScale` gained `includeZero: false`) with a zero line, and grid and row lines. Range style, Label which end, and Value axis position were added to this workstream because no other workstream covered them. The visx and Plotly range charts now color differently; Plotly still colors by comparison through `comparisonColors`, which moved from the adapter into `palettes.js`.
 > - **Spacing (owner, October 1, 2026).** The frame drew too much space around the key and above the source box. `ChartFrame` now uses `CHART_STYLE.frameGap` (20px below the title block, 12px between a top or bottom key and the chart, 24px beside a right key) instead of the guide's 48px `partSpacing`, which stays as the guide's documented value. This tightens every visx chart, not only the range chart. The range model sets `fitContent`, so the frame no longer reserves the full drawing height and the source box follows the chart's last row. Horizontal bars leave the same space below them and can opt in the same way.
@@ -969,6 +975,17 @@ New files: `tests/js/lib/visualization/models/dotPlotModel.test.js` and `tests/j
 | `shows Marker size only for dot plots` | The new control, in `tests/js/components/chart-builder/sections/AppearanceSection.dotPlot.test.js`. |
 
 Screenshot case: `matches the approved Dot plot layout` (new).
+
+> [!note] As built, October 5, 2026
+> Workstream G is built with Workstream J, and the dot plot is now a variant of the Scatter picker tile (see J). Its screenshot baselines are not recorded; the visual fixture gained `five-dots` and `dots-by-period` scenarios for review. Where the build settled something the steps above left open:
+> - **What the dots are.** Several comparisons give one dot per comparison, colored as the Plotly dot plot colors them. One comparison over several periods gives one dot per period: Navy, then Orange (as the range chart's two ends), then the official colors without light Gray. Several comparisons over several periods make each period a row, and several places become groups with a bold header row, as the range chart groups them. The Plotly dot plot drew every period's dot in its comparison's color on one row.
+> - **Band.** A light band runs from each row's lowest dot to its highest (the business-regulations references). It uses the source-box gray, paler than the range connector, so a light gray comparison dot still shows on it.
+> - **Rows** keep data order, and the dot plot joined the place charts (`PLACE_CATEGORY_CHART_TYPES`), so dragging locations orders them, as for the range chart. Row label alignment, Hide X-Axis (including an old `showValueAxis: false`), and the axis that fits the data with a zero line all match the range chart.
+> - **Show values for** lists the dots the chart draws, built from the dot plot model (`useDotPlotSeriesNames`), because the preview reports the Plotly adapter's comparison names. The Stage 1 control test now expects year switches for its one-comparison fixture.
+> - **Marker size** is a standard-mode slider from 6 to 20px (a diameter, as Plotly's was), 9px by default.
+> - **Point values** sit above their dots; where two would touch, the later one drops below, and one that fits neither way is left out. **Hover** follows the range chart: the row's label turns bold and every value in it shows in bold; a screen-reader tooltip names every value, missing ones included. Owner, later the same day: hover starts only with the pointer over a dot (an invisible hit circle 3px past its edge), not over the row label, band, or empty row. The range chart keeps its whole-row hover.
+> - **Key** on top by default, and none when there is only one kind of dot.
+> - **Open question.** The dot plot still accepts the Range time contract, so a long year range draws one dot (or one row) per year. Limiting it to a single year or selected years is a question-boundary change left for the owner.
 
 ---
 
@@ -1082,6 +1099,18 @@ New files: `tests/js/lib/visualization/models/pointModel.test.js` and `tests/js/
 | `leaves out points with a missing value on either axis` | Honest charts. |
 
 Screenshot cases: `matches the approved Scatter layout` and `matches the approved Bubble layout` (both new).
+
+> [!note] As built, October 5, 2026
+> Workstream J is built with G. Owner decisions the same day, against a reference scatter (HHI against LQ of the most exposed quintile, nine regions, each point named):
+> - **One Scatter tile.** The picker shows a single Scatter tile with a Variant control (Scatter, Bubble, Dot plot), as the bar chart groups its variants. Unlike the bar chart's diverging flag, the three stay separate chart types, because each needs different data and accepts different time choices, so saved views, pasted-data roles, and capabilities are unchanged. `CHART_FAMILIES` and `chartFamilyOf` in `chartRegistry.js` declare the family; `ChartTypeSection.js` draws the tile and the control.
+> - **Scatter and bubble on modules and the Visualization Tool.** Workstream Q supersedes the initial pasted-data-only gate. Topics with two measures offer Scatter; those with three offer Bubble. Demographic Projections offers Dot plot only. The Variant control stays visible, and extra measure selects start empty.
+> - **Point labels** (`pointLabels`): Automatic (the default) names each point beside it, trying right, left, above, below, then the four corners (`chartLayout/pointLabels.js`), and wraps names onto short lines as the reference does. A name that fits nowhere is left out, and the hover label still names its point. Off shows names on hover only. At 650px the reference data names eight of nine points.
+> - **Axes** (`fitAxes`): the vertical axis starts at zero by default, as the guide asks, and the horizontal axis fits the data. "Fit both axes to the data" fits both, as the reference does. Either axis draws a darker zero line when it crosses zero. The axis titles sit in bold inside the plot (vertical top left, horizontal bottom right) in a clear band beyond the outermost ticks, and grid lines run both ways.
+> - **Bubbles** are sized by area up to a 28px radius, drawn a little translucent with a white outline, in data order. A bubble with no size is left out. There is no size key yet; the hover label gives each bubble's size.
+> - **Hover** matches the line chart's: the hovered point gets a ring, a short tick, and a boxless label with its name, both axis values, and its size on a bubble. Arrow keys step across or up and down. Owner, later the same day: hover starts only with the pointer over a point itself (its circle plus 3px, `HIT_SLOP`), not over its name or empty plot; where bubbles overlap, the one whose center is nearest the pointer wins.
+> - **Key** on top when there are several comparisons, none for one. A row with no second measure draws nothing and says so.
+> - **Stage 1 test changed.** `settingsCoverage.test.js` tests a vertical tick increment of 5,000 for scatter and bubble, because the zero-based fixture axis already steps by 10,000. It also gained rows for `pointLabels` and `fitAxes`.
+> - **Not done.** The line spacing controls still show and do nothing on these charts, as on the bar and range charts. The registry's `referenceLines` and `trendline` defaults still have no control and no drawing.
 
 ---
 
@@ -1437,6 +1466,152 @@ Screenshot cases: `draws a callout with an arrow` and `highlights two categories
 
 ---
 
+## Stage 7 - Questions With More Than One Outcome
+
+Stage 7 is the one part of this plan that changes the question and the data fetch. Everything before it only changes how prepared observations become a picture. It starts once the scatter family (G and J) is built, and nothing in Stages 2 to 6 waits for it.
+
+---
+
+## Workstream Q - A module question can ask for a second and third measure
+
+> [!note] Implemented October 5, 2026
+> Module and pasted scatter/bubble charts now share role observations and pairing. The outcomes migration, role selects, chart availability, measure-based ranking, chart-switch parking, axis labels, and multi-measure export are implemented. Saved views, shared links, and embedded workspaces preserve the measures. The sections below record the starting state and agreed implementation scope.
+
+### Why this is separate
+
+A module question asks for exactly one outcome: `question.outcome.measureId`. A scatter plot needs two measures for each place, one across and one down, and a bubble chart needs a third for its size. Pasted data can supply them, because the reader maps a column to each role, but a module cannot. So on October 5, 2026 the owner made Scatter and Bubble Visualization Tool only, and asked for this workstream so that modules can offer them too.
+
+Five of the six topics hold several measures, so module scatter plots are possible within a topic, for example Share Over 30% against Number Over 30% by county in Housing Stress, or Vacancy Rate against Persons Per Household by region in Population and Housing. Demographic Projections holds one measure (Population), so it cannot offer them.
+
+> [!important] This keeps one shared outcome per comparison
+> The backend plan ([[visualization-backend-implementation-plan]]) closed two related questions: every comparison shares the one outcome, and multiple outcomes are deferred. It also says a scatter's separate x and y measures are "a chart-role exception, not multi-outcome comparisons". This workstream builds exactly that exception. The extra measures belong to the chart's roles (horizontal axis, bubble size) and are shared by every comparison. No comparison gets its own outcome, so `never shows an outcome override` in `ComparisonsSection.test.js` stays as it is.
+
+### Starting state before Q
+
+- **The question holds one outcome.** `QUESTION_KEYS` in `lib/visualization/questionSpec.js` lists `outcome` and nothing like it. `normalizeQuestion` drops any key not in that list, so a saved view cannot carry a second measure even by accident.
+- **Thirteen files read or write `question.outcome`.** The executor (`executeQuestion.js`), the editor (`OutcomeSection.js`, `chartConfigStore.js`, `PreviewContext.js`), the question helpers (`resolveEditorModel.js`, `deriveLabels.js`, `inlineQuestion.js`, `toObservations.js`), the built-in and default views (`builtInViews.js`, `defaultQuestions.js`), the settings registry and its copy, and the click-through fixture (`visualization-v3-flow-fixture.js`). About 25 test files build questions with it.
+- **The executor fetches one measure.** `executeQuestion` resolves `adapter.measure(question.outcome.measureId)`, checks the calculation against that measure's unit, and calls `adapter.select` and `materialize` once per comparison with that one measure. The adapters' `select({ question, comparison, measure, periods })` already receives the measure (the one-measure Projections adapter ignores it), so it can be called once per measure with no change to the adapters.
+- **Every observation names its own measure.** Each row carries `measureId`, `measureLabel`, and `unit` (`observationContract.js`), so rows for two measures can sit in one response without losing which is which.
+- **Rows can already say which part they play.** Pasted range and forest plots tag rows with `measureRole` (`lib/tabular/toObservations.js`), and the forest plot's capability already declares `measureRoles` in `chartRegistry.js`, though nothing on the server reads it.
+- **Pasted scatter data uses a different shape.** `tableToObservations` puts the second and third measures on the same row as plain numbers, `xValue` and `sizeValue`, with no status of their own. A suppressed horizontal value and a missing one cannot be told apart, and the View Data table never shows them.
+- **The scatter family reads that shape.** `pointModel.js` (visx) and `pointFigure` in `lib/visualization/adapters/index.js` (Plotly) both read `xValue` and `sizeValue`. A module row has neither, so a module scatter draws nothing and says it needs a second measure.
+- **Ranking ranks one value.** `rankObservations` ranks places by their latest available `value`, and `question.calculation.params.ranking` has no way to say which measure.
+- **The editor gates the variants.** `requiresTwoMeasures` on the scatter and bubble descriptors, and `TWO_MEASURES_REASON` in `resolveEditorModel.js`, make both unavailable on any module.
+
+### Multi-outcome decisions
+
+Decided by the owner on October 5, 2026. Where a decision differs from the suggestion, the steps below already follow the decision.
+
+| Question | Suggested | Decision |
+|---|---|---|
+| Which charts use a second or third measure in this workstream | Scatter (horizontal axis) and bubble (horizontal axis and size). The range chart's two measures as its two ends (the clearance-rate reference in F) and two measures side by side (the college references in E, through P's panels) reuse the same question field later, each as its own small follow-up. | As suggested |
+| Where the measures are saved | Keep `question.outcome` and add `question.additionalOutcomes`, keyed by role. | **One list replaces the single outcome:** `question.outcomes: [{ role: "y", measureId }, { role: "x", measureId }, { role: "size", measureId }]`. A view saved with `outcome` is turned into the list when it opens (step 1). |
+| Shape of the response | One row per measure, the extra measures' rows tagged `measureRole: "x"` or `"size"`, each with its own status, unit, and source. One shared helper pairs them back into points for both renderers. | As suggested |
+| Pasted scatter data | Moves to the same rows-per-measure shape. Saved pasted views store the table and its column mapping, not observations, so nothing saved needs migrating. | As suggested |
+| Calculation | The one calculation applies to every measure, and is offered only when every measure's unit allows it. Scatter and bubble allow Actual and ranking today, so in practice this is Actual. | As suggested |
+| Ranked values | Rank places by the y measure; the other measures follow the places kept. | **The reader picks the measure:** a Rank by choice lists the chart's measures, saved as `ranking.role`. Unset means y, so every ranked view saved before Q keeps its order. |
+| The same measure twice | Blocked, with a message: a measure plotted against itself is a diagonal line that says nothing. | As suggested |
+| What the editor chooses for the reader | Nothing. The extra measure selects start empty and the preview asks for them by name, following the rule that the module workbench never chooses a setting for the reader. | As suggested |
+| Switching to a chart that has no such role | The extra measures are parked under `presentation.charts[<chart type>]`, as chart-owned appearance settings are, and come back when the reader returns. A line chart's request then fetches only its own measure. | As suggested |
+| A topic with one measure | Scatter and Bubble disabled, with the reason "This topic has one measure". | **Hidden:** on Demographic Projections the Variant control lists Dot plot only. |
+| Measures from two topics (for example a Housing Stress share against a Population and Housing vacancy rate) | Not planned. Joining two topics' places and periods is a separate data problem, and pasted data covers it today. | As suggested |
+| Control names | The Outcome section keeps its name and place (backend plan). For scatter and bubble its measure select reads "Outcome (vertical axis)", with "Horizontal axis" and, for bubbles, "Bubble size" below it. | As suggested |
+
+### Steps
+
+1. **The question field, and opening old views.**
+   - In `lib/visualization/questionSpec.js`, replace `outcome` with `outcomes` in `QUESTION_KEYS`. `outcomes` is a list of `{ role, measureId }`, the y measure first, each role at most once. The roles are the chart registry's own names (`y`, `x`, `size`), so the later range and side-by-side follow-ups add roles, not a new field.
+   - Add one reader, `readOutcomes(question)`, beside `normalizeQuestion`. It returns the list, and turns a question that still holds `outcome: { measureId }` into `[{ role: "y", measureId }]`. A pasted question's outcome also carries its `unit`; keep it on the y entry. `normalizeQuestion` calls it, so every view, embed, and shared link saved before Q opens unchanged, and saving writes only `outcomes`. A question that holds both fields keeps `outcomes` and drops `outcome`.
+   - The server calls the same reader (step 3), because an embed or an open browser tab can still post the old shape. No other file reads `outcome` or `outcomes` directly; add `readOutcomes(question).find(...)` helpers (`outcomeFor(question, role)`) and use them in the thirteen files listed above.
+   - Rewrite `builtInViews.js`, `defaultQuestions.js`, the flow fixture, and the test fixtures to the new shape, rather than leaning on the migration. Keep one old-shape fixture whose only job is to test the migration.
+   - In `lib/visualization/settingsRegistry.js`, replace the `outcome` row with an `outcomes` row (configPath `question.outcomes`, consumer `executeQuestion.js`), move its `settingsCopy.js` entry to match, add a `rankBy` row (section Geography, Advanced Mode, configPath `question.calculation.params.ranking.role`) for the new Rank by choice, and regenerate the settings reference with `node tools/generate-settings-reference.mjs`.
+2. **Charts declare their extra roles.** Replace `requiresTwoMeasures` in `chartRegistry.js` with `additionalOutcomeRoles` on the chart descriptor: scatter `[{ role: "x", label: "Horizontal axis", required: true }]`, bubble the same plus `{ role: "size", label: "Bubble size", required: true }`. Expose it through `getChartCapabilities` next to the forest plot's `measureRoles`, so the editor and the executor read one declaration.
+3. **The executor.** In `executeQuestion.js`, read the list with `readOutcomes`.
+   - Resolve every measure with `adapter.measure`. An unknown one blocks the response with `unknownOutcome`, now naming its role. The same measure in two roles blocks it with `sameOutcomeTwice`.
+   - Check the calculation against every measure's unit with `isCalculationAllowed`.
+   - For each comparison, call `adapter.select` and `materialize` once per measure, with the same periods and places. Tag the x and size rows with `measureRole`; leave the y rows untagged, so every chart that reads them today is unchanged.
+   - Apply the calculation to each measure's rows separately, by place, exactly as today.
+   - Ranking ranks the rows of the measure `ranking.role` names (y when unset) with `rankObservations`, then keeps every measure's rows for the places that survive. Ranking every row together would rank a population against a percentage. A `ranking.role` the question has no measure for blocks the response with `unknownRankingMeasure`.
+   - Run `validateComparison` once per measure, so a comparison that one measure cannot answer is reported against that comparison.
+4. **The observation contract.** Document `measureRole` as an optional field in `observationContract.js`, and add it to the sort keys in `orderObservations` so a response's order stays stable. Update the response table in [[visualization-backend-implementation-plan]]: `measureId` names each row's own measure, not "the one shared outcome".
+5. **Pasted data.** `inlineQuestion.js` builds `outcomes` from the column mapping (the y column, plus x and size for scatter and bubble). `tableToObservations` gives a scatter or bubble table one row per measure, tagged `measureRole: "x"` or `"size"`, each with its own status, in place of `xValue` and `sizeValue`. The forest plot's study weight keeps `sizeValue` for now, because the forest plot draws every estimate at one size and does not read it.
+6. **Pairing for the charts.** New client-safe file `lib/visualization/pairOutcomes.js`. It groups rows by comparison, place, category, and period, and returns one point per group: the y value and status, and each role's value and status. Both `pointModel.js` and `pointFigure` call it, and neither reads `xValue` or `sizeValue` again. A point whose horizontal value (or, on a bubble, size) is missing or suppressed is left out, as today, and the hover and the View Data table say why.
+7. **Number formats and labels.**
+   - `numberFormatFor` in `sharedSettings.js` reads the rows for the axis it formats, so the horizontal axis is formatted by the horizontal measure's rows.
+   - `deriveLabels.js`, version 3 module scatter and bubble: X names the horizontal measure, Y names the y measure, and the title reads "Y measure vs X measure", as pasted scatter plots already do.
+8. **View Data and data export.** `displayTableFromObservations` in `lib/export/exportTable.js` takes its value column's name from the first row. With several measures, add a Measure column and name the value column Value, so each row says which measure it holds. A one-measure table keeps today's columns exactly.
+9. **The editor.**
+   - `OutcomeSection.js`: for a module chart that declares extra roles, the outcome select reads "Outcome (vertical axis)", and below it one select per role ("Horizontal axis", "Bubble size"). Each offers the topic's measures except those already chosen. Other charts keep the single "Outcome" select. Pasted data keeps its column mapping (`InlineRoles`), which already covers these roles.
+   - Store actions in `chartConfigStore.js`: `SET_OUTCOME` gains a `role` (y when omitted, so today's callers keep working); an empty measure removes that role. Changing any measure resets the calculation to Actual, as changing the outcome does today.
+   - Rank by: when Ranked values is on and the chart has more than one measure, a Rank by select under it lists the chart's measures by their control names, saved as `question.calculation.params.ranking.role` through `SET_RANKING` (which gains `role`). It sits with Ranked values, in Advanced Mode.
+   - Ranked values for scatter and bubble: today a chart that is not a place chart (`PLACE_CATEGORY_CHART_TYPES`) offers Ranked values only in the Categories panel, which is always empty in version 3, so a module scatter could not rank at all. Show Ranked values in the Geography section for scatter and bubble too, without making them place charts: a scatter has no row order for dragged locations to set.
+   - `missingQuestionSelections` in `questionReadiness.js` lists each required role not yet chosen, by its label, so the preview's prompt names it.
+   - `SET_CHART_TYPE` parks the x and size entries under `presentation.charts[<chart type>]` when the next chart has no such role, and restores them on return.
+   - Availability: in `chartAvailability.js`, a chart with extra roles is available on a module only when the topic holds at least as many measures as the chart has roles (two for scatter, three for bubble). Otherwise it is not offered at all, so on Demographic Projections the Variant control lists Dot plot only. Keep the Variant control visible even with one variant, so the reader can see that the Scatter tile is drawing a dot plot; today it hides when only one variant is offered. Delete `TWO_MEASURES_REASON` and its gate in `resolveEditorModel.js`.
+   - The Scatter tile then opens on Scatter wherever it is offered, and the reader chooses the horizontal measure before anything draws.
+10. **Saved views.** Check that a saved view, an embed, and a shared link carrying `outcomes`, and one saved with the old `outcome`, open the same chart. Workstream N's saved-view tests are the place for these cases.
+
+### What this makes out of date
+
+- [[visualization-backend-implementation-plan]], the decision "Multiple outcomes: Deferred" (chart-role measures now exist; per-comparison outcomes stay deferred), the question description ("one outcome"), the observation response table, and the POST request description ("the one shared outcome").
+- [[visualization-specification]], sections Outcome, Ranked values, View Data, and Settings reference.
+- [[projectSpec]], the chart registry and question descriptions.
+- This plan: the October 5 note in Workstream J that Scatter and Bubble are Visualization Tool only, and the "Deferred" notes in E and F, which point here once the follow-ups are scheduled.
+
+### Tests
+
+Q was added after Stage 1, so its tests are written at the start of this workstream, before its feature code, following the rules in [Stage 1](#stage-1---write-every-test-first).
+
+> [!note] Tests written, October 5, 2026
+> Q's tests were written before the feature (about 43 tests in 18 files, plus `pairOutcomes.test.js`, which cannot load until `pairOutcomes.js` exists). New files: `pairOutcomes.test.js`, `adapters/points.test.js`, and the fixture `tests/fixtures/visualization-v3/modulePoints.js`. The tests settle what the steps left open: `pairOutcomes(rows, { required })` returns points with a `{ value, status }` per role and leaves out points whose required roles are not available; an `unknownOutcome` issue carries the role as `issue.role`; `SET_OUTCOME` takes `{ role, outcome }`, and a `null` or empty measure removes the role. Several existing tests still build questions with `outcome`, assert the old pasted `xValue` shape, or expect the Variant control to hide with one variant; update them as the feature lands, not before. Add rows for the new controls to `controlCoverage.test.js`, and rows for `outcomes` and `rankBy` to `settingsRegistry.test.js`.
+
+Extend `tests/js/lib/data/visualization/executeQuestion.test.js`:
+
+| Test | What it checks |
+|---|---|
+| `answers a question with only a y measure exactly as before` | Every existing chart is untouched. |
+| `answers a question saved with the old outcome field` | Old embeds and open tabs that post the old shape still work. |
+| `returns one row per extra measure, tagged with its role` | The response shape. |
+| `keeps a suppressed horizontal value as suppressed, not missing` | Each measure keeps its own status. |
+| `blocks an unknown measure and names its role` | `unknownOutcome`. |
+| `blocks the same measure in two roles` | `sameOutcomeTwice`. |
+| `offers a calculation only when every measure's unit allows it` | The unit gate covers every measure. |
+| `ranks places by the chosen measure and keeps their other measures` | `ranking.role`, never mixing measures. |
+| `ranks by the y measure when no ranking measure is saved` | Ranked views saved before Q keep their order. |
+
+New file `tests/js/lib/visualization/pairOutcomes.test.js`:
+
+| Test | What it checks |
+|---|---|
+| `pairs each place's measures into one point` | The grouping key. |
+| `leaves out a point whose horizontal value is missing or suppressed` | Honest charts. |
+| `pairs pasted and module rows the same way` | One shape for both paths. |
+
+Extend existing files:
+
+| File | Test | What it checks |
+|---|---|---|
+| `questionSpec.v3.test.js` | `turns an old outcome into a one-entry outcomes list` | The migration, including a pasted outcome's unit. |
+| `questionSpec.v3.test.js` | `saves only outcomes, never both fields` | No view carries two answers to one question. |
+| `builtInViews.test.js` | `every built-in view uses the outcomes list` | Shipped views do not lean on the migration. |
+| `toObservations.test.js` | `turns a pasted scatter table into one row per measure` | Pasted data matches module data. |
+| `pointModel.test.js` | `draws a module scatter from paired rows` | The model reads the pairing helper. |
+| `adapters/comparisonPresentation.test.js`, or a new `adapters/points.test.js` | `draws the same points in the Plotly scatter` | Both renderers agree. |
+| `exportTable.test.js` | `adds a Measure column when a table holds several measures` | View Data and export say which measure each row is. |
+| `deriveLabels.test.js` | `names a module scatter's two measures on their axes` | Labels. |
+| `questionReadiness.test.js` | `asks for the horizontal axis before a module scatter can run` | The editor never chooses for the reader. |
+| `chartConfigStore.test.js` | `parks extra measures when switching to a line chart and restores them on return` | Chart switching. |
+| `chartConfigStore.test.js` | `resets the calculation when any measure changes` | As changing the outcome does. |
+| `chartAvailability.test.js` | `offers scatter on a topic with two measures, bubble with three, and neither with one` | Hidden on Demographic Projections. |
+| `ChartTypeSection.test.js` | `shows the Variant control even when Dot plot is the only variant` | The reader sees what the tile draws. |
+| `OutcomeSection.test.js` | `labels the outcome as the vertical axis and shows a select per extra role, without the measures already chosen` | The controls. |
+| `GeographySection.test.js` (Ranked values) | `offers Rank by only when the chart has more than one measure` | The Rank by control. |
+| `advancedMode.v3.test.js` | Replace `offers scatter and bubble on a module only once it can ask for two measures` with the availability rule above | The October 5 gate is gone. |
+
+Screenshot case: `matches the approved module Scatter layout` (new), from a fixed module response with two measures.
+
+---
+
 ## Glossary
 
 | Term | Meaning here |
@@ -1457,6 +1632,8 @@ Screenshot cases: `draws a callout with an arrow` and `highlights two categories
 | **Callout** | A short note placed on the chart, often with an arrow, pointing at one data point. |
 | **Highlight** | Drawing chosen categories or lines in their own colors and everything else in one base color. |
 | **Context gray** | A series drawn in light gray, so it gives context without drawing the eye. |
+| **Outcome** | The measure a question asks for, such as Population or Share Over 30%. A module question has one, shared by every comparison. |
+| **Outcome role** | Which part of the chart a measure plays: `y` (the vertical axis, every chart's one outcome), `x` (a scatter's horizontal axis), or `size` (a bubble's size). Saved in `question.outcomes` (Workstream Q). Every comparison shares them. |
 | **Panels** | One chart split into several small charts, one per comparison, side by side. Also called small multiples. |
 | **Baseline (screenshot)** | An approved picture a screenshot test compares against. |
 | **Fixture** | Fixed test data that never changes, so tests give the same result every time. |

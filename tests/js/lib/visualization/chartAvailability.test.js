@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 
 import { BYOD_SCHEMA } from "@/lib/visualization/moduleSchemas/byod";
 import { BUILDING_PERMITS_SCHEMA } from "@/lib/visualization/moduleSchemas/buildingPermits";
+import { DEMOGRAPHIC_PROJECTIONS_SCHEMA } from "@/lib/visualization/moduleSchemas/demographicProjections";
 import { POPHOUSING_SCHEMA } from "@/lib/visualization/moduleSchemas/pophousing";
 import { RHNA_PROGRESS_SCHEMA } from "@/lib/visualization/moduleSchemas/rhnaProgress";
 import {
@@ -85,5 +86,45 @@ describe("availableChartTypes", () => {
       expect(requiresGeometry(id), `offered without geometry: ${id}`).toBe(false);
     }
     expect(availableChartTypes(POPHOUSING_SCHEMA)).toContain("symbolMap");
+  });
+});
+
+// Workstream Q: scatter needs two measures and bubble three, so a topic is
+// offered only the charts it can fill. Hidden, not disabled with a reason.
+describe("charts that need extra measures", () => {
+  const measure = (label) => ({ kind: "measure", label, unit: "number" });
+  const topic = (count) => ({
+    id: `topic-${count}`,
+    subsets: { Counties: ["County"] },
+    fields: {
+      Year: { kind: "temporal" },
+      ...Object.fromEntries(Array.from({ length: count }, (_, i) => [`M${i}`, measure(`M${i}`)])),
+    },
+  });
+
+  it("offers scatter on a topic with two measures, bubble with three, and neither with one", () => {
+    expect(isChartTypeAvailable("scatter", topic(1))).toBe(false);
+    expect(isChartTypeAvailable("bubble", topic(1))).toBe(false);
+
+    expect(isChartTypeAvailable("scatter", topic(2))).toBe(true);
+    expect(isChartTypeAvailable("bubble", topic(2))).toBe(false);
+
+    expect(isChartTypeAvailable("scatter", topic(3))).toBe(true);
+    expect(isChartTypeAvailable("bubble", topic(3))).toBe(true);
+  });
+
+  it("hides scatter and bubble on Demographic Projections, which holds one measure", () => {
+    const offered = availableChartTypes(DEMOGRAPHIC_PROJECTIONS_SCHEMA);
+    expect(offered).not.toContain("scatter");
+    expect(offered).not.toContain("bubble");
+    expect(offered).toContain("dotPlot");
+  });
+
+  it("offers both on a topic with many measures, and on pasted data", () => {
+    expect(availableChartTypes(POPHOUSING_SCHEMA)).toEqual(
+      expect.arrayContaining(["scatter", "bubble"]),
+    );
+    expect(isChartTypeAvailable("scatter", BYOD_SCHEMA)).toBe(true);
+    expect(isChartTypeAvailable("bubble", BYOD_SCHEMA)).toBe(true);
   });
 });

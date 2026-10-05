@@ -360,3 +360,69 @@ describe("Ranked values Off", () => {
     expect(state.dispatch).toHaveBeenCalledWith({ type: "SET_RANKING", topN: null, sort: "value" });
   });
 });
+
+// Workstream Q: Rank by lists the chart's measures, so it only matters (and
+// only appears) when the chart has more than one. Unset ranks by y, so every
+// ranked view saved before Q keeps its order.
+describe("Rank by (Workstream Q)", () => {
+  beforeEach(() => {
+    state.dispatch.mockClear();
+    state.schema = baseSchema;
+    state.options = { status: "ready", locations, error: null };
+  });
+  const v3 = (chartType, outcomes, ranking = { n: 5, direction: "top" }) => ({
+    version: 3,
+    question: {
+      dataset: { kind: "module", moduleId: "pophousing" },
+      outcomes,
+      geography: { subset: "Counties", locations: ["Place 1"] },
+      calculation: { id: "actual", params: ranking ? { ranking } : {} },
+      comparisons: [],
+    },
+    presentation: { chartType, appearance: {} },
+  });
+  const yOnly = [{ role: "y", measureId: "Population" }];
+  const yAndX = [...yOnly, { role: "x", measureId: "Households" }];
+
+  it("offers Rank by only when the chart has more than one measure", () => {
+    state.config = v3("scatter", yAndX);
+    const { unmount } = render(<GeographySection />);
+    expect(screen.getByRole("radio", { name: "Top values" })).toBeChecked();
+    expect(screen.getByRole("combobox", { name: "Rank by" })).toBeInTheDocument();
+    unmount();
+
+    // One measure: nothing to choose between, so no control.
+    state.config = v3("scatter", yOnly);
+    const single = render(<GeographySection />);
+    expect(screen.queryByRole("combobox", { name: "Rank by" })).not.toBeInTheDocument();
+    single.unmount();
+
+    state.config = v3("line", yOnly);
+    render(<GeographySection />);
+    expect(screen.queryByRole("combobox", { name: "Rank by" })).not.toBeInTheDocument();
+  });
+
+  it("lists the chart's measures by their control names and defaults to the vertical one", async () => {
+    const user = userEvent.setup();
+    state.config = v3("scatter", yAndX);
+    render(<GeographySection />);
+
+    const select = screen.getByRole("combobox", { name: "Rank by" });
+    expect(select).toHaveTextContent("Outcome (vertical axis)");
+    await user.click(select);
+    expect(screen.getByRole("option", { name: "Outcome (vertical axis)" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Horizontal axis" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Bubble size" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("option", { name: "Horizontal axis" }));
+    expect(state.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "SET_RANKING", role: "x" }),
+    );
+  });
+
+  it("shows no Rank by while Ranked values is off", () => {
+    state.config = v3("scatter", yAndX, null);
+    render(<GeographySection />);
+    expect(screen.queryByRole("combobox", { name: "Rank by" })).not.toBeInTheDocument();
+  });
+});

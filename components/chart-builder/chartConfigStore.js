@@ -19,6 +19,7 @@
  *   - None — state-management utility that does not render visible UI
  */
 
+import { readOutcomes } from "@/lib/visualization/questionSpec";
 import {
   default as React,
   createContext,
@@ -660,7 +661,7 @@ function reduceV3ChartConfig(config, action, schema) {
       ...config,
       question: {
         ...config.question,
-        outcome: clone(action.outcome),
+        outcomes: [...readOutcomes(config.question).filter(({ role }) => role !== (action.role || "y")), ...(action.outcome?.measureId ? [{ ...clone(action.outcome), role: action.role || "y" }] : [])],
         calculation: { id: "actual", params: {} },
       },
     });
@@ -879,8 +880,9 @@ function reduceV3ChartConfig(config, action, schema) {
   }
   if (action.type === "SET_RANKING") {
     const calculation = config.question.calculation || { id: "actual", params: {} };
+    const topN = Object.hasOwn(action, "topN") ? action.topN : calculation.params?.ranking?.n;
     // "Off" (topN null) removes the ranking so every selected value shows.
-    if (action.topN == null) {
+    if (topN == null) {
       const params = { ...(calculation.params || {}) };
       delete params.ranking;
       return normalizeQuestion({
@@ -897,8 +899,12 @@ function reduceV3ChartConfig(config, action, schema) {
           params: {
             ...calculation.params,
             ranking: {
-              n: action.topN,
-              direction: action.sort === "ascending" ? "bottom" : "top",
+              ...calculation.params?.ranking,
+              ...(action.role ? { role: action.role } : {}),
+              n: topN,
+              direction: action.sort == null
+                ? calculation.params?.ranking?.direction || "top"
+                : action.sort === "ascending" ? "bottom" : "top",
             },
           },
         },

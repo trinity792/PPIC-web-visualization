@@ -45,7 +45,7 @@ function initialSpec() {
     question: {
       dataset: { kind: "module", moduleId: "projections" },
       source: "DoF P-3",
-      outcome: { measureId: "Population" },
+      outcomes: [{ role: "y", measureId: "Population" }],
       geography: { subset: "Counties", locations: ["San Francisco"] },
       time: { contract: "selectedSnapshots", years: [2020, 2025, 2030] },
       calculation: { id: "actual", params: {} },

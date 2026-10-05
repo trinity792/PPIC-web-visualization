@@ -511,3 +511,59 @@ describe("Workstream E observation exports", () => {
     expect(table.rows[0]).toContain("Census cc-est");
   });
 });
+
+describe("Workstream Q: a table that holds several measures", () => {
+  it("adds a Measure column when a table holds several measures", async () => {
+    const { displayTableFromObservations } = await exportModule();
+
+    const table = displayTableFromObservations({
+      observations: [
+        obs(),
+        obs({
+          measureId: "Households",
+          measureLabel: "Households",
+          unit: "number",
+          value: 21000,
+          measureRole: "x",
+        }),
+      ],
+      comparisons: COMPARISONS,
+    });
+
+    const names = table.columns.map((column) => column.name);
+    const measureColumn = names.indexOf("Measure");
+    const valueColumn = names.indexOf("Value");
+    expect(measureColumn).toBeGreaterThan(-1);
+    expect(valueColumn).toBeGreaterThan(-1);
+    // Each measure's own label, so a row says which measure it holds.
+    expect(table.rows.map((row) => row[measureColumn])).toEqual(["Population", "Households"]);
+    expect(table.rows.map((row) => row[valueColumn])).toEqual([50000, 21000]);
+    // The value column is no longer named for just the first measure.
+    expect(names).not.toContain("Population");
+    expect(table.exportRows.map((row) => row[measureColumn])).toEqual([
+      "Population",
+      "Households",
+    ]);
+  });
+
+  it("keeps a one-measure table's columns exactly as they are", async () => {
+    const { displayTableFromObservations } = await exportModule();
+
+    const table = displayTableFromObservations({
+      observations: [obs(), obs({ period: 2030, value: 52000 })],
+      comparisons: COMPARISONS,
+    });
+
+    expect(table.columns.map((column) => column.name)).toEqual([
+      "Comparison",
+      "Geography",
+      "Period",
+      "Population",
+      "Status",
+      "Value kind",
+      "Calculation",
+      "Included years",
+      "Source",
+    ]);
+  });
+});

@@ -187,3 +187,35 @@ describe("the honest audit", () => {
     }
   });
 });
+
+// Workstream Q: the outcome is a list, and Rank by is a new question setting.
+describe("multi-outcome settings (Workstream Q)", () => {
+  it("describes the outcomes list in place of the single outcome", () => {
+    const outcomes = getSetting("outcomes");
+    expect(outcomes).toMatchObject({
+      id: "outcomes",
+      section: "Outcome",
+      mode: "standard",
+      classification: "question",
+      configPath: "question.outcomes",
+      consumer: "lib/data/visualization/executeQuestion.js",
+      approval: "approved",
+    });
+    expect(listSettings().map((setting) => setting.id)).not.toContain("outcome");
+    expect(SETTINGS_COPY[outcomes.documentationId].purpose).toEqual(expect.any(String));
+  });
+
+  it("describes Rank by next to Ranked values, in Advanced Mode", () => {
+    const rankBy = getSetting("rankBy");
+    expect(rankBy).toMatchObject({
+      id: "rankBy",
+      section: "Geography",
+      mode: "advanced",
+      classification: "question",
+      configPath: "question.calculation.params.ranking.role",
+      approval: "approved",
+    });
+    expect(rankBy.consumer).toEqual(expect.any(String));
+    expect(SETTINGS_COPY[rankBy.documentationId].purpose).toEqual(expect.any(String));
+  });
+});

@@ -46,5 +46,28 @@ export function rendererVisualScenario(chartType, scenario = "default") {
   if(scenario === "arrows") Object.assign(fixture, { observations: observations.filter(r => r.comparisonId !== "black"), periods: [2020, 2030], appearance: { rangeStyle: "arrow", showPointLabels: true, pointLabelEnds: "end", valueAxisPosition: "top" } });
   if(scenario === "long-rows") fixture.observations = lineRows.slice(0,3).map(r => ({ ...r, categoryId: "long", categoryLabel: "San Francisco residents aged sixty five and older" }));
   if(scenario === "long-slice") fixture.observations = fixture.observations.map(r => ({ ...r, categoryLabel: r.categoryId === "0-4" ? "Residents aged zero through four years in San Francisco" : r.categoryLabel }));
+  // Scatter layouts (renderer plan J, 2026-10-05): the owner's reference
+  // scatter, values read off the published image, one pasted row per region.
+  if(["reference-regions", "reference-regions-fit", "reference-bubbles"].includes(scenario)) {
+    const regions = [["Central Valley and Sierra", 0.735, 122.2, 2.9], ["Bay Area", 1.245, 105.0, 4.1], ["Inland Empire", 0.813, 100.5, 1.8], ["Central Coast", 0.831, 96.3, 0.7], ["Northern", 0.784, 92.7, 0.5], ["Sacramento Area", 1.096, 85.8, 1.1], ["Orange County", 1.142, 85.1, 1.7], ["Los Angeles County", 0.975, 83.8, 4.6], ["San Diego County", 1.019, 80.3, 1.5]];
+    Object.assign(fixture, {
+      comparisons: [comparisons[0]],
+      observations: regions.flatMap(([name, lq, hhi, jobs], i) => [
+        ["y", "HHI", hhi], ["x", "LQ_Q5", lq], ["size", "Jobs", jobs],
+      ].map(([role, measureId, value]) => ({ ...lineRows[0], period: 2024, geographyId: `region-${i}`, geographyLabel: name, categoryId: name, categoryLabel: name, measureId, measureLabel: measureId, value, ...(role === "y" ? {} : { measureRole: role }) }))),
+      labels: { title: "Relating HHI to LQ of most exposed quintile, 2024", xAxis: "LQ_Q5", yAxis: "HHI", footnote: "" },
+      appearance: { horizontalNumberType: "number", decimalPlaces: 2, fitAxes: scenario !== "reference-regions" },
+    });
+    if(scenario === "reference-bubbles") fixture.chartType = "bubble";
+  }
+  // Dot plot layouts (renderer plan G, 2026-10-05): five dots per row, as the
+  // business-regulations references draw them, and dots per period.
+  if(scenario === "five-dots") {
+    const regions = ["Bay Area", "Central Coast", "Far North", "Inland Empire", "Los Angeles (Regional)", "Sacramento (Regional)"];
+    const stats = [["min", "Minimum", "Navy"], ["q1", "First quartile", "Blue"], ["median", "Median", "Orange"], ["q3", "Third quartile", "Lime"], ["max", "Maximum", "Violet"]];
+    fixture.comparisons = stats.map(([id, label, color]) => ({ id, label, color }));
+    fixture.observations = regions.flatMap((name, i) => stats.map(([id, label], j) => ({ ...lineRows[0], period: 2025, geographyId: `region-${i}`, geographyLabel: name, comparisonId: id, comparisonLabel: label, value: 20 + i * 3 + j * (8 + i) })));
+  }
+  if(scenario === "dots-by-period") Object.assign(fixture, { comparisons: [comparisons[0]], observations: observations.filter(r => r.comparisonId === "latina"), appearance: { showPointLabels: true } });
   return fixture;
 }

@@ -48,7 +48,7 @@ describe("the standalone tool opens on an inline v3 question", () => {
     const config = imported();
     expect(config.presentation.chartType).toBe("line");
     expect(config.question.dataset.bindings).toEqual({ x: "Year", y: "Population", series: "Region" });
-    expect(config.question.outcome).toMatchObject({ measureId: "Population", unit: "number" });
+    expect(config.question.outcomes[0]).toMatchObject({ measureId: "Population", unit: "number" });
     expect(config.question.comparisons.map((entry) => entry.label)).toEqual(["North", "South"]);
     expect(config.question.time).toEqual({ contract: "range", startYear: 2020, endYear: 2021 });
     expect(missingQuestionSelections(config, BYOD_SCHEMA)).toEqual([]);
@@ -88,6 +88,9 @@ describe("the standalone tool opens on an inline v3 question", () => {
     expect(map.available).toBe(false);
     expect(map.reason).toMatch(/pasted data/i);
     expect(model.chartChoices.find((choice) => choice.id === "bar").available).toBe(true);
+    // Pasted data can hold two measures, so the scatter variants stay offered.
+    expect(model.chartChoices.find((choice) => choice.id === "scatter").available).toBe(true);
+    expect(model.chartChoices.find((choice) => choice.id === "bubble").available).toBe(true);
   });
 
   it("keeps the chart on a plain table edit and re-maps on a fresh import", () => {

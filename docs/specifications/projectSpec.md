@@ -4,7 +4,7 @@ Content Type: project specification
 pinned: true
 description: "The current source of truth for the PPIC Data Explorer product, topic pipelines, application architecture, API boundaries, operational logs, documentation, and contributor standards."
 Date Published: June 23, 2026
-Last Updated: 10/01/2026 - 02:00 PM
+Last Updated: 10/05/2026 - 08:30 PM
 Status: Updating
 ---
 
@@ -148,7 +148,7 @@ The topic guides own exact column definitions, source discovery rules, cleaning 
 |---|---|
 | Web application | Next.js 16 and React 19 |
 | Styling and components | Tailwind CSS 4, Radix-based UI components, shared PPIC tokens |
-| Charting | Plotly.js through `react-plotly.js` for most chart types and both maps; `@visx/scale`, `@visx/shape`, `@visx/axis`, `@visx/grid`, and `@visx/group` (pinned at 4.0.0) for the line, bar, and range charts, migrating chart by chart per [[chart-renderer-implementation-plan]] |
+| Charting | Plotly.js through `react-plotly.js` for most chart types and both maps; `@visx/scale`, `@visx/shape`, `@visx/axis`, `@visx/grid`, and `@visx/group` (pinned at 4.0.0) for the line, bar, range, dot plot, scatter, and bubble charts, migrating chart by chart per [[chart-renderer-implementation-plan]] |
 | Pipeline language | Python 3.12 |
 | Data processing | pandas and NumPy |
 | Source access | Requests, Beautiful Soup, OpenPyXL, and xlrd |
@@ -385,7 +385,7 @@ The durable state has three top-level fields:
 | Field | Meaning |
 |---|---|
 | `version` | The wire-format version, currently `3` |
-| `question` | Dataset, source, outcome, geography, time, calculation, and comparisons |
+| `question` | Dataset, source, role measures (`outcomes`), geography, time, calculation, and comparisons |
 | `presentation` | Chart type, comparison layout, labels, `format`, appearance, `annotations`, and chart-specific parked state |
 
 A curated topic stores `question.dataset.kind: "module"` with a literal `moduleId`. An inline question stores the typed table and its role-to-column bindings inside `question.dataset`.
@@ -422,6 +422,8 @@ ChartRenderer (PlotlyChart or a visx chart) or DataTableView
 
 ### API boundary
 
+Scatter and bubble descriptors declare `additionalOutcomeRoles`. A module question supplies those roles in `outcomes`; each comparison shares all measures. The executor returns one observation per measure, tagging horizontal and size rows with `measureRole`. Both renderers use `pairOutcomes` to assemble points. A topic offers these charts only when it holds enough distinct measures.
+
 Every topic API exposes a production version 3 POST handler through `handleQuestionPost`.
 
 ```js
@@ -430,7 +432,7 @@ Every topic API exposes a production version 3 POST handler through `handleQuest
   version: 3,
   question: {
     dataset: { kind: "module", moduleId: "pophousing" },
-    outcome: { measureId: "Total Population" },
+    outcomes: [{ role: "y", measureId: "Total Population" }],
     geography: { subset: "Counties", locations: ["Alameda"] },
     time: { contract: "range", startYear: 2020, endYear: 2026 },
     calculation: { id: "actual", params: {} },
@@ -471,9 +473,9 @@ Curated topic adapters and inline tables both produce the observation contract d
 
 `lib/visualization/adapters/index.js` converts observations into Plotly figures. Production editor charts do not render through `toPlotly.js`; that file remains live for UI Kit examples.
 
-The chart renderer is migrating from Plotly to visx, one chart type at a time, under the plan of record at [[chart-renderer-implementation-plan]]. Every descriptor in `chartRegistry.js` declares a `renderer` of `"plotly"` or `"visx"`; `VISX_CHART_TYPES` lists the chart types with a visx drawing (currently `line`, `bar`, and `dumbbell`, the range chart), and `rendererFor(type, preview)` resolves the active renderer, honoring a `?renderer=visx|plotly` page-address preview request only when that renderer exists for the type and never in embed mode. Stage 1 (writing every test) and Stage 2 groundwork (Workstreams A, B, and C) are done. Stage 3's line chart (Workstream D), bar chart (Workstream E), and range chart (Workstream F) are also done, and all three now default to visx. Dot plot, forest, heatmap, scatter and bubble, and pie charts remain on Plotly pending Workstreams G through K; maps (Workstream L) stay on Plotly permanently. `components/charts/ChartRenderer.js` is the one place that draws a tagged preview result, either `PlotlyChart` or the matching visx component, and it marks its container `data-chart-ready="true"` once drawing finishes, which screenshot tests wait on instead of Plotly's own ready callback. A visx chart draws from a chart model built by `lib/visualization/models/` (`buildChartModel`, `lineModel.js`, `barModel.js`, `rangeModel.js`) and sits inside `components/charts/ChartFrame.js`, which reproduces PPIC's published chart frame: eyebrow, title, subtitle, the drawing and its key, then a source-and-notes box matching the PPIC Datawrapper standard. A "Show source and notes" switch can hide that box; its source line now cites each topic's dataset in full through a `sourceCitations` map on every module schema, resolved by `citeSources` in `lib/visualization/datasetLabels.js`, rather than showing a raw Source filter value. Shared style-guide values (type sizes, line weights, spacing, export widths, the grid rule, the source box, and hover labels) live in `lib/visualization/chartStyle.js`, the one owner both Plotly and visx read from.
+The chart renderer is migrating from Plotly to visx, one chart type at a time, under the plan of record at [[chart-renderer-implementation-plan]]. Every descriptor in `chartRegistry.js` declares a `renderer` of `"plotly"` or `"visx"`; `VISX_CHART_TYPES` lists the chart types with a visx drawing (currently `line`, `bar`, `dumbbell` (the range chart), `dotPlot`, `scatter`, and `bubble`), and `rendererFor(type, preview)` resolves the active renderer, honoring a `?renderer=visx|plotly` page-address preview request only when that renderer exists for the type and never in embed mode. Stage 1 (writing every test) and Stage 2 groundwork (Workstreams A, B, and C) are done. Stage 3's line chart (Workstream D), bar chart (Workstream E), range chart (Workstream F), dot plot (Workstream G), and scatter and bubble charts (Workstream J) are also done, and all six now default to visx. The dot plot, scatter, and bubble charts share one Scatter tile in the chart picker with a Variant control (`CHART_FAMILIES` in `chartRegistry.js`); each variant stays its own chart type. Workstream Q (Stage 7) lets a module question ask for the scatter's second measure and the bubble's third. Forest, heatmap, and pie charts remain on Plotly pending Workstreams H, I, and K; maps (Workstream L) stay on Plotly permanently. `components/charts/ChartRenderer.js` is the one place that draws a tagged preview result, either `PlotlyChart` or the matching visx component, and it marks its container `data-chart-ready="true"` once drawing finishes, which screenshot tests wait on instead of Plotly's own ready callback. A visx chart draws from a chart model built by `lib/visualization/models/` (`buildChartModel`, `lineModel.js`, `barModel.js`, `rangeModel.js`, `dotPlotModel.js`, `pointModel.js`) and sits inside `components/charts/ChartFrame.js`, which reproduces PPIC's published chart frame: eyebrow, title, subtitle, the drawing and its key, then a source-and-notes box matching the PPIC Datawrapper standard. A "Show source and notes" switch can hide that box; its source line now cites each topic's dataset in full through a `sourceCitations` map on every module schema, resolved by `citeSources` in `lib/visualization/datasetLabels.js`, rather than showing a raw Source filter value. Shared style-guide values (type sizes, line weights, spacing, export widths, the grid rule, the source box, and hover labels) live in `lib/visualization/chartStyle.js`, the one owner both Plotly and visx read from.
 
-`ExportMenu` and `lib/export/*` own image, data, spreadsheet, and embed output. `DataTableView` renders exact values both as a chart family and inside the topic workbench's data view. Image export (PNG, SVG, JPG, and PDF) of a visx-rendered chart, currently the line, bar, and range charts, is not yet implemented and shows a "coming soon" notice, because export still calls `Plotly.toImage`; CSV export and embeds work on either renderer. Workstream M replaces this once every chart type has moved to visx.
+`ExportMenu` and `lib/export/*` own image, data, spreadsheet, and embed output. `DataTableView` renders exact values both as a chart family and inside the topic workbench's data view. Image export (PNG, SVG, JPG, and PDF) of a visx-rendered chart, currently the line, bar, range, dot plot, scatter, and bubble charts, is not yet implemented and shows a "coming soon" notice, because export still calls `Plotly.toImage`; CSV export and embeds work on either renderer. Workstream M replaces this once every chart type has moved to visx.
 
 ### Views and persistence
 
@@ -764,7 +766,7 @@ These are the important current boundaries:
 - `/api/pophousing/update` needs an authenticated, process-capable deployment boundary.
 - Some live code still uses legacy `module` identifiers.
 - Quarantined visualization code remains recoverable until its removal ledger records a reviewed decision.
-- The chart renderer migration from Plotly to visx is mid-flight: only the line, bar, and range charts draw with visx today, every other chart type still draws with Plotly, and maps stay on Plotly permanently. See [[chart-renderer-implementation-plan]].
+- The chart renderer migration from Plotly to visx is mid-flight: only the line, bar, range, dot plot, scatter, and bubble charts draw with visx today, every other chart type still draws with Plotly, and maps stay on Plotly permanently. See [[chart-renderer-implementation-plan]].
 - Image export (PNG, SVG, JPG, PDF) of a visx-rendered chart is not yet implemented and shows a "coming soon" notice; CSV export and embeds are unaffected.
 - The project specification remains `Updating` because topics and product capabilities continue to evolve; each section describes current behavior unless explicitly marked historical.
 

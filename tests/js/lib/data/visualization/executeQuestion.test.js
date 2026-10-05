@@ -471,3 +471,293 @@ describe("materialized cells", () => {
     expect(result.periods).not.toContain(Math.max(...PROJECTIONS_TIME.availablePeriods));
   });
 });
+
+/**
+ * Workstream Q - a module question can ask for a second and third measure.
+ *
+ * `question.outcomes` replaces `question.outcome`: the y measure first, then
+ * the chart's extra roles ("x", "size"). The server still accepts the old
+ * shape. Extra-measure rows carry `measureRole`; y rows stay untagged so every
+ * chart that reads them today is unchanged.
+ */
+const MULTI_MEASURES = {
+  Population: {
+    id: "Population",
+    label: "Population",
+    unit: "people",
+    aggregation: "notAllowed",
+    calculations: ["actual", "percentChange"],
+  },
+  ShareOver30: {
+    id: "ShareOver30",
+    label: "Share Over 30%",
+    unit: "percent",
+    aggregation: "notAllowed",
+    calculations: ["actual", "percentChange"],
+  },
+  MedianRent: {
+    id: "MedianRent",
+    label: "Median Rent",
+    unit: "dollars",
+    aggregation: "notAllowed",
+    calculations: ["actual"],
+  },
+};
+
+// [county]: [Population, ShareOver30, MedianRent]; null means suppressed.
+const MULTI_VALUES = {
+  Alameda: { Population: 1600000, ShareOver30: 20, MedianRent: 2400 },
+  Fresno: { Population: 1000000, ShareOver30: 45, MedianRent: 1300 },
+  Marin: { Population: 260000, ShareOver30: null, MedianRent: 3100 },
+};
+
+const multiAdapter = {
+  id: "housing",
+  measure(measureId) {
+    return MULTI_MEASURES[measureId] || null;
+  },
+  availablePeriods: () => [2024, 2025],
+  defaultReportingPeriod: () => 2025,
+  select({ measure, periods }) {
+    return periods.flatMap((period) =>
+      Object.entries(MULTI_VALUES).map(([county, values]) => ({
+        period,
+        geographyId: county,
+        geographyLabel: county,
+        value: values[measure.id],
+        status: values[measure.id] === null ? "suppressed" : "available",
+        valueKind: "observed",
+        source: "ACS",
+      })),
+    );
+  },
+};
+
+function multiQuestion(overrides = {}) {
+  return {
+    version: 3,
+    question: {
+      dataset: { kind: "module", moduleId: "housing" },
+      source: "ACS",
+      outcomes: [{ role: "y", measureId: "Population" }],
+      geography: { subset: "Counties", locations: ["Alameda", "Fresno", "Marin"] },
+      time: { contract: "snapshot", year: 2025 },
+      calculation: { id: "actual", params: {} },
+      comparisons: [{ id: "cmp_all", dimensions: {} }],
+      ...overrides,
+    },
+  };
+}
+
+const runMulti = (spec) => executeQuestion(spec, { adapter: multiAdapter });
+const rowsOf = (result, measureId) =>
+  result.observations.filter((row) => row.measureId === measureId);
+const valueFor = (rows, county) => rows.find((row) => row.geographyId === county)?.value;
+
+describe("Workstream Q: several measures in one question", () => {
+  it("answers a question with only a y measure exactly as before", async () => {
+    const result = await runMulti(multiQuestion());
+
+    expect(result.status).toBe("ok");
+    expect(result.observations).toHaveLength(3);
+    for (const row of result.observations) {
+      expect(row.measureId).toBe("Population");
+      expect(row).not.toHaveProperty("measureRole");
+    }
+    expect(valueFor(result.observations, "Alameda")).toBe(1600000);
+  });
+
+  it("answers a question saved with the old outcome field", async () => {
+    const old = multiQuestion().question;
+    delete old.outcomes;
+    old.outcome = { measureId: "Population" };
+    const result = await runMulti({ version: 3, question: old });
+
+    expect(result.status).toBe("ok");
+    expect(result.observations).toHaveLength(3);
+    expect(result.observations.every((row) => row.measureId === "Population")).toBe(true);
+    expect(valueFor(result.observations, "Fresno")).toBe(1000000);
+  });
+
+  it("returns one row per extra measure, tagged with its role", async () => {
+    const result = await runMulti(
+      multiQuestion({
+        outcomes: [
+          { role: "y", measureId: "Population" },
+          { role: "x", measureId: "ShareOver30" },
+          { role: "size", measureId: "MedianRent" },
+        ],
+      }),
+    );
+
+    expect(result.status).toBe("ok");
+    // 3 places x 3 measures.
+    expect(result.observations).toHaveLength(9);
+    const y = rowsOf(result, "Population");
+    const x = rowsOf(result, "ShareOver30");
+    const size = rowsOf(result, "MedianRent");
+    expect(y.map((row) => row.measureRole)).toEqual([undefined, undefined, undefined]);
+    expect(x.every((row) => row.measureRole === "x")).toBe(true);
+    expect(size.every((row) => row.measureRole === "size")).toBe(true);
+    // Each row carries its own measure's unit and label.
+    expect(y[0].unit).toBe("people");
+    expect(x[0].unit).toBe("percent");
+    expect(x[0].measureLabel).toBe("Share Over 30%");
+    expect(size[0].unit).toBe("dollars");
+    expect(valueFor(x, "Alameda")).toBe(20);
+    expect(valueFor(size, "Marin")).toBe(3100);
+    expect(validateResponse(result).valid).toBe(true);
+  });
+
+  it("keeps a suppressed horizontal value as suppressed, not missing", async () => {
+    const result = await runMulti(
+      multiQuestion({
+        outcomes: [
+          { role: "y", measureId: "Population" },
+          { role: "x", measureId: "ShareOver30" },
+        ],
+      }),
+    );
+
+    const marinX = rowsOf(result, "ShareOver30").find((row) => row.geographyId === "Marin");
+    const marinY = rowsOf(result, "Population").find((row) => row.geographyId === "Marin");
+    expect(marinX.status).toBe(OBSERVATION_STATUS.SUPPRESSED);
+    expect(marinX.value).toBeNull();
+    // The y value for the same place is untouched by the x suppression.
+    expect(marinY.status).toBe(OBSERVATION_STATUS.AVAILABLE);
+    expect(marinY.value).toBe(260000);
+  });
+
+  it("blocks an unknown measure and names its role", async () => {
+    const result = await runMulti(
+      multiQuestion({
+        outcomes: [
+          { role: "y", measureId: "Population" },
+          { role: "x", measureId: "NotAMeasure" },
+        ],
+      }),
+    );
+
+    expect(result.status).toBe("blocked");
+    const issue = result.issues.find((entry) => entry.code === "unknownOutcome");
+    expect(issue).toBeDefined();
+    expect(issue.level).toBe("blocking");
+    expect(issue.role).toBe("x");
+  });
+
+  it("blocks the same measure in two roles", async () => {
+    const result = await runMulti(
+      multiQuestion({
+        outcomes: [
+          { role: "y", measureId: "Population" },
+          { role: "x", measureId: "Population" },
+        ],
+      }),
+    );
+
+    expect(result.status).toBe("blocked");
+    expect(result.issues.map((issue) => issue.code)).toContain("sameOutcomeTwice");
+  });
+
+  it("offers a calculation only when every measure's unit allows it", async () => {
+    // Percent change suits people but not a percent, so one measure refuses it
+    // for the whole question even though the y measure allows it.
+    const refused = await runMulti(
+      multiQuestion({
+        outcomes: [
+          { role: "y", measureId: "Population" },
+          { role: "x", measureId: "ShareOver30" },
+        ],
+        time: { contract: "range", startYear: 2024, endYear: 2025 },
+        calculation: { id: "percentChange", params: {} },
+      }),
+    );
+    expect(refused.status).toBe("blocked");
+    expect(refused.issues.map((issue) => issue.code)).toContain("calculationNotAllowedForUnit");
+
+    const allowed = await runMulti(
+      multiQuestion({
+        time: { contract: "range", startYear: 2024, endYear: 2025 },
+        calculation: { id: "percentChange", params: {} },
+      }),
+    );
+    expect(allowed.issues.map((issue) => issue.code)).not.toContain("calculationNotAllowedForUnit");
+  });
+
+  it("ranks places by the chosen measure and keeps their other measures", async () => {
+    const result = await runMulti(
+      multiQuestion({
+        outcomes: [
+          { role: "y", measureId: "Population" },
+          { role: "x", measureId: "ShareOver30" },
+        ],
+        // Fresno has the highest share (45) but not the highest population.
+        calculation: {
+          id: "actual",
+          params: { ranking: { role: "x", direction: "top", n: 1 } },
+        },
+      }),
+    );
+
+    expect(result.status).toBe("ok");
+    const places = (measureId) => rowsOf(result, measureId).map((row) => row.geographyId);
+    expect(places("ShareOver30")).toEqual(["Fresno"]);
+    // The y measure follows the place the x ranking kept; Alameda has the
+    // largest population and is dropped, so measures were never mixed.
+    expect(places("Population")).toEqual(["Fresno"]);
+    expect(valueFor(rowsOf(result, "Population"), "Fresno")).toBe(1000000);
+  });
+
+  it("ranks by the y measure when no ranking measure is saved", async () => {
+    const result = await runMulti(
+      multiQuestion({
+        outcomes: [
+          { role: "y", measureId: "Population" },
+          { role: "x", measureId: "ShareOver30" },
+        ],
+        calculation: { id: "actual", params: { ranking: { direction: "top", n: 2 } } },
+      }),
+    );
+
+    expect(result.status).toBe("ok");
+    const places = (measureId) =>
+      rowsOf(result, measureId)
+        .map((row) => row.geographyId)
+        .sort();
+    // Top two populations are Alameda and Fresno.
+    expect(places("Population")).toEqual(["Alameda", "Fresno"]);
+    expect(places("ShareOver30")).toEqual(["Alameda", "Fresno"]);
+  });
+
+  it("blocks a ranking measure the question has no measure for", async () => {
+    const result = await runMulti(
+      multiQuestion({
+        calculation: {
+          id: "actual",
+          params: { ranking: { role: "size", direction: "top", n: 1 } },
+        },
+      }),
+    );
+
+    expect(result.status).toBe("blocked");
+    expect(result.issues.map((issue) => issue.code)).toContain("unknownRankingMeasure");
+  });
+});
+
+it("validates each measure against a comparison before selecting its rows", async () => {
+  const checked = [];
+  const result = await executeQuestion(multiQuestion({ outcomes: [
+    { role: "y", measureId: "Population" }, { role: "x", measureId: "ShareOver30" },
+  ] }), { adapter: {
+    ...multiAdapter,
+    validateComparison({ comparison, measure }) {
+      checked.push(measure.id);
+      return measure.id === "ShareOver30" ? [{ code: "unsupportedShare", level: "comparison", comparisonId: comparison.id, message: "Share is unavailable for this comparison." }] : [];
+    },
+  } });
+  expect(checked).toEqual(["Population", "ShareOver30"]);
+  expect(result.status).toBe("blocked");
+  expect(result.comparisons[0].status).toBe("invalid");
+  expect(result.observations).toEqual([]);
+  expect(validateResponse(result).valid).toBe(true);
+});

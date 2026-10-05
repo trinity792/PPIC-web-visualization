@@ -27,6 +27,8 @@
  *   - Implements the select, checkbox-list, and draggable list-row patterns
  */
 
+import { readOutcomes } from "@/lib/visualization/questionSpec";
+import { getChartType } from "@/lib/visualization/chartRegistry";
 import React, { useMemo, useState } from "react";
 
 import { Search } from "lucide-react";
@@ -68,8 +70,9 @@ const COLLAPSED_LOCATION_COUNT = 7;
  * `bar` variant flag, so its `chartType` is "bar" and already matches here.
  */
 // The range chart joined on 2026-10-01 (renderer plan F, owner): its rows are
-// places, so dragging locations sets the row order.
-const PLACE_CATEGORY_CHART_TYPES = new Set(["line", "bar", "dumbbell"]);
+// places, so dragging locations sets the row order. The dot plot joined on
+// 2026-10-05 (renderer plan G) for the same reason.
+const PLACE_CATEGORY_CHART_TYPES = new Set(["line", "bar", "dumbbell", "dotPlot"]);
 
 /** Whether a schema offers any geography at all (bring-your-own-data does not). */
 export function hasGeographicSubsets(config, schema) {
@@ -80,6 +83,8 @@ export default function GeographySection() {
   const { config: storedConfig, dispatch, schema } = useChartConfig();
   const v3 = storedConfig.version === 3;
   const ranking = storedConfig.question?.calculation?.params?.ranking;
+  const outcomes = readOutcomes(storedConfig.question);
+  const roleLabels = { y: "Outcome (vertical axis)", ...Object.fromEntries((getChartType(storedConfig.presentation?.chartType)?.additionalOutcomeRoles || []).map(({ role, label }) => [role, label])) };
   const config = v3
     ? {
         ...storedConfig,
@@ -217,17 +222,28 @@ export default function GeographySection() {
         </p>
       )}
 
-      {config.filters?.subset && reorderable ? (
+      {config.filters?.subset && (reorderable || ["scatter", "bubble"].includes(config.chartType)) ? (
         // Ranked values sits behind Advanced Mode; the place list above still
         // carries ordering and checkbox selection, so hiding it costs no reach.
         advanced ? (
+          <>
           <RankingControls
             idPrefix="geography-ranking"
             enabled={v3 ? Boolean(ranking) : config.filters?.topN != null}
             topN={config.filters?.topN ?? 20}
             sort={config.appearance?.sort || "value"}
-            onChange={({ topN, sort }) => dispatch({ type: "SET_RANKING", topN, sort })}
+            onChange={({ topN, sort }) => dispatch({ type: "SET_RANKING", topN, sort, ...(ranking?.role ? { role: ranking.role } : {}) })}
           />
+          {ranking && outcomes.length > 1 ? (
+            <div className="grid gap-2">
+              <Label htmlFor="geography-rank-by">Rank by</Label>
+              <Select value={ranking.role || "y"} onValueChange={(role) => dispatch({ type: "SET_RANKING", role, topN: ranking.n, sort: config.appearance.sort })}>
+                <SelectTrigger id="geography-rank-by" aria-label="Rank by"><SelectValue /></SelectTrigger>
+                <SelectContent>{outcomes.map(({ role }) => <SelectItem key={role} value={role}>{roleLabels[role] || role}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+          ) : null}
+          </>
         ) : null
       ) : config.filters?.subset ? (
         // This chart's categories are something other than places (a pie of

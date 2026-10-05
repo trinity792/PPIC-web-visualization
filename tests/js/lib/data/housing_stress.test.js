@@ -27,7 +27,7 @@ describe("ACS Housing Stress legacy overlap", () => {
 
   it("returns the 2023 year-over-year percentage for the repaired series", async () => {
     const spec = getDefaultQuestion("housing-stress");
-    spec.question.outcome = { measureId: "Number Over 30%" };
+    spec.question.outcomes = [{ role: "y", measureId: "Number Over 30%" }];
     spec.question.geography = { subset: "Regions", locations: ["Bay Area"] };
     spec.question.time = { contract: "range", startYear: 2022, endYear: 2023 };
     spec.question.calculation = { id: "percentChange", params: {} };

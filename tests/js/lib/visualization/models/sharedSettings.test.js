@@ -34,3 +34,13 @@ it("ignores removed and hidden settings without error", () => {
   expect(JSON.stringify(old)).toBe(JSON.stringify(settings()));
   expect(old.axes.y.format(40000)).toBe("40000");
 });
+
+it("formats each point axis using that role's own calculation", () => {
+  const observations = [
+    { measureRole: "x", value: 5, calculation: { id: "actual" } },
+    { value: 10, calculation: { id: "percentChange" } },
+  ];
+  const settings = sharedSettings(input("scatter", { observations }));
+  expect(settings.axes.x.format(5)).not.toContain("%");
+  expect(settings.axes.y.format(10)).toContain("%");
+});

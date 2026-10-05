@@ -38,7 +38,9 @@ import { AlertCircle } from "lucide-react";
 
 import PlotlyChart from "@/components/charts/PlotlyChart";
 import BarChart from "@/components/charts/visx/BarChart";
+import DotPlot from "@/components/charts/visx/DotPlot";
 import LineChart from "@/components/charts/visx/LineChart";
+import PointChart from "@/components/charts/visx/PointChart";
 import RangeChart from "@/components/charts/visx/RangeChart";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
@@ -52,6 +54,9 @@ const VISX_CHARTS = Object.freeze({
   line: LineChart,
   bar: BarChart,
   dumbbell: RangeChart,
+  dotPlot: DotPlot,
+  scatter: PointChart,
+  bubble: PointChart,
 });
 
 // ── Helpers ──────────────────────────────────────────────────────────

@@ -65,8 +65,10 @@ import {
   isMeasure,
   supportsRole,
 } from "@/lib/visualization/fieldTypes";
+import { CHART_STYLE } from "@/lib/visualization/chartStyle";
 import { impliedBindings } from "@/lib/visualization/impliedRoles";
 import { buildBarModel } from "@/lib/visualization/models/barModel";
+import { buildDotPlotModel } from "@/lib/visualization/models/dotPlotModel";
 import { buildRangeModel } from "@/lib/visualization/models/rangeModel";
 import { showsSourceBox } from "@/lib/visualization/models/sharedSettings";
 import { previewInput } from "@/lib/visualization/previewInput";
@@ -404,6 +406,13 @@ function NumberTypeControls({ fields, appearance, onChange }) {
 
 // Renderer plan F (owner, 2026-10-01, from PPIC's published range plots). The
 // first choice in each list is the default.
+// Scatter and bubble point names (owner, 2026-10-05): Automatic names each
+// point beside it wherever the name fits.
+const POINT_LABEL_MODE_CHOICES = Object.freeze([
+  { value: "automatic", label: "Automatic" },
+  { value: "off", label: "Off" },
+]);
+
 const RANGE_STYLE_CHOICES = Object.freeze([
   { value: "dots", label: "Dots" },
   { value: "arrow", label: "Arrow" },
@@ -451,13 +460,15 @@ function usesGroupedRowLabels(config) {
 }
 
 /**
- * Which row label alignments apply. A version 3 range chart always labels its
- * rows, and draws group headers when it shows several comparisons in several
- * locations (rangeModel.js), so its controls follow the drawn chart rather
- * than a `group` binding that version 3 views rarely set (renderer plan F).
+ * Which row label alignments apply. A version 3 range chart or dot plot always
+ * labels its rows, and draws group headers when it shows several comparisons
+ * in several locations (rangeModel.js) or several periods of several
+ * comparisons in several locations (dotPlotModel.js), so its controls follow
+ * the drawn chart rather than a `group` binding that version 3 views rarely
+ * set (renderer plan F, G).
  */
 function rowLabelControls(config, rangeHasGroups) {
-  if (config.version === 3 && config.chartType === "dumbbell") {
+  if (config.version === 3 && ["dumbbell", "dotPlot"].includes(config.chartType)) {
     return { group: rangeHasGroups || Boolean(config.bindings?.group), variable: true };
   }
   const grouped = usesGroupedRowLabels(config);
@@ -942,25 +953,48 @@ const SORT_CHOICES = Object.freeze([
 ]);
 
 /**
- * Whether the loaded range chart draws group headers, so the Group alignment
- * control shows only when it has something to align.
+ * Whether the loaded range chart or dot plot draws group headers, so the Group
+ * alignment control shows only when it has something to align.
  */
+const ROW_MODEL_BUILDERS = Object.freeze({ dumbbell: buildRangeModel, dotPlot: buildDotPlotModel });
+
 function useRangeHasGroups(storedConfig, schema) {
   const result = useLoadedResult();
   return React.useMemo(() => {
+    const chartType = storedConfig.presentation?.chartType;
     if (
       storedConfig.version !== 3 ||
-      storedConfig.presentation?.chartType !== "dumbbell" ||
+      !Object.hasOwn(ROW_MODEL_BUILDERS, chartType ?? "") ||
       !result?.observations?.length
     ) {
       return false;
     }
     try {
-      return buildRangeModel(previewInput(storedConfig, schema, result, "dumbbell")).groups.length > 0;
+      return ROW_MODEL_BUILDERS[chartType](previewInput(storedConfig, schema, result, chartType)).groups.length > 0;
     } catch {
       return false;
     }
   }, [storedConfig, schema, result]);
+}
+
+/**
+ * The names of the dots the dot plot draws (comparisons, or periods when it
+ * shows one comparison over several), so Show values for offers exactly what
+ * the chart shows. The preview reports the Plotly adapter's names, which are
+ * always comparisons, so a version 3 dot plot names them from its own model.
+ */
+function useDotPlotSeriesNames(storedConfig, schema, fallback) {
+  const result = useLoadedResult();
+  return React.useMemo(() => {
+    if (storedConfig.version !== 3 || !result?.observations?.length) return fallback;
+    try {
+      return buildDotPlotModel(previewInput(storedConfig, schema, result, "dotPlot")).series.map(
+        (entry) => entry.label,
+      );
+    } catch {
+      return fallback;
+    }
+  }, [storedConfig, schema, result, fallback]);
 }
 
 /**
@@ -1430,6 +1464,7 @@ export default function AppearanceSection() {
 
   const { advanced } = useAdvancedMode();
   const rowLabels = rowLabelControls(config, useRangeHasGroups(storedConfig, schema));
+  const dotSeriesNames = useDotPlotSeriesNames(storedConfig, schema, config.seriesNames || EMPTY_NAMES);
   // A chart that labels its data directly (the line chart) defaults to
   // "Automatic": direct labels when they fit, otherwise a key on the right.
   const legendDefault = chart?.defaults?.legendPosition || "right";
@@ -1827,13 +1862,11 @@ export default function AppearanceSection() {
 
       {/* Per-series value labels for the dot plot — turn the master "Show point
           values" on, then hide individual series (e.g. show only "Women").
-          Keyed on the last-rendered series names. */}
-      {config.chartType === "dotPlot" &&
-      appearance.showPointLabels &&
-      (config.seriesNames || []).length ? (
+          Keyed on the names of the dots the chart draws. */}
+      {config.chartType === "dotPlot" && appearance.showPointLabels && dotSeriesNames.length ? (
         <div className="grid gap-2 rounded-lg border bg-card p-3">
           <span className="text-sm font-medium">Show values for</span>
-          {(config.seriesNames || []).map((name) => {
+          {dotSeriesNames.map((name) => {
             const perSeries = appearance.pointLabelSeries || {};
             return (
               <div key={name} className="flex items-center justify-between gap-3">
@@ -1851,6 +1884,56 @@ export default function AppearanceSection() {
             );
           })}
         </div>
+      ) : null}
+
+      {/* Dot size (renderer plan G): a diameter in px, the standard size from
+          chartStyle.js until one is chosen. */}
+      {config.chartType === "dotPlot" ? (
+        <div className="grid gap-2">
+          <div className="flex items-center justify-between gap-3">
+            <Label htmlFor="appearance-marker-size">Marker size</Label>
+            <span className="text-xs tabular-nums text-muted-foreground">
+              {Number(appearance.markerSize ?? CHART_STYLE.dot.markerSize)}px
+            </span>
+          </div>
+          <Slider
+            id="appearance-marker-size"
+            min={CHART_STYLE.dot.minMarkerSize}
+            max={CHART_STYLE.dot.maxMarkerSize}
+            step={1}
+            value={[Number(appearance.markerSize ?? CHART_STYLE.dot.markerSize)]}
+            onValueChange={([value]) => setAppearance("markerSize", value)}
+            aria-label="Marker size"
+            thumbLabels={["Marker size"]}
+          />
+        </div>
+      ) : null}
+
+      {/* Scatter and bubble (renderer plan J; owner, 2026-10-05): point names
+          beside their points, and the axes' starting point. */}
+      {["scatter", "bubble"].includes(config.chartType) ? (
+        <>
+          <RangeChoice
+            id="appearance-point-labels-mode"
+            label="Point labels"
+            value={appearance.pointLabels}
+            choices={POINT_LABEL_MODE_CHOICES}
+            onChange={(value) => setAppearance("pointLabels", value)}
+          />
+          <div className="grid gap-1">
+            <div className="flex items-center justify-between gap-3">
+              <Label htmlFor="appearance-fit-axes">Fit both axes to the data</Label>
+              <Switch
+                id="appearance-fit-axes"
+                checked={appearance.fitAxes === true}
+                onCheckedChange={(checked) => setAppearance("fitAxes", checked)}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Off, the vertical axis starts at zero.
+            </p>
+          </div>
+        </>
       ) : null}
 
       {/* Forest plot: how the CI ends and the estimate marker render, plus the

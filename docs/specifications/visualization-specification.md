@@ -4,7 +4,7 @@ Content Type: project specification
 pinned: true
 description: "Current product and technical specification for building, rendering, sharing, and exporting visualizations in the PPIC Data Explorer."
 Date Published: July 27, 2026
-Last Updated: 10/01/2026 - 02:00 PM
+Last Updated: 10/05/2026 - 08:30 PM
 Status: Finalized
 ---
 
@@ -129,7 +129,7 @@ The current section order is owned by `lib/visualization/sidebarSections.js`.
 | Section | What the reader decides | When it appears |
 |---|---|---|
 | Datasets | Which published dataset or source answers the question | Only when the topic offers a real dataset choice |
-| Chart Type | Which visual form to use | Always |
+| Chart Type | Which visual form to use, and for the Scatter tile which variant | Always |
 | Outcome | Which measure to show and which calculation to apply | Always in version 3 |
 | Comparisons | Which demographic or categorical groups to compare and how to present them | When the topic declares comparison dimensions |
 | Time | A range, snapshot, selected snapshots, or two periods | When the question has a time contract |
@@ -137,6 +137,8 @@ The current section order is owned by `lib/visualization/sidebarSections.js`.
 | Labels | Title, subtitle, and axis labels, each with a show switch | When the chart supports labels |
 | Appearance | Palette, Legend Position, footnote and the source box switch, number formats, and chart-specific styling | When the chart supports appearance settings |
 | Typography | Text sizes and decimal precision | In Advanced Mode, when the chart supports appearance settings |
+
+For module scatter and bubble charts, **Outcome (vertical axis)** selects y, **Horizontal axis** selects x, and **Bubble size** selects size. Extra selects start empty and exclude measures already chosen for another role. Switching chart types parks unused measures with the chart and restores them on return. A topic must have two measures to offer scatter and three to offer bubble.
 
 **Outcome** also contains calculation controls. `TransformSection` remains the component that supplies part of this content, but it is not a separate sidebar section.
 
@@ -165,7 +167,7 @@ Multi-chart controls are not hidden behind Advanced Mode. If the interface suppo
 
 ## Chart catalog
 
-There are twelve registered chart families. A chart can still be unavailable for a particular topic, calculation, or data source.
+There are twelve registered chart types. The picker shows ten tiles, because the dot plot, scatter, and bubble charts share one **Scatter** tile (below). A chart can still be unavailable for a particular topic, calculation, or data source.
 
 | Chart | Best used for | Important rule |
 |---|---|---|
@@ -174,15 +176,21 @@ There are twelve registered chart families. A chart can still be unavailable for
 | Choropleth Map | Geographic variation shown by area color | Requires joinable boundary geometry and stable place identifiers |
 | Matrix Heatmap | Patterns across many rows and periods | Encodes the outcome with a color scale |
 | Range | The gap between exactly two values per category | Uses two periods of the same measure. Drawn with visx by default (see [Chart renderers](#chart-renderers)) |
-| Dot Plot | Several series as dots on one shared value axis | Uses category, series, and value roles |
+| Dot Plot | Several series as dots on one shared value axis | Uses category, series, and value roles. A variant of the Scatter tile. Drawn with visx by default |
 | Forest / Whisker Plot | Estimates and confidence intervals | Uses lower bound, upper bound, and an optional estimate |
-| Scatter | The relationship between two numeric measures | Each point needs an observation unit |
-| Bubble | A scatter plot with a third measure encoded as point area | Bubble size values must be non-negative |
+| Scatter | The relationship between two numeric measures | Each point needs an observation unit and two measures; a topic needs two measures to offer it. A variant of the Scatter tile. Drawn with visx by default |
+| Bubble | A scatter plot with a third measure encoded as point area | Bubble size values must be non-negative; a topic needs three measures to offer it. A variant of the Scatter tile. Drawn with visx by default |
 | Pie / Donut | Parts of a whole at one point in time | Intended for a small number of slices |
 | Symbol Map | Magnitude by place using proportional markers | Requires representative points and stable place identifiers |
 | Data Table | Exact values in searchable, sortable rows | Uses the answered question without graphical marks |
 
 The chart registry owns each chart's required roles, accepted field kinds, time contracts, calculation choices, comparison presentations, color behavior, renderer, defaults, and complexity guidance. The editor reads those declarations instead of maintaining separate chart lists.
+
+### The Scatter tile and its variants
+
+The dot plot, scatter, and bubble charts share one **Scatter** tile (owner decision, October 5, 2026). Choosing it keeps the current variant, or opens the first one the question can draw, and a **Variant** control under the tile grid switches between Scatter, Bubble, and Dot plot. The control stays visible even when only one variant is offered, so the reader can see what the tile draws.
+
+Each variant is still its own chart type, because each needs different data and accepts different time choices: a dot plot is rows of categories on one measure, a scatter plots two measures per place, and a bubble adds a third for size. Choosing a variant is a chart type switch, so saved views, pasted-data mappings, and capabilities are unchanged. `CHART_FAMILIES` and `chartFamilyOf` in `chartRegistry.js` declare the family, and `ChartTypeSection.js` draws the tile and the control. On a topic without enough measures (Demographic Projections holds one), Scatter and Bubble are not offered and the control lists Dot plot only.
 
 ### Chart renderers
 
@@ -193,6 +201,7 @@ Charts are moving from Plotly to visx one type at a time, following [[chart-rend
 | Line | visx | Default since September 29, 2026, ahead of the export rebuild |
 | Bar | visx | Default since September 30, 2026, ahead of the export rebuild |
 | Range | visx | Default since October 1, 2026, ahead of the export rebuild |
+| Dot Plot, Scatter, Bubble | visx | Default since October 5, 2026, ahead of the export rebuild |
 | Choropleth Map, Symbol Map | Plotly | Stay on Plotly permanently |
 | Every other chart | Plotly | Each moves to visx in its own plan workstream |
 
@@ -239,6 +248,29 @@ Built October 1, 2026 (Workstream F), following PPIC's published range plots in 
 - **Hover.** The information goes on the chart, as on the bar chart. The hovered row's label turns bold, and both of its values appear beside its ends in bold. With several comparisons, the other comparisons' rows fade to a 30% tint. Screen readers hear the row, both periods, and both values.
 - **Keyboard.** The chart takes focus; the arrow keys step through the rows, Home and End jump to the first and last, and Escape clears the hover.
 
+#### The visx dot plot
+
+Built October 5, 2026 (Workstream G), on the range chart's row layout and PPIC's published business-regulation plots. It is the default dot plot drawing; `?renderer=plotly` shows the Plotly version.
+
+- **Dots and rows.** With several comparisons, each comparison is a dot, colored as the Plotly dot plot colors it; with one period the rows are the places, and with several each row is a period, grouped under a bold header per place. With one comparison over several periods, each period is a dot: Navy, then Orange, then the official colors without light Gray (or a chosen categorical palette). A light band runs from each row's lowest dot to its highest. A dot that overlaps an earlier one in its row gets a white outline. Missing and suppressed values draw no dot.
+- **Order and labels.** Rows keep data order until the reader drags the locations in the Geographic Level list. Row label alignment, Hide X-Axis (including an old `showValueAxis: false`), and the value axis (fits the data, with a darker line at zero) match the range chart.
+- **Marker size.** A slider from 6 to 20px (the dot's diameter), 9px by default.
+- **Point values.** **Show point values** writes each value above its dot in the dot's color; where two would touch the later one drops below, and one that fits neither way is left out. **Show values for** lists the dots the chart actually draws (comparisons or periods) and turns each one's values on or off.
+- **Key.** Above the chart by default, and left out when there is only one kind of dot. No Automatic position.
+- **Hover.** Starts only with the pointer over a dot (its circle plus 3px), not over the row label, band, or empty row. The dot's row label then turns bold and every value in the row shows in bold. Screen readers hear the row and every value, missing ones included.
+- **Keyboard.** The chart takes focus; the arrow keys step through the rows, Home and End jump to the first and last, and Escape clears the hover.
+
+#### The visx scatter and bubble charts
+
+Built October 5, 2026 (Workstream J), following the owner's reference scatter (HHI against LQ of the most exposed quintile). They are the default scatter and bubble drawings; `?renderer=plotly` shows the Plotly versions. One chart model (`pointModel.js`) serves both, and both renderers assemble points from one row per measure through `pairOutcomes`.
+
+- **Points.** Small filled points in their comparison's color (one comparison is all PPIC orange). Bubbles are sized by area up to a 28px radius, a little translucent with a white outline, in data order; the unused `sizeByArea` setting is ignored. A point missing its horizontal value, vertical value, or (on a bubble) size is left out, never drawn at zero; a genuine zero stays. A chart with nothing to place says why.
+- **Axes.** The vertical axis starts at zero, as the guide asks, and the horizontal axis fits the data. **Fit both axes to the data** fits both, as the reference does. Either axis gets a darker zero line when it crosses zero. Light grid lines run both ways at each labeled tick. The axis titles sit in bold inside the plot, the vertical one at the top left and the horizontal one at the bottom right, in a clear band beyond the outermost ticks.
+- **Point labels.** **Automatic** (the default) names each point beside it wherever the name fits: right, left, above, below, then the four corners, wrapped onto short lines (`chartLayout/pointLabels.js`). A name that fits nowhere is left out, and hover still names its point. **Off** shows names on hover only.
+- **Key.** Above the chart when there are several comparisons; none for one. Bubbles have no size key yet; the hover label gives each bubble's size.
+- **Hover.** Starts only with the pointer over a point itself (its circle plus 3px), not over its name or empty plot; where bubbles overlap, the one whose center is nearest wins. The point gets a gray ring and a short tick to a boxless label, as on the line chart: its name in bold, then each axis title and value in gray, and its size on a bubble.
+- **Keyboard.** The chart takes focus; Left and Right step to the next point across, Up and Down to the next point up or down, Home and End to the first and last, and Escape closes the label.
+
 ### Availability
 
 A chart is offered only when all relevant gates pass:
@@ -263,7 +295,7 @@ A question records seven possible areas:
 |---|---|
 | Dataset | A curated topic id or an inline table and its column bindings |
 | Source | A selected published source when the topic exposes one |
-| Outcome | The measure to analyze |
+| Outcome | The measures shared by all comparisons: y, and for scatter or bubble, x and size |
 | Geography | Shared geographic level and locations |
 | Time | The time contract and selected periods |
 | Calculation | The calculation id and its parameters |
@@ -272,6 +304,8 @@ A question records seven possible areas:
 Comparisons have stable ids. Their labels may be derived from selected dimensions or replaced with a custom label. In Advanced Mode, a comparison may override shared geography or time.
 
 ### Calculations
+
+A calculation must be allowed for every selected measure. In Advanced Mode, **Ranked values** in Geography can limit scatter and bubble charts too. **Rank by** chooses the measure used to rank places; unset means y. All other measures follow the retained places.
 
 The shared calculation registry is the only owner of formulas for both curated and inline data.
 
@@ -448,6 +482,8 @@ On a topic workbench, **View Data** loads the entire cleaned dataset, including 
 
 On the standalone tool, the full imported table is already present, so no server request is needed.
 
+The chart observation table and its data export show one row per measure. With several measures, a **Measure** column identifies each row and the number column is called **Value**. Each measure keeps its own missing or suppressed status; a point missing a required axis or bubble size is omitted from the chart. Single-measure tables keep their existing columns.
+
 ### Export
 
 Chart export supports:
@@ -458,7 +494,7 @@ Chart export supports:
 - PDF; and
 - an iframe embed.
 
-Image export still renders through `Plotly.toImage`. For a chart drawn with visx (currently the line, bar, and range charts), the image dialog shows a notice that image export is coming soon, and its Download button stays off. Embeds and data export work normally. Workstream M of [[chart-renderer-implementation-plan]] rebuilds export from the drawn SVG.
+Image export still renders through `Plotly.toImage`. For a chart drawn with visx (currently the line, bar, range, dot plot, scatter, and bubble charts), the image dialog shows a notice that image export is coming soon, and its Download button stays off. Embeds and data export work normally. Workstream M of [[chart-renderer-implementation-plan]] rebuilds export from the drawn SVG.
 
 Data export supports:
 
@@ -575,9 +611,7 @@ The following example is illustrative. It asks for one demographic projection co
       "moduleId": "demographic-projections"
     },
     "source": "DoF P-3",
-    "outcome": {
-      "measureId": "Population"
-    },
+    "outcomes": [{ "role": "y", "measureId": "Population" }],
     "geography": {
       "subset": "Counties",
       "locations": ["Alameda County"]
@@ -631,11 +665,13 @@ The serializer keeps only approved question and presentation keys. Computed prev
 
 - `dataset`;
 - `source`;
-- `outcome`;
+- `outcomes`;
 - `geography`;
 - `time`;
 - `calculation`; and
 - `comparisons`.
+
+`outcomes` contains one entry per role, with y first. Older version 3 views with `outcome` migrate through `readOutcomes`; when both fields exist, `outcomes` wins. Saved views, shared links, and embeds write only the list.
 
 For inline data, `question.dataset` has `kind: "inline"`, the typed table in `inline`, and role-to-column `bindings`.
 
@@ -681,10 +717,15 @@ This block is generated from `lib/visualization/settingsRegistry.js`. It is the 
 | comparisonVisibility | Comparison visibility | Appearance | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | presentation.comparisonVisibility | lib/visualization/adapters/index.js |
 | customDivergingStops | Custom diverging stops | Appearance | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | presentation.appearance.divergingStops | lib/visualization/palettes.js |
 | dashedRange | Dashed lines for a range of periods | Appearance | standard | Charts: line; datasets: All | See resolved chart and dataset capabilities | presentation.appearance.dashedRange | lib/visualization/models/lineModel.js |
+| fitAxes | Fit both axes to the data | Appearance | standard | Charts: scatter, bubble; datasets: All | On or off (off: the vertical axis starts at zero) | presentation.appearance.fitAxes | lib/visualization/models/pointModel.js |
 | hideXAxis | Hide horizontal axis | Appearance | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | presentation.appearance.hideXAxis | lib/visualization/adapters/index.js |
-| outcome | Outcome | Outcome | standard | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.outcome.measureId | lib/data/visualization/executeQuestion.js |
+| markerSize | Marker size | Appearance | standard | Charts: dotPlot; datasets: All | Dot diameter in px, 6 to 20 (9 by default) | presentation.appearance.markerSize | lib/visualization/models/dotPlotModel.js |
+| outcomes | Outcome | Outcome | standard | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.outcomes | lib/data/visualization/executeQuestion.js |
 | pointLabelEnds | Label which end | Appearance | advanced | Charts: dumbbell; datasets: All | both, start, end | presentation.appearance.pointLabelEnds | lib/visualization/models/rangeModel.js |
+| pointLabels | Point labels | Appearance | standard | Charts: scatter, bubble; datasets: All | automatic, off | presentation.appearance.pointLabels | lib/visualization/models/pointModel.js |
+| pointLabelSeries | Show values for | Appearance | standard | Charts: dotPlot; datasets: All | Each drawn series on or off (all on by default) | presentation.appearance.pointLabelSeries | lib/visualization/models/dotPlotModel.js |
 | rangeStyle | Range style | Appearance | standard | Charts: dumbbell; datasets: All | dots, arrow | presentation.appearance.rangeStyle | lib/visualization/models/rangeModel.js |
+| rankBy | Rank by | Geography | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.calculation.params.ranking.role | lib/data/visualization/executeQuestion.js |
 | ranking | Ranking | Geography | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.calculation.params.ranking | lib/data/visualization/rankObservations.js |
 | seriesBinding | Series binding | Outcome | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | presentation.bindings.series | lib/tabular/toObservations.js |
 | seriesOrder | Bar order within groups | Appearance | standard | Charts: bar; datasets: All | Series names in a dragged order (data order by default) | presentation.appearance.seriesOrder | lib/visualization/models/barModel.js |
@@ -756,7 +797,7 @@ These are intentional current boundaries, not hidden fallback behavior:
 - Old version 1 and version 2 views are unsupported.
 - A topic's **View Data** table shows the full cleaned dataset, not only the chart's filtered rows.
 - Chart availability varies by topic, calculation, field roles, and geometry.
-- Image export of a visx chart (currently the line, bar, and range charts) is not available yet; the image dialog says so.
+- Image export of a visx chart (currently the line, bar, range, dot plot, scatter, and bubble charts) is not available yet; the image dialog says so.
 
 ---
 

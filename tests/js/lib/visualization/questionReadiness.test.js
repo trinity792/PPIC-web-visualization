@@ -152,3 +152,57 @@ describe("v3 question readiness", () => {
     expect(missingQuestionSelections(map, schema)).toEqual([]);
   });
 });
+
+// Workstream Q: the editor never chooses the extra measures for the reader, so
+// the preview's prompt names each one that is still empty.
+describe("v3 question readiness for extra measures", () => {
+  const ready = {
+    "Race/Ethnicity": "All",
+    Sex: "Both Sexes",
+    "Age Group": "All Ages",
+  };
+  function point(chartType, outcomes) {
+    const value = spec({
+      outcomes,
+      comparisons: [{ id: "cmp_1", dimensions: ready }],
+    });
+    value.presentation.chartType = chartType;
+    return value;
+  }
+
+  it("asks for the horizontal axis before a module scatter can run", () => {
+    expect(
+      missingQuestionSelections(point("scatter", [{ role: "y", measureId: "Population" }]), schema),
+    ).toEqual(["Horizontal axis"]);
+    expect(
+      missingQuestionSelections(
+        point("scatter", [
+          { role: "y", measureId: "Population" },
+          { role: "x", measureId: "Households" },
+        ]),
+        schema,
+      ),
+    ).toEqual([]);
+  });
+
+  it("asks for the bubble size as well as the horizontal axis on a bubble", () => {
+    expect(
+      missingQuestionSelections(point("bubble", [{ role: "y", measureId: "Population" }]), schema),
+    ).toEqual(["Horizontal axis", "Bubble size"]);
+    expect(
+      missingQuestionSelections(
+        point("bubble", [
+          { role: "y", measureId: "Population" },
+          { role: "x", measureId: "Households" },
+        ]),
+        schema,
+      ),
+    ).toEqual(["Bubble size"]);
+  });
+
+  it("asks for nothing extra on a chart with one measure", () => {
+    expect(
+      missingQuestionSelections(point("line", [{ role: "y", measureId: "Population" }]), schema),
+    ).toEqual([]);
+  });
+});

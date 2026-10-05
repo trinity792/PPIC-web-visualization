@@ -36,6 +36,7 @@
  *   - lib/visualization/models (observations → visx chart model)
  */
 
+import { outcomeFor } from "@/lib/visualization/questionSpec";
 import React, {
   createContext,
   useContext,
@@ -199,7 +200,7 @@ export function PreviewProvider({ children, deferInitialRender = false }) {
         return;
       }
       if (
-        !config.question?.outcome?.measureId ||
+        !outcomeFor(config.question)?.measureId ||
         !config.question?.comparisons?.length
       ) {
         initial[id] = {

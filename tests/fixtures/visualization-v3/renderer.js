@@ -32,10 +32,15 @@ export const forestRows = lineRows.slice(0, 3).map((r, i) => ({
   ...r, period: 2025, categoryId: "estimate", categoryLabel: "Latina Women",
   measureRole: ["lowerBound", "estimate", "upperBound"][i],
 }));
-export const pointRows = [
-  { ...lineRows[0], xValue: 10, yValue: 40000, sizeValue: 100 },
-  { ...lineRows[1], xValue: 20, yValue: 50000, sizeValue: 400 },
-];
+export const pointGroups = [
+  [lineRows[0], 10, 40000, 100],
+  [lineRows[1], 20, 50000, 400],
+].map(([row, x, y, size]) => [
+  { ...row, value: y },
+  { ...row, measureId: "Horizontal", measureLabel: "Horizontal", measureRole: "x", value: x },
+  { ...row, measureId: "Size", measureLabel: "Size", measureRole: "size", value: size },
+]);
+export const pointRows = pointGroups.flat();
 export const geometry = { type: "FeatureCollection", features: [
   { type: "Feature", properties: { GEOID: "06075" }, geometry: { type: "Polygon", coordinates: [[[-123,37],[-122,37],[-122,38],[-123,37]]] } },
   { type: "Feature", properties: { GEOID: "06037" }, geometry: { type: "Polygon", coordinates: [[[-119,34],[-118,34],[-118,35],[-119,34]]] } },
@@ -58,14 +63,18 @@ export function input(chartType = "line", overrides = {}) {
 export const schema = {
   id: "demographicProjections", label: "Projections", sources: ["DoF P-3"],
   subsets: { Counties: ["County"] }, comparisonDimensions: [],
-  fields: { Year: { kind: "temporal", label: "Year" }, Population: { kind: "measure", label: "Population", unit: "people" }, Location: { kind: "dimension", label: "Location" } },
+  fields: { Horizontal: { kind: "measure", unit: "number" }, Size: { kind: "measure", unit: "number" }, Year: { kind: "temporal", label: "Year" }, Population: { kind: "measure", label: "Population", unit: "people" }, Location: { kind: "dimension", label: "Location" } },
 };
 export function config(chartType = "line", appearance = {}) {
   return {
     version: 3,
     question: {
       dataset: { kind: "module", moduleId: "demographicProjections" }, source: "DoF P-3",
-      outcome: { measureId: "Population" }, geography: { subset: "Counties", locations: ["San Francisco", "Los Angeles"] },
+      outcomes: [
+        { role: "y", measureId: "Population" },
+        ...(["scatter", "bubble"].includes(chartType) ? [{ role: "x", measureId: "Horizontal" }] : []),
+        ...(chartType === "bubble" ? [{ role: "size", measureId: "Size" }] : []),
+      ], geography: { subset: "Counties", locations: ["San Francisco", "Los Angeles"] },
       time: { contract: "range", startYear: 2020, endYear: 2030 }, calculation: { id: "actual", params: {} },
       comparisons: [{ id: "latina", dimensions: {}, customLabel: "Latina Women", color: "Orange" }],
     },

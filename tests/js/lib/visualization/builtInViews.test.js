@@ -67,7 +67,7 @@ describe("built-in views", () => {
 
       expect(MODULE_IDS, viewId).toContain(moduleId);
       expect(readQuestion(spec).ok, viewId).toBe(true);
-      expect(schema.fields[spec.question.outcome.measureId]?.kind, viewId).toBe("measure");
+      expect(schema.fields[spec.question.outcomes[0].measureId]?.kind, viewId).toBe("measure");
       expect(Object.keys(schema.subsets), viewId).toContain(spec.question.geography.subset);
       // A deep link is the one v3 entry point that must not land on the
       // "Select ... to build this chart" skeleton.
@@ -94,6 +94,18 @@ describe("built-in views", () => {
           );
         }
       }
+    }
+  });
+
+  it("every built-in view uses the outcomes list", () => {
+    // Workstream Q: shipped views are written in the new shape, not opened
+    // through the old-outcome migration.
+    for (const viewId of SHIPPED_VIEW_IDS) {
+      const { question } = getBuiltInView(viewId);
+      expect(Array.isArray(question.outcomes), viewId).toBe(true);
+      expect(question.outcomes[0].role, viewId).toBe("y");
+      expect(question.outcomes[0].measureId, viewId).toEqual(expect.any(String));
+      expect(question, viewId).not.toHaveProperty("outcome");
     }
   });
 

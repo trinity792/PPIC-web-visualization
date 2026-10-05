@@ -8,9 +8,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
   dispatch: vi.fn(),
+  editorModel: null,
   config: { chartType: "line" },
   // A module that holds county geometry, so the two map tiles are offerable.
-  schema: { id: "widgets", subsets: { Counties: ["County"], Regions: ["Region"] } },
+  schema: { id: "widgets", fields: { Y: { kind: "measure" }, X: { kind: "measure" }, Size: { kind: "measure" } }, subsets: { Counties: ["County"], Regions: ["Region"] } },
 }));
 vi.mock("@/components/chart-builder/chartConfigStore", () => ({
   useChartConfig: () => state,
@@ -33,6 +34,7 @@ vi.mock("@/lib/visualization/chartRegistry", async (importOriginal) => {
   };
 });
 
+import { DEMOGRAPHIC_PROJECTIONS_SCHEMA } from "@/lib/visualization/moduleSchemas/demographicProjections";
 import ChartTypeSection from "@/components/chart-builder/sections/ChartTypeSection";
 
 const orderedLabels = [
@@ -41,11 +43,10 @@ const orderedLabels = [
   "Choropleth Map",
   "Forest / Whisker Plot",
   "Symbol Map",
-  "Dot Plot",
+  // One tile for the scatter, bubble, and dot plot charts (owner, 2026-10-05).
+  "Scatter",
   "Range",
   "Pie / Donut",
-  "Scatter",
-  "Bubble",
   "Matrix Heatmap",
   "Data Table",
   "Experimental",
@@ -55,7 +56,8 @@ describe("ChartTypeSection", () => {
   beforeEach(() => {
     state.dispatch.mockClear();
     state.config = { chartType: "line" };
-    state.schema = { id: "widgets", subsets: { Counties: ["County"], Regions: ["Region"] } };
+    state.editorModel = null;
+    state.schema = { id: "widgets", fields: { Y: { kind: "measure" }, X: { kind: "measure" }, Size: { kind: "measure" } }, subsets: { Counties: ["County"], Regions: ["Region"] } };
   });
 
   it("renders one flat grid, the only layout", () => {
@@ -128,5 +130,83 @@ describe("ChartTypeSection", () => {
     const labels = screen.getAllByRole("button").map((button) => button.textContent.trim());
     expect(labels).toContain("Choropleth Map");
     expect(labels).toContain("Symbol Map");
+  });
+
+  // Owner, 2026-10-05: Dot plot, Scatter, and Bubble are one tile with a
+  // Variant control; each variant stays its own chart type.
+  describe("the Scatter family tile", () => {
+    const moduleChoices = [
+      { id: "scatter", available: false, reason: "Scatter and bubble charts need two measures." },
+      { id: "bubble", available: false, reason: "Scatter and bubble charts need two measures." },
+      { id: "dotPlot", available: true },
+    ];
+
+    it("shows no Variant control for a chart that is its own tile", () => {
+      render(<ChartTypeSection />);
+      expect(screen.queryByRole("group", { name: "Variant" })).not.toBeInTheDocument();
+    });
+
+    it("marks the Scatter tile selected for each of its variants", () => {
+      for (const chartType of ["scatter", "bubble", "dotPlot"]) {
+        state.config = { chartType };
+        const { container, unmount } = render(<ChartTypeSection />);
+        // The tile is in the grid; the Variant control also has a Scatter button.
+        const tile = [...container.querySelectorAll(".grid-cols-2 > button")].find((button) => button.textContent === "Scatter");
+        expect(tile).toHaveAttribute("aria-pressed", "true");
+        unmount();
+      }
+    });
+
+    it("opens on the first variant the surface can draw", async () => {
+      const user = userEvent.setup();
+      render(<ChartTypeSection />);
+      await user.click(screen.getByRole("button", { name: "Scatter" }));
+      expect(state.dispatch).toHaveBeenLastCalledWith({ type: "SET_CHART_TYPE", chartType: "scatter" });
+
+      state.dispatch.mockClear();
+      state.editorModel = { chartChoices: moduleChoices };
+      render(<ChartTypeSection />);
+      await user.click(screen.getAllByRole("button", { name: "Scatter" }).at(-1));
+      expect(state.dispatch).toHaveBeenLastCalledWith({ type: "SET_CHART_TYPE", chartType: "dotPlot" });
+    });
+
+    it("switches variants as chart types", async () => {
+      const user = userEvent.setup();
+      state.config = { chartType: "scatter" };
+      render(<ChartTypeSection />);
+      const variants = screen.getByRole("group", { name: "Variant" });
+      expect(
+        [...variants.querySelectorAll("button")].map((button) => button.textContent),
+      ).toEqual(["Scatter", "Bubble", "Dot plot"]);
+      await user.click(screen.getByRole("button", { name: "Bubble" }));
+      expect(state.dispatch).toHaveBeenLastCalledWith({ type: "SET_CHART_TYPE", chartType: "bubble" });
+      // Choosing the family tile again keeps the current variant.
+      state.dispatch.mockClear();
+      await user.click(screen.getAllByRole("button", { name: "Scatter" })[0]);
+      expect(state.dispatch).not.toHaveBeenCalled();
+    });
+
+    // Workstream Q: Demographic Projections holds one measure, so Scatter and
+    // Bubble are hidden and the tile draws a dot plot. The control stays so the
+    // reader can see what the Scatter tile is drawing.
+    it("shows the Variant control even when Dot plot is the only variant", () => {
+      state.schema = DEMOGRAPHIC_PROJECTIONS_SCHEMA;
+      state.config = { chartType: "dotPlot" };
+      render(<ChartTypeSection />);
+      const variants = screen.getByRole("group", { name: "Variant" });
+      expect(
+        [...variants.querySelectorAll("button")].map((button) => button.textContent),
+      ).toEqual(["Dot plot"]);
+      expect(screen.getByRole("button", { name: "Dot plot", pressed: true })).toBeEnabled();
+    });
+
+    it("disables a variant this question cannot draw and says why", () => {
+      state.config = { chartType: "dotPlot" };
+      state.editorModel = { chartChoices: moduleChoices };
+      render(<ChartTypeSection />);
+      expect(screen.getByRole("button", { name: "Bubble" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Dot plot", pressed: true })).toBeEnabled();
+      expect(screen.getByText("Scatter and bubble charts need two measures.")).toBeInTheDocument();
+    });
   });
 });
