@@ -39,7 +39,9 @@ import { AlertCircle } from "lucide-react";
 import PlotlyChart from "@/components/charts/PlotlyChart";
 import BarChart from "@/components/charts/visx/BarChart";
 import DotPlot from "@/components/charts/visx/DotPlot";
+import ForestPlot from "@/components/charts/visx/ForestPlot";
 import LineChart from "@/components/charts/visx/LineChart";
+import PieChart from "@/components/charts/visx/PieChart";
 import PointChart from "@/components/charts/visx/PointChart";
 import RangeChart from "@/components/charts/visx/RangeChart";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -55,8 +57,10 @@ const VISX_CHARTS = Object.freeze({
   bar: BarChart,
   dumbbell: RangeChart,
   dotPlot: DotPlot,
+  forest: ForestPlot,
   scatter: PointChart,
   bubble: PointChart,
+  pie: PieChart,
 });
 
 // ── Helpers ──────────────────────────────────────────────────────────

@@ -4,7 +4,7 @@ Content Type: implementation plan
 pinned: false
 description: "A tests-first plan for moving every chart except maps from Plotly to visx, one chart type at a time, so each chart follows the PPIC Data Visualization Style Guide and every editor control works. Written for programmers continuing the visualization work."
 Date Published: September 26, 2026
-Last Updated: 10/05/2026 - 08:30 PM
+Last Updated: 10/10/2026 - 07:10 PM
 Status: Updating
 ---
 
@@ -31,6 +31,8 @@ The work runs in five stages, plus an optional sixth and a seventh. A stage star
 > **October 1, 2026.** Workstream F (range chart) is built and, after owner review against six published PPIC range plots, is the visx default, as the line and bar charts are. Its screenshot baselines await review. Workstreams G to O remain.
 >
 > **October 5, 2026.** Workstreams G (dot plot) and J (scatter and bubble charts) are built together and are the visx default, on the same terms as the line, bar, and range charts. The owner merged the three into one Scatter tile with a Variant choice (see the October 5 note in Workstream J). Their screenshot baselines await review. Workstreams H, I, and K to O remain. The same day the owner asked for Workstream Q (Stage 7), so that modules can offer scatter and bubble charts, and decided all twelve of its questions.
+>
+> **October 10, 2026.** Workstreams H (forest plot) and K (pie chart) are built and, after owner review, are the visx default on the same terms. The forest plot is now offered only on pasted data, because no module question returns interval bounds. Their screenshot baselines await review. Workstreams I and L to O remain.
 >
 > On September 30 the owner collected twelve published PPIC bar charts (`mockups/bar chart reference/`). Workstream E was widened to cover them, and the owner decided its eleven new rows the same day (ten Build, one Remove). The features they share with other chart types (callouts, highlights, context gray, custom label text, and panels) went into a new optional Workstream P. Workstream E was built the same day, and after two rounds of owner review the bar chart became visx by default, as the line chart had (see the exception below).
 
@@ -64,7 +66,7 @@ The work runs in five stages, plus an optional sixth and a seventh. A stage star
 | P | Shared extras: callouts, highlights, context gray, custom label text, and panels | 6 | D, E. Nothing depends on P. |
 | Q | A module question can ask for a second and third measure | 7 | G, J |
 
-> [!warning] Users keep seeing the Plotly charts until Stage 4, except the line, bar, range, dot plot, scatter, and bubble charts
+> [!warning] Users keep seeing the Plotly charts until Stage 4, except the line, bar, range, dot plot, scatter, bubble, forest, and pie charts
 > Stage 3 builds each visx chart behind a preview switch (Workstream B). Users keep seeing the Plotly version of every chart until that chart's export works in Stage 4. This follows the decision that export stays on Plotly in the short term, and it means Stage 3 can be reviewed without affecting anyone.
 >
 > **Exception, September 29, 2026.** The owner made visx the line chart's default ahead of Workstream M, for review. Until M lands, a line chart's image dialog says image export is coming soon, and its Download button stays off; data export and embeds work. `?renderer=plotly` still shows the Plotly line. The approved legacy `line-comparisons` screenshot stays a Plotly picture until a visx baseline is approved.
@@ -72,6 +74,8 @@ The work runs in five stages, plus an optional sixth and a seventh. A stage star
 > **Exception, September 30, 2026.** The owner made visx the bar chart's default too, on the same terms as the line chart: the image dialog's notice now names line and bar charts, `?renderer=plotly` still shows the Plotly bar, and the legacy bar screenshot stays a Plotly picture until a visx baseline is approved. Views from the older (version 2) editor still draw with Plotly.
 >
 > **Exception, October 5, 2026.** The dot plot, scatter, and bubble charts are visx by default on the same terms: the image dialog's notice now names line, bar, range, and scatter charts, and `?renderer=plotly` still shows the Plotly versions. None of the three had a legacy screenshot.
+>
+> **Exception, October 10, 2026.** The forest plot and pie chart are visx by default on the same terms: the image dialog's notice now names line, bar, range, scatter, forest, and pie charts, and `?renderer=plotly` still shows the Plotly versions. Neither had a legacy screenshot.
 >
 > **Exception, October 1, 2026.** The owner made visx the range chart's default on the same terms: the image dialog's notice now names line, bar, and range charts, `?renderer=plotly` still shows the Plotly range chart, the legacy `range-two-period` screenshot stays a Plotly picture until a visx baseline is approved, and version 2 views still draw with Plotly.
 
@@ -1026,6 +1030,19 @@ New files: `tests/js/lib/visualization/models/forestModel.test.js` and `tests/js
 
 Screenshot case: `matches the approved Forest layout` (new).
 
+> [!note] As built, October 10, 2026
+> Workstream H is built: `forestModel.js`, `ForestPlot.js`, and the registrations (`VISX_CHART_TYPES`, `MODEL_BUILDERS`, `VISX_CHARTS`). The forest descriptor keeps `renderer: "plotly"` until the owner reviews the picture, so `chartRegistry.catalog.test.js` (every non-map type defaults to visx) still fails for it. Its screenshot baseline is not recorded. Where the build settled something the steps above left open:
+> - **Rows.** One row per study (category), laid out like the range chart: several comparisons make one row per comparison, and several of each make each category a group with a bold header row. A response with several periods draws the active period, else the latest. Row label alignment, Hide X-Axis (including an old `showValueAxis: false`), the axis that fits the data with a zero line, the light grid, and the dotted row lines all match the range chart.
+> - **Colors, as the Plotly forest plot draws them.** The interval line and the vertical-bar ends are neutral gray. Dot and diamond ends take the palette's first (lower) and second (upper) colors, with open diamonds as Plotly draws them. The estimate takes the palette's first color, or its third when the ends use the palette. The key sits on top and names the marks only when they differ in color (dot and diamond ends); with gray ends it is empty. The Plotly figure built by `adaptObservations` (`forestFigure`) sets no colors of its own, so the two renderers differ until the Plotly default is retired.
+> - **One size.** Every estimate marker is one size (`CHART_STYLE.forest.marker.size`: a square's side, a dot's diameter, a diamond's width), and the weight (`size` role) is never read. The Plotly forest drew dots smaller than squares and diamonds; the visx forest does not.
+> - **Line of no effect.** Dashed, in the axis color, behind the marks. Unset or blank draws none; 0 is a real value. The value axis reaches it, so it never falls off the chart, and the darker zero line is left out when the line of no effect sits at 0.
+> - **Value axis center.** The axis is symmetric around the chosen value (0 is a real center), wide enough for the furthest value, including the line of no effect, then widened to the round ticks.
+> - **Show point values** labels each estimate above its marker, in the marker's readable color, as the Plotly forest plot does. The interval bounds are not labeled.
+> - **Hover** follows the range chart: the whole row answers the pointer, its label turns bold, and the estimate and both bounds appear in bold beside their marks. A screen-reader tooltip reads the estimate and the interval, with gaps read as unavailable.
+> - **Missing values.** A row missing a bound draws no interval line and only the end it has; a row missing its estimate draws no estimate marker. The estimate is never filled in as the interval's midpoint, as the legacy Plotly path did.
+> - **Owner review, same day.** Three fixes. (1) A Population & Housing forest plot drew nothing: no module question returns interval bounds (only a pasted table's column mapping does, in `toObservations`), so `chartAvailability.js` now offers the forest plot on pasted data only. (2) A pasted table with no time column names each part's period after its column ("Est", "Low", "High"), and the model drew only the "latest" one, the lower bound. A period now counts only when it holds more than one part. (3) `deriveLabels` put the measure on the vertical axis, drawn above the study names; it now goes on the value axis, as for the range chart and dot plot. The visual fixture gained `studies`, `studies-dots`, and `studies-centered` scenarios.
+> - **Not done.** The forest plot is not a place chart (`PLACE_CATEGORY_CHART_TYPES`), so dragging does not order its rows from the Geographic Level list; `categoryOrder` is read if saved. The forest plot still shows the fallback Categories panel (empty in version 3, as the range chart's was before it joined the place charts). Whether it should join them is a question for the owner.
+
 ---
 
 ## Workstream I - Heatmap
@@ -1046,6 +1063,8 @@ The heatmap's color controls mostly work: palette, color scale (sequential or di
 
 > [!note] Check that the Categories panel appears at all
 > In version 3, `CategoriesSection.js` reads `config.appearance`, which version 3 does not have (its settings live in `presentation.appearance`). So the panel may show an empty list. Confirm this in the editor during step 1 of the chart recipe, and fix it to read `presentation.appearance`. The pie chart (K) shares this fix.
+>
+> The `presentation.appearance` read fix landed with Workstream K (October 10, 2026). The panel's list is still filled by the preview, which so far names only the pie's slices; the heatmap needs its model to report its category names.
 
 ### Steps
 
@@ -1152,6 +1171,19 @@ New files: `tests/js/lib/visualization/models/pieModel.test.js` and `tests/js/co
 | `shows Donut hole only for pie charts` | The new control, in `tests/js/components/chart-builder/sections/AppearanceSection.pie.test.js`. |
 
 Screenshot cases: `matches the approved Pie layout` and `labels a slice with a leader line` (both new).
+
+> [!note] As built, October 10, 2026
+> Workstream K is built; the screenshot baselines are not recorded, and the pie's default renderer is still `"plotly"` until the owner reviews the picture.
+> - **Shared slices.** `lib/visualization/pieSlices.js` picks the rows and gives each slice its name and color. The Plotly pie adapter and `pieModel.js` both call it, so a slice keeps its color on switching. Hiding a slice does not recolor the others.
+> - **Order.** Slices keep the data's order, then the dragged order (`categoryOrder`) first. The Plotly pie re-sorted slices largest first; the Stage 1 test expects data order, so the visx pie does not.
+> - **Left out, not zero.** A missing or suppressed slice is not drawn. A zero or negative value cannot take up any of the circle, so it is left out too. The model lists both in `omitted`, and the written summary says how many are not drawn.
+> - **Labels.** Every slice is named and valued outside its slice, with the name in its (readable) color. A label gets a 1px leader line when its name wraps onto several lines or when it is pushed clear of a neighbouring label. The old `showValueLabels` is never read.
+> - **Key.** Hidden until Legend Position is chosen, because the slices are named. The registry default is untouched, so the Plotly pie keeps its legend.
+> - **Donut hole.** A slider (0 to 0.6, step 0.05) shown only for pie, saved as `hole`.
+> - **Hover.** The bar chart's style: the hovered slice keeps its color and adds its share of the total to its label, the others fade to a 30% tint, and no box floats. Arrow keys, Home, End, and Escape work, and an sr-only tooltip names the slice, value, and share.
+> - **Categories panel.** `PreviewContext` now sends the pie's slice names as `categoryNames`, and `EditStep` offers the panel to a version 3 chart without geography once names exist.
+> - **Owner review, same day.** A module pie of one comparison across several regions named every slice "Selected locations" and drew them all in the comparison's one color, and the Categories panel stayed empty. `pieSlices` now names a slice by its category, else by its place when the rows span several places, else by its comparison, prefixed with the comparison's name when there are several. Only a slice that is a comparison takes the comparison's color. The Plotly pie uses the same names. The version 3 store now keeps `categoryNames` from the preview and through Appearance edits.
+> - **Not done.** The share shown on hover is rounded to a whole percent ("<1%" below one percent). A pie of an average of selected years draws the "Average of ..." note under the circle, as the Plotly pie annotates it.
 
 ---
 

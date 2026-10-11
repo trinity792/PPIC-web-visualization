@@ -78,6 +78,15 @@ describe("isChartTypeAvailable", () => {
     expect(isChartTypeAvailable("notAChartType", POPHOUSING_SCHEMA)).toBe(false);
   });
 
+  // Owner review, 2026-10-10: a Population & Housing forest plot drew nothing,
+  // because no module question returns interval bounds.
+  it("offers the forest plot on pasted data only", () => {
+    for (const schema of [POPHOUSING_SCHEMA, DEMOGRAPHIC_PROJECTIONS_SCHEMA, BUILDING_PERMITS_SCHEMA]) {
+      expect(isChartTypeAvailable("forest", schema), schema.id).toBe(false);
+    }
+    expect(isChartTypeAvailable("forest", BYOD_SCHEMA)).toBe(true);
+  });
+
 });
 
 describe("availableChartTypes", () => {

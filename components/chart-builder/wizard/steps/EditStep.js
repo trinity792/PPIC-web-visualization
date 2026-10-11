@@ -46,7 +46,7 @@ import {
   EditorCapabilitiesProvider,
   STANDALONE_CAPABILITIES,
 } from "@/components/chart-builder/editorCapabilities";
-import CategoriesSection from "@/components/chart-builder/sections/CategoriesSection";
+import CategoriesSection, { hasCategories } from "@/components/chart-builder/sections/CategoriesSection";
 import EditorSidebar from "@/components/chart-builder/sections/EditorSidebar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -80,10 +80,12 @@ function EditStepBody() {
   const { config, schema } = useChartConfig();
   // Bring-your-own-data has no geography, so GeographySection — which normally
   // owns the category ordering fallback — never renders. Mount it directly.
-  // The fallback reads v2 preview feedback (`categoryNames`); a v3 question
-  // derives its categories from the table and has nothing for it to show.
+  // The fallback reads the preview's feedback (`categoryNames`). A v2 chart
+  // always offers it; a v3 chart only once the preview has named categories to
+  // list, which the pie does (renderer plan K).
   const needsCategories =
-    config.version !== 3 && Object.keys(schema?.subsets || {}).length === 0;
+    Object.keys(schema?.subsets || {}).length === 0 &&
+    (config.version !== 3 || hasCategories(config));
 
   return (
     <StepShell title="Edit" preview={<PreviewPane />}>

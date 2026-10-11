@@ -140,6 +140,14 @@ describe("v3 geography-aware labels", () => {
     expect(deriveLabels(spec, v3Schema)).toMatchObject({ xAxis: "Population", yAxis: "" });
   });
 
+  // Renderer plan H (owner review, 2026-10-10): the forest's measure was drawn
+  // as a title above its study names, and the value axis had none.
+  it("puts the measure on the horizontal axis for forest plots", () => {
+    const spec = v3({ subset: "Regions", locations: ["Bay Area"] });
+    spec.presentation.chartType = "forest";
+    expect(deriveLabels(spec, v3Schema)).toMatchObject({ xAxis: "Population", yAxis: "" });
+  });
+
   // Renderer plan J: a pasted scatter plots its bound x column across.
   it("names a pasted scatter's two measures on their axes", () => {
     const spec = v3({ subset: "Regions", locations: ["Bay Area"] });

@@ -54,6 +54,7 @@ import {
 import { adaptObservations } from "@/lib/visualization/adapters";
 import { rendererFor } from "@/lib/visualization/chartRegistry";
 import { buildChartModel } from "@/lib/visualization/models";
+import { pieSliceNames } from "@/lib/visualization/pieSlices";
 import { previewInput } from "@/lib/visualization/previewInput";
 import { missingQuestionSelections } from "@/lib/visualization/questionReadiness";
 
@@ -234,13 +235,17 @@ export function PreviewProvider({ children, deferInitialRender = false }) {
       load
         .then((next) => {
           let seriesNames = [];
+          let categoryNames = [];
           if (next.observations?.length) {
             // Series names come from the Plotly adapter's traces whichever
             // renderer draws the chart; they feed the editor, not the drawing.
-            const figure = adaptObservations(previewInput(config, schema, next));
+            const input = previewInput(config, schema, next);
+            const figure = adaptObservations(input);
             seriesNames = (figure.data || [])
               .map((trace) => trace.name)
               .filter((name) => name != null && name !== "");
+            // The Categories panel lists a pie's slices (renderer plan K).
+            if (input.chartType === "pie") categoryNames = pieSliceNames(input);
           }
           dispatch({
             type: "SET_SERIES_COUNT",
@@ -248,6 +253,7 @@ export function PreviewProvider({ children, deferInitialRender = false }) {
             count: seriesNames.length,
             seriesNames,
             legendNames: seriesNames,
+            categoryNames,
             issues: next.issues || [],
           });
           // A blocked v3 answer says why in its blocking issues; show those

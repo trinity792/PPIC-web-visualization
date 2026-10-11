@@ -41,7 +41,8 @@ const orderedLabels = [
   "Line",
   "Bar",
   "Choropleth Map",
-  "Forest / Whisker Plot",
+  // No Forest tile: a module question never returns interval bounds, so the
+  // forest plot is offered only on pasted data (owner review, 2026-10-10).
   "Symbol Map",
   // One tile for the scatter, bubble, and dot plot charts (owner, 2026-10-05).
   "Scatter",

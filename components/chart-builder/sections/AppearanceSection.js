@@ -1909,6 +1909,29 @@ export default function AppearanceSection() {
         </div>
       ) : null}
 
+      {/* Donut hole (renderer plan K; owner, 2026-10-10): a share of the pie's
+          radius, 0 (a full pie, the default) to 0.6. */}
+      {config.chartType === "pie" ? (
+        <div className="grid gap-2">
+          <div className="flex items-center justify-between gap-3">
+            <Label htmlFor="appearance-donut-hole">Donut hole</Label>
+            <span className="text-xs tabular-nums text-muted-foreground">
+              {Math.round(Number(appearance.hole ?? 0) * 100)}%
+            </span>
+          </div>
+          <Slider
+            id="appearance-donut-hole"
+            min={0}
+            max={CHART_STYLE.pie.maxHole}
+            step={0.05}
+            value={[Number(appearance.hole ?? 0)]}
+            onValueChange={([value]) => setAppearance("hole", value)}
+            aria-label="Donut hole"
+            thumbLabels={["Donut hole"]}
+          />
+        </div>
+      ) : null}
+
       {/* Scatter and bubble (renderer plan J; owner, 2026-10-05): point names
           beside their points, and the axes' starting point. */}
       {["scatter", "bubble"].includes(config.chartType) ? (

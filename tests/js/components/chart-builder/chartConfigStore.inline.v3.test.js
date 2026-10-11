@@ -100,3 +100,15 @@ describe("the standalone tool opens on an inline v3 question", () => {
     expect(edited.question.dataset.inline).toEqual(TABLE);
   });
 });
+
+describe("the v3 Categories panel keeps the pie's slice names", () => {
+  it("stores the preview's category names and keeps them through an appearance edit", () => {
+    const withNames = dispatch(imported(), {
+      type: "SET_SERIES_COUNT", count: 1, seriesNames: [], categoryNames: ["North", "South"],
+    });
+    expect(withNames.categoryNames).toEqual(["North", "South"]);
+    const reordered = dispatch(withNames, { type: "SET_APPEARANCE", key: "categoryOrder", value: ["South", "North"] });
+    expect(reordered.categoryNames).toEqual(["North", "South"]);
+    expect(reordered.presentation.appearance.categoryOrder).toEqual(["South", "North"]);
+  });
+});

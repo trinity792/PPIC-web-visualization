@@ -592,7 +592,7 @@ describe("image export for a visx chart", () => {
     const user = userEvent.setup();
     renderVisx("visx");
     await user.click(screen.getByRole("button", { name: /export image/i }));
-    expect(await screen.findByRole("alert")).toHaveTextContent(/Image export for the new line, bar, range, and scatter charts is coming soon/);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Image export for the new line, bar, range, scatter, forest, and pie charts is coming soon/);
     expect(screen.getByRole("button", { name: /download png/i })).toBeDisabled();
     expect(renderImagePreviewMock).not.toHaveBeenCalled();
     // Embedding still works.

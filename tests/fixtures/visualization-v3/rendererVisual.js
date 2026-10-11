@@ -69,5 +69,15 @@ export function rendererVisualScenario(chartType, scenario = "default") {
     fixture.observations = regions.flatMap((name, i) => stats.map(([id, label], j) => ({ ...lineRows[0], period: 2025, geographyId: `region-${i}`, geographyLabel: name, comparisonId: id, comparisonLabel: label, value: 20 + i * 3 + j * (8 + i) })));
   }
   if(scenario === "dots-by-period") Object.assign(fixture, { comparisons: [comparisons[0]], observations: observations.filter(r => r.comparisonId === "latina"), appearance: { showPointLabels: true } });
+  if(["studies", "studies-dots", "studies-centered"].includes(scenario)) {
+    // Five studies of an odds ratio, against a line of no effect at 1.
+    const studies = [["Smith 2019", 1.32, 1.05, 1.66], ["Garcia 2020", 0.91, 0.70, 1.18], ["Nguyen 2021", 1.12, 0.98, 1.28], ["Okafor 2022", 1.48, 1.10, 1.99], ["Lee 2023", 0.84, 0.62, 1.14]];
+    const parts = [["estimate", 1], ["lowerBound", 2], ["upperBound", 3]];
+    fixture.comparisons = [comparisons[0]];
+    fixture.observations = studies.flatMap((study, i) => parts.map(([measureRole, at]) => ({ ...lineRows[0], period: 2025, categoryId: `study-${i}`, categoryLabel: study[0], measureRole, value: study[at] })));
+    fixture.appearance = { noEffectValue: 1, decimalPlaces: 2,
+      ...(scenario === "studies-dots" ? { endpointStyle: "dots", pointStyle: "diamond", showPointLabels: true } : {}),
+      ...(scenario === "studies-centered" ? { center: 1, endpointStyle: "diamonds", pointStyle: "dot" } : {}) };
+  }
   return fixture;
 }

@@ -62,10 +62,14 @@ export default function CategoriesSection() {
       };
   const { advanced } = useAdvancedMode();
   const [open, setOpen] = useState(false);
+  // Version 3 keeps appearance under presentation; reading `config.appearance`
+  // there found nothing, so the panel's order and switches never showed.
+  const appearance =
+    (config.version === 3 ? config.presentation?.appearance : config.appearance) || {};
 
   const names = orderedCategories(
     config.categoryNames || [],
-    config.appearance?.categoryOrder,
+    appearance.categoryOrder,
   );
 
   return (
@@ -92,7 +96,7 @@ export default function CategoriesSection() {
             names={names}
             collapsed={COLLAPSED_CATEGORY_COUNT}
             reorderable
-            hidden={config.appearance?.hiddenCategories || []}
+            hidden={appearance.hiddenCategories || []}
             onReorder={(value) =>
               dispatch({ type: "SET_APPEARANCE", key: "categoryOrder", value })
             }

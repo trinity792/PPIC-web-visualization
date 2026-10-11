@@ -24,7 +24,7 @@ The project must remain understandable to non-developers and future contributors
 
 ## Tech stack
 
-- **Frontend:** Next.js 16, React 19, Tailwind CSS 4, visx (`@visx/*`, pinned; the line, bar, range, dot plot, scatter, and bubble charts) and Plotly.js (via react-plotly.js; maps and the charts not yet moved to visx)
+- **Frontend:** Next.js 16, React 19, Tailwind CSS 4, visx (`@visx/*`, pinned; the line, bar, range, dot plot, scatter, bubble, forest, and pie charts) and Plotly.js (via react-plotly.js; maps and the charts not yet moved to visx)
 - **Backend/ETL:** Python 3, pandas
 - **Testing:** Vitest and Playwright (frontend); pytest (backend)
 - **Dev environment:** macOS, VS Code workspace, `web-viz-venv` on Python 3.12

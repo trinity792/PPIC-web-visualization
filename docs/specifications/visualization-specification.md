@@ -202,8 +202,10 @@ Charts are moving from Plotly to visx one type at a time, following [[chart-rend
 | Bar | visx | Default since September 30, 2026, ahead of the export rebuild |
 | Range | visx | Default since October 1, 2026, ahead of the export rebuild |
 | Dot Plot, Scatter, Bubble | visx | Default since October 5, 2026, ahead of the export rebuild |
+| Forest / Whisker Plot, Pie / Donut | visx | Default since October 10, 2026, ahead of the export rebuild |
 | Choropleth Map, Symbol Map | Plotly | Stay on Plotly permanently |
-| Every other chart | Plotly | Each moves to visx in its own plan workstream |
+| Matrix Heatmap | Plotly | Moves to visx in Workstream I |
+| Data Table | Plotly adapter | Drawn by `DataTableView`; never gains a visx drawing |
 
 - `rendererFor(type, preview)` picks the renderer. A `?renderer=visx` or `?renderer=plotly` page-address parameter previews the other drawing for comparison. It is honored only when that drawing exists (`VISX_CHART_TYPES`) and is ignored in embeds (`embed=1`), so a shared embed always shows the default.
 - A visx chart is drawn from a chart model (`lib/visualization/models/`) inside `ChartFrame`, which draws the PPIC frame: eyebrow, title, subtitle, the drawing and its key, and the source-and-notes box.
@@ -494,7 +496,7 @@ Chart export supports:
 - PDF; and
 - an iframe embed.
 
-Image export still renders through `Plotly.toImage`. For a chart drawn with visx (currently the line, bar, range, dot plot, scatter, and bubble charts), the image dialog shows a notice that image export is coming soon, and its Download button stays off. Embeds and data export work normally. Workstream M of [[chart-renderer-implementation-plan]] rebuilds export from the drawn SVG.
+Image export still renders through `Plotly.toImage`. For a chart drawn with visx (currently the line, bar, range, dot plot, scatter, bubble, forest, and pie charts), the image dialog shows a notice that image export is coming soon, and its Download button stays off. Embeds and data export work normally. Workstream M of [[chart-renderer-implementation-plan]] rebuilds export from the drawn SVG.
 
 Data export supports:
 
@@ -719,6 +721,7 @@ This block is generated from `lib/visualization/settingsRegistry.js`. It is the 
 | dashedRange | Dashed lines for a range of periods | Appearance | standard | Charts: line; datasets: All | See resolved chart and dataset capabilities | presentation.appearance.dashedRange | lib/visualization/models/lineModel.js |
 | fitAxes | Fit both axes to the data | Appearance | standard | Charts: scatter, bubble; datasets: All | On or off (off: the vertical axis starts at zero) | presentation.appearance.fitAxes | lib/visualization/models/pointModel.js |
 | hideXAxis | Hide horizontal axis | Appearance | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | presentation.appearance.hideXAxis | lib/visualization/adapters/index.js |
+| hole | Donut hole | Appearance | standard | Charts: pie; datasets: All | Share of the radius, 0 to 0.6 (0, a full pie, by default) | presentation.appearance.hole | lib/visualization/models/pieModel.js |
 | markerSize | Marker size | Appearance | standard | Charts: dotPlot; datasets: All | Dot diameter in px, 6 to 20 (9 by default) | presentation.appearance.markerSize | lib/visualization/models/dotPlotModel.js |
 | outcomes | Outcome | Outcome | standard | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.outcomes | lib/data/visualization/executeQuestion.js |
 | pointLabelEnds | Label which end | Appearance | advanced | Charts: dumbbell; datasets: All | both, start, end | presentation.appearance.pointLabelEnds | lib/visualization/models/rangeModel.js |

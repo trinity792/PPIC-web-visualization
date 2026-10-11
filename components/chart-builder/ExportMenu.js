@@ -217,7 +217,7 @@ function useExportCharts(previews, config, loaded) {
 // Workstream M). Owner decisions 2026-09-29 (line), 2026-09-30 (bar), and
 // 2026-10-01 (range): say so plainly rather than fail.
 const VISX_IMAGE_EXPORT_NOTICE =
-  "Image export for the new line, bar, range, and scatter charts is coming soon. Use Export data for the numbers, or Embed chart to share the live chart.";
+  "Image export for the new line, bar, range, scatter, forest, and pie charts is coming soon. Use Export data for the numbers, or Embed chart to share the live chart.";
 
 const MAX_EMBED_URL_LENGTH = 16000;
 

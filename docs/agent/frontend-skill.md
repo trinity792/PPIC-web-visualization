@@ -325,7 +325,7 @@ State lives in the lowest common ancestor of the components that need it. Avoid 
 
 ## Chart Component Conventions
 
-Charts are moving from Plotly.js (via `react-plotly.js`) to visx, one chart type at a time; see [[chart-renderer-implementation-plan]]. The line, bar, range, dot plot, scatter, and bubble charts draw with visx (`components/charts/visx/`), maps stay on Plotly, and each chart type's renderer is declared in `lib/visualization/chartRegistry.js`. Chart components follow these conventions.
+Charts are moving from Plotly.js (via `react-plotly.js`) to visx, one chart type at a time; see [[chart-renderer-implementation-plan]]. The line, bar, range, dot plot, scatter, bubble, forest, and pie charts draw with visx (`components/charts/visx/`), maps stay on Plotly, and each chart type's renderer is declared in `lib/visualization/chartRegistry.js`. Chart components follow these conventions.
 
 ### Wrapper Pattern
 

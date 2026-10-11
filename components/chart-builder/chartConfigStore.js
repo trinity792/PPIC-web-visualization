@@ -829,6 +829,9 @@ function reduceV3ChartConfig(config, action, schema) {
       ...(Object.hasOwn(config, "legendNames")
         ? { legendNames: clone(config.legendNames) }
         : {}),
+      ...(Object.hasOwn(config, "categoryNames")
+        ? { categoryNames: clone(config.categoryNames) }
+        : {}),
       ...(Object.hasOwn(config, "issues") ? { issues: clone(config.issues) } : {}),
     };
   }
@@ -920,6 +923,8 @@ function reduceV3ChartConfig(config, action, schema) {
       seriesCount: action.count,
       seriesNames: clone(action.seriesNames || []),
       legendNames: clone(action.legendNames || action.seriesNames || []),
+      // The pie's slice names, for the Categories panel (renderer plan K).
+      categoryNames: clone(action.categoryNames || []),
       issues: clone(action.issues || config.issues || []),
     };
   }
