@@ -31,7 +31,7 @@
  *                                   map (module schema); without it the raw
  *                                   source ids are shown
  *   summary      {string|null}    — written summary, read to screen readers only
- *   legend       {Object|null}    — { entries, position, title } for ChartKey; drawn
+ *   legend       {Object|null}    — { entries, position, title, scale? } for ChartKey; drawn
  *                                   only for "top", "right", or "bottom" ("automatic"
  *                                   and "hidden" leave the key to the chart)
  *   height       {number|null}    — drawing height in px; when omitted the drawing
@@ -40,6 +40,11 @@
  *                                   rows), so the frame does not reserve the
  *                                   full height and the source box follows the
  *                                   drawing directly
+ *   aspectRatio  {number|null}    — the drawing's own width over its height (a
+ *                                   map's shape). With the key on the right, the
+ *                                   drawing takes that width (shrinking if it
+ *                                   must) and the key sits right beside it, as
+ *                                   the guide's map example draws it
  *   className    {string}         — optional classes for the frame
  *   ref          {Object|Function} — the <figure>, for image export
  *
@@ -109,6 +114,7 @@ export default function ChartFrame({
   legend = null,
   height = null,
   fitContent = false,
+  aspectRatio = null,
   className = "",
   ref = null,
 }) {
@@ -145,15 +151,23 @@ export default function ChartFrame({
   const key =
     // "automatic" belongs to the chart: it labels its data directly or draws
     // its own fallback key, because only it knows whether the labels fit.
-    legend && ["top", "right", "bottom"].includes(legend.position) && legend.entries?.length ? (
+    legend && ["top", "right", "bottom"].includes(legend.position) &&
+    (legend.entries?.length || legend.scale) ? (
       <ChartKey
-        entries={legend.entries}
+        entries={legend.entries || []}
         legendPosition={keyPosition}
         title={legend.title ?? null}
         fontSize={sizes.legend}
+        scale={legend.scale ?? null}
       />
     ) : null;
   const hasHeader = Boolean(shown.eyebrow || shown.title || shown.subtitle);
+  // A drawing with its own shape and a key on the right is only as wide as
+  // that shape, so the key follows it rather than the frame's far edge.
+  const shapedWidth =
+    key && keyPosition === "right" && Number.isFinite(aspectRatio) && aspectRatio > 0
+      ? Math.round(drawingHeight * aspectRatio)
+      : null;
 
   return (
     <ChartFocusProvider>
@@ -207,10 +221,13 @@ export default function ChartFrame({
           // with a measured height it scrolls, so the size never feeds back.
           className={cn(
             "min-w-0",
-            fitContent ? null : "flex-1",
+            fitContent || shapedWidth ? null : "flex-1",
             fixedHeight || fitContent ? null : "overflow-y-auto",
           )}
-          style={{ minHeight: fitContent ? undefined : fixedHeight ?? undefined }}
+          style={{
+            minHeight: fitContent ? undefined : fixedHeight ?? undefined,
+            ...(shapedWidth ? { flex: `0 1 ${shapedWidth}px` } : {}),
+          }}
         >
           {width > 0 ? children({ width, height: Math.floor(drawingHeight) }) : null}
         </div>

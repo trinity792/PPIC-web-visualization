@@ -2,9 +2,11 @@ import React from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { config, schema, input, VISX_TYPES, MAP_TYPES } from "@/tests/fixtures/visualization-v3/renderer";
-const state = vi.hoisted(() => ({ load: vi.fn(), requested: [], defaultRenderer: "plotly" }));
+const state = vi.hoisted(() => ({ load: vi.fn(), geometry: vi.fn(), requested: [], defaultRenderer: "plotly" }));
 vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams(window.location.search), usePathname: () => window.location.pathname, useRouter: () => ({ replace: vi.fn() }) }));
-vi.mock("@/components/chart-builder/chartData", async original => ({ ...(await original()), loadObservations: state.load }));
+// Maps load their geometry beside the observations; serve the fixture's shapes
+// rather than fetching them.
+vi.mock("@/components/chart-builder/chartData", async original => ({ ...(await original()), loadObservations: state.load, loadObservationGeometry: state.geometry }));
 // Stage B's Plotly default is injected, so this regression test remains valid
 // after Stage M switches production defaults to visx.
 vi.mock("@/lib/visualization/chartRegistry", async original => {
@@ -22,6 +24,7 @@ function mount(type) {
 }
 beforeEach(() => {
   state.requested = []; state.defaultRenderer = "plotly";
+  state.geometry.mockReset().mockImplementation(async (type) => (["choroplethMap", "symbolMap"].includes(type) ? input(type).geometry : null));
   state.load.mockReset().mockResolvedValue({ status: "ok", blocked: false, observations: input().observations, comparisons: input().comparisons, periods: [2020,2025,2030], issues: [] });
 });
 afterEach(() => window.history.replaceState({}, "", "/"));

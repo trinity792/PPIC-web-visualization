@@ -39,8 +39,12 @@ const TABLE = {
   scatter: [...SHARED, ...AXES.filter(([key]) => key !== "verticalTickIncrement"), ["verticalTickIncrement", 5000], ["horizontalNumberType", "usd"], ["verticalNumberType", "percent"], ["pointLabels", "off"], ["fitAxes", true]],
   bubble: [...SHARED, ...AXES.filter(([key]) => key !== "verticalTickIncrement"), ["verticalTickIncrement", 5000], ["horizontalNumberType", "usd"], ["verticalNumberType", "percent"], ["pointLabels", "off"], ["fitAxes", true]],
   pie: [...SHARED, ["categoryOrder", ["5-9", "0-4", "10-14"]], ["hiddenCategories", ["0-4"]], ["hole", 0.4]],
-  choroplethMap: [...SHARED, ["invertScale", true]],
-  symbolMap: [...SHARED, ["invertScale", true, { symbolGradient: true }], ["symbolGradient", true]],
+  // Owner decisions 2026-10-12 (renderer plan L): maps color by discrete class
+  // (`classification`, `bins`), and the key is drawn in the frame. A symbol
+  // map has a color key only with its Color gradient on.
+  // The class count (`bins`) has its own case below, on ten places.
+  choroplethMap: [...SHARED, ["invertScale", true], ["classification", "continuous"]],
+  symbolMap: [...SHARED.filter(([key]) => key !== "legendPosition"), ["legendPosition", "bottom", { symbolGradient: true }], ["invertScale", true, { symbolGradient: true }], ["symbolGradient", true], ["classification", "continuous", { symbolGradient: true }]],
 };
 function fixture(type, prerequisites = {}) {
   return input(type, {
@@ -85,6 +89,23 @@ describe("bar, extra cases", () => {
     const base = fixture("bar", { stackMode: "stacked" });
     const changed = { ...base, appearance: { ...base.appearance, stackMode: "percent" } };
     expect(picture(draw("bar", changed))).not.toBe(picture(draw("bar", base)));
+  });
+});
+// The fixture's two places can only make two classes, so the class count is
+// tested on ten places (renderer plan L, owner 2026-10-12).
+describe("maps, extra cases", () => {
+  it.each(MAP_TYPES)("%s: bins and classBreaks change the chart", (type) => {
+    const base = fixture(type, { symbolGradient: true });
+    const row = base.observations[0];
+    const places = Array.from({ length: 10 }, (_, index) => ({ ...row, geographyId: `06${index}`, geographyLabel: `Place ${index}`, value: (index + 1) * 10 }));
+    const points = Object.fromEntries(places.map(entry => [entry.geographyId, [-120, 36]]));
+    const ten = { ...base, observations: places, geometry: type === "symbolMap" ? { ...base.geometry, points } : base.geometry };
+    const changed = { ...ten, appearance: { ...ten.appearance, bins: 3 } };
+    expect(picture(draw(type, changed))).not.toBe(picture(draw(type, ten)));
+    // Advanced Mode custom breaks (owner, 2026-10-12).
+    const quantile = { ...ten, appearance: { ...ten.appearance, bins: 3 } };
+    const custom = { ...ten, appearance: { ...ten.appearance, bins: 3, classification: "custom", classBreaks: [15, 95] } };
+    expect(picture(draw(type, custom))).not.toBe(picture(draw(type, quantile)));
   });
 });
 it("covers every planned drawing family", () => expect(Object.keys(TABLE).sort()).toEqual([...VISX_TYPES, ...MAP_TYPES].sort()));

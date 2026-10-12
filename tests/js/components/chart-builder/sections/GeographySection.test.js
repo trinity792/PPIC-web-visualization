@@ -321,6 +321,15 @@ describe("GeographySection", () => {
     expect(screen.queryByRole("button", { name: /^categories$/i })).not.toBeInTheDocument();
   });
 
+  // Owner, 2026-10-12: a map's places have no order to drag, and the
+  // Categories panel only repeated the place list, so maps show neither.
+  it.each(["choroplethMap", "symbolMap"])("shows no Categories panel or drag order on a %s", (chartType) => {
+    state.config = baseConfig({ chartType, filters: { subset: "Counties", locations: ["Place 1", "Place 2"], topN: 6 } });
+    render(<GeographySection />);
+    expect(screen.queryByRole("button", { name: /^categories$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /drag to reorder/i })).not.toBeInTheDocument();
+  });
+
   it("hides entirely for bring-your-own-data with no geographic subsets", () => {
     state.schema = { id: "byod", apiPath: null, subsets: {}, fields: {} };
     const { container } = render(<GeographySection />);

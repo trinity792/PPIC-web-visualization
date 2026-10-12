@@ -7,7 +7,8 @@
  * ready) and draws the chart through ChartRenderer, which picks Plotly or visx
  * from the result's renderer tag. A visx chart sits inside ChartFrame and hands
  * an export handle (its frame, plus a way to draw it again at the export size)
- * up to the context; a Plotly chart hands up its graph div. Either way the
+ * up to the context. A map sits in the same frame and hands up its frame and
+ * Plotly graph div together; any other Plotly chart hands up its graph div. Either way the
  * Export step drives image export off the same rendered figure.
  * This is the extracted render half of ModuleEditor's former ChartWorkspace.
  *
@@ -216,6 +217,75 @@ function VisxFrame({ result, height, className = "", frameRef = null }) {
 }
 
 /**
+ * A map in the PPIC frame (owner, 2026-10-12): Plotly draws the geography,
+ * and ChartFrame draws the title, the key (classes or a scale bar), and the
+ * source box around it, as for the visx charts. `onHandle` receives the
+ * export handle once both the frame and Plotly's graph div exist.
+ */
+function MapFrame({ result, height, className = "", embedded = false, onHandle = null }) {
+  const figureRef = React.useRef(null);
+  const graphDivRef = React.useRef(null);
+  const report = () => {
+    if (!onHandle) return;
+    onHandle(
+      figureRef.current && graphDivRef.current
+        ? mapExportHandle(result, figureRef.current, graphDivRef.current)
+        : null,
+    );
+  };
+  return (
+    <ChartFrame
+      ref={(figure) => {
+        figureRef.current = figure;
+        report();
+      }}
+      labels={result.frame?.labels}
+      appearance={result.frame?.appearance}
+      observations={result.frame?.observations}
+      sourceCitations={result.frame?.sourceCitations}
+      summary={result.summary ?? null}
+      legend={result.key ?? null}
+      height={height}
+      aspectRatio={result.aspectRatio ?? null}
+      className={className}
+    >
+      {({ height: drawingHeight }) => (
+        <ChartRenderer
+          result={result}
+          height={drawingHeight}
+          embedded={embedded}
+          onGraphDiv={(graphDiv) => {
+            graphDivRef.current = graphDiv;
+            report();
+          }}
+        />
+      )}
+    </ChartFrame>
+  );
+}
+
+/**
+ * What image export needs from a framed map: the frame on screen, Plotly's
+ * graph div for the map itself, and a way to draw both again off screen at
+ * the export size (the copy's own graph div is the one exported then).
+ */
+function mapExportHandle(result, element, graphDiv) {
+  return {
+    renderer: "plotly",
+    chartType: result.chartType,
+    graphDiv,
+    element,
+    renderAtSize: async ({ width, height, padding }) => {
+      const rendered = await renderOffscreen(
+        <MapFrame result={result} height={null} className="h-full" embedded />,
+        { width, height, padding },
+      );
+      return { ...rendered, graphDiv: rendered.element.querySelector(".js-plotly-plot") };
+    },
+  };
+}
+
+/**
  * What image export needs from a visx chart (lib/export/exportImage.js): the
  * frame on screen, and a way to draw the same chart off screen at an exact
  * export width and height.
@@ -342,7 +412,8 @@ function ChartSlot({ preview, layout, multi, embedded, fill, onGraphDiv }) {
         />
       ) : null}
 
-      {comparisonOptions.length ? (
+      {/* One comparison has nothing to switch to, so no lone tab. */}
+      {comparisonOptions.length > 1 ? (
         <GraphTabs
           options={comparisonOptions}
           value={
@@ -473,7 +544,17 @@ function ChartSlot({ preview, layout, multi, embedded, fill, onGraphDiv }) {
             }
           />
         ) : null}
-        {status === "ready" && plotly?.data && plotly.renderer !== "visx" && !renderError ? (
+        {status === "ready" && plotly?.data && plotly.renderer !== "visx" && plotly.frame && !renderError ? (
+          <MapFrame
+            key={renderChartType || chartType}
+            result={plotly}
+            height={fill ? null : height}
+            className={fill ? "h-full" : ""}
+            embedded={embedded}
+            onHandle={(handle) => onGraphDiv(id, handle)}
+          />
+        ) : null}
+        {status === "ready" && plotly?.data && plotly.renderer !== "visx" && !plotly.frame && !renderError ? (
           <ChartRenderer
             key={renderChartType || chartType}
             result={plotly}

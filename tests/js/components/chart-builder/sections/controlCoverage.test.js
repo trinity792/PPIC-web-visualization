@@ -19,6 +19,7 @@ import { visibleSectionsFor } from "@/lib/visualization/sidebarSections";
 // Query/transform controls have separate existing section suites. Gated
 // rendering controls are exercised below with their parent switches enabled.
 const shared = ["Title", "Show title", "Subtitle", "Show subtitle", "X-Axis Label", "Show X-axis label", "Y-Axis Label", "Show Y-axis label", "Color Palette", "Legend Position", "Footnote", "Show source and notes"];
+const noAxisLabels = shared.filter(name => !/axis label/i.test(name));
 // Owner decision 2026-09-29: Typography, line spacing, Markers, and the dashed
 // range move to Advanced Mode (with both tick increments, enumerated
 // separately below). ADVANCED_ONLY lists what standard mode must not show.
@@ -53,8 +54,11 @@ const expected = {
   scatter: [...shared, ...typography, ...spacing, ...axisRange("Horizontal", "Vertical"), "Point labels", "Fit both axes to the data"],
   bubble: [...shared, ...typography, ...spacing, ...axisRange("Horizontal", "Vertical"), "Point labels", "Fit both axes to the data"],
   pie: [...shared, ...typography, "Donut hole"],
-  choroplethMap: [...shared, ...typography, "Color scale", "Invert color scale"],
-  symbolMap: [...shared, ...typography, "Color gradient", "Invert color scale"],
+  // Owner, 2026-10-12 (renderer plan L): maps color by class; Number of
+  // classes shows unless Class breaks is Continuous.
+  // A map has no axes, so no axis label fields (owner, 2026-10-12).
+  choroplethMap: [...noAxisLabels, ...typography, "Color scale", "Invert color scale", "Class breaks", "Number of classes"],
+  symbolMap: [...noAxisLabels, ...typography, "Color gradient", "Invert color scale", "Class breaks", "Number of classes"],
 };
 function controls(container) {
   return [...container.querySelectorAll('input:not([type="hidden"]), textarea, [role="switch"], [role="combobox"], [role="slider"]')]

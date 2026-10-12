@@ -53,6 +53,7 @@ import {
 } from "@/components/chart-builder/chartData";
 import { adaptObservations } from "@/lib/visualization/adapters";
 import { rendererFor } from "@/lib/visualization/chartRegistry";
+import { heatmapCategoryNames } from "@/lib/visualization/heatmapGrid";
 import { buildChartModel } from "@/lib/visualization/models";
 import { pieSliceNames } from "@/lib/visualization/pieSlices";
 import { previewInput } from "@/lib/visualization/previewInput";
@@ -124,6 +125,17 @@ function previewRendererRequest() {
   return params.get("renderer");
 }
 
+/** What ChartFrame draws around a chart: its labels, settings, and sources. */
+function frameFor(input, schema) {
+  return {
+    labels: input.labels,
+    appearance: input.appearance,
+    observations: input.observations,
+    // The topic's full citations, for the source line.
+    sourceCitations: schema?.sourceCitations || null,
+  };
+}
+
 function adaptV3Result(config, schema, result, chartType, previewRenderer) {
   const input = previewInput(config, schema, result, chartType);
   const renderer = rendererFor(input.chartType, previewRenderer);
@@ -132,18 +144,17 @@ function adaptV3Result(config, schema, result, chartType, previewRenderer) {
       renderer,
       chartType: input.chartType,
       model: buildChartModel(input),
-      // What ChartFrame draws around a visx chart. Plotly charts keep their
-      // titles inside Plotly until export can draw the frame (Workstream M).
-      frame: {
-        labels: input.labels,
-        appearance: input.appearance,
-        observations: input.observations,
-        // The topic's full citations, for the source line.
-        sourceCitations: schema?.sourceCitations || null,
-      },
+      frame: frameFor(input, schema),
     };
   }
-  return { ...adaptObservations(input), renderer, chartType: input.chartType };
+  return {
+    ...adaptObservations(input),
+    renderer,
+    chartType: input.chartType,
+    // Maps sit in the same frame as the visx charts (owner, 2026-10-12): Plotly
+    // draws the geography; ChartFrame draws the title, key, and source box.
+    ...(V3_MAP_TYPES.includes(input.chartType) ? { frame: frameFor(input, schema) } : {}),
+  };
 }
 
 export function PreviewProvider({ children, deferInitialRender = false }) {
@@ -244,8 +255,10 @@ export function PreviewProvider({ children, deferInitialRender = false }) {
             seriesNames = (figure.data || [])
               .map((trace) => trace.name)
               .filter((name) => name != null && name !== "");
-            // The Categories panel lists a pie's slices (renderer plan K).
+            // The Categories panel lists a pie's slices (renderer plan K) and
+            // a heatmap's rows (renderer plan I).
             if (input.chartType === "pie") categoryNames = pieSliceNames(input);
+            if (input.chartType === "heatmap") categoryNames = heatmapCategoryNames(input);
           }
           dispatch({
             type: "SET_SERIES_COUNT",

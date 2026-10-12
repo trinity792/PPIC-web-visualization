@@ -4,7 +4,7 @@ Content Type: implementation plan
 pinned: false
 description: "A tests-first plan for moving every chart except maps from Plotly to visx, one chart type at a time, so each chart follows the PPIC Data Visualization Style Guide and every editor control works. Written for programmers continuing the visualization work."
 Date Published: September 26, 2026
-Last Updated: 10/10/2026 - 07:10 PM
+Last Updated: 10/12/2026 - 02:40 PM
 Status: Updating
 ---
 
@@ -33,6 +33,8 @@ The work runs in five stages, plus an optional sixth and a seventh. A stage star
 > **October 5, 2026.** Workstreams G (dot plot) and J (scatter and bubble charts) are built together and are the visx default, on the same terms as the line, bar, and range charts. The owner merged the three into one Scatter tile with a Variant choice (see the October 5 note in Workstream J). Their screenshot baselines await review. Workstreams H, I, and K to O remain. The same day the owner asked for Workstream Q (Stage 7), so that modules can offer scatter and bubble charts, and decided all twelve of its questions.
 >
 > **October 10, 2026.** Workstreams H (forest plot) and K (pie chart) are built and, after owner review, are the visx default on the same terms. The forest plot is now offered only on pasted data, because no module question returns interval bounds. Their screenshot baselines await review. Workstreams I and L to O remain.
+>
+> **October 12, 2026.** Workstreams I (heatmap) and L (maps) are built. The heatmap is the visx default, with image export on. The owner decided three things for the maps the same day: one Maps tile with a Choropleth or Symbols choice, discrete color classes by default (as PPIC's published maps draw them), and maps inside the PPIC frame now rather than in Workstream M. That last decision brings forward M's step 5 (maps join the frame). Screenshot baselines for both await review. Workstreams N and O remain.
 >
 > On September 30 the owner collected twelve published PPIC bar charts (`mockups/bar chart reference/`). Workstream E was widened to cover them, and the owner decided its eleven new rows the same day (ten Build, one Remove). The features they share with other chart types (callouts, highlights, context gray, custom label text, and panels) went into a new optional Workstream P. Workstream E was built the same day, and after two rounds of owner review the bar chart became visx by default, as the line chart had (see the exception below).
 
@@ -76,6 +78,8 @@ The work runs in five stages, plus an optional sixth and a seventh. A stage star
 > **Exception, October 5, 2026.** The dot plot, scatter, and bubble charts are visx by default on the same terms: the image dialog's notice now names line, bar, range, and scatter charts, and `?renderer=plotly` still shows the Plotly versions. None of the three had a legacy screenshot.
 >
 > **Exception, October 10, 2026.** The forest plot and pie chart are visx by default on the same terms: the image dialog's notice now names line, bar, range, scatter, forest, and pie charts, and `?renderer=plotly` still shows the Plotly versions. Neither had a legacy screenshot.
+>
+> **Exception, October 12, 2026.** The heatmap is visx by default and its image export works, so its image dialog shows no notice. `?renderer=plotly` still shows the Plotly heatmap, and the approved legacy `heatmap-active-comparison` screenshot stays a Plotly picture until a visx baseline is approved.
 >
 > **Exception, October 1, 2026.** The owner made visx the range chart's default on the same terms: the image dialog's notice now names line, bar, and range charts, `?renderer=plotly` still shows the Plotly range chart, the legacy `range-two-period` screenshot stays a Plotly picture until a visx baseline is approved, and version 2 views still draw with Plotly.
 
@@ -1089,6 +1093,19 @@ New files: `tests/js/lib/visualization/models/heatmapModel.test.js` and `tests/j
 
 Screenshot case: `matches the approved Heatmap tab layout` (existing test, new baseline after review).
 
+> [!note] As built, October 12, 2026
+> Workstream I is built, and the heatmap is the visx default with image export on (PNG, SVG, and PDF checked in the browser). Its screenshot baseline is not recorded.
+> - **Shared grid.** `lib/visualization/heatmapGrid.js` picks the rows, columns, and ramp. The Plotly heatmap adapter and `heatmapModel.js` both call it, so a cell keeps its color on switching. A cell's color is its place on the ramp between the lowest and highest drawn values, as Plotly colors it.
+> - **Ramps.** The new `lib/visualization/colorScale.js` turns a palette's ramp into stops both renderers read. Plotly's named `RdBu` fallback is written out as its stops, so visx can draw it too. Invert color scale reverses the colors along the same stops. The heatmap keeps the legacy default ramps, so its colors do not change with its renderer.
+> - **Columns and rows.** Every period of the active comparison is drawn, oldest first. A stale `activePeriod` left by a map or pie no longer narrows a heatmap to one column. Rows are categories, else places. A module heatmap's rows are its places, so the heatmap joined the place charts whose location list sets the row order.
+> - **Empty cells.** A missing or suppressed value is an outlined empty cell, never the lowest color.
+> - **Cell values.** Show cell values is off by default. When on, each cell prints its value in white or dark gray (`#595F61`), whichever contrasts more.
+> - **Key.** The key is the ramp as a gradient bar labeled with the lowest and highest values, titled with the measure. `ChartKey` gained a `scale` form for it, drawn as an inline SVG so export copies it.
+> - **Hover.** Hovering a cell outlines it in dark gray, shows its value inside, and bolds its row and period names. No box floats. Arrow keys move between cells; Home, End, and Escape work.
+> - **Categories panel.** `PreviewContext` sends the heatmap's row names as `categoryNames`.
+> - **Stage 1 test changed.** `Heatmap.test.js` used the custom stops `#FFFFFF`, `#808080`, and `#000000`. `customDivergingScale` rejects them because they are not published shades, which `palettes.test.js` pins. The test now uses the guide's Gray family (`#EFF0F2`, `#AFAEAD`, `#191918`), which keeps its light-to-dark intent.
+> - **Not done.** The line spacing controls still show and do nothing on the heatmap, as on the bar and range charts.
+
 ---
 
 ## Workstream J - Scatter and bubble charts
@@ -1220,6 +1237,38 @@ New file: `tests/js/lib/visualization/adapters/maps.test.js`. Map adapters need 
 | `formats the color scale key with the chosen decimal places` | Shared settings reach maps. |
 
 Screenshot cases: `matches the approved Choropleth layout` and `matches the approved Symbol map layout` (both new).
+
+> [!note] As built, October 12, 2026
+> Workstream L is built, with three owner decisions made the same day. Plotly still draws the maps. Their screenshot baselines are not recorded.
+> - **One Maps tile.** The picker shows one Maps tile with a Variant choice (Choropleth, the default, or Symbols), the way the Scatter tile groups its variants. `choroplethMap` and `symbolMap` stay separate chart types, because a symbol map needs point locations and its value sets symbol size rather than fill. `CHART_FAMILIES.map` declares the family.
+> - **Discrete classes.** PPIC's published maps color places by class, not along a continuous ramp. The guide's example (p.29) draws five classes keyed "< 14.1%", "14.1 - 15.5%", and so on to "> 18.3%". Two new standard controls choose the classes:
+>   - **Class breaks** (`classification`): Quantile, the default, puts about the same number of places in each class. Equal intervals splits the value range evenly. Continuous keeps the ramp.
+>   - **Number of classes** (`bins`): 3 to 7, 5 by default. Hidden when Class breaks is Continuous.
+>
+>   Both controls show on a symbol map only with its Color gradient on. The registry had declared both defaults, but nothing read them before. Quantile breaks are real data values, so no class is ever empty. Breaks are rounded to the precision the key shows, so every key label is exact. `classesFor` in `colorScale.js` owns the rule.
+> - **Default colors.** With no ramp palette chosen, a map draws the five classes of the guide's own map example (`#ECE8E7`, `#FFCEBD`, `#E9632A`, `#CA4F1A`, `#8F3811`, new palette `ppic-map-orange`). A diverging map draws the guide's orange-to-blue colorway. The p.13 orange ramp was not used as the default, because its middle three shades are too close to tell apart as classes. `defaultRampPalette` in `palettes.js` owns the choice, and the palette picker shows it.
+> - **Symbols.** With Color gradient off, every symbol takes its comparison's one color and area alone carries the value; there is no color key. With it on, symbols are colored by class, or along the ramp when Continuous. County outlines are 1px in the graph-line gray.
+> - **The PPIC frame (Workstream M, step 5, brought forward).** Plotly draws only the geography. `ChartFrame` draws the title, subtitle, key, and source box around it, with the classes as square swatches labeled by range, as the guide shows. A continuous map uses the heatmap's gradient-bar key. The map adapters return `key`, `labels`, `typography`, `frame`, and `summary` beside their traces, and Plotly's colorbar and titles are off.
+> - **Map export.** A map's export handle carries its frame, its graph div, and `renderAtSize`. `exportImage.js` renders the map alone with `Plotly.toImage` at the drawing area's size, and `exportSvgChart.js` places that SVG (`chartSvg`) inside the frame's SVG. Workspace exports that mix maps and visx charts work. PNG, SVG, and PDF were checked in the browser.
+> - **Fit.** Plotly's `fitbounds` fits a map inside the world's 2:1 frame, which left California in a short strip. Maps now set Mercator axis ranges from the drawn places' shapes, padded 3%, so the map fills its area and has the guide's shape.
+> - **Stage 1 tests changed.** `maps.test.js` assumed a continuous ramp from the p.13 orange (`#F9E1D9`) and a Plotly colorbar. It now covers:
+>   - the class colors and labels, and the class count;
+>   - the Continuous ramp;
+>   - Invert, both continuous and classed;
+>   - symbols with and without Color gradient;
+>   - key labels in the chosen decimal places;
+>   - the fitted frame.
+>
+>   Other changed tests:
+>   - `settingsCoverage.test.js` gained rows for `classification` and a ten-place `bins` case, because the fixture's two places make only two classes. Its symbol-map Legend Position row now needs Color gradient on.
+>   - `controlCoverage.test.js` lists the two new controls.
+>   - `PreviewPane.renderer.test.js` now mocks `loadObservationGeometry`. Its two map cases had been fetching real geometry and failing.
+> - **Owner review, same day.**
+>   - **Key beside the map.** The key now sits right beside the map, as in the guide's example, rather than at the frame's far edge. Each map adapter reports the map's own shape (`aspectRatio`, from its Mercator bounds), and `ChartFrame` gives the drawing exactly that width when the key is on the right.
+>   - **No lone tab.** Comparison tabs above a chart show only for two or more comparisons. A single "Selected locations" tab had nothing to switch to.
+>   - **No Categories panel or axis labels on maps.** The panel only repeated the place list, so maps join scatter in showing Ranked values (Advanced Mode) instead. A map has no axes, so the Labels section drops its X-axis and Y-axis label fields for maps.
+>   - **Custom breaks (Advanced Mode).** Class breaks gains a Custom choice. It starts from the quantile breaks the map draws now, and offers one "Class N starts at" field per class after the first. They are saved as `classBreaks` and labeled to the precision typed, so the guide's key ("< 14.1%", "14.1 - 15.5%", ...) can be matched exactly. Changing the number of classes starts again from that count's quantiles. Breaks that do not rise, or do not match the class count, fall back to quantiles, and the editor says so. A saved Custom view still draws, and names itself, in standard mode.
+> - **Not done.** A symbol map has no size key yet.
 
 ---
 

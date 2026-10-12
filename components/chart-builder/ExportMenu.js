@@ -175,9 +175,10 @@ function previewDensity() {
 function graphPixelSize(chart) {
   // A visx handle is measured by its whole frame plus the white margin its
   // image adds, so "Match editor" lays the chart out exactly as on screen.
-  const visx = chart?.renderer === "visx";
-  const graphDiv = visx ? chart.element : chart;
-  const margin = visx ? CHART_STYLE.imagePadding * 2 : 0;
+  // A framed map (a Plotly handle with its frame) is measured the same way.
+  const framed = chart?.renderer === "visx" || Boolean(chart?.element);
+  const graphDiv = framed ? chart.element : chart;
+  const margin = framed ? CHART_STYLE.imagePadding * 2 : 0;
   const bounds = graphDiv?.getBoundingClientRect?.();
   const width =
     (Number(graphDiv?._fullLayout?.width) ||

@@ -40,10 +40,10 @@ import ChartTypeSection from "@/components/chart-builder/sections/ChartTypeSecti
 const orderedLabels = [
   "Line",
   "Bar",
-  "Choropleth Map",
+  // One tile for the choropleth and symbol maps (owner, 2026-10-12).
+  "Maps",
   // No Forest tile: a module question never returns interval bounds, so the
   // forest plot is offered only on pasted data (owner review, 2026-10-10).
-  "Symbol Map",
   // One tile for the scatter, bubble, and dot plot charts (owner, 2026-10-05).
   "Scatter",
   "Range",
@@ -117,20 +117,42 @@ describe("ChartTypeSection", () => {
   // Workstream D: a map tile on a module with no county geometry could only
   // ever fail at the data layer — Building Permits offers Metros, Regions and
   // States, none of which we hold shapes or derived points for.
-  it("drops both map tiles on a module with no level we hold geometry for", () => {
+  it("drops the Maps tile on a module with no level we hold geometry for", () => {
     state.schema = { id: "permits", subsets: { Metros: ["Metro"], States: ["State"] } };
     render(<ChartTypeSection />);
     const labels = screen.getAllByRole("button").map((button) => button.textContent.trim());
-    expect(labels).not.toContain("Choropleth Map");
-    expect(labels).not.toContain("Symbol Map");
+    expect(labels).not.toContain("Maps");
     expect(labels).toContain("Line");
   });
 
-  it("keeps both map tiles on a module that has a Counties level", () => {
+  it("keeps the Maps tile on a module that has a Counties level", () => {
     render(<ChartTypeSection />);
     const labels = screen.getAllByRole("button").map((button) => button.textContent.trim());
-    expect(labels).toContain("Choropleth Map");
-    expect(labels).toContain("Symbol Map");
+    expect(labels).toContain("Maps");
+  });
+
+  // Owner, 2026-10-12: one Maps tile, opening on the choropleth, with a
+  // Variant choice to draw symbols instead.
+  describe("the Maps family tile", () => {
+    it("opens on the choropleth", async () => {
+      const user = userEvent.setup();
+      render(<ChartTypeSection />);
+      await user.click(screen.getByRole("button", { name: "Maps" }));
+      expect(state.dispatch).toHaveBeenLastCalledWith({ type: "SET_CHART_TYPE", chartType: "choroplethMap" });
+    });
+
+    it("switches between Choropleth and Symbols as chart types", async () => {
+      const user = userEvent.setup();
+      state.config = { chartType: "choroplethMap" };
+      render(<ChartTypeSection />);
+      expect(screen.getByRole("button", { name: "Maps" })).toHaveAttribute("aria-pressed", "true");
+      const variants = screen.getByRole("group", { name: "Variant" });
+      expect(
+        [...variants.querySelectorAll("button")].map((button) => button.textContent),
+      ).toEqual(["Choropleth", "Symbols"]);
+      await user.click(screen.getByRole("button", { name: "Symbols" }));
+      expect(state.dispatch).toHaveBeenLastCalledWith({ type: "SET_CHART_TYPE", chartType: "symbolMap" });
+    });
   });
 
   // Owner, 2026-10-05: Dot plot, Scatter, and Bubble are one tile with a

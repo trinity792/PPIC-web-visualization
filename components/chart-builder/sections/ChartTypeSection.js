@@ -10,7 +10,8 @@
  * type is never silently unreachable.
  *
  * A chart family (`CHART_FAMILIES` in the registry) is ONE tile: Scatter
- * stands for the scatter, bubble, and dot plot charts (owner, 2026-10-05).
+ * stands for the scatter, bubble, and dot plot charts (owner, 2026-10-05), and
+ * Maps for the choropleth and symbol maps (owner, 2026-10-12).
  * Choosing it opens the first variant this surface can draw, and a Variant
  * control under the grid switches between them. Each variant stays its own
  * chart type, so choosing one dispatches SET_CHART_TYPE exactly as a tile
@@ -51,13 +52,13 @@ import {
 // Mockup order, reading left-to-right across the two columns. Range sits with
 // the other per-category comparison forms rather than at the end. "scatter"
 // is the Scatter family's tile (scatter, bubble, dot plot), in the dot plot's
-// old place.
+// old place; "map" is the Maps family's tile (choropleth, symbols), in the
+// choropleth's (owner, 2026-10-12).
 const TILE_ORDER = [
   "line",
   "bar",
-  "choroplethMap",
+  "map",
   "forest",
-  "symbolMap",
   "scatter",
   "dumbbell",
   "pie",

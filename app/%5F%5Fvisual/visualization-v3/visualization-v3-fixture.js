@@ -54,6 +54,7 @@ const DIMENSIONS = Object.freeze({
 });
 
 const LEGACY_CHARTS = new Set(["line", "bar", "dumbbell", "heatmap"]);
+const MAP_CHARTS = new Set(["choroplethMap", "symbolMap"]);
 const STATIC_PLOTLY_CONFIG = Object.freeze({
   displayModeBar: false,
   responsive: false,
@@ -263,7 +264,24 @@ export default function VisualizationV3Fixture({
               )}
             </ChartFrame>
           ) : null}
-          {result && result.renderer !== "visx" ? (
+          {/* Maps sit in the PPIC frame as in the editor (owner, 2026-10-12). */}
+          {result && result.renderer !== "visx" && MAP_CHARTS.has(chart) ? (
+            <ChartFrame
+              labels={input.labels}
+              appearance={input.appearance}
+              observations={input.observations}
+              sourceCitations={DEMOGRAPHIC_PROJECTIONS_SCHEMA.sourceCitations}
+              summary={result.summary ?? null}
+              legend={result.key ?? null}
+              height={PLOT_HEIGHT}
+              aspectRatio={result.aspectRatio ?? null}
+            >
+              {({ height }) => (
+                <ChartRenderer result={result} height={height} embedded={embedded} />
+              )}
+            </ChartFrame>
+          ) : null}
+          {result && result.renderer !== "visx" && !MAP_CHARTS.has(chart) ? (
             <ChartRenderer
               result={result}
               height={PLOT_HEIGHT}

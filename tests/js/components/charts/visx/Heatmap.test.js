@@ -12,7 +12,10 @@ function draw(appearance = {}, overrides = {}, width = 650) {
 
 it("shows no cell values by default", () => expect(draw().container.querySelectorAll('[data-mark="cell-value"]')).toHaveLength(0));
 it("shows each cell's value in the readable text color when on", () => {
-  const { container } = draw({ showCellValues: true, colorScale: "diverging", divergingStops: ["#FFFFFF", "#808080", "#000000"], decimalPlaces: 0 });
+  // The guide's Gray family, lightest to darkest: custom diverging stops must
+  // be published shades (customDivergingScale), so #FFFFFF/#808080/#000000
+  // were ignored for the default ramp (renderer plan I, 2026-10-12).
+  const { container } = draw({ showCellValues: true, colorScale: "diverging", divergingStops: ["#EFF0F2", "#AFAEAD", "#191918"], decimalPlaces: 0 });
   const labels = container.querySelectorAll('[data-mark="cell-value"]');
   expect(labels).toHaveLength(4);
   const low = [...labels].find(l => l.textContent === "2,500");

@@ -71,8 +71,14 @@ const COLLAPSED_LOCATION_COUNT = 7;
  */
 // The range chart joined on 2026-10-01 (renderer plan F, owner): its rows are
 // places, so dragging locations sets the row order. The dot plot joined on
-// 2026-10-05 (renderer plan G) for the same reason.
-const PLACE_CATEGORY_CHART_TYPES = new Set(["line", "bar", "dumbbell", "dotPlot"]);
+// 2026-10-05 (renderer plan G) for the same reason, and the heatmap on
+// 2026-10-12 (renderer plan I): a module heatmap's rows are its places.
+const PLACE_CATEGORY_CHART_TYPES = new Set(["line", "bar", "dumbbell", "dotPlot", "heatmap"]);
+
+// Charts whose marks are places but have no order to drag: Ranked values still
+// applies (Advanced Mode), and the Categories panel would only repeat the
+// place list. Maps joined on 2026-10-12 (owner: the panel did nothing there).
+const PLACE_RANKING_ONLY_CHART_TYPES = new Set(["scatter", "bubble", "choroplethMap", "symbolMap"]);
 
 /** Whether a schema offers any geography at all (bring-your-own-data does not). */
 export function hasGeographicSubsets(config, schema) {
@@ -222,7 +228,7 @@ export default function GeographySection() {
         </p>
       )}
 
-      {config.filters?.subset && (reorderable || ["scatter", "bubble"].includes(config.chartType)) ? (
+      {config.filters?.subset && (reorderable || PLACE_RANKING_ONLY_CHART_TYPES.has(config.chartType)) ? (
         // Ranked values sits behind Advanced Mode; the place list above still
         // carries ordering and checkbox selection, so hiding it costs no reach.
         advanced ? (

@@ -66,7 +66,14 @@ import {
   supportsRole,
 } from "@/lib/visualization/fieldTypes";
 import { CHART_STYLE } from "@/lib/visualization/chartStyle";
+import {
+  CLASS_COUNT_LIMITS,
+  classCountFor,
+  classificationFor,
+  customBreaksFor,
+} from "@/lib/visualization/colorScale";
 import { impliedBindings } from "@/lib/visualization/impliedRoles";
+import { adaptObservations } from "@/lib/visualization/adapters";
 import { buildBarModel } from "@/lib/visualization/models/barModel";
 import { buildDotPlotModel } from "@/lib/visualization/models/dotPlotModel";
 import { buildRangeModel } from "@/lib/visualization/models/rangeModel";
@@ -537,6 +544,27 @@ const POINT_LABEL_END_CHOICES = Object.freeze([
   { value: "end", label: "End only" },
 ]);
 
+// Map color classes (renderer plan L; owner, 2026-10-12): PPIC's published
+// maps color places by class, five quantiles unless chosen otherwise.
+const CLASSIFICATION_CHOICES = Object.freeze([
+  { value: "quantile", label: "Quantile" },
+  { value: "equalInterval", label: "Equal intervals" },
+  { value: "continuous", label: "Continuous" },
+]);
+// Typing the breaks is fine-tuning, so Custom is an Advanced Mode choice
+// (owner, 2026-10-12); a saved Custom view still draws, and names itself, in
+// standard mode.
+const CUSTOM_CLASSIFICATION_CHOICE = Object.freeze({ value: "custom", label: "Custom" });
+const CLASS_COUNT_CHOICES = Object.freeze(
+  Array.from(
+    { length: CLASS_COUNT_LIMITS.max - CLASS_COUNT_LIMITS.min + 1 },
+    (_, index) => {
+      const count = String(CLASS_COUNT_LIMITS.min + index);
+      return { value: count, label: count };
+    },
+  ),
+);
+
 function RangeChoice({ id, label, value, choices, onChange }) {
   const current = choices.some((choice) => choice.value === value) ? value : choices[0].value;
   return (
@@ -555,6 +583,104 @@ function RangeChoice({ id, label, value, choices, onChange }) {
         </SelectContent>
       </Select>
     </div>
+  );
+}
+
+// ── Map color classes ────────────────────────────────────────────────
+
+/**
+ * The automatic (quantile) breaks the map draws for a class count, from the
+ * loaded preview, so custom breaks start from what the reader sees.
+ */
+function useAutomaticBreaks(storedConfig, schema) {
+  const result = useLoadedResult();
+  return React.useCallback(
+    (count) => {
+      const chartType = storedConfig.presentation?.chartType;
+      if (storedConfig.version !== 3 || !result?.observations?.length) return [];
+      try {
+        const input = previewInput(storedConfig, schema, result, chartType);
+        const figure = adaptObservations({
+          ...input,
+          appearance: { ...input.appearance, symbolGradient: true, classification: "quantile", bins: count },
+        });
+        return figure.key?.breaks || [];
+      } catch {
+        return [];
+      }
+    },
+    [storedConfig, schema, result],
+  );
+}
+
+function MapClassControls({ storedConfig, schema, appearance, onChange, advanced }) {
+  const automaticBreaks = useAutomaticBreaks(storedConfig, schema);
+  const classification = classificationFor(appearance);
+  const count = classCountFor(appearance);
+  const custom = classification === "custom";
+  const choices = advanced || custom
+    ? [...CLASSIFICATION_CHOICES.slice(0, 2), CUSTOM_CLASSIFICATION_CHOICE, CLASSIFICATION_CHOICES[2]]
+    : CLASSIFICATION_CHOICES;
+  const breaks = Array.isArray(appearance.classBreaks) ? appearance.classBreaks : [];
+  const breaksFit = customBreaksFor(appearance, count) !== null;
+  return (
+    <>
+      <RangeChoice
+        id="appearance-classification"
+        label="Class breaks"
+        value={classification}
+        choices={choices}
+        onChange={(value) => {
+          // Custom starts from the breaks the map draws now.
+          if (value === "custom" && !custom) onChange("classBreaks", automaticBreaks(count));
+          onChange("classification", value);
+        }}
+      />
+      {classification !== "continuous" ? (
+        <RangeChoice
+          id="appearance-class-count"
+          label="Number of classes"
+          value={String(count)}
+          choices={CLASS_COUNT_CHOICES}
+          onChange={(value) => {
+            const next = Number(value);
+            // Custom breaks are one fewer than the classes; a new count
+            // starts again from that count's quantiles.
+            if (custom) onChange("classBreaks", automaticBreaks(next));
+            onChange("bins", next);
+          }}
+        />
+      ) : null}
+      {custom && advanced ? (
+        <div className="grid gap-2 rounded-lg border bg-card p-3">
+          <span className="text-sm font-medium">Where each class starts</span>
+          {Array.from({ length: count - 1 }, (_, index) => (
+            <div key={index} className="flex items-center justify-between gap-3">
+              <Label htmlFor={`appearance-class-break-${index}`} className="text-sm font-normal">
+                {`Class ${index + 2} starts at`}
+              </Label>
+              <Input
+                id={`appearance-class-break-${index}`}
+                type="number"
+                inputMode="decimal"
+                className="w-32"
+                value={breaks[index] ?? ""}
+                onChange={(event) => {
+                  const next = Array.from({ length: count - 1 }, (_, position) => breaks[position] ?? null);
+                  next[index] = event.target.value === "" ? null : event.target.value;
+                  onChange("classBreaks", next);
+                }}
+              />
+            </div>
+          ))}
+          {breaksFit ? null : (
+            <p className="m-0 text-xs text-muted-foreground" role="status">
+              Each class must start above the one before it. Until then the map uses quantiles.
+            </p>
+          )}
+        </div>
+      ) : null}
+    </>
   );
 }
 
@@ -1524,6 +1650,7 @@ export default function AppearanceSection() {
   const legendDefault = chart?.defaults?.legendPosition || "right";
   const isRangeFamily = ["dumbbell", "dotPlot", "forest"].includes(config.chartType);
   const isSymbolMap = config.chartType === "symbolMap";
+  const isMap = isSymbolMap || config.chartType === "choroplethMap";
   // The Color scale (sequential/diverging) select belongs to the types that
   // are always scale-driven; a symbol map reaches its ramp through the
   // gradient switch instead.
@@ -1827,6 +1954,18 @@ export default function AppearanceSection() {
         </div>
       ) : null}
 
+      {/* Map color classes: how places split into colors, and how many. A
+          symbol map is colored by value only with its gradient on. */}
+      {isMap && rampInPlay ? (
+        <MapClassControls
+          storedConfig={storedConfig}
+          schema={schema}
+          appearance={appearance}
+          onChange={setAppearance}
+          advanced={advanced}
+        />
+      ) : null}
+
       {/* Hand-picked diverging stops, behind Advanced Mode: a default reader
           picks a published ramp, and only someone deliberately composing one
           needs five swatch pickers on screen. */}
@@ -1843,6 +1982,18 @@ export default function AppearanceSection() {
             id="appearance-invert-scale"
             checked={Boolean(appearance.invertScale)}
             onCheckedChange={(checked) => setAppearance("invertScale", checked)}
+          />
+        </div>
+      ) : null}
+
+      {/* Heatmap cell values (renderer plan I): off unless switched on. */}
+      {config.chartType === "heatmap" ? (
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor="appearance-show-cell-values">Show cell values</Label>
+          <Switch
+            id="appearance-show-cell-values"
+            checked={appearance.showCellValues === true}
+            onCheckedChange={(checked) => setAppearance("showCellValues", checked)}
           />
         </div>
       ) : null}

@@ -40,6 +40,10 @@ const LABEL_FIELDS = [
   ["xAxis", "X-Axis Label", "showXAxisLabel", "Show X-axis label"],
   ["yAxis", "Y-Axis Label", "showYAxisLabel", "Show Y-axis label"],
 ];
+const AXIS_LABELS = new Set(["xAxis", "yAxis"]);
+// A map has no axes, so its axis label fields could only do nothing
+// (owner, 2026-10-12); its key title names the measure instead.
+const CHARTS_WITHOUT_AXES = new Set(["choroplethMap", "symbolMap"]);
 
 export default function LabelsSection() {
   const { config: storedConfig, dispatch, schema } = useChartConfig();
@@ -58,7 +62,9 @@ export default function LabelsSection() {
 
   return (
     <div className="grid gap-4">
-      {LABEL_FIELDS.map(([key, label, visibilityKey, visibilityLabel]) => {
+      {LABEL_FIELDS.filter(
+        ([key]) => !(AXIS_LABELS.has(key) && CHARTS_WITHOUT_AXES.has(config.chartType)),
+      ).map(([key, label, visibilityKey, visibilityLabel]) => {
         const isVisible = appearance[visibilityKey] !== false;
         return (
           <div className="grid gap-2" key={key}>

@@ -25,6 +25,11 @@
  *                                    defaults to the guide's 14px
  *   focusId        {string|null}   — the focused series; defaults to the
  *                                    surrounding ChartFrame's focus
+ *   scale          {Object|null}   — { stops: [[stop, hex]], minLabel, maxLabel }: a
+ *                                    continuous color scale (heatmap, a continuous
+ *                                    map), drawn as a gradient bar labeled at its
+ *                                    ends instead of swatches. An inline SVG, so
+ *                                    image export copies it as drawn
  *
  * Data sources:
  *   - Via props from parent (ChartFrame, from the chart model)
@@ -94,6 +99,33 @@ function Swatch({ entry, faded = false }) {
   );
 }
 
+/** The continuous scale as a gradient bar with its lowest and highest values. */
+function ScaleBar({ scale, fontSize }) {
+  const { width, height } = CHART_STYLE.heatmap.scaleBar;
+  const gradientId = `key-scale-${React.useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
+  return (
+    <div className="grid gap-1" data-key-scale="" style={{ width }}>
+      <svg aria-hidden="true" width={width} height={height}>
+        <defs>
+          <linearGradient id={gradientId} x1="0" x2="1" y1="0" y2="0">
+            {scale.stops.map(([stop, color], index) => (
+              <stop key={`${stop}-${index}`} offset={stop} stopColor={color} />
+            ))}
+          </linearGradient>
+        </defs>
+        <rect width={width} height={height} fill={`url(#${gradientId})`} />
+      </svg>
+      <div
+        className="flex justify-between gap-2"
+        style={{ fontFamily: text.key.fontFamily, fontSize, color: text.key.color }}
+      >
+        <span>{scale.minLabel}</span>
+        <span>{scale.maxLabel}</span>
+      </div>
+    </div>
+  );
+}
+
 // ── Component ────────────────────────────────────────────────────────
 
 export default function ChartKey({
@@ -102,11 +134,12 @@ export default function ChartKey({
   title = null,
   fontSize = null,
   focusId = null,
+  scale = null,
 }) {
   const frameFocus = useChartFocus().focusId;
   const focus = focusId ?? frameFocus;
   const focused = entries.some((entry) => entry.id === focus) ? focus : null;
-  if (legendPosition === "hidden" || !entries.length) return null;
+  if (legendPosition === "hidden" || (!entries.length && !scale)) return null;
   const position = ["top", "bottom"].includes(legendPosition) ? legendPosition : "right";
 
   return (
@@ -124,28 +157,31 @@ export default function ChartKey({
           {title}
         </p>
       ) : null}
-      <ul
-        className={cn(
-          "flex gap-x-4 gap-y-2",
-          position === "right" ? "flex-col" : "flex-row flex-wrap",
-        )}
-        style={{
-          fontFamily: text.key.fontFamily,
-          fontSize: fontSize ?? text.key.fontSize,
-          color: text.key.color,
-        }}
-      >
-        {entries.map((entry) => (
-          <li
-            key={entry.id ?? entry.label}
-            className="flex items-center gap-2"
-            data-faded={focused && entry.id !== focused ? "" : undefined}
-          >
-            <Swatch entry={entry} faded={Boolean(focused) && entry.id !== focused} />
-            <span>{entry.label}</span>
-          </li>
-        ))}
-      </ul>
+      {scale ? <ScaleBar scale={scale} fontSize={fontSize ?? text.key.fontSize} /> : null}
+      {entries.length ? (
+        <ul
+          className={cn(
+            "flex gap-x-4 gap-y-2",
+            position === "right" ? "flex-col" : "flex-row flex-wrap",
+          )}
+          style={{
+            fontFamily: text.key.fontFamily,
+            fontSize: fontSize ?? text.key.fontSize,
+            color: text.key.color,
+          }}
+        >
+          {entries.map((entry) => (
+            <li
+              key={entry.id ?? entry.label}
+              className="flex items-center gap-2"
+              data-faded={focused && entry.id !== focused ? "" : undefined}
+            >
+              <Swatch entry={entry} faded={Boolean(focused) && entry.id !== focused} />
+              <span>{entry.label}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }

@@ -34,14 +34,16 @@ import {
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import {
   DEFAULT_PALETTE,
+  defaultRampPalette,
   PALETTES,
   palettesOfKind,
   resolveToken,
 } from "@/lib/visualization/palettes";
 
-// Where `rampFor` lands when the active palette declares no stops of its own.
-// Mirrors its `legacyRampScale`, so the select never names a palette the
-// renderer is not using.
+// Where `rampFor` lands when the active palette declares no stops of its own
+// and the chart type has no default ramp (`defaultRampPalette`: maps use the
+// guide's). Mirrors its `legacyRampScale`, so the select never names a palette
+// the renderer is not using.
 const FALLBACK_RAMP = Object.freeze({
   sequential: "sequential-blues",
   diverging: "diverging-redblue",
@@ -88,6 +90,7 @@ export default function PalettePicker({ seriesNames = [], kind = "categorical" }
     ? { ...storedConfig, appearance: storedConfig.presentation?.appearance || {} }
     : storedConfig;
   const rampMode = kind !== "categorical";
+  const chartType = storedConfig.presentation?.chartType || storedConfig.chartType;
   const automatic = storedConfig.version === 3 && !rampMode;
   const automaticCount = seriesNames.length || storedConfig.seriesCount || 0;
   const automaticLabel = automaticCount
@@ -108,7 +111,7 @@ export default function PalettePicker({ seriesNames = [], kind = "categorical" }
   const selected = options.some(([id]) => id === active)
     ? active
     : rampMode
-      ? FALLBACK_RAMP[kind]
+      ? defaultRampPalette(chartType, kind) || FALLBACK_RAMP[kind]
       : DEFAULT_PALETTE;
 
   return (

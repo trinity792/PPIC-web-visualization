@@ -40,6 +40,7 @@ import PlotlyChart from "@/components/charts/PlotlyChart";
 import BarChart from "@/components/charts/visx/BarChart";
 import DotPlot from "@/components/charts/visx/DotPlot";
 import ForestPlot from "@/components/charts/visx/ForestPlot";
+import Heatmap from "@/components/charts/visx/Heatmap";
 import LineChart from "@/components/charts/visx/LineChart";
 import PieChart from "@/components/charts/visx/PieChart";
 import PointChart from "@/components/charts/visx/PointChart";
@@ -58,6 +59,7 @@ const VISX_CHARTS = Object.freeze({
   dumbbell: RangeChart,
   dotPlot: DotPlot,
   forest: ForestPlot,
+  heatmap: Heatmap,
   scatter: PointChart,
   bubble: PointChart,
   pie: PieChart,

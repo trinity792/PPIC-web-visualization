@@ -4,7 +4,7 @@ Content Type: project specification
 pinned: true
 description: "Current product and technical specification for building, rendering, sharing, and exporting visualizations in the PPIC Data Explorer."
 Date Published: July 27, 2026
-Last Updated: 10/05/2026 - 08:30 PM
+Last Updated: 10/12/2026 - 03:00 PM
 Status: Finalized
 ---
 
@@ -167,21 +167,21 @@ Multi-chart controls are not hidden behind Advanced Mode. If the interface suppo
 
 ## Chart catalog
 
-There are twelve registered chart types. The picker shows ten tiles, because the dot plot, scatter, and bubble charts share one **Scatter** tile (below). A chart can still be unavailable for a particular topic, calculation, or data source.
+There are twelve registered chart types. The picker shows fewer tiles, because the dot plot, scatter, and bubble charts share one **Scatter** tile, and the choropleth and symbol maps share one **Maps** tile (both below). A chart can still be unavailable for a particular topic, calculation, or data source.
 
 | Chart | Best used for | Important rule |
 |---|---|---|
 | Line | Change across an ordered sequence, usually time | Needs an ordered time axis and an outcome. Drawn with visx by default (see [Chart renderers](#chart-renderers)) |
 | Bar | Comparing categories, places, or selected periods | Vertical or horizontal; grouped, stacked, stacked to 100%, and diverging variants; optional value labels. A visx drawing exists (see [Chart renderers](#chart-renderers)) |
-| Choropleth Map | Geographic variation shown by area color | Requires joinable boundary geometry and stable place identifiers |
-| Matrix Heatmap | Patterns across many rows and periods | Encodes the outcome with a color scale |
+| Choropleth Map | Geographic variation shown by area color | Requires joinable boundary geometry and stable place identifiers. The default variant of the Maps tile; places are colored by class (see [The Maps tile](#the-maps-tile-and-its-variants)) |
+| Matrix Heatmap | Patterns across many rows and periods | Encodes the outcome with a continuous color scale. Drawn with visx by default |
 | Range | The gap between exactly two values per category | Uses two periods of the same measure. Drawn with visx by default (see [Chart renderers](#chart-renderers)) |
 | Dot Plot | Several series as dots on one shared value axis | Uses category, series, and value roles. A variant of the Scatter tile. Drawn with visx by default |
 | Forest / Whisker Plot | Estimates and confidence intervals | Uses lower bound, upper bound, and an optional estimate |
 | Scatter | The relationship between two numeric measures | Each point needs an observation unit and two measures; a topic needs two measures to offer it. A variant of the Scatter tile. Drawn with visx by default |
 | Bubble | A scatter plot with a third measure encoded as point area | Bubble size values must be non-negative; a topic needs three measures to offer it. A variant of the Scatter tile. Drawn with visx by default |
 | Pie / Donut | Parts of a whole at one point in time | Intended for a small number of slices |
-| Symbol Map | Magnitude by place using proportional markers | Requires representative points and stable place identifiers |
+| Symbol Map | Magnitude by place using proportional markers | Requires representative points and stable place identifiers. The Symbols variant of the Maps tile |
 | Data Table | Exact values in searchable, sortable rows | Uses the answered question without graphical marks |
 
 The chart registry owns each chart's required roles, accepted field kinds, time contracts, calculation choices, comparison presentations, color behavior, renderer, defaults, and complexity guidance. The editor reads those declarations instead of maintaining separate chart lists.
@@ -191,6 +191,22 @@ The chart registry owns each chart's required roles, accepted field kinds, time 
 The dot plot, scatter, and bubble charts share one **Scatter** tile (owner decision, October 5, 2026). Choosing it keeps the current variant, or opens the first one the question can draw, and a **Variant** control under the tile grid switches between Scatter, Bubble, and Dot plot. The control stays visible even when only one variant is offered, so the reader can see what the tile draws.
 
 Each variant is still its own chart type, because each needs different data and accepts different time choices: a dot plot is rows of categories on one measure, a scatter plots two measures per place, and a bubble adds a third for size. Choosing a variant is a chart type switch, so saved views, pasted-data mappings, and capabilities are unchanged. `CHART_FAMILIES` and `chartFamilyOf` in `chartRegistry.js` declare the family, and `ChartTypeSection.js` draws the tile and the control. On a topic without enough measures (Demographic Projections holds one), Scatter and Bubble are not offered and the control lists Dot plot only.
+
+### The Maps tile and its variants
+
+The choropleth and symbol maps share one **Maps** tile (owner decision, October 12, 2026). It opens on **Choropleth**, and the **Variant** control switches to **Symbols**. As with the Scatter tile, each variant stays its own chart type (`CHART_FAMILIES.map`), because a symbol map needs point locations and its value sets symbol size rather than fill.
+
+- **Classes.** PPIC's published maps color places by discrete class, as the style guide's map example does (p.29). Class breaks (`classification`) chooses how:
+  - **Quantile**, the default, puts about the same number of places in each class. Its breaks are real data values, so no class is empty.
+  - **Equal intervals** splits the value range evenly.
+  - **Custom** is offered in Advanced Mode only. It takes one "Class N starts at" value per class after the first (`classBreaks`), starting from the current quantile breaks.
+  - **Continuous** shades along the ramp.
+
+  Number of classes (`bins`) is 3 to 7, 5 by default. A symbol map is colored by value only with its Color gradient on; otherwise every symbol takes its comparison's color and only its size carries the value. `lib/visualization/colorScale.js` owns the breaks and colors.
+- **Colors.** With no ramp palette chosen, a map draws the five classes of the guide's map example (`ppic-map-orange`), or the guide's orange-to-blue colorway when the scale diverges (`defaultRampPalette` in `palettes.js`).
+- **Frame and key.** Plotly draws only the geography, inside `ChartFrame` (see below). The key lists the classes as square swatches labeled by range ("< 39,618", "39,618 – 136,373", ..., "> 927,327"), titled with the measure, and sits right beside the map, because the frame sizes the drawing to the map's own shape (`aspectRatio`). A continuous map shows the ramp as a labeled bar.
+- **Fit.** The map frame is set to the drawn places' extent in a Mercator projection, so the places fill the drawing area.
+- **Settings a map does not show.** A map has no axes, so its Labels section has no axis label fields. Its places have no order to drag, so the Geographic Level section shows no Categories panel, only Ranked values in Advanced Mode.
 
 ### Chart renderers
 
@@ -203,13 +219,14 @@ Charts are moving from Plotly to visx one type at a time, following [[chart-rend
 | Range | visx | Default since October 1, 2026, ahead of the export rebuild |
 | Dot Plot, Scatter, Bubble | visx | Default since October 5, 2026, ahead of the export rebuild |
 | Forest / Whisker Plot, Pie / Donut | visx | Default since October 10, 2026, ahead of the export rebuild |
-| Choropleth Map, Symbol Map | Plotly | Stay on Plotly permanently |
-| Matrix Heatmap | Plotly | Moves to visx in Workstream I |
+| Matrix Heatmap | visx | Default since October 12, 2026, with image export |
+| Choropleth Map, Symbol Map | Plotly | Stay on Plotly permanently, drawn inside `ChartFrame` since October 12, 2026 |
 | Data Table | Plotly adapter | Drawn by `DataTableView`; never gains a visx drawing |
 
 - `rendererFor(type, preview)` picks the renderer. A `?renderer=visx` or `?renderer=plotly` page-address parameter previews the other drawing for comparison. It is honored only when that drawing exists (`VISX_CHART_TYPES`) and is ignored in embeds (`embed=1`), so a shared embed always shows the default.
 - A visx chart is drawn from a chart model (`lib/visualization/models/`) inside `ChartFrame`, which draws the PPIC frame: eyebrow, title, subtitle, the drawing and its key, and the source-and-notes box.
-- Plotly charts keep their titles inside Plotly until export can draw the frame (Workstream M).
+- Maps sit in the same `ChartFrame`: Plotly draws only the geography, and the frame draws the title, key, and source box. Other Plotly drawings (the `?renderer=plotly` previews) keep their titles inside Plotly.
+- Comparison tabs above a chart show only when there are two or more comparisons to switch between.
 
 #### The visx line chart
 
@@ -496,7 +513,13 @@ Chart export supports:
 - PDF; and
 - an iframe embed.
 
-Image export still renders through `Plotly.toImage`. For a chart drawn with visx (currently the line, bar, range, dot plot, scatter, bubble, forest, and pie charts), the image dialog shows a notice that image export is coming soon, and its Download button stays off. Embeds and data export work normally. Workstream M of [[chart-renderer-implementation-plan]] rebuilds export from the drawn SVG.
+Image export follows the chart's renderer (Workstream M of [[chart-renderer-implementation-plan]]):
+
+- **visx charts** export from the drawn picture. `lib/export/exportSvgChart.js` builds one self-contained SVG of the whole frame, with Inter embedded, then saves it or converts it to PNG, JPG, or PDF. A type exports this way once one file of each format has been checked (`SVG_EXPORT_CHART_TYPES`). Every visx chart but the forest plot is on that list; the forest plot's image dialog still says image export is coming soon.
+- **Maps** export with their frame. `Plotly.toImage` draws the map alone as SVG at the size of the frame's drawing area, and `exportSvgChart.js` places it inside the frame's SVG.
+- **Other Plotly drawings** export through `Plotly.toImage`.
+
+Embeds and data export work for every chart.
 
 Data export supports:
 
@@ -708,8 +731,11 @@ This block is generated from `lib/visualization/settingsRegistry.js`. It is the 
 | barColorBy | Color bars by | Appearance | advanced | Charts: bar; datasets: All | series, comparison, period | presentation.appearance.barColorBy | lib/visualization/models/barModel.js |
 | barSort | Sort | Appearance | standard | Charts: bar; datasets: All | data, descending, ascending | presentation.appearance.sort | lib/visualization/models/barModel.js |
 | benchmarkDifference | Difference from benchmark | Outcome | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.calculation.params.benchmark | lib/data/visualization/calculationRegistry.js |
+| bins | Number of classes | Appearance | standard | Charts: choroplethMap, symbolMap; datasets: All | 3 to 7 (5 by default) | presentation.appearance.bins | lib/visualization/colorScale.js |
 | calculation | Transformation | Outcome | standard | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.calculation.id | lib/data/visualization/calculationRegistry.js |
 | categoryAxis | Bars along | Appearance | advanced | Charts: bar; datasets: All | location, period | presentation.appearance.categoryAxis | lib/visualization/models/barModel.js |
+| classBreaks | Where each class starts | Appearance | advanced | Charts: choroplethMap, symbolMap; datasets: All | One rising value per class after the first, with Class breaks set to Custom | presentation.appearance.classBreaks | lib/visualization/colorScale.js |
+| classification | Class breaks | Appearance | standard | Charts: choroplethMap, symbolMap; datasets: All | quantile, equalInterval, custom, continuous | presentation.appearance.classification | lib/visualization/colorScale.js |
 | comparisonColor | Comparison color | Appearance | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.comparisons[].color | lib/visualization/palettes.js |
 | comparisonGeographyOverride | Comparison geography override | Comparisons | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.comparisons[].geography | lib/data/visualization/executeQuestion.js |
 | comparisonLegendLabel | Comparison legend label | Appearance | standard | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.comparisons[].customLabel | lib/visualization/adapters/index.js |
@@ -732,6 +758,7 @@ This block is generated from `lib/visualization/settingsRegistry.js`. It is the 
 | ranking | Ranking | Geography | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.calculation.params.ranking | lib/data/visualization/rankObservations.js |
 | seriesBinding | Series binding | Outcome | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | presentation.bindings.series | lib/tabular/toObservations.js |
 | seriesOrder | Bar order within groups | Appearance | standard | Charts: bar; datasets: All | Series names in a dragged order (data order by default) | presentation.appearance.seriesOrder | lib/visualization/models/barModel.js |
+| showCellValues | Show cell values | Appearance | standard | Charts: heatmap; datasets: All | On or off (off by default) | presentation.appearance.showCellValues | lib/visualization/models/heatmapModel.js |
 | showSource | Show source and notes | Appearance | standard | Charts: All; datasets: All | See resolved chart and dataset capabilities | presentation.appearance.showSource | components/charts/ChartFrame.js |
 | showStackTotals | Stack totals | Appearance | standard | Charts: bar; datasets: All | On or off, for stacked bars (off by default) | presentation.appearance.showStackTotals | lib/visualization/models/barModel.js |
 | showValueLabels | Show values | Appearance | standard | Charts: bar; datasets: All | On or off (off by default) | presentation.appearance.showValueLabels | lib/visualization/models/barModel.js |
