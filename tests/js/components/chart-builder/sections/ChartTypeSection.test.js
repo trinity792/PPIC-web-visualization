@@ -1,4 +1,4 @@
-/** Phase 5 chart-type tile contract. */
+/** Phase 5 chart-type tile contract, with the 2026-10-12 icon tiles and Show more. */
 
 import React from "react";
 
@@ -37,21 +37,34 @@ vi.mock("@/lib/visualization/chartRegistry", async (importOriginal) => {
 import { DEMOGRAPHIC_PROJECTIONS_SCHEMA } from "@/lib/visualization/moduleSchemas/demographicProjections";
 import ChartTypeSection from "@/components/chart-builder/sections/ChartTypeSection";
 
+// Owner, 2026-10-12: the first four tiles are Line, Bar, Range, Maps; the rest
+// sit behind "Show more".
+const visibleLabels = ["Line", "Bar", "Range", "Maps"];
+
 const orderedLabels = [
-  "Line",
-  "Bar",
-  // One tile for the choropleth and symbol maps (owner, 2026-10-12).
-  "Maps",
+  ...visibleLabels,
   // No Forest tile: a module question never returns interval bounds, so the
   // forest plot is offered only on pasted data (owner review, 2026-10-10).
   // One tile for the scatter, bubble, and dot plot charts (owner, 2026-10-05).
   "Scatter",
-  "Range",
   "Pie / Donut",
   "Matrix Heatmap",
   "Data Table",
   "Experimental",
 ];
+
+/** The chart-type tiles alone, without the Show more toggle or a Variant control. */
+function tiles() {
+  return [...screen.getByRole("group", { name: "Chart type" }).querySelectorAll(":scope > button")];
+}
+
+function tileLabels() {
+  return tiles().map((button) => button.textContent.trim());
+}
+
+async function showMore(user) {
+  await user.click(screen.getByRole("button", { name: /^Show more/ }));
+}
 
 describe("ChartTypeSection", () => {
   beforeEach(() => {
@@ -61,11 +74,101 @@ describe("ChartTypeSection", () => {
     state.schema = { id: "widgets", fields: { Y: { kind: "measure" }, X: { kind: "measure" }, Size: { kind: "measure" } }, subsets: { Counties: ["County"], Regions: ["Region"] } };
   });
 
-  it("renders one flat grid, the only layout", () => {
+  it("renders one flat grid, the only layout", async () => {
+    const user = userEvent.setup();
     render(<ChartTypeSection />);
-    const buttons = screen.getAllByRole("button");
-    expect(buttons.map((button) => button.textContent.trim())).toEqual(orderedLabels);
-    expect(buttons[0].parentElement).toHaveClass("grid-cols-2");
+    await showMore(user);
+    expect(tileLabels()).toEqual(orderedLabels);
+    expect(screen.getByRole("group", { name: "Chart type" })).toHaveClass("grid-cols-2");
+  });
+
+  // Owner, 2026-10-12: icon tiles, four shown by default.
+  describe("Show more", () => {
+    it("shows Line, Bar, Range, and Maps by default", () => {
+      render(<ChartTypeSection />);
+      expect(tileLabels()).toEqual(visibleLabels);
+    });
+
+    it("counts the hidden tiles and toggles them", async () => {
+      const user = userEvent.setup();
+      render(<ChartTypeSection />);
+      const toggle = screen.getByRole("button", { name: `Show more (${orderedLabels.length - 4})` });
+      expect(toggle).toHaveAttribute("aria-expanded", "false");
+      await user.click(toggle);
+      expect(tileLabels()).toEqual(orderedLabels);
+      expect(screen.getByRole("button", { name: "Show less" })).toHaveAttribute("aria-expanded", "true");
+      await user.click(screen.getByRole("button", { name: "Show less" }));
+      expect(tileLabels()).toEqual(visibleLabels);
+    });
+
+    it("opens expanded when the selected chart is one of the hidden tiles", () => {
+      state.config = { chartType: "pie" };
+      render(<ChartTypeSection />);
+      expect(tileLabels()).toEqual(orderedLabels);
+      expect(screen.getByRole("button", { name: "Pie / Donut" })).toHaveAttribute("aria-pressed", "true");
+    });
+
+    it("expands when the selection moves to a hidden tile from elsewhere", () => {
+      const { rerender } = render(<ChartTypeSection />);
+      expect(tileLabels()).toEqual(visibleLabels);
+      state.config = { chartType: "heatmap" };
+      rerender(<ChartTypeSection />);
+      expect(tileLabels()).toEqual(orderedLabels);
+    });
+
+    it("does not remember being expanded", async () => {
+      const user = userEvent.setup();
+      const { unmount } = render(<ChartTypeSection />);
+      await showMore(user);
+      unmount();
+      render(<ChartTypeSection />);
+      expect(tileLabels()).toEqual(visibleLabels);
+    });
+
+    it("moves the next available tile up when a top-four tile is unavailable", () => {
+      state.schema = { id: "permits", subsets: { Metros: ["Metro"], States: ["State"] } };
+      render(<ChartTypeSection />);
+      expect(tileLabels()).toEqual(["Line", "Bar", "Range", "Scatter"]);
+    });
+
+    it("has no toggle when four or fewer tiles are available", () => {
+      state.schema = { id: "widgets", supportedChartTypes: ["line", "pie", "dataTable"] };
+      render(<ChartTypeSection />);
+      expect(screen.queryByRole("button", { name: /^Show (more|less)/ })).not.toBeInTheDocument();
+    });
+  });
+
+  describe("tile icons", () => {
+    it("draws a decorative icon on every tile, outside the accessible name", async () => {
+      const user = userEvent.setup();
+      render(<ChartTypeSection />);
+      await showMore(user);
+      for (const tile of tiles()) {
+        const icon = tile.querySelector("svg[data-chart-icon]");
+        expect(icon).not.toBeNull();
+        expect(icon).toHaveAttribute("aria-hidden", "true");
+      }
+      expect(screen.getByRole("button", { name: "Range" })).toBeInTheDocument();
+    });
+
+    it("gives a registered type with no drawing of its own the fallback icon", async () => {
+      const user = userEvent.setup();
+      render(<ChartTypeSection />);
+      await showMore(user);
+      const tile = screen.getByRole("button", { name: "Experimental" });
+      expect(tile.querySelector("svg")).toHaveAttribute("data-chart-icon", "fallback");
+    });
+
+    // Owner, 2026-10-12: the Maps drawing follows the chosen variant.
+    it("draws the Maps tile as the selected map variant", () => {
+      const mapsIcon = () => screen.getByRole("button", { name: "Maps" }).querySelector("svg");
+      const { unmount } = render(<ChartTypeSection />);
+      expect(mapsIcon()).toHaveAttribute("data-chart-icon", "choroplethMap");
+      unmount();
+      state.config = { chartType: "symbolMap" };
+      render(<ChartTypeSection />);
+      expect(mapsIcon()).toHaveAttribute("data-chart-icon", "symbolMap");
+    });
   });
 
   // The retired family headings (Line, Bar, Pie, Map, …) were labels, not
@@ -78,13 +181,17 @@ describe("ChartTypeSection", () => {
     expect(nonTileText).toHaveLength(0);
   });
 
-  it("appends a registered type missing from the design order", () => {
+  it("appends a registered type missing from the design order", async () => {
+    const user = userEvent.setup();
     render(<ChartTypeSection />);
+    await showMore(user);
     expect(screen.getByRole("button", { name: "Experimental" })).toBeInTheDocument();
   });
 
-  it("does not append the hidden, retired Diverging Bar as a stray tile (Workstream B)", () => {
+  it("does not append the hidden, retired Diverging Bar as a stray tile (Workstream B)", async () => {
+    const user = userEvent.setup();
     render(<ChartTypeSection />);
+    await showMore(user);
     expect(
       screen.queryByRole("button", { name: "Diverging Bar" }),
     ).not.toBeInTheDocument();
@@ -107,28 +214,24 @@ describe("ChartTypeSection", () => {
   it("honors a module's supportedChartTypes allowlist", () => {
     state.schema = { id: "widgets", supportedChartTypes: ["line", "pie", "dataTable"] };
     render(<ChartTypeSection />);
-    expect(screen.getAllByRole("button").map((button) => button.textContent.trim())).toEqual([
-      "Line",
-      "Pie / Donut",
-      "Data Table",
-    ]);
+    expect(tileLabels()).toEqual(["Line", "Pie / Donut", "Data Table"]);
   });
 
   // Workstream D: a map tile on a module with no county geometry could only
   // ever fail at the data layer — Building Permits offers Metros, Regions and
   // States, none of which we hold shapes or derived points for.
-  it("drops the Maps tile on a module with no level we hold geometry for", () => {
+  it("drops the Maps tile on a module with no level we hold geometry for", async () => {
+    const user = userEvent.setup();
     state.schema = { id: "permits", subsets: { Metros: ["Metro"], States: ["State"] } };
     render(<ChartTypeSection />);
-    const labels = screen.getAllByRole("button").map((button) => button.textContent.trim());
-    expect(labels).not.toContain("Maps");
-    expect(labels).toContain("Line");
+    await showMore(user);
+    expect(tileLabels()).not.toContain("Maps");
+    expect(tileLabels()).toContain("Line");
   });
 
   it("keeps the Maps tile on a module that has a Counties level", () => {
     render(<ChartTypeSection />);
-    const labels = screen.getAllByRole("button").map((button) => button.textContent.trim());
-    expect(labels).toContain("Maps");
+    expect(tileLabels()).toContain("Maps");
   });
 
   // Owner, 2026-10-12: one Maps tile, opening on the choropleth, with a
@@ -173,7 +276,8 @@ describe("ChartTypeSection", () => {
       for (const chartType of ["scatter", "bubble", "dotPlot"]) {
         state.config = { chartType };
         const { container, unmount } = render(<ChartTypeSection />);
-        // The tile is in the grid; the Variant control also has a Scatter button.
+        // The tile is in the grid (opened, since Scatter sits past the first
+        // four); the Variant control also has a Scatter button.
         const tile = [...container.querySelectorAll(".grid-cols-2 > button")].find((button) => button.textContent === "Scatter");
         expect(tile).toHaveAttribute("aria-pressed", "true");
         unmount();
@@ -182,14 +286,17 @@ describe("ChartTypeSection", () => {
 
     it("opens on the first variant the surface can draw", async () => {
       const user = userEvent.setup();
-      render(<ChartTypeSection />);
+      const { unmount } = render(<ChartTypeSection />);
+      await showMore(user);
       await user.click(screen.getByRole("button", { name: "Scatter" }));
       expect(state.dispatch).toHaveBeenLastCalledWith({ type: "SET_CHART_TYPE", chartType: "scatter" });
+      unmount();
 
       state.dispatch.mockClear();
       state.editorModel = { chartChoices: moduleChoices };
       render(<ChartTypeSection />);
-      await user.click(screen.getAllByRole("button", { name: "Scatter" }).at(-1));
+      await showMore(user);
+      await user.click(screen.getByRole("button", { name: "Scatter" }));
       expect(state.dispatch).toHaveBeenLastCalledWith({ type: "SET_CHART_TYPE", chartType: "dotPlot" });
     });
 

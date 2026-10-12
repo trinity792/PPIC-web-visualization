@@ -8,13 +8,15 @@
  *   - Static UI Kit examples modeled on components/chart-builder/ChartSidebar.js
  *
  * UI Kit reference:
- *   - Documents the "Editor Sidebar", "Tag", and "Status Chip" patterns
+ *   - Documents the "Editor Sidebar" (incl. "Chart Type tile"), "Tag", and
+ *     "Status Chip" patterns
  */
 
 import React from "react";
 
-import { Download, RotateCcw, Save, Upload } from "lucide-react";
+import { ChevronDown, Download, RotateCcw, Save, Upload } from "lucide-react";
 
+import { ChartTypeIcon } from "@/components/chart-builder/sections/chartTypeIcons";
 import { Section } from "@/components/ui-kit/Section";
 import {
   Accordion,
@@ -44,7 +46,7 @@ const PILL =
 const EDITOR_SECTIONS = [
   "data-sources",
   "presets",
-  "graph-type",
+  "chart-type",
   "date-range",
   "encodings",
   "comparison",
@@ -100,14 +102,15 @@ export function PatternsShowcase() {
               </div>
             </EditorSection>
 
-            <EditorSection value="graph-type" label="Graph Type">
-              <OptionList
-                options={[
-                  { label: "Line", selected: true },
-                  { label: "Bar" },
-                  { label: "Scatter" },
-                  { label: "Donut" },
+            <EditorSection value="chart-type" label="Chart Type">
+              <ChartTypeTiles
+                tiles={[
+                  { id: "line", label: "Line", selected: true },
+                  { id: "bar", label: "Bar" },
+                  { id: "dumbbell", label: "Range" },
+                  { id: "choroplethMap", label: "Maps" },
                 ]}
+                hiddenCount={5}
               />
             </EditorSection>
 
@@ -270,6 +273,35 @@ function OptionList({ options }) {
         </span>
       ))}
     </SectionCard>
+  );
+}
+
+/**
+ * Chart Type tiles, mirroring components/chart-builder/sections/ChartTypeSection.js:
+ * two columns of icon cards, the first four shown, the rest behind "Show more".
+ */
+function ChartTypeTiles({ tiles, hiddenCount }) {
+  return (
+    <div className="grid gap-3">
+      <div className="grid grid-cols-2 gap-3">
+        {tiles.map(({ id, label, selected }) => (
+          <span
+            key={id}
+            className={cn(
+              "flex min-h-32 flex-col items-center justify-center gap-3 rounded-xl border px-2 py-4 text-center text-sm font-medium text-foreground",
+              selected ? "border-ppic-brand bg-ppic-orange-50/30" : "border-border bg-card",
+            )}
+          >
+            <ChartTypeIcon id={id} />
+            <span>{label}</span>
+          </span>
+        ))}
+      </div>
+      <span className="inline-flex items-center gap-1 justify-self-center px-3 py-1.5 text-sm text-muted-foreground">
+        Show more ({hiddenCount})
+        <ChevronDown aria-hidden="true" className="size-4" />
+      </span>
+    </div>
   );
 }
 
