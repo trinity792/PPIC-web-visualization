@@ -398,16 +398,22 @@ describe("AppearanceSection", () => {
     });
   });
 
-  it("shows the value axis range beside the reference line", () => {
-    state.config = config("bar", { diverging: true, trackRail: false });
-    render(<AppearanceSection />);
-    const labels = labelOrder();
-    const reference = labels.indexOf("Reference line");
-    const range = labels.indexOf("Value axis range (manual)");
-    expect(reference).toBeGreaterThanOrEqual(0);
-    expect(range).toBeGreaterThan(reference);
-    expect(screen.getByLabelText("Range minimum")).toBeInTheDocument();
-    expect(screen.getByLabelText("Range maximum")).toBeInTheDocument();
+  // Axis range (Advanced mode, 2026-10-12) replaced the diverging bar's own
+  // "Value axis range (manual)", which the ranged-axis control now shows.
+  it("shows a diverging bar's saved value range in the horizontal axis range", () => {
+    state.config = config("bar", { diverging: true, valueRange: [0, 2] });
+    renderAdvanced();
+    expect(screen.queryByText("Value axis range (manual)")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Horizontal axis minimum")).toHaveValue(0);
+    expect(screen.getByLabelText("Horizontal axis maximum")).toHaveValue(2);
+  });
+
+  it("moves a diverging bar's saved value range onto the axis range when edited", () => {
+    state.config = config("bar", { diverging: true, valueRange: [0, 2] });
+    renderAdvanced();
+    fireEvent.change(screen.getByLabelText("Horizontal axis maximum"), { target: { value: "3" } });
+    expect(state.dispatch).toHaveBeenCalledWith({ type: "SET_APPEARANCE", key: "horizontalAxisRange", value: [0, 3] });
+    expect(state.dispatch).toHaveBeenCalledWith({ type: "SET_APPEARANCE", key: "valueRange", value: undefined });
   });
 
   it("offers ramp palettes on a choropleth and categorical palettes on a line", async () => {
@@ -602,6 +608,78 @@ describe("AppearanceSection", () => {
         "Vertical tick increment unavailable when the plotted range exceeds 75 units.",
       ),
     ).toBeInTheDocument();
+  });
+
+  describe("axis range", () => {
+    it.each([
+      ["line", {}, ["Vertical"]],
+      ["bar", {}, ["Vertical"]],
+      ["bar", { orientation: "horizontal" }, ["Horizontal"]],
+      ["dumbbell", {}, ["Horizontal"]],
+      ["dotPlot", {}, ["Horizontal"]],
+      ["forest", {}, ["Horizontal"]],
+      ["scatter", {}, ["Horizontal", "Vertical"]],
+      ["bubble", {}, ["Horizontal", "Vertical"]],
+      ["pie", {}, []],
+      ["heatmap", {}, []],
+    ])("offers a range for each numeric axis a %s draws (%j)", (type, appearance, axes) => {
+      state.config = config(type, appearance);
+      renderAdvanced();
+      for (const axis of ["Horizontal", "Vertical"]) {
+        const offered = axes.includes(axis);
+        for (const end of ["minimum", "maximum"]) {
+          if (offered) expect(screen.getByLabelText(`${axis} axis ${end}`)).toBeInTheDocument();
+          else expect(screen.queryByLabelText(`${axis} axis ${end}`)).not.toBeInTheDocument();
+        }
+      }
+    });
+
+    it("is Advanced Mode only", () => {
+      state.config = config("scatter");
+      renderBasic();
+      expect(screen.queryByLabelText(/axis (minimum|maximum)$/)).not.toBeInTheDocument();
+    });
+
+    it("saves each end, and clears the setting once both are blank", () => {
+      state.config = config("line", { verticalAxisRange: [null, 100] });
+      renderAdvanced();
+      expect(screen.getByLabelText("Vertical axis minimum")).toHaveValue(null);
+      expect(screen.getByLabelText("Vertical axis maximum")).toHaveValue(100);
+      fireEvent.change(screen.getByLabelText("Vertical axis minimum"), { target: { value: "-5" } });
+      expect(state.dispatch).toHaveBeenCalledWith({ type: "SET_APPEARANCE", key: "verticalAxisRange", value: [-5, 100] });
+      fireEvent.change(screen.getByLabelText("Vertical axis maximum"), { target: { value: "" } });
+      expect(state.dispatch).toHaveBeenLastCalledWith({ type: "SET_APPEARANCE", key: "verticalAxisRange", value: undefined });
+    });
+
+    it("explains a minimum at or above the maximum", () => {
+      state.config = config("line", { verticalAxisRange: [50, 10] });
+      renderAdvanced();
+      expect(screen.getByText(/minimum below the maximum/i)).toBeInTheDocument();
+    });
+
+    it("warns that bars cut short of zero exaggerate differences", () => {
+      state.config = config("bar", { verticalAxisRange: [10, 100] });
+      const { unmount } = renderAdvanced();
+      expect(screen.getByText(/bars normally start at zero/i)).toBeInTheDocument();
+      unmount();
+      state.config = config("line", { verticalAxisRange: [10, 100] });
+      renderAdvanced();
+      expect(screen.queryByText(/bars normally start at zero/i)).not.toBeInTheDocument();
+    });
+
+    it("sizes the tick increment check by the axis range", () => {
+      state.schema = {
+        ...state.schema,
+        fields: { ...state.schema.fields, Population: { kind: "measure", label: "Total population" } },
+      };
+      state.config = {
+        ...config("line", { verticalAxisRange: [0, 50] }),
+        bindings: { y: "Population" },
+        axisRanges: { vertical: { min: 0, max: 1_000_000 } },
+      };
+      renderAdvanced();
+      expect(screen.getByLabelText("Vertical tick increment (Total population)")).toBeEnabled();
+    });
   });
 
   it("includes a bar's zero baseline when checking the plotted range", () => {

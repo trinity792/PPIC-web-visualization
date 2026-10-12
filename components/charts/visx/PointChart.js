@@ -50,6 +50,7 @@ import { Group } from "@visx/group";
 import { scaleLinear } from "@visx/scale";
 
 import { readableTextColor } from "@/lib/visualization/chartLayout/contrast";
+import { plotClipRect, svgSafeId } from "@/lib/visualization/chartLayout/plotClip";
 import { placePointLabels } from "@/lib/visualization/chartLayout/pointLabels";
 import { interTextWidth, textWidth } from "@/lib/visualization/chartLayout/textWidth";
 import { CHART_STYLE } from "@/lib/visualization/chartStyle";
@@ -85,9 +86,10 @@ function thinned(ticks, tickText, scale, roomFor) {
  * bubbles both answer, the one whose center is nearest wins, so a small bubble
  * inside a large one can still be picked.
  */
-function pointAt(points, positions, x, y) {
+function pointAt(points, positions, x, y, shown) {
   let best = null;
   positions.forEach((position, index) => {
+    if (!shown[index]) return;
     const distance = Math.hypot(position.x - x, position.y - y);
     if (distance > points[index].radius + HIT_SLOP) return;
     if (!best || distance < best.distance) best = { index, distance };
@@ -103,6 +105,7 @@ export default function PointChart({ model, width, height }) {
   const active = hovered?.model === model ? hovered.index : null;
   const setActive = (index) => setHovered(index === null || index === undefined ? null : { model, index });
   const hoverLabelId = React.useId();
+  const clipId = svgSafeId("plot-clip", React.useId());
 
   const points = model.points || [];
   const series = model.series || [];
@@ -161,6 +164,26 @@ export default function PointChart({ model, width, height }) {
   });
   const positions = points.map((point) => ({ x: xScale(point.x), y: yScale(point.y) }));
 
+  // ── A reader's axis range ──
+  // It may leave points past the axes. Their marks are clipped where the
+  // scale ends (inside the clear band), and they take no name, hover, or
+  // keyboard stop. A bubble is clipped flush; a dot on the range's end stays whole.
+  const [xFrom, xTo] = xScale.range();
+  const [yBottom, yTop] = yScale.range();
+  const clipRect = plotClipRect({
+    left: xFrom,
+    top: yTop,
+    width: xTo - xFrom,
+    height: yBottom - yTop,
+    clipX: xAxis.clip,
+    clipY: yAxis.clip,
+    bleed: model.bubble ? 0 : largest,
+  });
+  const within = (value, [low, high]) => value >= low && value <= high;
+  const shown = points.map((point) =>
+    (!xAxis.clip || within(point.x, xAxis.domain)) && (!yAxis.clip || within(point.y, yAxis.domain)));
+  const shownIndexes = points.map((_, index) => index).filter((index) => shown[index]);
+
   const xTickRoom = Math.max(0, ...xAxis.tickText.map((label) => textWidth(label, axisSize))) + TICK_GAP;
   const xTicks = thinned(xAxis.ticks, xAxis.tickText, xScale, xTickRoom);
   const yTicks = thinned(yAxis.ticks, yAxis.tickText, yScale, axisSize + 4);
@@ -181,9 +204,9 @@ export default function PointChart({ model, width, height }) {
   }
 
   // ── Point names ──
-  const nameLabels = model.pointLabels === "automatic"
+  const placedLabels = model.pointLabels === "automatic"
     ? placePointLabels({
-      points: points.map((point, index) => ({ ...positions[index], radius: point.radius, text: point.name })),
+      points: shownIndexes.map((index) => ({ ...positions[index], radius: points[index].radius, text: points[index].name })),
       fontSize: labelSize,
       lineHeight: LINE_HEIGHT,
       maxWidth: pointStyle.labelMaxWidth,
@@ -192,7 +215,11 @@ export default function PointChart({ model, width, height }) {
       height: plotHeight,
       obstacles: titleBoxes,
     })
-    : points.map(() => null);
+    : [];
+  const nameLabels = points.map(() => null);
+  shownIndexes.forEach((index, order) => {
+    nameLabels[index] = placedLabels[order] ?? null;
+  });
 
   // ── Interaction ──
   const moveTo = (event) => {
@@ -200,10 +227,10 @@ export default function PointChart({ model, width, height }) {
     if (!box.width || !box.height) return;
     const x = ((event.clientX - box.left) / box.width) * plotWidth;
     const y = ((event.clientY - box.top) / box.height) * plotHeight;
-    setActive(pointAt(points, positions, x, y));
+    setActive(pointAt(points, positions, x, y, shown));
   };
-  const byX = points.map((_, index) => index).sort((a, b) => positions[a].x - positions[b].x || a - b);
-  const byY = points.map((_, index) => index).sort((a, b) => positions[b].y - positions[a].y || a - b);
+  const byX = [...shownIndexes].sort((a, b) => positions[a].x - positions[b].x || a - b);
+  const byY = [...shownIndexes].sort((a, b) => positions[b].y - positions[a].y || a - b);
   const step = (order, direction) => {
     if (active === null) return direction > 0 ? order[0] : order.at(-1);
     const at = order.indexOf(active);
@@ -215,8 +242,8 @@ export default function PointChart({ model, width, height }) {
       ArrowLeft: () => step(byX, -1),
       ArrowUp: () => step(byY, 1),
       ArrowDown: () => step(byY, -1),
-      Home: () => 0,
-      End: () => points.length - 1,
+      Home: () => shownIndexes[0] ?? null,
+      End: () => shownIndexes.at(-1) ?? null,
       Escape: () => null,
     };
     if (!(event.key in moves)) return;
@@ -268,6 +295,13 @@ export default function PointChart({ model, width, height }) {
         onBlur={() => setActive(null)}
       >
         <Group left={left} top={top}>
+          {clipRect ? (
+            <defs>
+              <clipPath id={clipId}>
+                <rect {...clipRect} />
+              </clipPath>
+            </defs>
+          ) : null}
           {/* Grid lines at each labeled tick. Plain SVG text for tick labels:
               visx's default nests an <svg> per tick, which screen readers
               announce as images. */}
@@ -372,6 +406,7 @@ export default function PointChart({ model, width, height }) {
             </text>
           ) : null}
 
+          <g clipPath={clipRect ? `url(#${clipId})` : undefined} data-plot-clip={clipRect ? "" : undefined}>
           {points.map((point, index) => (
             <circle
               key={point.key}
@@ -385,6 +420,7 @@ export default function PointChart({ model, width, height }) {
               pointerEvents="none"
             />
           ))}
+          </g>
 
           {nameLabels.map((label, index) =>
             label && index !== active ? (

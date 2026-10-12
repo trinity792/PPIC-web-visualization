@@ -38,6 +38,15 @@ const sourceSerif = Source_Serif_4({
 export const metadata = {
   title: "PPIC Interactive Visualization Tool",
   description: "Interactive California population and housing data visualizations.",
+  // Files live in public/. The .ico is the fallback for browsers without SVG
+  // favicon support; the SVG is listed last so capable browsers prefer it.
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "32x32" },
+      { url: "/ppic-starburst.svg", type: "image/svg+xml" },
+    ],
+    apple: "/apple-icon.png",
+  },
 };
 
 export default function RootLayout({ children }) {

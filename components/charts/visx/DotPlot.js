@@ -54,6 +54,7 @@ import { Group } from "@visx/group";
 import { scaleLinear } from "@visx/scale";
 
 import { readableTextColor } from "@/lib/visualization/chartLayout/contrast";
+import { plotClipRect, svgSafeId } from "@/lib/visualization/chartLayout/plotClip";
 import { rowLabels } from "@/lib/visualization/chartLayout/rowLabels";
 import { textWidth } from "@/lib/visualization/chartLayout/textWidth";
 import { CHART_STYLE } from "@/lib/visualization/chartStyle";
@@ -107,6 +108,7 @@ export default function DotPlot({ model, width, height }) {
   const active = hovered?.model === model ? hovered.index : null;
   const setActive = (index) => setHovered(index === null || index === undefined ? null : { model, index });
   const tooltipId = React.useId();
+  const clipId = svgSafeId("plot-clip", React.useId());
 
   const rows = model.rows || [];
   const groups = model.groups || [];
@@ -262,6 +264,9 @@ export default function DotPlot({ model, width, height }) {
     return `${name}: ${values.join("; ")}`;
   };
 
+  // A reader's axis range may cut through the dots; one on the range's end stays whole.
+  const clipRect = plotClipRect({ width: plotWidth, height: plotHeight, clipX: valueAxis.clip, bleed: radius });
+
   return (
     <div className="relative min-w-0" style={{ width, height: svgHeight }}>
       <svg
@@ -281,6 +286,13 @@ export default function DotPlot({ model, width, height }) {
           </text>
         ) : null}
         <Group left={left} top={top}>
+          {clipRect ? (
+            <defs>
+              <clipPath id={clipId}>
+                <rect {...clipRect} />
+              </clipPath>
+            </defs>
+          ) : null}
           {/* Grid: a light vertical line at each labeled tick, and a darker
               line at zero. Plain SVG text for tick labels: visx's default
               nests an <svg> per tick, which screen readers announce as images. */}
@@ -373,6 +385,7 @@ export default function DotPlot({ model, width, height }) {
                     </tspan>
                   ))}
                 </text>
+                <g clipPath={clipRect ? `url(#${clipId})` : undefined} data-plot-clip={clipRect ? "" : undefined}>
                 {row.band ? (
                   <line
                     x1={valueScale(row.band.from)}
@@ -417,6 +430,7 @@ export default function DotPlot({ model, width, height }) {
                     onPointerLeave={() => setActive(null)}
                   />
                 ))}
+                </g>
               </g>
             );
           })}

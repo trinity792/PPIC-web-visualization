@@ -27,6 +27,10 @@ it.each([
 });
 it("leaves whole-number counts unformatted when no number type is chosen", () => expect(settings({ decimalPlaces: 3 }).axes.y.format(40000)).toBe("40000"));
 it("honors both tick increments", () => expect(settings({ horizontalTickIncrement: 5, verticalTickIncrement: 10 }).axes).toMatchObject({ x: { increment: 5 }, y: { increment: 10 } }));
+// Axis range (Advanced mode, 2026-10-12): either end may be blank.
+it("reads both axis ranges", () => expect(settings({ horizontalAxisRange: [0, 50], verticalAxisRange: [null, 100] }).axes).toMatchObject({ x: { range: [0, 50] }, y: { range: [null, 100] } }));
+it.each([undefined, null, [], [null, null], ["", ""], "0,50", [Number.NaN, "x"]])("has no axis range for %j", (raw) => expect(settings({ verticalAxisRange: raw }).axes.y.range).toBeNull());
+it("reads numeric text from an imported view", () => expect(settings({ verticalAxisRange: ["5", "45"] }).axes.y.range).toEqual([5, 45]));
 it("ignores removed and hidden settings without error", () => {
   const old = settings({ showLegend: false, hiddenSeries: ["Latina Women"], legendLabels: { "Latina Women": "Changed" }, seriesColors: { "Latina Women": "#000000" }, groupLabelIndent: 20, variableLabelIndent: 40 }, { ...input().labels, tooltip: "%{y}" });
   // Functions cannot be deep-compared; compare the actual formatting and all

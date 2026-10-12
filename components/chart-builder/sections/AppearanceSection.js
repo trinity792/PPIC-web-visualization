@@ -6,7 +6,7 @@
  *
  * Ordered as the mockup draws it: the chart-conditional Color binding, Color
  * Palette, Legend Position, the two line spacings, applicable tick increments,
- * Footnote. Everything after Footnote is chart-type-conditional, so a default
+ * axis ranges, Footnote. Everything after Footnote is chart-type-conditional, so a default
  * line chart shows Color with the shared appearance controls and a diverging bar
  * or forest plot grows the extras it actually needs. That ordering is a
  * contract, not a preference — the tested one — because it is what keeps the
@@ -163,6 +163,13 @@ const NUMBER_TYPE_OPTIONS = Object.freeze([
   ["percent", "Percentage / rate (%)"],
 ]);
 
+/** Whether a bar chart's bars run left to right (a diverging bar's default). */
+function barsRunHorizontally(appearance) {
+  return appearance.diverging
+    ? appearance.orientation !== "vertical"
+    : appearance.orientation === "horizontal";
+}
+
 /**
  * Binding roles carried by the physical x (horizontal) and y (vertical) axes.
  * Role candidates are ordered: a forest estimate uses `point` when bound and
@@ -174,10 +181,7 @@ function physicalAxisRoles(config) {
     case "line":
       return { horizontal: ["x"], vertical: ["y"] };
     case "bar": {
-      const horizontalBars = appearance.diverging
-        ? appearance.orientation !== "vertical"
-        : appearance.orientation === "horizontal";
-      return horizontalBars
+      return barsRunHorizontally(appearance)
         ? { horizontal: ["y"], vertical: ["category"] }
         : { horizontal: ["category"], vertical: ["y"] };
     }
@@ -231,6 +235,9 @@ function finiteSetting(value) {
 }
 
 function axisSpan(config, axis, range) {
+  // A reader's axis range is the plotted range, data or no data.
+  const [fixedMin, fixedMax] = savedAxisRange(config, axis);
+  if (fixedMin != null && fixedMax != null && fixedMin < fixedMax) return fixedMax - fixedMin;
   if (!Number.isFinite(range?.min) || !Number.isFinite(range?.max)) return null;
   const appearance = config.appearance || {};
   let min = range.min;
@@ -238,15 +245,6 @@ function axisSpan(config, axis, range) {
 
   if (config.chartType === "bar") {
     if (appearance.diverging) {
-      const fixed = Array.isArray(appearance.valueRange)
-        ? appearance.valueRange.map(finiteSetting)
-        : [
-            finiteSetting(appearance.valueRange?.min),
-            finiteSetting(appearance.valueRange?.max),
-          ];
-      if (fixed.every((value) => value != null) && fixed[0] !== fixed[1]) {
-        return Math.abs(fixed[1] - fixed[0]);
-      }
       const center = finiteSetting(appearance.center) ?? 0;
       min = Math.min(min, center);
       max = Math.max(max, center);
@@ -260,6 +258,9 @@ function axisSpan(config, axis, range) {
       }
     }
   }
+
+  // One end set: that end replaces the data's, and a forest is no longer centered.
+  if (fixedMin != null || fixedMax != null) return Math.abs((fixedMax ?? max) - (fixedMin ?? min));
 
   if (config.chartType === "forest" && axis === "horizontal") {
     const center = finiteSetting(appearance.center);
@@ -350,6 +351,115 @@ function TickIncrementControls({ config, fields, ranges, appearance, onChange })
         ))}
       <p className="col-span-full text-xs text-muted-foreground">
         Choose Automatic or a safe increment of 1, 2, 5, or 10.
+      </p>
+    </div>
+  );
+}
+
+// ── Axis ranges ──────────────────────────────────────────────────────
+
+/**
+ * The numeric axes a chart draws with `axisScale`, by physical axis — the axes
+ * its model reads `horizontalAxisRange` / `verticalAxisRange` for. A line's
+ * horizontal axis is time, which the Time section already bounds.
+ */
+function rangedAxes(config) {
+  switch (config.chartType) {
+    case "line":
+      return ["vertical"];
+    case "bar":
+      return [barsRunHorizontally(config.appearance || {}) ? "horizontal" : "vertical"];
+    case "dumbbell":
+    case "dotPlot":
+    case "forest":
+      return ["horizontal"];
+    case "scatter":
+    case "bubble":
+      return ["horizontal", "vertical"];
+    default:
+      return [];
+  }
+}
+
+/**
+ * A saved axis range as [min|null, max|null]. A diverging bar saved before the
+ * axis range existed keeps its own `valueRange` ([min, max] or { min, max })
+ * on its value axis until the reader edits the range.
+ */
+function savedAxisRange(config, axis) {
+  const appearance = config.appearance || {};
+  const legacy =
+    config.chartType === "bar" && appearance.diverging && rangedAxes(config)[0] === axis
+      ? appearance.valueRange
+      : null;
+  const saved = appearance[`${axis}AxisRange`] ?? legacy;
+  if (Array.isArray(saved)) return [finiteSetting(saved[0]), finiteSetting(saved[1])];
+  if (saved && typeof saved === "object") return [finiteSetting(saved.min), finiteSetting(saved.max)];
+  return [null, null];
+}
+
+function AxisRangeControls({ config, appearance, onChange }) {
+  const axes = rangedAxes(config);
+  if (!axes.length) return null;
+
+  return (
+    <div className="grid gap-3">
+      {axes.map((axis) => {
+        const axisLabel = axis === "horizontal" ? "Horizontal" : "Vertical";
+        const key = `${axis}AxisRange`;
+        const [min, max] = savedAxisRange(config, axis);
+        const setEnd = (index, raw) => {
+          const next = [min, max];
+          next[index] = finiteSetting(raw);
+          onChange(key, next[0] == null && next[1] == null ? undefined : next);
+          // The diverging bar's value range folded into this one; once edited
+          // here, the old setting would only shadow it.
+          if (appearance.valueRange != null) onChange("valueRange", undefined);
+        };
+        const reversed = min != null && max != null && min >= max;
+        // Bars measure length from zero; a range that leaves zero out cuts
+        // every bar short and exaggerates the differences between them.
+        const cutsBars = config.chartType === "bar" && ((min != null && min > 0) || (max != null && max < 0));
+        return (
+          <div className="grid gap-2" key={axis}>
+            <Label htmlFor={`appearance-${key}-min`}>{axisLabel} axis range</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                id={`appearance-${key}-min`}
+                aria-label={`${axisLabel} axis minimum`}
+                type="number"
+                inputMode="decimal"
+                placeholder="Automatic"
+                value={min == null ? "" : String(min)}
+                onChange={(event) => setEnd(0, event.target.value.trim())}
+              />
+              <span className="text-muted-foreground">to</span>
+              <Input
+                aria-label={`${axisLabel} axis maximum`}
+                type="number"
+                inputMode="decimal"
+                placeholder="Automatic"
+                value={max == null ? "" : String(max)}
+                onChange={(event) => setEnd(1, event.target.value.trim())}
+              />
+            </div>
+            {reversed ? (
+              <p className="text-xs text-muted-foreground">
+                Set the minimum below the maximum. Until then the axis fits the data.
+              </p>
+            ) : null}
+            {cutsBars ? (
+              <p className="text-xs text-muted-foreground">
+                Bars normally start at zero. Cutting them short exaggerates the
+                differences between them.
+              </p>
+            ) : null}
+          </div>
+        );
+      })}
+      <p className="text-xs text-muted-foreground">
+        Leave an end blank to fit it to the data. Anything past the range is cut
+        off at the axis.
       </p>
     </div>
   );
@@ -884,62 +994,6 @@ function DivergingStyleControls() {
         )}
       </div>
     </>
-  );
-}
-
-/**
- * Manual value-axis scaling for a diverging bar (Workstream B). Lifted out of
- * `DivergingStyleControls` and placed directly beneath the reference-line
- * input: an explicit range now applies whether or not the track rail is on,
- * so this is authoring the axis scale, not a dashboard-styling nicety.
- */
-function ValueAxisRangeControls() {
-  const { config, dispatch } = useChartConfig();
-  // Version 3 keeps appearance under presentation; reading `config.appearance`
-  // alone crashed the section for a v3 diverging bar.
-  const appearance =
-    (config.version === 3 ? config.presentation?.appearance : config.appearance) || {};
-  const setAppearance = (key, value) =>
-    dispatch({ type: "SET_APPEARANCE", key, value });
-
-  const range = Array.isArray(appearance.valueRange) ? appearance.valueRange : [];
-  const setRange = (index, raw) => {
-    const next = [
-      range[0] == null ? "" : range[0],
-      range[1] == null ? "" : range[1],
-    ];
-    next[index] = raw === "" ? null : Number(raw);
-    // Clear the whole setting once both ends are blank (back to auto range).
-    if (next[0] == null && next[1] == null) setAppearance("valueRange", undefined);
-    else setAppearance("valueRange", next);
-  };
-
-  return (
-    <div className="grid gap-2">
-      <Label>Value axis range (manual)</Label>
-      <div className="flex items-center gap-2">
-        <Input
-          aria-label="Range minimum"
-          type="number"
-          inputMode="decimal"
-          placeholder="auto"
-          value={range[0] == null ? "" : String(range[0])}
-          onChange={(event) => setRange(0, event.target.value.trim())}
-        />
-        <span className="text-muted-foreground">to</span>
-        <Input
-          aria-label="Range maximum"
-          type="number"
-          inputMode="decimal"
-          placeholder="auto"
-          value={range[1] == null ? "" : String(range[1])}
-          onChange={(event) => setRange(1, event.target.value.trim())}
-        />
-      </div>
-      <p className="text-xs text-muted-foreground">
-        Leaving both blank fits the axis to the data.
-      </p>
-    </div>
   );
 }
 
@@ -1583,6 +1637,15 @@ export default function AppearanceSection() {
         />
       ) : null}
 
+      {/* Axis ranges are fine-tuning beside the tick increments (2026-10-12). */}
+      {advanced ? (
+        <AxisRangeControls
+          config={config}
+          appearance={appearance}
+          onChange={setAppearance}
+        />
+      ) : null}
+
       <NumberTypeControls
         fields={tickFields}
         appearance={appearance}
@@ -1728,7 +1791,6 @@ export default function AppearanceSection() {
               onChange={(event) => setAppearance("referenceLabel", event.target.value)}
             />
           </div>
-          <ValueAxisRangeControls />
           <DivergingStyleControls />
         </>
       ) : null}

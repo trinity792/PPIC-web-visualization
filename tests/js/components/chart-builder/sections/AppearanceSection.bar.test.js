@@ -26,10 +26,11 @@ it.each(["bar", "line", "dumbbell", "pie"])("shows Orientation, Diverging bars, 
   }
 });
 // Owner decision 2026-09-30: Track rail and Minimal axis left the diverging
-// group, so five diverging settings (six controls) stay gated.
+// group. The value range joined the axis range (Advanced mode, 2026-10-12), so
+// four diverging settings stay gated.
 it.each([false,true])("shows the diverging controls only when Diverging bars is on: %s", diverging => {
   show("bar", { diverging });
-  for(const name of ["Center reference", "Reference line", "Reference line label", "Range minimum", "Range maximum", "Threshold colors"]) {
+  for(const name of ["Center reference", "Reference line", "Reference line label", "Threshold colors"]) {
     if(diverging) expect(screen.getByLabelText(name)).toBeInTheDocument();
     else expect(screen.queryByLabelText(name)).not.toBeInTheDocument();
   }

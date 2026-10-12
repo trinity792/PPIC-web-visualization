@@ -39,3 +39,26 @@ it("still reaches across zero when the data does", () => {
   expect(result.domain[0]).toBeLessThan(0);
   expect(result.domain[1]).toBeGreaterThan(0);
 });
+// Axis range (Advanced mode, 2026-10-12): a set end is exact, a blank end stays
+// automatic, and ticks never fall outside the axis.
+it("uses a fixed range exactly, with round ticks inside it", () => {
+  const result = axisScale({ min: 12, max: 37, fixed: [5, 45] });
+  expect(result.domain).toEqual([5, 45]);
+  expect(result.ticks).toEqual([10, 20, 30, 40]);
+  expect(result.fixed).toBe(true);
+});
+it("fixes only the end that is set", () => {
+  expect(axisScale({ min: 12, max: 37, fixed: [10, null] }).domain).toEqual([10, 40]);
+  expect(axisScale({ min: 12, max: 37, fixed: [null, 100] }).domain).toEqual([0, 100]);
+});
+it("may be narrower than the data, which the renderer clips", () => {
+  const result = axisScale({ min: 0, max: 900, fixed: [0, 300] });
+  expect(result.domain).toEqual([0, 300]);
+  expect(result.ticks.at(-1)).toBeLessThanOrEqual(300);
+});
+it("keeps the tick increment inside a fixed range", () => {
+  expect(axisScale({ min: 0, max: 19, increment: 5, fixed: [2, 18] }).ticks).toEqual([5, 10, 15]);
+});
+it.each([[[50, 10]], [[20, 20]], [[50, null]], [[null, -5]]])("ignores an impossible range: %j", (fixed) => {
+  expect(axisScale({ min: 12, max: 37, fixed })).toMatchObject({ domain: [0, 40], fixed: false });
+});

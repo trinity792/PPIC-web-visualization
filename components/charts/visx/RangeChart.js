@@ -56,6 +56,7 @@ import { Group } from "@visx/group";
 import { scaleLinear } from "@visx/scale";
 
 import { readableTextColor, tint } from "@/lib/visualization/chartLayout/contrast";
+import { plotClipRect, svgSafeId } from "@/lib/visualization/chartLayout/plotClip";
 import { rowLabels } from "@/lib/visualization/chartLayout/rowLabels";
 import { textWidth } from "@/lib/visualization/chartLayout/textWidth";
 import { CHART_STYLE } from "@/lib/visualization/chartStyle";
@@ -97,6 +98,7 @@ export default function RangeChart({ model, width, height }) {
   const active = hovered?.model === model ? hovered.index : null;
   const setActive = (index) => setHovered(index === null || index === undefined ? null : { model, index });
   const tooltipId = React.useId();
+  const clipId = svgSafeId("plot-clip", React.useId());
 
   const rows = model.rows || [];
   const groups = model.groups || [];
@@ -337,6 +339,9 @@ export default function RangeChart({ model, width, height }) {
 
   const tickY = axisOnTop ? -TICK_GAP : plotHeight + TICK_GAP;
 
+  // A reader's axis range may cut through a range; dots on its ends stay whole.
+  const clipRect = plotClipRect({ width: plotWidth, height: plotHeight, clipX: valueAxis.clip, bleed: markReach });
+
   return (
     <div className="relative min-w-0" style={{ width, height: svgHeight }}>
       <svg
@@ -356,6 +361,13 @@ export default function RangeChart({ model, width, height }) {
           </text>
         ) : null}
         <Group left={left} top={top}>
+          {clipRect ? (
+            <defs>
+              <clipPath id={clipId}>
+                <rect {...clipRect} />
+              </clipPath>
+            </defs>
+          ) : null}
           {/* Grid: a light vertical line at each labeled tick, and a darker
               line at zero. Plain SVG text for tick labels: visx's default
               nests an <svg> per tick, which screen readers announce as images. */}
@@ -459,7 +471,9 @@ export default function RangeChart({ model, width, height }) {
                     </tspan>
                   ))}
                 </text>
-                {marks(row, y)}
+                <g clipPath={clipRect ? `url(#${clipId})` : undefined} data-plot-clip={clipRect ? "" : undefined}>
+                  {marks(row, y)}
+                </g>
               </g>
             );
           })}

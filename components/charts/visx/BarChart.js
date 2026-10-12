@@ -73,6 +73,7 @@ import { useChartFocus } from "@/components/charts/chartFocus";
 import ChartKey from "@/components/charts/visx/ChartKey";
 
 import { periodTicks } from "@/lib/visualization/chartLayout/axisScale";
+import { plotClipRect, svgSafeId } from "@/lib/visualization/chartLayout/plotClip";
 import { darken, readableTextColor, textColorOn, tint } from "@/lib/visualization/chartLayout/contrast";
 import { directLabels } from "@/lib/visualization/chartLayout/directLabels";
 import { rowLabels } from "@/lib/visualization/chartLayout/rowLabels";
@@ -198,6 +199,7 @@ export default function BarChart({ model, width, height }) {
   const active = hovered?.model === model ? hovered.index : null;
   const setActive = (index) => setHovered(index === null || index === undefined ? null : { model, index });
   const tooltipId = React.useId();
+  const clipId = svgSafeId("plot-clip", React.useId());
   // The key around the chart (ChartFrame) fades the other series.
   const { setFocusId } = useChartFocus();
   const hoveredSeries = active !== null && (model.series || []).length > 1
@@ -568,6 +570,13 @@ export default function BarChart({ model, width, height }) {
   };
 
   const activeSeries = activeBar ? series.find((entry) => entry.id === activeBar.seriesId) : null;
+  // A reader's axis range may end inside a bar; the bar stops at the axis edge.
+  const clipRect = plotClipRect({
+    width: plotWidth,
+    height: plotHeight,
+    clipX: horizontal && model.valueAxis?.clip,
+    clipY: !horizontal && model.valueAxis?.clip,
+  });
   const halo = [[2, 0], [-2, 0], [0, 2], [0, -2], [1.5, 1.5], [-1.5, -1.5], [1.5, -1.5], [-1.5, 1.5]]
     .map(([x, y]) => `${x}px ${y}px 0 ${hoverLabel.halo}`)
     .concat(`0 0 3px ${hoverLabel.halo}`)
@@ -593,6 +602,13 @@ export default function BarChart({ model, width, height }) {
             </text>
           ) : null}
           <Group left={left} top={top}>
+            {clipRect ? (
+              <defs>
+                <clipPath id={clipId}>
+                  <rect {...clipRect} />
+                </clipPath>
+              </defs>
+            ) : null}
             {/* Value axis: horizontal grid lines on vertical bars only; the
                 guide never draws vertical grid lines. */}
             {!horizontal && !minimal ? (
@@ -630,6 +646,7 @@ export default function BarChart({ model, width, height }) {
               />
             ) : null}
 
+            <g clipPath={clipRect ? `url(#${clipId})` : undefined} data-plot-clip={clipRect ? "" : undefined}>
             {/* Track rails: a pale full-length bar behind each bar. */}
             {model.trackRail
               ? bars.map((item, index) => {
@@ -661,6 +678,7 @@ export default function BarChart({ model, width, height }) {
                 />
               );
             })}
+            </g>
 
             {/* The line the bars grow from: zero, or the diverging center. */}
             {horizontal ? (

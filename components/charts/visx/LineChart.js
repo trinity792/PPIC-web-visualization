@@ -56,6 +56,7 @@ import { LinePath } from "@visx/shape";
 import ChartKey from "@/components/charts/visx/ChartKey";
 
 import { periodTicks } from "@/lib/visualization/chartLayout/axisScale";
+import { plotClipRect, svgSafeId } from "@/lib/visualization/chartLayout/plotClip";
 import { dashedSegments } from "@/lib/visualization/chartLayout/dashedRange";
 import { readableTextColor } from "@/lib/visualization/chartLayout/contrast";
 import { directLabels } from "@/lib/visualization/chartLayout/directLabels";
@@ -305,6 +306,10 @@ export default function LineChart({ model, width, height }) {
     .concat(`0 0 3px ${hoverLabel.halo}`)
     .join(", ");
   const hoverLabelId = React.useId();
+  // A reader's axis range may cut through the lines; markers on the range's
+  // ends keep their full circle.
+  const clipId = svgSafeId("plot-clip", React.useId());
+  const clipRect = plotClipRect({ width: plotWidth, height: plotHeight, clipY: model.yAxis.clip, bleed: MARKER_RADIUS + 1 });
 
   return (
     <div className="flex min-w-0 items-start" style={{ width, gap: fallbackKey ? KEY_GAP : 0 }}>
@@ -327,6 +332,13 @@ export default function LineChart({ model, width, height }) {
             </text>
           ) : null}
           <Group left={left} top={top}>
+            {clipRect ? (
+              <defs>
+                <clipPath id={clipId}>
+                  <rect {...clipRect} />
+                </clipPath>
+              </defs>
+            ) : null}
             <GridRows
               scale={yScale}
               width={plotWidth}
@@ -370,6 +382,7 @@ export default function LineChart({ model, width, height }) {
               </text>
             ) : null}
 
+            <g clipPath={clipRect ? `url(#${clipId})` : undefined} data-plot-clip={clipRect ? "" : undefined}>
             {series.map((entry) => (
               <g key={entry.id} data-series={entry.id}>
                 {lineRuns(entry.points, dashed).map((run) => (
@@ -405,6 +418,7 @@ export default function LineChart({ model, width, height }) {
                 })}
               </g>
             ))}
+            </g>
 
             {useDirect
               ? direct.labels.map((label) => {

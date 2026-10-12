@@ -34,21 +34,24 @@ const barAdvanced = ["Track rail", "Label which series", "Label position", "Bars
 // Owner decision 2026-10-01 (PPIC range references): Range style is standard;
 // Value axis position and Label which end are Advanced Mode only.
 const rangeAdvanced = ["Value axis position", "Label which end"];
-const ADVANCED_ONLY = new Set([...typography, ...spacing, lineYearTick, "Markers", "Dashed lines for a range of periods", "Start period", "End period", "Range label", ...barAdvanced, ...rangeAdvanced]);
+// Axis range (Advanced mode, 2026-10-12): one min-max pair per numeric axis
+// the chart draws, which replaced the diverging bar's Range minimum/maximum.
+const axisRange = (...axes) => axes.flatMap(axis => [`${axis} axis minimum`, `${axis} axis maximum`]);
+const ADVANCED_ONLY = new Set([...typography, ...spacing, lineYearTick, ...axisRange("Horizontal", "Vertical"), "Markers", "Dashed lines for a range of periods", "Start period", "End period", "Range label", ...barAdvanced, ...rangeAdvanced]);
 const row = ["Group alignment", "Variable alignment", "Show point values"];
 const expected = {
-  line: [...shared, ...typography, ...spacing, lineYearTick, "Markers", "Dashed lines for a range of periods", "Start period", "End period", "Range label"],
-  bar: [...shared, ...typography, ...spacing, "Orientation", "Diverging bars", "Stacking", "Space between groups", "Center reference", "Reference line", "Reference line label", "Range minimum", "Range maximum", "Minimal axis", "Threshold colors", "Show values", "Stack totals", "Sort", ...barAdvanced],
-  dumbbell: [...shared, ...typography, ...spacing, ...row, "First Line Only", "Range style", ...rangeAdvanced],
+  line: [...shared, ...typography, ...spacing, lineYearTick, ...axisRange("Vertical"), "Markers", "Dashed lines for a range of periods", "Start period", "End period", "Range label"],
+  bar: [...shared, ...typography, ...spacing, "Orientation", "Diverging bars", "Stacking", "Space between groups", "Center reference", "Reference line", "Reference line label", ...axisRange("Horizontal"), "Minimal axis", "Threshold colors", "Show values", "Stack totals", "Sort", ...barAdvanced],
+  dumbbell: [...shared, ...typography, ...spacing, ...row, ...axisRange("Horizontal"), "First Line Only", "Range style", ...rangeAdvanced],
   // Show values for names the dots the chart draws (renderer plan G): the
   // fixture's question holds one comparison over three periods, so the dots
   // are the years. The Plotly-derived seriesNames are only the fallback.
-  dotPlot: [...shared, ...typography, ...spacing, ...row, "2020", "2025", "2030", "Marker size"],
-  forest: [...shared, ...typography, ...spacing, ...row, "Interval ends", "Estimate marker", "Line of no effect", "Value axis center"],
+  dotPlot: [...shared, ...typography, ...spacing, ...row, ...axisRange("Horizontal"), "2020", "2025", "2030", "Marker size"],
+  forest: [...shared, ...typography, ...spacing, ...row, ...axisRange("Horizontal"), "Interval ends", "Estimate marker", "Line of no effect", "Value axis center"],
   heatmap: [...shared, ...typography, ...spacing, "Color scale", "Invert color scale", "Show cell values"],
   // Owner decisions 2026-10-05 (renderer plan J): point names and the axes' start.
-  scatter: [...shared, ...typography, ...spacing, "Point labels", "Fit both axes to the data"],
-  bubble: [...shared, ...typography, ...spacing, "Point labels", "Fit both axes to the data"],
+  scatter: [...shared, ...typography, ...spacing, ...axisRange("Horizontal", "Vertical"), "Point labels", "Fit both axes to the data"],
+  bubble: [...shared, ...typography, ...spacing, ...axisRange("Horizontal", "Vertical"), "Point labels", "Fit both axes to the data"],
   pie: [...shared, ...typography, "Donut hole"],
   choroplethMap: [...shared, ...typography, "Color scale", "Invert color scale"],
   symbolMap: [...shared, ...typography, "Color gradient", "Invert color scale"],
