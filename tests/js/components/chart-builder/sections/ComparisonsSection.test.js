@@ -4,8 +4,9 @@
  * The section replaces the v2 scalar stratification filters, which could pin
  * exactly one value per dimension and so could never express "Black women
  * beside White men". A draft does not enter the data question until it is
- * complete: the first comparison waits for an explicit Add action, while each
- * later New comparison commits as soon as its final required field is chosen.
+ * complete: the first comparison waits for an explicit Add action (or, for a
+ * module with starter drafts, Create Chart), while each later Add comparison
+ * draft commits as soon as its final required field is chosen.
  *
  * The rules pinned here are the ones a reader would notice if they broke: an
  * edit that renames someone else's series, an eleventh comparison that appears
@@ -161,8 +162,8 @@ describe("draft authoring", () => {
     const user = userEvent.setup();
     render(<ComparisonsSection />);
 
-    expect(screen.queryByRole("button", { name: "Add comparison" })).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "New comparison" }));
+    expect(screen.queryByRole("group", { name: "Comparison draft" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Add comparison" }));
 
     const draft = screen.getByRole("group", { name: "New comparison draft" });
     expect(
@@ -195,12 +196,12 @@ describe("draft authoring", () => {
     const user = userEvent.setup();
     render(<ComparisonsSection />);
 
-    await user.click(screen.getByRole("button", { name: "New comparison" }));
+    await user.click(screen.getByRole("button", { name: "Add comparison" }));
     await user.click(screen.getByRole("button", { name: "Cancel new comparison" }));
 
     expect(state.dispatch).not.toHaveBeenCalled();
     expect(screen.queryByRole("group", { name: "New comparison draft" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "New comparison" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add comparison" })).toBeInTheDocument();
   });
 
   it("puts aggregate choices first", async () => {
@@ -214,6 +215,111 @@ describe("draft authoring", () => {
     expect(
       screen.getAllByRole("checkbox").map((checkbox) => checkbox.closest("label")?.textContent),
     ).toEqual(["All", "Hispanic", "White", "Black"]);
+  });
+});
+
+describe("starter drafts", () => {
+  // Projections opens with Women vs Men already filled in (owner, 2026-10-12).
+  // They stay drafts until Create Chart, so no chart appears unasked.
+  const starters = [
+    { "Race/Ethnicity": "All", Sex: "Female", "Age Group": "All Ages" },
+    { "Race/Ethnicity": "All", Sex: "Male", "Age Group": "All Ages" },
+  ];
+
+  beforeEach(() => {
+    state.schema = { ...schema, comparisonStarters: starters };
+    state.config = config({ comparisons: [] });
+  });
+
+  it("opens with two filled drafts and a Create Chart button instead of Add comparison", () => {
+    render(<ComparisonsSection />);
+
+    const first = screen.getByRole("group", { name: "Comparison 1 draft" });
+    const second = screen.getByRole("group", { name: "Comparison 2 draft" });
+    expect(within(first).getByRole("combobox", { name: "Sex" })).toHaveTextContent("Female");
+    expect(within(second).getByRole("combobox", { name: "Sex" })).toHaveTextContent("Male");
+    expect(within(second).getByRole("combobox", { name: "Race/ethnicity" })).toHaveTextContent("All");
+    expect(screen.getByRole("button", { name: "Create Chart" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Add comparison" })).not.toBeInTheDocument();
+    expect(state.dispatch).not.toHaveBeenCalled();
+  });
+
+  it("commits both drafts, including the reader's edits, on Create Chart", async () => {
+    const user = userEvent.setup();
+    render(<ComparisonsSection />);
+
+    const second = screen.getByRole("group", { name: "Comparison 2 draft" });
+    await chooseDraftValue(user, second, "Race/ethnicity", "Hispanic");
+    expect(state.dispatch).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Create Chart" }));
+
+    const [action] = state.dispatch.mock.calls.at(-1);
+    expect(action.type).toBe("SET_COMPARISONS");
+    expect(action.comparisons.map((entry) => entry.dimensions)).toEqual([
+      starters[0],
+      { ...starters[1], "Race/Ethnicity": "Hispanic" },
+    ]);
+    expect(new Set(action.comparisons.map((entry) => entry.id)).size).toBe(2);
+  });
+
+  it("returns to Add comparison once the chart is created", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<ComparisonsSection />);
+    await user.click(screen.getByRole("button", { name: "Create Chart" }));
+
+    state.config = config({ comparisons: state.dispatch.mock.calls.at(-1)[0].comparisons });
+    rerender(
+      <AdvancedModeProvider defaultAdvanced={false}>
+        <AdvancedModeToggle id="test-advanced-mode" />
+        <ComparisonsSection />
+      </AdvancedModeProvider>,
+    );
+
+    expect(cards()).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: "Create Chart" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add comparison" })).toBeInTheDocument();
+  });
+
+  it("stays greyed out with a note until a geographic level is chosen", () => {
+    state.config = config({ comparisons: [], geography: { subset: "", locations: [] } });
+    render(<ComparisonsSection />);
+
+    const create = screen.getByRole("button", { name: "Create Chart" });
+    expect(create).toBeDisabled();
+    expect(create).toHaveAccessibleDescription("Choose a geographic level first.");
+  });
+
+  it("asks for a location when a level is chosen but no place is", () => {
+    state.config = config({ comparisons: [], geography: { subset: "Counties", locations: [] } });
+    render(<ComparisonsSection />);
+
+    expect(screen.getByRole("button", { name: "Create Chart" })).toBeDisabled();
+    expect(screen.getByText("Choose at least one location first.")).toBeInTheDocument();
+  });
+
+  it("does not refill the starters after the reader removes every comparison", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<ComparisonsSection />);
+    await user.click(screen.getByRole("button", { name: "Create Chart" }));
+
+    state.config = config({ comparisons: [] });
+    rerender(
+      <AdvancedModeProvider defaultAdvanced={false}>
+        <AdvancedModeToggle id="test-advanced-mode" />
+        <ComparisonsSection />
+      </AdvancedModeProvider>,
+    );
+
+    expect(screen.getByRole("group", { name: "Comparison draft" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Create Chart" })).not.toBeInTheDocument();
+  });
+
+  it("leaves modules without starters on the single blank draft", () => {
+    state.schema = schema;
+    render(<ComparisonsSection />);
+
+    expect(screen.getByRole("group", { name: "Comparison draft" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Create Chart" })).not.toBeInTheDocument();
   });
 });
 
@@ -284,7 +390,7 @@ describe("the ten-comparison limit", () => {
     state.config = config({ comparisons: ten });
     render(<ComparisonsSection />);
 
-    const next = screen.getByRole("button", { name: "New comparison" });
+    const next = screen.getByRole("button", { name: "Add comparison" });
     expect(next).toBeDisabled();
     expect(screen.getByText(COMPARISON_LIMIT_MESSAGE)).toBeInTheDocument();
 

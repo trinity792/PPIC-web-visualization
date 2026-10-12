@@ -78,6 +78,8 @@ A topic page is designed for exploration. The left rail contains the settings th
 
 A fresh topic page deliberately opens unfinished. It does not choose a comparison, geographic level, or location for the reader. The preview names the missing selections and stays on the skeleton until the question is answerable.
 
+One exception was approved by the owner on 2026-10-12. A topic may publish starter comparison drafts with `comparisonStarters` in its schema. Age, Sex, Race Projections opens with Women vs. Men, both covering all races and all ages. The drafts are filled in but are not yet part of the question. A **Create Chart** button stands in for **Add comparison** and commits them. The button stays disabled, with a short note, until a geographic level and at least one location are chosen. Map charts need only the level. After the chart is created, the button below the cards reads **Add comparison**. Removing every comparison afterwards returns to the single blank draft rather than refilling the starters.
+
 A complete built-in view, deep link, or embed may render immediately because it already records the reader's choices.
 
 ### Visualization Tool
@@ -114,9 +116,9 @@ The editor follows the question from broadest choice to finishing details.
 1. **Choose the dataset**, when a topic has more than one.
 2. **Choose a chart type.**
 3. **Choose the outcome** and an allowed calculation.
-4. **Define comparisons**, when the topic has comparison dimensions.
-5. **Choose time.**
-6. **Choose geography and locations**, when the topic has geographic levels.
+4. **Choose geography and locations**, when the topic has geographic levels.
+5. **Define comparisons**, when the topic has comparison dimensions.
+6. **Choose time.**
 7. **Adjust labels, appearance, and typography.**
 8. **View, export, or add charts to the workspace.**
 
@@ -131,9 +133,9 @@ The current section order is owned by `lib/visualization/sidebarSections.js`.
 | Datasets | Which published dataset or source answers the question | Only when the topic offers a real dataset choice |
 | Chart Type | Which visual form to use, and for the Scatter tile which variant | Always |
 | Outcome | Which measure to show and which calculation to apply | Always in version 3 |
+| Geographic Level | Geographic level, locations, and eligible ranking controls | When the topic has geographic subsets |
 | Comparisons | Which demographic or categorical groups to compare and how to present them | When the topic declares comparison dimensions |
 | Time | A range, snapshot, selected snapshots, or two periods | When the question has a time contract |
-| Geographic Level | Geographic level, locations, and eligible ranking controls | When the topic has geographic subsets |
 | Labels | Title, subtitle, and axis labels, each with a show switch | When the chart supports labels |
 | Appearance | Palette, Legend Position, footnote and the source box switch, number formats, and chart-specific styling | When the chart supports appearance settings |
 | Typography | Text sizes and decimal precision | In Advanced Mode, when the chart supports appearance settings |

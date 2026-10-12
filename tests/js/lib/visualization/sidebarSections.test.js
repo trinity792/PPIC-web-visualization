@@ -48,8 +48,8 @@ const LINE_SECTIONS = [
   "datasets",
   "chart-type",
   "axis",
-  "time",
   "geography",
+  "time",
   "labels",
   "appearance",
   "typography",
@@ -99,6 +99,14 @@ describe("visibleSectionsFor", () => {
     expect(visibleSectionsFor(config(), schema).map((item) => item.value)).not.toContain(
       "comparisons",
     );
+  });
+
+  it("puts Geographic Level directly above Comparisons", () => {
+    // The comparison drafts' Create Chart button waits on a geographic level,
+    // so the place is chosen before the people being compared in it.
+    const demographic = { ...schema, comparisonDimensions: [{ id: "Race/Ethnicity" }] };
+    const values = visibleSectionsFor(config(), demographic).map((item) => item.value);
+    expect(values.indexOf("comparisons") - values.indexOf("geography")).toBe(1);
   });
 
   it("shows Geographic Level only for a schema with subsets", () => {

@@ -195,6 +195,20 @@ function ComparisonDraft({
   );
 }
 
+const MAP_CHART_TYPES = ["choroplethMap", "symbolMap"];
+
+/**
+ * What the shared geography still needs before Create Chart can draw anything,
+ * as the short note shown under the disabled button, or null once it is ready.
+ * Mirrors the geography rules in questionReadiness.js: map charts may draw
+ * every feature at a level, everything else needs at least one location.
+ */
+function geographyPrompt(geography, chartType) {
+  if (!geography?.subset) return "Choose a geographic level first.";
+  if (MAP_CHART_TYPES.includes(chartType)) return null;
+  return geography.locations?.length ? null : "Choose at least one location first.";
+}
+
 function comparisonGeographyLabel(geography) {
   if (typeof geography === "string") return geography;
   return geography?.locations?.length === 1 ? geography.locations[0] : undefined;
@@ -301,6 +315,13 @@ export default function ComparisonsSection() {
       ]);
   }, [schema]);
   const [initialDraft, setInitialDraft] = useState({});
+  // A module's starter drafts (Projections: Women vs Men) replace the single
+  // blank draft until the reader clicks Create Chart. After that, an emptied
+  // list falls back to the blank draft rather than refilling the starters.
+  const [starterDrafts, setStarterDrafts] = useState(() =>
+    (schema.comparisonStarters || []).map((starter) => ({ ...starter })),
+  );
+  const [startersUsed, setStartersUsed] = useState(false);
   const [newDraft, setNewDraft] = useState(null);
   const [openOverrides, setOpenOverrides] = useState({});
   const newDraftRef = useRef(null);
@@ -357,6 +378,30 @@ export default function ComparisonsSection() {
     }
   };
 
+  const showStarters = !comparisons.length && !startersUsed && starterDrafts.length > 0;
+  const geographyNote = geographyPrompt(
+    config.question.geography,
+    config.presentation?.chartType,
+  );
+  const startersComplete = starterDrafts.every((draft) => draftIsComplete(draft, dimensions));
+
+  const updateStarterDraft = (index, name, value) =>
+    setStarterDrafts((current) =>
+      current.map((draft, at) => (at === index ? { ...draft, [name]: value } : draft)),
+    );
+
+  const createChart = () => {
+    if (!startersComplete || geographyNote) return;
+    let next = comparisons;
+    for (const draft of starterDrafts) {
+      const result = addComparison(next, createComparison({ dimensions: draft }));
+      if (result.issues.length) return;
+      next = result.comparisons;
+    }
+    setComparisons(next);
+    setStartersUsed(true);
+  };
+
   const updateNewDraft = (name, value) => {
     const next = { ...(newDraft || {}), [name]: value };
     if (!draftIsComplete(next, dimensions)) {
@@ -394,7 +439,35 @@ export default function ComparisonsSection() {
           </Select>
         </div>
       ) : null}
-      {dimensions.length && !comparisons.length ? (
+      {showStarters ? (
+        <>
+          {starterDrafts.map((draft, index) => (
+            <ComparisonDraft
+              key={index}
+              ariaLabel={`Comparison ${index + 1} draft`}
+              title={`Comparison ${index + 1}`}
+              dimensions={dimensions}
+              draft={draft}
+              onChange={(name, value) => updateStarterDraft(index, name, value)}
+            />
+          ))}
+          <Button
+            type="button"
+            disabled={!startersComplete || Boolean(geographyNote)}
+            aria-describedby={geographyNote ? "comparison-create-chart-note" : undefined}
+            onClick={createChart}
+          >
+            Create Chart
+          </Button>
+          {geographyNote ? (
+            <p id="comparison-create-chart-note" className="text-sm text-muted-foreground">
+              {geographyNote}
+            </p>
+          ) : null}
+        </>
+      ) : null}
+
+      {dimensions.length && !comparisons.length && !showStarters ? (
         <ComparisonDraft
           ariaLabel="Comparison draft"
           title="Comparison 1"
@@ -529,7 +602,7 @@ export default function ComparisonsSection() {
           onClick={() => setNewDraft({})}
         >
           <Plus aria-hidden="true" />
-          New comparison
+          Add comparison
         </Button>
       ) : null}
 
