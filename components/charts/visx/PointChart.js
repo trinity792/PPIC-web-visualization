@@ -51,12 +51,14 @@ import { scaleLinear } from "@visx/scale";
 
 import { readableTextColor } from "@/lib/visualization/chartLayout/contrast";
 import { placePointLabels } from "@/lib/visualization/chartLayout/pointLabels";
-import { textWidth } from "@/lib/visualization/chartLayout/textWidth";
+import { interTextWidth, textWidth } from "@/lib/visualization/chartLayout/textWidth";
 import { CHART_STYLE } from "@/lib/visualization/chartStyle";
 
 const { text, graphLine, hoverLabel, point: pointStyle, range: rangeStyle } = CHART_STYLE;
 const EDGE = 12; // breathing room at the plot edges
 const TICK_GAP = 8;
+// A value label on the left ends this far left of the plot.
+const Y_LABEL_NUDGE = 6;
 const INSET = 12; // px between the outermost points and an axis line
 const LINE_HEIGHT = 1.2;
 const HOVER_LINE_HEIGHT = 1.25;
@@ -125,11 +127,16 @@ export default function PointChart({ model, width, height }) {
   }
 
   // ── Size ──
-  const left = Math.max(0, ...yAxis.tickText.map((label) => textWidth(label, axisSize))) + 10;
+  // The widest value label starts at the drawing's left edge, in line with the
+  // title above it (owner, 2026-10-12).
+  const left = Math.ceil(Math.max(0, ...yAxis.tickText.map((label) => interTextWidth(label, axisSize)))) + Y_LABEL_NUDGE;
   const lastTickHalf = Math.ceil(textWidth(xAxis.tickText.at(-1) || "", axisSize) / 2);
   const right = Math.max(EDGE, lastTickHalf);
   const top = EDGE;
-  const bottom = TICK_GAP + axisSize + TICK_GAP;
+  // The x labels hang TICK_GAP below the plot and their box ends a fraction
+  // past one font size lower; the drawing ends 1px after that, so the frame's
+  // gap below is measured from the text, as PPIC publishes it (owner, 2026-10-12).
+  const bottom = TICK_GAP + axisSize + 1;
   const plotWidth = Math.max(MIN_PLOT, width - left - right);
   const plotHeight = Math.max(MIN_PLOT, height - top - bottom);
   const svgWidth = left + plotWidth + right;
@@ -276,7 +283,7 @@ export default function PointChart({ model, width, height }) {
                 data-grid="horizontal"
               />
               <text
-                x={-6}
+                x={-Y_LABEL_NUDGE}
                 y={yScale(tick)}
                 textAnchor="end"
                 dominantBaseline="central"

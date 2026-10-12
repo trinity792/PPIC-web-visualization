@@ -5,9 +5,10 @@
  *
  * Renders the shared PreviewContext state (loading / invalid / empty / error /
  * ready) and draws the chart through ChartRenderer, which picks Plotly or visx
- * from the result's renderer tag. A visx chart sits inside ChartFrame; a Plotly
- * chart hands its graph div up to the context so the Export step can drive
- * image export off the same rendered figure.
+ * from the result's renderer tag. A visx chart sits inside ChartFrame and hands
+ * an export handle (its frame, plus a way to draw it again at the export size)
+ * up to the context; a Plotly chart hands up its graph div. Either way the
+ * Export step drives image export off the same rendered figure.
  * This is the extracted render half of ModuleEditor's former ChartWorkspace.
  *
  * Props:
@@ -41,6 +42,7 @@ import DataTableView from "@/components/charts/DataTableView";
 import ChartFrame from "@/components/charts/ChartFrame";
 import ChartRenderer from "@/components/charts/ChartRenderer";
 import GraphTabs from "@/components/charts/GraphTabs";
+import { renderOffscreen } from "@/components/charts/renderOffscreen";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { cn } from "@/components/ui/utils";
 
@@ -48,6 +50,7 @@ import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import { roleLabel } from "@/components/chart-builder/sections/OutcomeSection";
 import { usePreview } from "@/components/chart-builder/wizard/PreviewContext";
 import { CHART_HEIGHTS } from "@/lib/constants";
+import { CHART_STYLE } from "@/lib/visualization/chartStyle";
 import { tabValues } from "@/lib/tabular/toSeries";
 import { getChartType } from "@/lib/visualization/chartRegistry";
 import { missingQuestionSelections } from "@/lib/visualization/questionReadiness";
@@ -187,7 +190,51 @@ function slotHeight(layout, count) {
   return 380;
 }
 
-function ChartSlot({ preview, layout, multi, embedded, onGraphDiv }) {
+/**
+ * A visx chart in its frame. With `height` null the drawing fills whatever
+ * height the frame is given (the export copy sets the frame's whole height).
+ */
+function VisxFrame({ result, height, className = "", frameRef = null }) {
+  return (
+    <ChartFrame
+      ref={frameRef}
+      labels={result.frame?.labels}
+      appearance={result.frame?.appearance}
+      observations={result.frame?.observations}
+      sourceCitations={result.frame?.sourceCitations}
+      summary={result.model?.summary ?? null}
+      legend={result.model?.key ?? null}
+      height={height}
+      fitContent={Boolean(result.model?.fitContent)}
+      className={className}
+    >
+      {({ width, height: drawingHeight }) => (
+        <ChartRenderer result={result} width={width} height={drawingHeight} />
+      )}
+    </ChartFrame>
+  );
+}
+
+/**
+ * What image export needs from a visx chart (lib/export/exportImage.js): the
+ * frame on screen, and a way to draw the same chart off screen at an exact
+ * export width and height.
+ */
+function visxExportHandle(result, element) {
+  return {
+    renderer: "visx",
+    chartType: result.chartType,
+    element,
+    renderAtSize: ({ width, height, padding }) =>
+      renderOffscreen(<VisxFrame result={result} height={null} className="h-full" />, {
+        width,
+        height,
+        padding,
+      }),
+  };
+}
+
+function ChartSlot({ preview, layout, multi, embedded, fill, onGraphDiv }) {
   const { dispatch, schema } = useChartConfig();
   const {
     id,
@@ -247,11 +294,15 @@ function ChartSlot({ preview, layout, multi, embedded, onGraphDiv }) {
 
   return (
     <div
+      // No orange ring on the active chart (owner, 2026-10-12): in a workspace
+      // the slot header's "Editing" button already marks it. A lone chart has
+      // no border of its own, since the workbench and wizard already set it in
+      // a card (owner: no double border); only a workspace's charts get one
+      // each. A chart that fills its embed has none, as an exported image.
       className={cn(
-        "relative flex min-h-72 min-w-0 flex-col overflow-hidden rounded-lg border bg-background",
-        active && !embedded
-          ? "border-ppic-brand ring-2 ring-ppic-brand/25"
-          : "border-border",
+        "relative flex min-w-0 flex-col overflow-hidden bg-background",
+        fill ? "min-h-0 flex-1" : "min-h-72",
+        multi && !fill && "rounded-lg border border-border",
       )}
     >
       {multi && !embedded ? (
@@ -341,7 +392,12 @@ function ChartSlot({ preview, layout, multi, embedded, onGraphDiv }) {
 
       {/* Bottom padding matches the sides, so the chart's gray source box
           does not sit flush against the container's bottom border. */}
-      <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden px-2 pt-2 pb-2 sm:px-4 sm:pb-4">
+      <div
+        className={cn(
+          "flex min-h-0 flex-1 justify-center overflow-hidden",
+          fill ? "items-stretch" : "items-center px-2 pt-2 pb-2 sm:px-4 sm:pb-4",
+        )}
+      >
         {status === "idle" ? (
           <ChartSkeleton shape={skeletonShapeFor(chartType, appearance)} />
         ) : null}
@@ -405,21 +461,17 @@ function ChartSlot({ preview, layout, multi, embedded, onGraphDiv }) {
           </div>
         ) : null}
         {status === "ready" && plotly?.renderer === "visx" && !renderError ? (
-          <ChartFrame
+          <VisxFrame
             key={renderChartType || chartType}
-            labels={plotly.frame?.labels}
-            appearance={plotly.frame?.appearance}
-            observations={plotly.frame?.observations}
-            sourceCitations={plotly.frame?.sourceCitations}
-            summary={plotly.model?.summary ?? null}
-            legend={plotly.model?.key ?? null}
-            height={height}
-            fitContent={Boolean(plotly.model?.fitContent)}
-          >
-            {({ width, height: drawingHeight }) => (
-              <ChartRenderer result={plotly} width={width} height={drawingHeight} />
-            )}
-          </ChartFrame>
+            result={plotly}
+            // Filling an embed, the iframe's height sets the drawing's, exactly
+            // as the export copy does, so an embed and an image of one size match.
+            height={fill ? null : height}
+            className={fill ? "h-full" : ""}
+            frameRef={(figure) =>
+              onGraphDiv(id, figure ? visxExportHandle(plotly, figure) : null)
+            }
+          />
         ) : null}
         {status === "ready" && plotly?.data && plotly.renderer !== "visx" && !renderError ? (
           <ChartRenderer
@@ -441,11 +493,36 @@ export default function PreviewPane({ embedded = false }) {
   const charts = previews || [];
   const layout = workspace?.layout || "1x1";
   const multi = charts.length > 1;
+  // One embedded chart fills the iframe, inset by the same white margin an
+  // exported image has; a workspace grid keeps its own row heights.
+  const fill = embedded && !multi;
+
+  if (fill) {
+    return (
+      <div
+        className="flex h-svh w-full flex-col overflow-hidden"
+        style={{ padding: CHART_STYLE.imagePadding }}
+      >
+        {charts.map((preview) => (
+          <ChartSlot
+            key={preview.id}
+            preview={preview}
+            layout={layout}
+            multi={false}
+            embedded
+            fill
+            onGraphDiv={setGraphDiv}
+          />
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div
       className={cn(
         "grid min-h-130 w-full gap-3 overflow-hidden",
+        embedded && "p-3",
         gridClass(layout, charts.length),
       )}
     >

@@ -65,7 +65,8 @@ function EmbeddedPreview() {
   return (
     <>
       <EmbedChromeHider />
-      <main className="min-h-svh bg-white p-3">
+      {/* PreviewPane sets the padding: a single chart fills the iframe. */}
+      <main className="min-h-svh bg-white">
         <PreviewPane embedded />
       </main>
     </>

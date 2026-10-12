@@ -41,6 +41,7 @@
  *                                   full height and the source box follows the
  *                                   drawing directly
  *   className    {string}         — optional classes for the frame
+ *   ref          {Object|Function} — the <figure>, for image export
  *
  * Data sources:
  *   - Via props from parent (PreviewPane, from the tagged visx result)
@@ -109,6 +110,7 @@ export default function ChartFrame({
   height = null,
   fitContent = false,
   className = "",
+  ref = null,
 }) {
   const drawingRef = React.useRef(null);
   const [size, setSize] = React.useState({ width: 0, height: 0 });
@@ -155,7 +157,7 @@ export default function ChartFrame({
 
   return (
     <ChartFocusProvider>
-    <figure data-chart-frame="" className={cn("m-0 flex w-full min-w-0 flex-col", className)}>
+    <figure ref={ref} data-chart-frame="" className={cn("m-0 flex w-full min-w-0 flex-col", className)}>
       {hasHeader ? (
         <div data-frame-part="header" className="flex flex-col gap-1">
           {shown.eyebrow ? (
@@ -183,7 +185,12 @@ export default function ChartFrame({
       <div
         className={cn(
           "flex min-w-0",
-          keyPosition === "right" ? "flex-row items-start" : "flex-col",
+          // A drawing that fills the frame's height must stretch beside a key
+          // on the right too; "items-start" would leave it at its first height
+          // and open a gap above the source box.
+          keyPosition === "right"
+            ? cn("flex-row", fixedHeight || fitContent ? "items-start" : "items-stretch")
+            : "flex-col",
           fixedHeight || fitContent ? null : "min-h-0 flex-1",
         )}
         style={{

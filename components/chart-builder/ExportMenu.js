@@ -17,12 +17,15 @@
  * preview so the wizard and module workbench expose the same complete flow.
  *
  * Props (both buttons):
- *   graphDivRef  {Object}       — ref to the active mounted Plotly graph div
+ *   graphDivRef  {Object}       — ref to the active mounted chart: a Plotly graph
+ *                                 div, or a visx export handle
+ *                                 { renderer: "visx", chartType, element,
+ *                                 renderAtSize } (PreviewPane)
  *   loaded       {Object}       — the loaded chart result behind the active chart
  *   previews     {Array|null}   — per-chart {id,name,config,result} for the whole
  *                                 workspace (from PreviewContext); enables
  *                                 multi-chart export
- *   graphDivRefs {Object|null}  — live map of chartId → mounted graph div
+ *   graphDivRefs {Object|null}  — live map of chartId → mounted graph div or handle
  *   disabled     {boolean}      — the preview is not ready. ExportChartButton
  *                                 greys its trigger out entirely (there is no
  *                                 figure). ExportDataButton greys out only its
@@ -105,6 +108,8 @@ import {
 } from "@/lib/export/exportTable";
 import { logEditorEvent } from "@/lib/logs/editorLog";
 import { CHART_HEIGHTS } from "@/lib/constants";
+import { SVG_EXPORT_CHART_TYPES } from "@/lib/visualization/chartRegistry";
+import { CHART_STYLE } from "@/lib/visualization/chartStyle";
 
 /**
  * ======================================================================
@@ -141,6 +146,13 @@ const IMAGE_SIZE_PRESETS = Object.freeze([
   { id: "laptop", label: "Laptop", width: 1440, icon: Laptop },
   { id: "monitor", label: "Monitor", width: 1920, icon: Monitor },
 ]);
+// The size of PPIC's interactive embeds at desktop width (measured on
+// ppic.org/interactive/poverty-trends-in-california, 2026-10-12: PPIC's embed
+// code sets height = width × 0.75 for an 835px column). A single chart's image
+// dialog opens at this size (owner, 2026-10-12).
+const STANDARD_IMAGE_SIZE = Object.freeze({ width: 835, height: 626 });
+// The style guide's three chart widths (pp. 18–21), drawn at that exact width.
+const STANDARD_IMAGE_WIDTHS = Object.freeze([950, 650, 330]);
 const DEFAULT_IMAGE_SIZE = Object.freeze({ width: 1100, height: CHART_HEIGHTS.default });
 const MIN_IMAGE_DIMENSION = 240;
 const MAX_IMAGE_DIMENSION = 3840;
@@ -154,16 +166,27 @@ function pixelDimension(value) {
   return Math.round(number);
 }
 
-function graphPixelSize(graphDiv) {
+/** Pixels per chart pixel for the dialog preview: the screen's density, 1–2. */
+function previewDensity() {
+  const ratio = typeof window === "undefined" ? 1 : Number(window.devicePixelRatio) || 1;
+  return Math.min(2, Math.max(1, ratio));
+}
+
+function graphPixelSize(chart) {
+  // A visx handle is measured by its whole frame plus the white margin its
+  // image adds, so "Match editor" lays the chart out exactly as on screen.
+  const visx = chart?.renderer === "visx";
+  const graphDiv = visx ? chart.element : chart;
+  const margin = visx ? CHART_STYLE.imagePadding * 2 : 0;
   const bounds = graphDiv?.getBoundingClientRect?.();
   const width =
-    Number(graphDiv?._fullLayout?.width) ||
-    Number(bounds?.width) ||
-    Number(graphDiv?.clientWidth);
+    (Number(graphDiv?._fullLayout?.width) ||
+      Number(bounds?.width) ||
+      Number(graphDiv?.clientWidth)) + margin;
   const height =
-    Number(graphDiv?._fullLayout?.height) ||
-    Number(bounds?.height) ||
-    Number(graphDiv?.clientHeight);
+    (Number(graphDiv?._fullLayout?.height) ||
+      Number(bounds?.height) ||
+      Number(graphDiv?.clientHeight)) + margin;
   return {
     width: pixelDimension(width) || DEFAULT_IMAGE_SIZE.width,
     height: pixelDimension(height) || DEFAULT_IMAGE_SIZE.height,
@@ -199,6 +222,7 @@ function useExportCharts(previews, config, loaded) {
         config: preview.config,
         result: preview.result,
         renderer: preview.plotly?.renderer || "plotly",
+        chartType: preview.plotly?.chartType ?? null,
       }));
     }
     return [
@@ -212,12 +236,16 @@ function useExportCharts(previews, config, loaded) {
   }, [previews, config, loaded]);
 }
 
-// Image export still asks Plotly for the picture, so a chart drawn with visx
-// has nothing to export until export works from the drawn SVG (renderer plan,
-// Workstream M). Owner decisions 2026-09-29 (line), 2026-09-30 (bar), and
-// 2026-10-01 (range): say so plainly rather than fail.
+// visx charts export from their drawn SVG (renderer plan, Workstream M), one
+// chart type at a time (SVG_EXPORT_CHART_TYPES). Until a type is checked, say
+// so plainly rather than fail. Owner decisions 2026-09-29 (line), 2026-09-30
+// (bar), and 2026-10-01 (range).
 const VISX_IMAGE_EXPORT_NOTICE =
-  "Image export for the new line, bar, range, scatter, forest, and pie charts is coming soon. Use Export data for the numbers, or Embed chart to share the live chart.";
+  "Image export for the new forest plot is coming soon. Use Export data for the numbers, or Embed chart to share the live chart.";
+
+function imageExportReady(chart) {
+  return chart.renderer !== "visx" || SVG_EXPORT_CHART_TYPES.includes(chart.chartType);
+}
 
 const MAX_EMBED_URL_LENGTH = 16000;
 
@@ -226,13 +254,27 @@ function embedPath(config) {
   return moduleId === "byod" ? "/visualization-tool" : `/${moduleId || ""}`;
 }
 
-// Stacked / grid layouts need a taller iframe: one 560px band per chart row.
-function embedHeight(layout) {
+// One chart fills its iframe, so it takes the standard embed height. Stacked /
+// grid layouts keep their own row heights: one 560px band per chart row.
+function embedHeight(workspace) {
+  if ((workspace?.charts?.length ?? 1) <= 1) return STANDARD_IMAGE_SIZE.height;
+  const layout = workspace?.layout;
   const rows = layout === "2x1" || layout === "2x2" ? 2 : 1;
   return rows * 560;
 }
 
-function embedInfo(config, workspace) {
+/**
+ * The iframe's width limit for a size choice: the standard size or one of the
+ * standard widths caps it ("full" leaves it the page's width). The iframe stays
+ * width 100% under the cap, so it still narrows on a phone.
+ */
+function embedMaxWidth(selection) {
+  if (selection === "standard") return STANDARD_IMAGE_SIZE.width;
+  const width = Number(String(selection || "").replace(/^standard-/, ""));
+  return STANDARD_IMAGE_WIDTHS.includes(width) ? width : null;
+}
+
+function embedInfo(config, workspace, selection = "standard") {
   const origin = typeof window === "undefined" ? "" : window.location.origin;
   // Carry the whole workspace (every chart + layout), not just the active
   // chart, so a multi-chart grid embeds intact.
@@ -240,9 +282,59 @@ function embedInfo(config, workspace) {
     serializeWorkspace(workspace),
   )}`;
   const title = config.presentation?.labels?.title || config.labels?.title || "PPIC chart";
-  const height = embedHeight(workspace?.layout);
-  const code = `<iframe title="${title.replace(/"/g, "&quot;")}" src="${src}" width="100%" height="${height}" style="border:0;" loading="lazy"></iframe>`;
-  return { src, code, height, tooLarge: src.length > MAX_EMBED_URL_LENGTH };
+  const height = embedHeight(workspace);
+  const maxWidth = embedMaxWidth(selection);
+  const style = `border:0;${maxWidth ? `max-width:${maxWidth}px;` : ""}`;
+  const code = `<iframe title="${title.replace(/"/g, "&quot;")}" src="${src}" width="100%" height="${height}" style="${style}" loading="lazy"></iframe>`;
+  return { src, code, height, maxWidth, tooLarge: src.length > MAX_EMBED_URL_LENGTH };
+}
+
+/**
+ * The size choices the image and embed dialogs share (owner, 2026-10-12): PPIC's
+ * standard embed size and the style guide's three widths. `fullWidth` adds the
+ * embed's "Full width" (no cap). Selections are "standard", "standard-<width>",
+ * or "full".
+ */
+function StandardSizeChoices({ name, selection, onStandard, onWidth, onFullWidth = null }) {
+  const choice = (key, active, label, onClick, children) => (
+    <Button
+      key={key}
+      type="button"
+      size="sm"
+      variant={active ? "default" : "outline"}
+      aria-label={label}
+      aria-pressed={active}
+      className="h-8 px-2.5 text-xs tabular-nums"
+      onClick={onClick}
+    >
+      {children}
+    </Button>
+  );
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="text-xs text-muted-foreground">Standard</span>
+      {choice(
+        "standard",
+        selection === "standard",
+        `${name} size ${STANDARD_IMAGE_SIZE.width} by ${STANDARD_IMAGE_SIZE.height} pixels, as PPIC embeds interactive charts`,
+        onStandard,
+        `${STANDARD_IMAGE_SIZE.width} × ${STANDARD_IMAGE_SIZE.height}`,
+      )}
+      <span className="ml-2 text-xs text-muted-foreground">Widths</span>
+      {STANDARD_IMAGE_WIDTHS.map((width) =>
+        choice(
+          width,
+          selection === `standard-${width}`,
+          `${name} width ${width} pixels`,
+          () => onWidth(width),
+          width,
+        ),
+      )}
+      {onFullWidth
+        ? choice("full", selection === "full", `${name} at full page width`, onFullWidth, "Full width")
+        : null}
+    </div>
+  );
 }
 
 // Desktop width at which the embed is rendered for the preview, so its
@@ -251,8 +343,10 @@ function embedInfo(config, workspace) {
 // to fit the dialog, rather than rendered narrow — which would collapse
 // multi-column layouts and misrepresent the result.
 const EMBED_PREVIEW_WIDTH = 1100;
+// The embed preview fits in this share of the window's height (55vh).
+const EMBED_PREVIEW_HEIGHT_SHARE = 0.55;
 
-function EmbedPreview({ src, height }) {
+function EmbedPreview({ src, height, maxWidth = null }) {
   const containerRef = useRef(null);
   const [width, setWidth] = useState(0);
 
@@ -270,7 +364,13 @@ function EmbedPreview({ src, height }) {
   // Never upscale: at desktop widths show the embed 1:1. Default to 1 until the
   // container is measured (the absolute iframe below can't expand the dialog, so
   // an unscaled first frame is merely clipped, not disruptive).
-  const scale = width ? Math.min(1, width / EMBED_PREVIEW_WIDTH) : 1;
+  // A capped embed is previewed at its cap; an uncapped one at desktop width.
+  // It is scaled to fit the preview area's height too, so the whole embed shows
+  // without scrolling.
+  const frameWidth = maxWidth ?? EMBED_PREVIEW_WIDTH;
+  const heightRoom =
+    typeof window === "undefined" ? Infinity : window.innerHeight * EMBED_PREVIEW_HEIGHT_SHARE;
+  const scale = width ? Math.min(1, width / frameWidth, heightRoom / height) : 1;
   const scaledHeight = Math.round(height * scale);
 
   // The measured box is w-full (dialog-driven, definite) and the iframe is
@@ -286,7 +386,7 @@ function EmbedPreview({ src, height }) {
         <iframe
           title="Embed preview"
           src={src}
-          width={EMBED_PREVIEW_WIDTH}
+          width={frameWidth}
           height={height}
           loading="lazy"
           style={{
@@ -333,6 +433,7 @@ export function ExportChartButton({
     error: null,
   });
   const [embedOpen, setEmbedOpen] = useState(false);
+  const [embedSize, setEmbedSize] = useState("standard");
   const [embedCopied, setEmbedCopied] = useState(false);
   const activeFormat =
     IMAGE_FORMATS.find((format) => format.id === formatId) || IMAGE_FORMATS[0];
@@ -347,10 +448,13 @@ export function ExportChartButton({
   const outputHeight = dimensionsValid
     ? Math.round(exportHeight * activeQuality.scale)
     : null;
-  const embed = useMemo(() => embedInfo(config, workspace), [config, workspace]);
+  const embed = useMemo(
+    () => embedInfo(config, workspace, embedSize),
+    [config, workspace, embedSize],
+  );
   const exportCharts = useExportCharts(previews, config, loaded);
   const multi = exportCharts.length > 1;
-  const imageExportUnavailable = exportCharts.some((chart) => chart.renderer === "visx");
+  const imageExportUnavailable = !exportCharts.every(imageExportReady);
   const devicePresetSelected = IMAGE_SIZE_PRESETS.some(
     (preset) => preset.id === sizeSelection,
   );
@@ -401,6 +505,24 @@ export function ExportChartButton({
     applyDimensions(measuredExportSize({ responsive: stacked }), "editor");
   }
 
+  function applyStandardSize() {
+    applyDimensions(STANDARD_IMAGE_SIZE, "standard");
+  }
+
+  /** What the dialog opens at: the PPIC embed size, or a workspace's own grid. */
+  function applyOpeningDimensions() {
+    if (multi) applyEditorDimensions();
+    else applyStandardSize();
+  }
+
+  function applyStandardWidth(width) {
+    // The chart is laid out again at this width; its height stays as set.
+    applyDimensions(
+      { width, height: exportHeight ?? DEFAULT_IMAGE_SIZE.height },
+      `standard-${width}`,
+    );
+  }
+
   function applyDevicePreset(preset) {
     applyDimensions(
       measuredExportSize({ width: preset.width, responsive: true }),
@@ -432,7 +554,8 @@ export function ExportChartButton({
   }
 
   // Opening the dialog renders the same chart canvas used by the eventual
-  // download, at preview density to avoid allocating a 4x monitor-sized bitmap.
+  // download, at the screen's pixel density (capped at 2x) so it is sharp on a
+  // high-density display without allocating a 4x monitor-sized bitmap.
   // A stale render is ignored if the dialog closes or dimensions change.
   useEffect(() => {
     if (!imageOpen) return undefined;
@@ -454,12 +577,12 @@ export function ExportChartButton({
       ? renderCombinedImagePreview(graphDivs, {
           layout: workspace?.layout,
           responsive: responsiveGrid,
-          scale: 1,
+          scale: previewDensity(),
           width: exportWidth,
           height: exportHeight,
         })
       : renderImagePreview(graphDivRef?.current, {
-          scale: 1,
+          scale: previewDensity(),
           width: exportWidth,
           height: exportHeight,
         });
@@ -571,7 +694,7 @@ export function ExportChartButton({
         size="sm"
         disabled={disabled}
         onClick={() => {
-          applyEditorDimensions();
+          applyOpeningDimensions();
           setImageOpen(true);
         }}
       >
@@ -615,7 +738,11 @@ export function ExportChartButton({
                   <img
                     src={imagePreview.src}
                     alt="Export preview"
-                    className="max-h-[55vh] max-w-full object-contain shadow-sm"
+                    // At most its chart size: the bitmap holds the screen's
+                    // density, so its natural size would be 2x too large. Both
+                    // limits keep its proportions, with no letterbox bands.
+                    style={{ maxWidth: `min(100%, ${exportWidth}px)` }}
+                    className="h-auto max-h-[55vh] w-auto shadow-sm"
                   />
                 </figure>
               ) : null}
@@ -639,7 +766,7 @@ export function ExportChartButton({
                     Chart size
                   </span>
                   <span className="text-xs text-muted-foreground">
-                    Match the live chart or preview it at a responsive device width.
+                    Start from PPIC’s standard embed size, match the live chart, or preview it at a device width.
                   </span>
                 </div>
 
@@ -676,6 +803,13 @@ export function ExportChartButton({
                     );
                   })}
                 </div>
+
+                <StandardSizeChoices
+                  name="Standard"
+                  selection={sizeSelection}
+                  onStandard={applyStandardSize}
+                  onWidth={applyStandardWidth}
+                />
 
                 <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-2">
                   <div className="grid gap-1.5">
@@ -862,12 +996,34 @@ export function ExportChartButton({
               link. For large uploaded datasets, export the chart image instead.
             </p>
           ) : (
-            <div>
-              <p className="mb-1.5 text-xs font-medium text-muted-foreground">Preview</p>
-              {/* The Dialog only mounts this while open, so the preview iframe
-                  loads on demand, not eagerly. Rendered at desktop width and
-                  scaled to fit so the layout matches the real embed. */}
-              <EmbedPreview src={embed.src} height={embed.height} />
+            <div className="grid gap-3">
+              <div className="grid gap-1.5">
+                <span className="text-xs font-medium text-muted-foreground">
+                  Embed width
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  The same sizes as image export. The embed never grows past the
+                  chosen width and still narrows on a phone.
+                </span>
+                <StandardSizeChoices
+                  name="Embed"
+                  selection={embedSize}
+                  onStandard={() => setEmbedSize("standard")}
+                  onWidth={(width) => setEmbedSize(`standard-${width}`)}
+                  onFullWidth={() => setEmbedSize("full")}
+                />
+              </div>
+              <div>
+                <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+                  Preview · {embed.maxWidth ? `${embed.maxWidth}px` : "full width"} ×{" "}
+                  {embed.height}px
+                </p>
+                {/* The Dialog only mounts this while open, so the preview iframe
+                    loads on demand, not eagerly. Rendered at the embed's width
+                    (desktop width when uncapped) and scaled to fit so the
+                    layout matches the real embed. */}
+                <EmbedPreview src={embed.src} height={embed.height} maxWidth={embed.maxWidth} />
+              </div>
             </div>
           )}
           <DialogFooter>

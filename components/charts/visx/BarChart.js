@@ -76,7 +76,7 @@ import { periodTicks } from "@/lib/visualization/chartLayout/axisScale";
 import { darken, readableTextColor, textColorOn, tint } from "@/lib/visualization/chartLayout/contrast";
 import { directLabels } from "@/lib/visualization/chartLayout/directLabels";
 import { rowLabels } from "@/lib/visualization/chartLayout/rowLabels";
-import { textWidth, wrapText } from "@/lib/visualization/chartLayout/textWidth";
+import { interTextWidth, textWidth, wrapText } from "@/lib/visualization/chartLayout/textWidth";
 import { CHART_STYLE } from "@/lib/visualization/chartStyle";
 import { COLORS } from "@/lib/constants";
 
@@ -84,6 +84,10 @@ const { text, graphLine, hoverLabel, minBarWidth, bar: barStyle } = CHART_STYLE;
 const hoverStyle = barStyle.hover;
 const EDGE = 12; // breathing room at the plot edges
 const TICK_GAP = 8;
+// A value label ends this far left of the plot: visx's tick length (kept when
+// the ticks are hidden) plus the label's own nudge.
+const Y_LABEL_NUDGE = 6;
+const Y_LABEL_GAP = TICK_GAP + Y_LABEL_NUDGE;
 const LABEL_GAP = 8;
 const KEY_GAP = 16;
 const INNER_GAP = 2; // between bars of one group
@@ -166,7 +170,10 @@ function categoryLabelLayout(labels, fontSize, slotSize) {
     const lines = Math.max(1, ...wrapped.map((item) => item.length));
     return { angle: 0, wrapped, depth: lines * fontSize * LINE_HEIGHT, overhang: 0 };
   }
-  const widths = labels.map((label) => textWidth(label, fontSize));
+  // Angled and upright labels reserve their real width (Inter's advances): the
+  // estimate's over-reach, turned down the page, left a gap above the axis
+  // title (owner, 2026-10-12).
+  const widths = labels.map((label) => interTextWidth(label, fontSize));
   const single = labels.map((label) => [label]);
   if (slotSize >= ANGLED_LABEL_SLOT * fontSize) {
     return {
@@ -232,7 +239,15 @@ export default function BarChart({ model, width, height }) {
   // ── Frame of the plot ──
   const top = (yTitle ? axisSize + 12 : 0) + EDGE + (anyLabels && !horizontal ? labelSize + barStyle.labelGap : 0);
   const referenceLabelRoom = model.reference?.label ? textWidth(model.reference.label, axisSize) + LABEL_GAP : 0;
-  const tickLabelWidth = minimal ? 0 : Math.max(0, ...tickText.map((label) => textWidth(label, axisSize)));
+  // The widest value label starts at the drawing's left edge, in line with the
+  // title above it (owner, 2026-10-12).
+  const tickLabelWidth = minimal
+    ? 0
+    : Math.ceil(Math.max(0, ...tickText.map((label) => interTextWidth(label, axisSize))));
+  // The drawing ends at its lowest text's descent, so the frame's gap below it
+  // (to the key or the source box) is measured from the text, as PPIC
+  // publishes it (owner, 2026-10-12).
+  const descent = Math.ceil(axisSize * CHART_STYLE.fontMetrics.descent);
 
   // A first pass at the key decides the width the plot gets; a named key
   // that turns out not to fit (checked after the scale exists) falls back.
@@ -258,9 +273,9 @@ export default function BarChart({ model, width, height }) {
         : 0;
       const lastTickHalf = minimal ? 0 : Math.ceil(textWidth(tickText.at(-1) || "", axisSize) / 2);
       right = Math.max(EDGE, outsideRoom, lastTickHalf, referenceLabelRoom);
-      bottom = (minimal ? 0 : TICK_GAP + axisSize) + (xTitle ? TICK_GAP + axisSize : 0) + TICK_GAP;
+      bottom = (minimal ? 0 : TICK_GAP + axisSize) + (xTitle ? TICK_GAP + axisSize : 0) + descent;
     } else {
-      left = minimal ? EDGE : tickLabelWidth + 10;
+      left = minimal ? EDGE : tickLabelWidth + Y_LABEL_GAP;
       right = Math.max(EDGE, named ? nameRoom + EDGE : 0, referenceLabelRoom);
       const labelsFor = (margin) => (model.categoryAxis?.kind === "period"
         ? { angle: 0, wrapped: slots.map((slot) => [slot]), depth: axisSize * LINE_HEIGHT, overhang: 0 }
@@ -273,7 +288,7 @@ export default function BarChart({ model, width, height }) {
       }
       bottom = TICK_GAP + categoryLayout.depth +
         (groups.length ? TICK_GAP + axisSize * LINE_HEIGHT : 0) +
-        (xTitle ? TICK_GAP + axisSize : 0) + TICK_GAP;
+        (xTitle ? TICK_GAP + axisSize : 0) + descent;
     }
     return { fallbackKey, viewWidth, left, right, bottom, rows, categoryLayout };
   };
@@ -597,8 +612,9 @@ export default function BarChart({ model, width, height }) {
                 tickFormat={(_, index) => tickText[index]}
                 hideAxisLine
                 hideTicks
+                tickLength={TICK_GAP}
                 tickComponent={TickLabel}
-                tickLabelProps={() => ({ ...axisFont, textAnchor: "end", dx: -6, dy: "0.33em" })}
+                tickLabelProps={() => ({ ...axisFont, textAnchor: "end", dx: -Y_LABEL_NUDGE, dy: "0.33em" })}
               />
             ) : null}
             {!minimal && horizontal ? (
@@ -846,7 +862,7 @@ export default function BarChart({ model, width, height }) {
             {xTitle ? (
               <text
                 x={plotWidth / 2}
-                y={plotHeight + bottom - TICK_GAP}
+                y={plotHeight + bottom - descent}
                 textAnchor="middle"
                 {...axisFont}
                 data-axis-title="x"

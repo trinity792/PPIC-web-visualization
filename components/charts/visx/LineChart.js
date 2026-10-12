@@ -59,7 +59,7 @@ import { periodTicks } from "@/lib/visualization/chartLayout/axisScale";
 import { dashedSegments } from "@/lib/visualization/chartLayout/dashedRange";
 import { readableTextColor } from "@/lib/visualization/chartLayout/contrast";
 import { directLabels } from "@/lib/visualization/chartLayout/directLabels";
-import { textWidth } from "@/lib/visualization/chartLayout/textWidth";
+import { interTextWidth, textWidth } from "@/lib/visualization/chartLayout/textWidth";
 import { CHART_STYLE } from "@/lib/visualization/chartStyle";
 import { COLORS } from "@/lib/constants";
 
@@ -73,6 +73,10 @@ const KEY_GAP = 16;
 const HOVER_LABEL_INSET = 3;
 const HOVER_LINE_HEIGHT = 1.25;
 const TICK_GAP = 8;
+// A value label ends this far left of the plot: visx's tick length (kept when
+// the ticks are hidden) plus the label's own nudge.
+const Y_LABEL_NUDGE = 6;
+const Y_LABEL_GAP = TICK_GAP + Y_LABEL_NUDGE;
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -179,10 +183,19 @@ export default function LineChart({ model, width, height }) {
   // A year label is centered on its tick, so the plot keeps half the widest
   // one clear at each edge; otherwise a label at the end is clipped.
   const periodLabelHalf = Math.ceil(Math.max(...periods.map((period) => textWidth(String(period), axisSize)), 0) / 2) + 2;
-  const left = Math.max(Math.max(...tickText.map((label) => textWidth(label, axisSize)), 0) + 10, periodLabelHalf);
+  // The widest value label starts at the drawing's left edge, in line with the
+  // title and the y-axis title above it (owner, 2026-10-12).
+  const left = Math.max(
+    Math.ceil(Math.max(...tickText.map((label) => interTextWidth(label, axisSize)), 0)) + Y_LABEL_GAP,
+    periodLabelHalf,
+  );
   const tickLabelTop = TICK_GAP; // tick labels hang this far below the axis
   const xTitleBaseline = tickLabelTop + axisSize + TICK_GAP + axisSize;
-  const bottom = (xTitle ? xTitleBaseline : tickLabelTop + axisSize) + TICK_GAP;
+  // The drawing ends at the lowest text's descent, so the frame's gap below it
+  // (to the key or the source box) is measured from the text, as PPIC
+  // publishes it (owner, 2026-10-12).
+  const descent = Math.ceil(axisSize * CHART_STYLE.fontMetrics.descent);
+  const bottom = (xTitle ? xTitleBaseline : tickLabelTop + axisSize) + descent;
   const plotHeight = Math.max(1, height - bottomNote - top - bottom) + spacing.horizontal * tickGaps;
   const svgHeight = plotHeight + top + bottom;
 
@@ -328,8 +341,9 @@ export default function LineChart({ model, width, height }) {
               tickFormat={(_, index) => tickText[index]}
               hideAxisLine
               hideTicks
+              tickLength={TICK_GAP}
               tickComponent={TickLabel}
-              tickLabelProps={() => ({ ...axisFont, textAnchor: "end", dx: -6, dy: "0.33em" })}
+              tickLabelProps={() => ({ ...axisFont, textAnchor: "end", dx: -Y_LABEL_NUDGE, dy: "0.33em" })}
             />
             <AxisBottom
               top={plotHeight}

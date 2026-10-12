@@ -188,13 +188,22 @@ describe("ExportMenu", () => {
       screen.getByRole("radiogroup", { name: /image export quality/i }),
     ).toBeInTheDocument();
     expect(preview).toHaveAttribute("src", expect.stringContaining("image/png"));
+    // A single chart opens at PPIC's interactive embed size (owner, 2026-10-12).
     expect(renderImagePreviewMock).toHaveBeenCalledWith(
       graphDiv,
-      expect.objectContaining({ scale: 1, width: 960, height: 520 }),
+      expect.objectContaining({ scale: 1, width: 835, height: 626 }),
     );
     expect(
-      screen.getByRole("button", { name: /match editor dimensions/i }),
+      screen.getByRole("button", { name: /standard size 835 by 626 pixels/i }),
     ).toHaveAttribute("aria-pressed", "true");
+
+    await user.click(screen.getByRole("button", { name: /match editor dimensions/i }));
+    await waitFor(() =>
+      expect(renderImagePreviewMock).toHaveBeenLastCalledWith(
+        graphDiv,
+        expect.objectContaining({ scale: 1, width: 960, height: 520 }),
+      ),
+    );
     expect(exportImageMock).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole("button", { name: /download png/i }));
@@ -218,8 +227,8 @@ describe("ExportMenu", () => {
       expect.objectContaining({
         format: "png",
         scale: 4,
-        width: 960,
-        height: 520,
+        width: 835,
+        height: 626,
       }),
     );
   });
@@ -233,7 +242,7 @@ describe("ExportMenu", () => {
     await user.click(screen.getByRole("radio", { name: "Standard" }));
     await screen.findByRole("img", { name: /export preview/i });
     expect(screen.getByText(/standard quality downloads at/i)).toHaveTextContent(
-      "1920 × 1040 px",
+      "1670 × 1252 px",
     );
     await user.click(screen.getByRole("button", { name: /download png/i }));
 
@@ -242,8 +251,8 @@ describe("ExportMenu", () => {
       expect.objectContaining({
         format: "png",
         scale: 2,
-        width: 960,
-        height: 520,
+        width: 835,
+        height: 626,
       }),
     );
   });
@@ -362,6 +371,33 @@ describe("ExportMenu", () => {
     expect(originalCsv).toHaveAttribute("aria-disabled", "true");
   });
 
+  it("limits the embed's width with the same size choices as image export", async () => {
+    const user = userEvent.setup();
+    renderMenu();
+
+    await user.click(screen.getByRole("button", { name: /export image/i }));
+    await screen.findByRole("img", { name: /export preview/i });
+    await user.click(screen.getByRole("button", { name: /embed chart/i }));
+
+    const copied = async () => {
+      // The button reads "Copied!" for a moment after each copy.
+      await user.click(screen.getByRole("button", { name: /copy embed code|copied/i }));
+      return exportTableMocks.copyText.mock.calls.at(-1)[0];
+    };
+    expect(
+      screen.getByRole("button", { name: /embed size 835 by 626 pixels/i }),
+    ).toHaveAttribute("aria-pressed", "true");
+    for (const width of [950, 650, 330]) {
+      await user.click(screen.getByRole("button", { name: `Embed width ${width} pixels` }));
+      const code = await copied();
+      expect(code).toContain(`max-width:${width}px;`);
+      expect(code).toContain('width="100%"');
+    }
+    await user.click(screen.getByRole("button", { name: /embed at full page width/i }));
+    expect(await copied()).not.toContain("max-width");
+    expect(screen.getByTitle("Embed preview")).toHaveAttribute("width", "1100");
+  });
+
   it("embeds the whole workspace as a view payload with an adaptive height", async () => {
     const user = userEvent.setup();
     renderMenu();
@@ -372,7 +408,9 @@ describe("ExportMenu", () => {
     await user.click(screen.getByRole("button", { name: /copy embed code/i }));
 
     const code = exportTableMocks.copyText.mock.calls.at(-1)[0];
-    expect(code).toContain('height="560"'); // 1x1 => one 560px band
+    // One chart fills its iframe at PPIC's standard embed size (owner, 2026-10-12).
+    expect(code).toContain('height="626"');
+    expect(code).toContain("max-width:835px;");
     const view = decodeURIComponent(code.match(/view=([^"&]+)/)[1]);
     const payload = JSON.parse(view);
     expect(payload.layout).toBe("1x1");
@@ -579,24 +617,34 @@ describe("ExportMenu — multi-chart workspace", () => {
 // before image export works from the drawn SVG (Workstream M), so the image
 // dialog says so plainly instead of failing inside Plotly.
 describe("image export for a visx chart", () => {
-  function renderVisx(renderer) {
-    const previews = [{ id: "c1", name: "Chart 1", config: initialConfig, result: loadedResult, plotly: { renderer } }];
+  function renderVisx(renderer, chartType = "forest") {
+    const previews = [{ id: "c1", name: "Chart 1", config: initialConfig, result: loadedResult, plotly: { renderer, chartType } }];
+    const handle = { renderer: "visx", chartType, element: document.createElement("figure"), renderAtSize: vi.fn() };
     render(
       <ChartConfigProvider schema={schema} initialConfig={initialConfig}>
-        <ExportMenu graphDivRef={{ current: null }} loaded={loadedResult} previews={previews} graphDivRefs={{ current: {} }} />
+        <ExportMenu graphDivRef={{ current: renderer === "visx" ? handle : null }} loaded={loadedResult} previews={previews} graphDivRefs={{ current: { c1: renderer === "visx" ? handle : null } }} />
       </ChartConfigProvider>,
     );
+    return handle;
   }
   beforeEach(() => renderImagePreviewMock.mockClear());
-  it("shows a coming-soon notice and keeps Download off", async () => {
+  it("shows a coming-soon notice and keeps Download off for a type not yet checked", async () => {
     const user = userEvent.setup();
-    renderVisx("visx");
+    renderVisx("visx", "forest");
     await user.click(screen.getByRole("button", { name: /export image/i }));
-    expect(await screen.findByRole("alert")).toHaveTextContent(/Image export for the new line, bar, range, scatter, forest, and pie charts is coming soon/);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Image export for the new forest plot is coming soon/);
     expect(screen.getByRole("button", { name: /download png/i })).toBeDisabled();
     expect(renderImagePreviewMock).not.toHaveBeenCalled();
     // Embedding still works.
     expect(screen.getByRole("button", { name: /embed chart/i })).toBeEnabled();
+  });
+  // Owner: line 2026-10-11; bar, range, the Scatter tile's variants, and pie 2026-10-12.
+  it.each(["line", "bar", "dumbbell", "dotPlot", "scatter", "bubble", "pie"])("previews a visx %s chart from its export handle (Workstream M)", async (chartType) => {
+    const user = userEvent.setup();
+    const handle = renderVisx("visx", chartType);
+    await user.click(screen.getByRole("button", { name: /export image/i }));
+    await waitFor(() => expect(renderImagePreviewMock).toHaveBeenCalledWith(handle, expect.any(Object)));
+    expect(screen.queryByText(/coming soon/)).not.toBeInTheDocument();
   });
   it("still previews a Plotly chart", async () => {
     const user = userEvent.setup();

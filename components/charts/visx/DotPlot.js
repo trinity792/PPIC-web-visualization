@@ -175,7 +175,11 @@ export default function DotPlot({ model, width, height }) {
   // ── Rows down the plot ──
   const axisRoom = showAxis ? TICK_GAP + axisSize : 0;
   const top = (yTitle ? axisSize + 12 : 0) + EDGE;
-  const bottom = Math.max(EDGE, axisRoom + (xTitle ? TICK_GAP + axisSize : 0) + TICK_GAP);
+  // The drawing ends at its lowest text's descent, so the frame's gap below it
+  // (to the key or the source box) is measured from the text, as PPIC
+  // publishes it (owner, 2026-10-12).
+  const descent = Math.ceil(axisSize * CHART_STYLE.fontMetrics.descent);
+  const bottom = Math.max(EDGE, axisRoom + (xTitle ? TICK_GAP + axisSize : 0) + descent);
   const headerSize = axisSize * LINE_HEIGHT + TICK_GAP;
   const maxLines = Math.max(1, ...wrapped.labels.map((label) => label.lines.length));
   // A row keeps room for a value above and below its dots when values show,
@@ -455,7 +459,7 @@ export default function DotPlot({ model, width, height }) {
           {xTitle ? (
             <text
               x={plotWidth / 2}
-              y={plotHeight + bottom - TICK_GAP}
+              y={plotHeight + bottom - descent}
               textAnchor="middle"
               {...axisFont}
               data-axis-title="x"

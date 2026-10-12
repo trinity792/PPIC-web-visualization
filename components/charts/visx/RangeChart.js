@@ -184,8 +184,12 @@ export default function RangeChart({ model, width, height }) {
   // ── Rows down the plot ──
   const axisRoom = showAxis ? TICK_GAP + axisSize : 0;
   const top = (yTitle ? axisSize + 12 : 0) + EDGE + (axisOnTop ? axisRoom : 0);
+  // The drawing ends at its lowest text's descent, so the frame's gap below it
+  // (to the key or the source box) is measured from the text, as PPIC
+  // publishes it (owner, 2026-10-12).
+  const descent = Math.ceil(axisSize * CHART_STYLE.fontMetrics.descent);
   // The axis title stays below the chart wherever the tick labels are.
-  const bottom = Math.max(EDGE, (axisOnTop ? 0 : axisRoom) + (xTitle ? TICK_GAP + axisSize : 0) + TICK_GAP);
+  const bottom = Math.max(EDGE, (axisOnTop ? 0 : axisRoom) + (xTitle ? TICK_GAP + axisSize : 0) + descent);
   const headerSize = axisSize * LINE_HEIGHT + TICK_GAP;
   const maxLines = Math.max(1, ...wrapped.labels.map((label) => label.lines.length));
   const minRow = Math.max(radius * 2 + 8, maxLines * axisSize * LINE_HEIGHT + 6);
@@ -499,7 +503,7 @@ export default function RangeChart({ model, width, height }) {
           {xTitle ? (
             <text
               x={plotWidth / 2}
-              y={plotHeight + bottom - TICK_GAP}
+              y={plotHeight + bottom - descent}
               textAnchor="middle"
               {...axisFont}
               data-axis-title="x"
