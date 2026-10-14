@@ -6,7 +6,8 @@
  *
  * Ordered as the mockup draws it: the chart-conditional Color binding, Color
  * Palette, Legend Position, the two line spacings, applicable tick increments,
- * axis ranges, Footnote. Everything after Footnote is chart-type-conditional, so a default
+ * axis ranges, Footnote. Everything after Footnote is chart-type-conditional (starting
+ * with Hide grid lines on the charts that draw a grid), so a default
  * line chart shows Color with the shared appearance controls and a diverging bar
  * or forest plot grows the extras it actually needs. That ordering is a
  * contract, not a preference — the tested one — because it is what keeps the
@@ -1809,6 +1810,19 @@ export default function AppearanceSection() {
       </div>
 
       {/* ---- Everything below here is chart-type-conditional ---- */}
+
+      {/* Only the charts that draw an internal grid (chart registry drawsGrid);
+          the axes, baselines and zero lines are not part of it. */}
+      {chart?.drawsGrid ? (
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor="appearance-hide-grid-lines">Hide grid lines</Label>
+          <Switch
+            id="appearance-hide-grid-lines"
+            checked={appearance.hideGridLines === true}
+            onCheckedChange={(checked) => setAppearance("hideGridLines", checked)}
+          />
+        </div>
+      ) : null}
 
       {storedConfig.version !== 3 && chart?.roleConstraints?.group && config.bindings?.group ? (
         <div className="grid gap-2">

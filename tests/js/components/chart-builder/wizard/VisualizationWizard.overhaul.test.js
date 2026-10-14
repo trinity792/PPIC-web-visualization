@@ -27,7 +27,14 @@ vi.mock("@/components/chart-builder/MultiChartToolbar", () => ({
   default: () => <div>Multi-chart workspace</div>,
 }));
 vi.mock("@/components/chart-builder/wizard/steps/ImportStep", () => ({
-  default: () => <div>Import content</div>,
+  default: ({ onProceed }) => (
+    <div>
+      Import content
+      <button type="button" onClick={onProceed}>
+        Proceed
+      </button>
+    </div>
+  ),
 }));
 vi.mock("@/components/chart-builder/wizard/steps/EditStep", () => ({
   default: () => <div>Edit content</div>,
@@ -81,6 +88,27 @@ describe("standalone VisualizationWizard after module divergence", () => {
     state.config = { data: { source: "inline", inline: null } };
     rerender(<VisualizationWizard schema={state.schema} initialConfig={{}} />);
     expect(await screen.findByText("Import content")).toBeInTheDocument();
+  });
+
+  it("advances from Import to Edit via the Import step's Proceed button", async () => {
+    const user = userEvent.setup();
+    state.config = {
+      data: {
+        source: "inline",
+        inline: { columns: [{ name: "Value", type: "number" }], rows: [[1]] },
+      },
+    };
+    render(<VisualizationWizard schema={state.schema} initialConfig={{}} />);
+    await user.click(screen.getByRole("button", { name: "Proceed" }));
+    expect(screen.getByText("Edit content")).toBeInTheDocument();
+  });
+
+  it("stays on Import when Proceed is pressed with no table", async () => {
+    const user = userEvent.setup();
+    state.config = { data: { source: "inline", inline: null } };
+    render(<VisualizationWizard schema={state.schema} initialConfig={{}} />);
+    await user.click(screen.getByRole("button", { name: "Proceed" }));
+    expect(screen.getByText("Import content")).toBeInTheDocument();
   });
 
   it("removes the module-only steps export", () => {

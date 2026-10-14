@@ -29,4 +29,24 @@ describe("StepShell desktop height", () => {
     );
     expect(cards[1]).not.toHaveClass("lg:absolute", "lg:h-full");
   });
+
+  it("with fitSidebar, lets the sidebar set its own height and stretch with the preview", () => {
+    const { container } = render(
+      <StepShell title="Import" preview={<div>Table view</div>} fitSidebar>
+        Sidebar controls
+      </StepShell>,
+    );
+    const [sidebar, preview] = container.querySelectorAll('[data-slot="card"]');
+    const shell = preview.parentElement.parentElement;
+
+    expect(shell).toHaveClass("lg:items-stretch");
+    expect(sidebar).toHaveClass("lg:h-full");
+    expect(sidebar).not.toHaveClass("lg:absolute");
+    expect(sidebar).not.toHaveClass("lg:overflow-y-auto");
+    expect(preview).not.toHaveClass("lg:absolute");
+    // The content box must not become a scroll container either.
+    const content = screen.getByText("Sidebar controls");
+    expect(content).toHaveClass("overflow-x-clip");
+    expect(content).not.toHaveClass("overflow-x-hidden", "min-h-0");
+  });
 });

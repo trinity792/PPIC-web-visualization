@@ -154,6 +154,8 @@ function neighbourSeries(series, active, yOf, direction) {
 // ── Component ────────────────────────────────────────────────────────
 
 export default function LineChart({ model, width, height }) {
+  // The reader's Hide grid lines switch (axes, zero lines and baselines stay).
+  const showGrid = model.grid?.show !== false;
   // The hover label belongs to one model; a new model (new data) starts closed.
   const [hovered, setHovered] = React.useState(null);
   const active = hovered?.model === model ? hovered.target : null;
@@ -339,14 +341,16 @@ export default function LineChart({ model, width, height }) {
                 </clipPath>
               </defs>
             ) : null}
-            <GridRows
-              scale={yScale}
-              width={plotWidth}
-              tickValues={model.yAxis.ticks}
-              stroke={graphLine.color}
-              strokeWidth={graphLine.width}
-              data-grid="horizontal"
-            />
+            {showGrid ? (
+              <GridRows
+                scale={yScale}
+                width={plotWidth}
+                tickValues={model.yAxis.ticks}
+                stroke={graphLine.color}
+                strokeWidth={graphLine.width}
+                data-grid="horizontal"
+              />
+            ) : null}
             <AxisLeft
               scale={yScale}
               tickValues={model.yAxis.ticks}

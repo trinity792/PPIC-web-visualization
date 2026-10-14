@@ -100,6 +100,8 @@ function sides(row) {
 // ── Component ────────────────────────────────────────────────────────
 
 export default function ForestPlot({ model, width, height }) {
+  // The reader's Hide grid lines switch (axes, zero lines and baselines stay).
+  const showGrid = model.grid?.show !== false;
   // The hover belongs to one model; a new model (new data) starts closed.
   const [hovered, setHovered] = React.useState(null);
   const active = hovered?.model === model ? hovered.index : null;
@@ -378,7 +380,7 @@ export default function ForestPlot({ model, width, height }) {
           {showAxis
             ? shownTicks.map(({ tick, text: label }) => (
               <g key={`tick-${tick}`}>
-                {!(valueAxis.zero && tick === 0) ? (
+                {showGrid && !(valueAxis.zero && tick === 0) ? (
                   <line
                     x1={valueScale(tick)}
                     x2={valueScale(tick)}

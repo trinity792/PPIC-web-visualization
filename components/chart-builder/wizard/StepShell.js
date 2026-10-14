@@ -17,6 +17,11 @@
  * a long control list in the opposite direction. Overflow stays inside the
  * sidebar. The stacked mobile layout remains natural-height.
  *
+ * With `fitSidebar`, the controls card instead keeps its natural height (no
+ * inner scroll) and contributes to the row height too, so both cards stretch to
+ * whichever is taller — used by the Import step, whose short control list should
+ * never scroll.
+ *
  * Props:
  *   title     {string}    — underlined heading for the left controls card
  *   children  {ReactNode} — left-column controls
@@ -24,6 +29,8 @@
  *   footer    {ReactNode} — optional actions pinned to the bottom of the left card
  *   aside     {ReactNode} — optional hint rendered to the right of the preview
  *   resizable {boolean}   — allow dragging the left card's width (default true)
+ *   fitSidebar {boolean}  — size the row to the sidebar's content as well as the
+ *                           preview, so the sidebar never scrolls (default false)
  *
  * UI Kit reference:
  *   - ui/card containers; underlined section heading matches ChartSidebar.
@@ -36,6 +43,7 @@ import {
   useResizableSidebarWidth,
 } from "@/components/chart-builder/resizableSidebar";
 import { Card } from "@/components/ui/card";
+import { cn } from "@/components/ui/utils";
 
 export default function StepShell({
   title,
@@ -44,6 +52,7 @@ export default function StepShell({
   footer,
   aside,
   resizable = true,
+  fitSidebar = false,
 }) {
   const { width, applyWidth } = useResizableSidebarWidth();
 
@@ -53,7 +62,14 @@ export default function StepShell({
         className="relative w-full shrink-0 lg:w-[var(--sb-w)]"
         style={{ "--sb-w": `${width}px` }}
       >
-        <Card className="flex min-h-[calc(100svh-16rem)] min-w-0 flex-col p-5 lg:absolute lg:inset-0 lg:min-h-0 lg:overflow-y-auto">
+        <Card
+          className={cn(
+            "flex min-h-[calc(100svh-16rem)] min-w-0 flex-col p-5",
+            fitSidebar
+              ? "lg:h-full"
+              : "lg:absolute lg:inset-0 lg:min-h-0 lg:overflow-y-auto",
+          )}
+        >
           {title ? (
             <div className="mb-4 text-center">
               <h2 className="inline-block border-b-2 border-ppic-brand pb-1 font-heading text-xl font-semibold">
@@ -61,7 +77,17 @@ export default function StepShell({
               </h2>
             </div>
           ) : null}
-          <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden">{children}</div>
+          {/* overflow-x-clip (not -hidden) in fitSidebar mode: -hidden would make this
+              a scroll container, which drops its content height from the card's
+              intrinsic size and brings the inner scroll back. */}
+          <div
+            className={cn(
+              "min-w-0 flex-1",
+              fitSidebar ? "overflow-x-clip" : "min-h-0 overflow-x-hidden",
+            )}
+          >
+            {children}
+          </div>
           {footer ? <div className="mt-4 border-t pt-4">{footer}</div> : null}
         </Card>
         {resizable ? (

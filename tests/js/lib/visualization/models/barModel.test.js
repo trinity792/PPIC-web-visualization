@@ -3,6 +3,7 @@ import { input, gapRows, comparisons, observations } from "@/tests/fixtures/visu
 
 import { buildBarModel } from "@/lib/visualization/models/barModel";
 import { adaptObservations } from "@/lib/visualization/adapters";
+import { tableToObservations } from "@/lib/tabular/toObservations";
 it("gives each comparison the same color the Plotly bar chart gives it", () => {
   expect(buildBarModel(input("bar")).series.map(s => s.color)).toEqual(["#CA4F1A", "#293B54"]);
   expect(adaptObservations(input("bar")).data.map(s => s.marker.color)).toEqual(["#CA4F1A", "#293B54"]);
@@ -130,6 +131,35 @@ it("shows a total for each stack", () => {
 });
 it("gives every bar a stable key", () => {
   expect(buildBarModel(input("bar")).bars.map(b => b.key)).toEqual(["latina|06075|2025", "white|06075|2025", "latina|06037|2025", "white|06037|2025"]);
+});
+// Pasted data fills geographyId with the comparison's label, so a key built
+// geography-first repeated across every category of one comparison (a React
+// duplicate-key error on a Job × Nation table, 2026-10-14).
+const TIPPING = {
+  columns: [{ name: "Job", type: "text" }, { name: "Nation", type: "text" }, { name: "Tip", type: "number" }],
+  rows: [["Waiters", "Britain", "59"], ["Waiters", "USA", "77"], ["Barbers", "Britain", "38"], ["Barbers", "USA", "65"]],
+};
+function tippingBars(bindings) {
+  const comparisons = [{ id: "cmp_inline_1", label: "Britain" }, { id: "cmp_inline_2", label: "USA" }];
+  const observations = tableToObservations(TIPPING, {
+    bindings, chartType: "bar", measure: { id: "Tip" }, comparisons: bindings.group ? comparisons : [],
+  });
+  return buildBarModel(input("bar", {
+    observations,
+    comparisons: bindings.group ? comparisons : [{ id: "cmp_inline_1", label: "Data" }],
+  })).bars;
+}
+it("keys pasted bars by their category, not the comparison label", () => {
+  const keys = tippingBars({ category: "Job", y: "Tip", group: "Nation" }).map((bar) => bar.key);
+  expect(keys).toHaveLength(4);
+  expect(new Set(keys).size).toBe(4);
+  expect(keys).toContain("cmp_inline_1|Waiters|null");
+  expect(keys).toContain("cmp_inline_1|Barbers|null");
+});
+it("keeps keys unique when an unmapped label column leaves rows sharing a category", () => {
+  // Nation is the category and Job is unmapped: two rows per nation, one comparison.
+  const keys = tippingBars({ category: "Nation", y: "Tip" }).map((bar) => bar.key);
+  expect(new Set(keys).size).toBe(keys.length);
 });
 it("ignores a saved mirror setting", () => {
   expect(JSON.stringify(buildBarModel(input("bar", { appearance: { mirror: true } })))).toBe(JSON.stringify(buildBarModel(input("bar"))));

@@ -5,6 +5,7 @@ import {
   getDefaultQuestion,
 } from "@/lib/visualization/defaultQuestions";
 import { MODULE_IDS, getModuleSchema } from "@/lib/visualization/moduleRegistry";
+import { showsSourceBox } from "@/lib/visualization/models/sharedSettings";
 import { readQuestion } from "@/lib/visualization/questionSpec";
 import { resolveEditorModel } from "@/lib/visualization/resolveEditorModel";
 
@@ -80,5 +81,20 @@ describe("the default v3 question every module opens on", () => {
       getDefaultQuestion("demographic-projections").question.comparisons,
     ).toEqual([]);
     expect(getDefaultQuestion("not-a-module")).toBeNull();
+  });
+});
+
+describe("the source-and-notes (footnote) box default", () => {
+  it("starts off in the custom Visualization Tool", () => {
+    const spec = getDefaultQuestion("byod");
+    expect(readQuestion(spec).ok).toBe(true);
+    expect(showsSourceBox(spec.presentation.appearance)).toBe(false);
+  });
+
+  it("stays on for every module chart", () => {
+    for (const moduleId of DEFAULT_QUESTION_MODULE_IDS) {
+      const spec = getDefaultQuestion(moduleId);
+      expect(showsSourceBox(spec.presentation.appearance), moduleId).toBe(true);
+    }
   });
 });

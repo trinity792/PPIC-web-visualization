@@ -13,8 +13,10 @@ const AXES = [["showXAxisLabel", false], ["showYAxisLabel", false], ["axisFontSi
 // Row labels are left-aligned by default (owner, 2026-09-30), so a saved "left"
 // is the default; "right" is the change to test (renderer plan F).
 const ROWS = [["groupLabelAlignment", "right"], ["variableLabelAlignment", "center"], ["hideXAxis", true], ["showPointLabels", false]];
+// Hide grid lines (2026-10-14) applies to every chart that draws a grid.
+const GRID = [["hideGridLines", true]];
 const TABLE = {
-  line: [...SHARED, ...AXES.filter(([key]) => key !== "horizontalAxisRange"), ["verticalNumberType", "usd"], ["categoryOrder", ["Los Angeles", "San Francisco"]], ["dashedRange", { from: 2025, to: 2030, label: "Forecast" }]],
+  line: [...SHARED, ...AXES.filter(([key]) => key !== "horizontalAxisRange"), ["verticalNumberType", "usd"], ["categoryOrder", ["Los Angeles", "San Francisco"]], ["dashedRange", { from: 2025, to: 2030, label: "Forecast" }], ...GRID],
   bar: [...SHARED, ...AXES.filter(([key]) => !["horizontalTickIncrement", "horizontalAxisRange"].includes(key)), ["horizontalTickIncrement", 10000, { orientation: "horizontal" }], ["horizontalAxisRange", [-1000, 123456], { orientation: "horizontal" }], ["verticalNumberType", "usd"], ["horizontalNumberType", "usd", { orientation: "horizontal" }], ["orientation", "horizontal"], ["stackMode", "stacked"], ["groupGap", 2], ["categoryOrder", ["Los Angeles", "San Francisco"]], ["diverging", true], ["center", 60000, { diverging: true }], ["referenceValue", 0, { diverging: true }], ["referenceLabel", "Benchmark", { diverging: true, referenceValue: 0 }], ["valueRange", [-100,3000000], { diverging: true }], ["colorBuckets", [{ at: 60000, color: "Navy" }, { at: null, color: "Orange" }], { diverging: true }],
     // Owner decisions 2026-09-30 (PPIC bar references). Track rail and Minimal
     // axis now work on ordinary bars, so they need no diverging prerequisite.
@@ -26,18 +28,18 @@ const TABLE = {
     // Data order is San Francisco first; Los Angeles has the larger values.
     ["sort", "descending"],
     // Owner, 2026-09-30: the order of the bars within each group.
-    ["seriesOrder", ["White Women", "Latina Women"]]],
+    ["seriesOrder", ["White Women", "Latina Women"]], ...GRID],
   // Owner decisions 2026-10-01 (PPIC range references).
   dumbbell: [...SHARED, ...AXES.filter(([key]) => !key.startsWith("vertical")), ...ROWS, ["horizontalNumberType", "usd"], ["pointLabelsFirstLineOnly", true],
-    ["rangeStyle", "arrow"], ["valueAxisPosition", "top"], ["pointLabelEnds", "start"]],
-  dotPlot: [...SHARED, ...AXES.filter(([key]) => !key.startsWith("vertical")), ...ROWS, ["horizontalNumberType", "usd"], ["pointLabelSeries", { "White Women": false }], ["markerSize", 14]],
-  forest: [...SHARED, ...AXES.filter(([key]) => !key.startsWith("vertical")), ...ROWS, ["horizontalNumberType", "usd"], ["endpointStyle", "diamonds"], ["pointStyle", "dot"], ["noEffectValue", 0], ["center", 45000]],
+    ["rangeStyle", "arrow"], ["valueAxisPosition", "top"], ["pointLabelEnds", "start"], ...GRID],
+  dotPlot: [...SHARED, ...AXES.filter(([key]) => !key.startsWith("vertical")), ...ROWS, ["horizontalNumberType", "usd"], ["pointLabelSeries", { "White Women": false }], ["markerSize", 14], ...GRID],
+  forest: [...SHARED, ...AXES.filter(([key]) => !key.startsWith("vertical")), ...ROWS, ["horizontalNumberType", "usd"], ["endpointStyle", "diamonds"], ["pointStyle", "dot"], ["noEffectValue", 0], ["center", 45000], ...GRID],
   heatmap: [...SHARED, ...AXES.filter(([key]) => !key.endsWith("TickIncrement") && !key.endsWith("AxisRange")), ["invertScale", true], ["categoryOrder", ["5-9", "0-4", "10-14"]], ["hiddenCategories", ["0-4"]], ["showCellValues", false]],
   // The vertical axis starts at zero (owner, 2026-10-05), so the fixture's
   // 0-50,000 axis already steps by 10,000; 5,000 is the increment that differs.
   // Point labels and Fit both axes are the scatter family's own (renderer plan J).
-  scatter: [...SHARED, ...AXES.filter(([key]) => key !== "verticalTickIncrement"), ["verticalTickIncrement", 5000], ["horizontalNumberType", "usd"], ["verticalNumberType", "percent"], ["pointLabels", "off"], ["fitAxes", true]],
-  bubble: [...SHARED, ...AXES.filter(([key]) => key !== "verticalTickIncrement"), ["verticalTickIncrement", 5000], ["horizontalNumberType", "usd"], ["verticalNumberType", "percent"], ["pointLabels", "off"], ["fitAxes", true]],
+  scatter: [...SHARED, ...AXES.filter(([key]) => key !== "verticalTickIncrement"), ["verticalTickIncrement", 5000], ["horizontalNumberType", "usd"], ["verticalNumberType", "percent"], ["pointLabels", "off"], ["fitAxes", true], ...GRID],
+  bubble: [...SHARED, ...AXES.filter(([key]) => key !== "verticalTickIncrement"), ["verticalTickIncrement", 5000], ["horizontalNumberType", "usd"], ["verticalNumberType", "percent"], ["pointLabels", "off"], ["fitAxes", true], ...GRID],
   pie: [...SHARED, ["categoryOrder", ["5-9", "0-4", "10-14"]], ["hiddenCategories", ["0-4"]], ["hole", 0.4]],
   // Owner decisions 2026-10-12 (renderer plan L): maps color by discrete class
   // (`classification`, `bins`), and the key is drawn in the frame. A symbol

@@ -53,12 +53,14 @@ export function SidebarResizeHandle({ width, onWidth }) {
     window.addEventListener("pointerup", onUp);
   }
 
+  // Both callers separate the sidebar from the preview with a 16px gap (gap-4);
+  // the handle fills that gap exactly so its grip sits centred between the cards.
   return (
     <button
       type="button"
       aria-label="Resize panel"
       onPointerDown={onPointerDown}
-      className="group absolute inset-y-0 -right-2 z-10 hidden w-3 cursor-col-resize items-center justify-center lg:flex"
+      className="group absolute inset-y-0 -right-4 z-10 hidden w-4 cursor-col-resize items-center justify-center lg:flex"
     >
       <span className="h-10 w-1 rounded-full bg-border transition-colors group-hover:bg-ppic-brand" />
     </button>

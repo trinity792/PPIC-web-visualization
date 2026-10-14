@@ -95,10 +95,16 @@ function WizardInner({ steps }) {
 
   const navSteps = useMemo(() => steps.map((id) => STEP_DEFS[id]), [steps]);
 
+  // Advance to the step after the current one (used by Import's Proceed button).
+  function goToNextStep() {
+    const next = steps[steps.indexOf(currentId) + 1];
+    if (next && isEnabled(next)) setCurrentId(next);
+  }
+
   function renderStep() {
     switch (currentId) {
       case "import":
-        return <ImportStep />;
+        return <ImportStep onProceed={goToNextStep} />;
       case "edit":
         return <EditStep />;
       case "export":

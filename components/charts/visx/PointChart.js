@@ -100,6 +100,8 @@ function pointAt(points, positions, x, y, shown) {
 // ── Component ────────────────────────────────────────────────────────
 
 export default function PointChart({ model, width, height }) {
+  // The reader's Hide grid lines switch (the axes stay).
+  const showGrid = model.grid?.show !== false;
   // The hover label belongs to one model; a new model (new data) starts closed.
   const [hovered, setHovered] = React.useState(null);
   const active = hovered?.model === model ? hovered.index : null;
@@ -307,15 +309,17 @@ export default function PointChart({ model, width, height }) {
               announce as images. */}
           {yTicks.map(({ tick, text: label }) => (
             <g key={`y-${tick}`}>
-              <line
-                x1={0}
-                x2={plotWidth}
-                y1={yScale(tick)}
-                y2={yScale(tick)}
-                stroke={pointStyle.grid.color}
-                strokeWidth={pointStyle.grid.width}
-                data-grid="horizontal"
-              />
+              {showGrid ? (
+                <line
+                  x1={0}
+                  x2={plotWidth}
+                  y1={yScale(tick)}
+                  y2={yScale(tick)}
+                  stroke={pointStyle.grid.color}
+                  strokeWidth={pointStyle.grid.width}
+                  data-grid="horizontal"
+                />
+              ) : null}
               <text
                 x={-Y_LABEL_NUDGE}
                 y={yScale(tick)}
@@ -331,15 +335,17 @@ export default function PointChart({ model, width, height }) {
           ))}
           {xTicks.map(({ tick, text: label }) => (
             <g key={`x-${tick}`}>
-              <line
-                x1={xScale(tick)}
-                x2={xScale(tick)}
-                y1={0}
-                y2={plotHeight}
-                stroke={pointStyle.grid.color}
-                strokeWidth={pointStyle.grid.width}
-                data-grid="vertical"
-              />
+              {showGrid ? (
+                <line
+                  x1={xScale(tick)}
+                  x2={xScale(tick)}
+                  y1={0}
+                  y2={plotHeight}
+                  stroke={pointStyle.grid.color}
+                  strokeWidth={pointStyle.grid.width}
+                  data-grid="vertical"
+                />
+              ) : null}
               <text
                 x={xScale(tick)}
                 y={plotHeight + TICK_GAP}

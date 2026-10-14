@@ -7,7 +7,10 @@
  * parsed table with per-cell colour grading via the shared InputTableEditor.
  *
  * Props:
- *   (none — reads/dispatches through useChartConfig())
+ *   onProceed {() => void} — optional; renders a "Proceed" button below the
+ *                            Check legend that advances to the next step. It is
+ *                            disabled until a table has been imported.
+ *   (everything else reads/dispatches through useChartConfig())
  *
  * Data sources:
  *   - components/chart-builder/DataSourcePanel.js (import UI + SET_DATA_SOURCE)
@@ -15,11 +18,13 @@
  */
 
 import React from "react";
+import { ArrowRight } from "lucide-react";
 
 import { ImportConfigButton } from "@/components/chart-builder/ConfigActions";
 import DataSourcePanel from "@/components/chart-builder/DataSourcePanel";
 import InputTableEditor from "@/components/chart-builder/InputTableEditor";
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
+import { Button } from "@/components/ui/button";
 import { inlineTableOf } from "@/lib/visualization/inlineQuestion";
 
 import StepShell from "@/components/chart-builder/wizard/StepShell";
@@ -82,9 +87,28 @@ function ImportedTableView() {
   );
 }
 
-export default function ImportStep() {
+function ProceedButton({ onProceed }) {
+  const { config } = useChartConfig();
+  const ready = Boolean(inlineTableOf(config));
+
   return (
-    <StepShell title="Import Your Data" preview={<ImportedTableView />}>
+    <div className="mt-4">
+      <Button type="button" className="w-full" disabled={!ready} onClick={onProceed}>
+        Proceed
+        <ArrowRight aria-hidden="true" />
+      </Button>
+      {!ready ? (
+        <p className="mt-2 text-center text-xs text-muted-foreground">
+          Import a table to continue.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+export default function ImportStep({ onProceed }) {
+  return (
+    <StepShell title="Import Your Data" preview={<ImportedTableView />} fitSidebar>
       <div className="grid gap-2">
         <div className="inline-block self-start border-b-2 border-ppic-brand pb-1 font-heading text-base font-semibold">
           Paste or Upload
@@ -96,6 +120,7 @@ export default function ImportStep() {
         </div>
       </div>
       <CheckLegend />
+      {onProceed ? <ProceedButton onProceed={onProceed} /> : null}
     </StepShell>
   );
 }

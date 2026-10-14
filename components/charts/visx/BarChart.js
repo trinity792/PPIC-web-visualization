@@ -194,6 +194,8 @@ function overlaps(a, b) {
 // ── Component ────────────────────────────────────────────────────────
 
 export default function BarChart({ model, width, height }) {
+  // The reader's Hide grid lines switch (axes, zero lines and baselines stay).
+  const showGrid = model.grid?.show !== false;
   // The hover label belongs to one model; a new model (new data) starts closed.
   const [hovered, setHovered] = React.useState(null);
   const active = hovered?.model === model ? hovered.index : null;
@@ -611,7 +613,7 @@ export default function BarChart({ model, width, height }) {
             ) : null}
             {/* Value axis: horizontal grid lines on vertical bars only; the
                 guide never draws vertical grid lines. */}
-            {!horizontal && !minimal ? (
+            {!horizontal && !minimal && showGrid ? (
               <GridRows
                 scale={valueScale}
                 width={plotWidth}
