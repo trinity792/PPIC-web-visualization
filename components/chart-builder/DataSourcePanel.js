@@ -80,13 +80,20 @@ export default function DataSourcePanel() {
 
   function loadInlineTable(table, originName) {
     setError("");
-    const title = datasetName.trim() || titleFromFilename(originName) || null;
+    // A typed dataset name wins; then a title line found above the pasted
+    // table (lib/tabular/cleanTable.js); then the file's name.
+    const title = datasetName.trim() || table.meta?.title || titleFromFilename(originName) || null;
     const withMeta = {
       ...table,
       meta: {
+        // Keeps the source and notes the import moved out of the data.
+        ...(table.meta || {}),
         importedAt: new Date().toISOString(),
         originalName: originName || null,
         title,
+        // Only a title line found in the table also titles the chart; a typed
+        // dataset name or a file name names the dataset alone.
+        titleFrom: datasetName.trim() ? "name" : table.meta?.title ? "table" : originName ? "file" : null,
         // A pristine snapshot so "revert to original" has something to
         // restore to after in-place edits in InputTableEditor.
         original: { columns: table.columns, rows: table.rows },
@@ -180,12 +187,9 @@ export default function DataSourcePanel() {
     dispatch({
       type: "SET_DATA_SOURCE",
       source: "inline",
-      inline: {
-        ...inline,
-        columns: nextTable.columns,
-        rows: nextTable.rows,
-        issues: nextTable.issues,
-      },
+      // The editor owns the complete table, including formulas, marks, findings
+      // and re-read metadata. Picking only rows/columns silently loses edits.
+      inline: nextTable,
     });
   }
 
@@ -205,7 +209,7 @@ export default function DataSourcePanel() {
   function handleRevert() {
     const original = inline?.meta?.original;
     if (!original) return;
-    handleTableChange({ columns: original.columns, rows: original.rows, issues: [] });
+    handleTableChange({ ...inline, columns: original.columns, rows: original.rows, issues: [], formulas: {}, rowMarks: {}, findings: original.findings || [] });
     logEditorEvent({
       severity: "info",
       code: "TABLE_REVERTED",
@@ -238,13 +242,17 @@ export default function DataSourcePanel() {
             id="data-source-name"
             value={datasetName}
             onChange={(event) => setDatasetName(event.target.value)}
-            placeholder="e.g. County population estimates"
           />
           <Label htmlFor="data-source-paste">Paste from Excel or Sheets</Label>
           <Textarea
             id="data-source-paste"
             value={pasteText}
             onChange={(event) => setPasteText(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
+              event.preventDefault();
+              if (pasteText.trim() && !event.repeat) handlePaste();
+            }}
             placeholder="Paste a table here"
             className={
               inlineOnly
@@ -289,7 +297,6 @@ export default function DataSourcePanel() {
                 value={titleDraft}
                 onChange={(event) => setTitleDraft(event.target.value)}
                 onBlur={handleTitleCommit}
-                placeholder={inline.meta?.originalName || "Your data"}
               />
             </div>
           ) : null}
@@ -311,11 +318,13 @@ export default function DataSourcePanel() {
                 <DialogHeader>
                   <DialogTitle>Edit your data</DialogTitle>
                   <DialogDescription>
-                    Fix cells, rename headers, add derived columns, or revert to the
+                    Fix cells, rename headers, write formulas, or revert to the
                     original import. Nothing here is ever sent to a server.
                   </DialogDescription>
                 </DialogHeader>
                 <InputTableEditor
+                  onUndo={() => dispatch({ type: "UNDO" })}
+                  onRedo={() => dispatch({ type: "REDO" })}
                   table={inline}
                   onChange={handleTableChange}
                   onRevert={inline.meta?.original ? handleRevert : undefined}

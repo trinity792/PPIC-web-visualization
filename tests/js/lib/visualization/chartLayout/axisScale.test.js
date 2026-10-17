@@ -62,3 +62,23 @@ it("keeps the tick increment inside a fixed range", () => {
 it.each([[[50, 10]], [[20, 20]], [[50, null]], [[null, -5]]])("ignores an impossible range: %j", (fixed) => {
   expect(axisScale({ min: 12, max: 37, fixed })).toMatchObject({ domain: [0, 40], fixed: false });
 });
+
+import * as datasetAxisScale from "@/lib/visualization/chartLayout/axisScale";
+// Proposed return contract: { ticks, tickText }, matching chart-model axes.
+it("places calendar ticks on year boundaries for monthly data", () => {
+  const result = datasetAxisScale.calendarTicks({ min: 2019 + 10 / 12, max: 2024 + 2 / 12, width: 650, granularity: "month" });
+  expect(result.ticks).toEqual([2020, 2021, 2022, 2023, 2024]);
+  expect(result.tickText).toEqual(["2020", "2021", "2022", "2023", "2024"]);
+});
+it.each([[2000, 2025, [2000, 2005, 2010, 2015, 2020, 2025]], [1970, 2030, [1970, 1980, 1990, 2000, 2010, 2020, 2030]]])(
+  "steps up from years to 5 and 10 years as the span grows: %s–%s", (min, max, ticks) => {
+    const result = datasetAxisScale.calendarTicks({ min, max, width: 650, granularity: "month" });
+    expect(result.ticks).toEqual(ticks);
+    expect(result.tickText).toEqual(ticks.map(String));
+  },
+);
+it("uses quarter labels for a short quarterly series", () => {
+  const result = datasetAxisScale.calendarTicks({ min: 2020, max: 2020.75, width: 650, granularity: "quarter" });
+  expect(result.ticks).toEqual([2020, 2020.25, 2020.5, 2020.75]);
+  expect(result.tickText).toEqual(["Q1 2020", "Q2 2020", "Q3 2020", "Q4 2020"]);
+});

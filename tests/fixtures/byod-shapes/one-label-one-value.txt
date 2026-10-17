@@ -1,0 +1,15 @@
+Nation	Count
+Nation 1	10
+Nation 2	20
+Nation 3	30
+Nation 4	40
+Nation 5	50
+Nation 6	60
+Nation 7	70
+Nation 8	80
+Nation 9	90
+Nation 10	100
+Nation 11	110
+Nation 12	120
+Nation 13	130
+Nation 14	140

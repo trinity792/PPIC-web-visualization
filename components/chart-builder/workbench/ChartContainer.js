@@ -35,6 +35,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card } from "@/components/ui/card";
 
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
+import { EditorOptionsMenu } from "@/components/chart-builder/advancedMode";
 import { loadFullTable } from "@/components/chart-builder/chartData";
 import { usePreview } from "@/components/chart-builder/wizard/PreviewContext";
 import PreviewPane from "@/components/chart-builder/wizard/PreviewPane";
@@ -197,8 +198,9 @@ export default function ChartContainer({ embedded = false }) {
   if (embedded) return <PreviewPane embedded />;
 
   return (
-    <Card className="min-w-0 p-4 sm:p-6">
-      <h2 className="mb-4 text-center font-heading text-xl font-semibold">
+    <Card className="relative min-w-0 p-4 sm:p-6">
+      <EditorOptionsMenu className="absolute top-4 right-4 sm:top-6 sm:right-6" />
+      <h2 className="mb-4 px-10 text-center font-heading text-xl font-semibold">
         <span className="inline-block border-b-2 border-ppic-brand pb-1">
           {schema.label}
         </span>

@@ -45,17 +45,21 @@ describe("resolveInlineRoles", () => {
     expect(resolveInlineRoles("line", { x: "Year", y: "Population", series: "Region" })).toEqual({
       period: "Year",
       value: "Population",
+      // Dataset-range plan, workstream 4: a value-list role always reports its list.
+      values: ["Population"],
       comparison: "Region",
     });
     expect(resolveInlineRoles("bar", { category: "Region", y: "Share", group: "Year" })).toEqual({
       category: "Region",
       value: "Share",
+      values: ["Share"],
       comparison: "Year",
     });
     expect(resolveInlineRoles("dotPlot", { y: "Region", x: "Year", color: "Share" })).toEqual({
       category: "Region",
       comparison: "Year",
       value: "Share",
+      values: ["Share"],
     });
     expect(
       resolveInlineRoles("bubble", { x: "Population", y: "Share", size: "Population", unit: "Region" }),
@@ -99,9 +103,9 @@ describe("derived question parts", () => {
     expect(again[1]).toMatchObject({ id: "cmp_inline_2", customLabel: "The South", color: "#123456" });
   });
 
-  it("falls back to one 'Data' comparison when no comparison column is bound", () => {
+  it("names the single comparison after its value column when no comparison column is bound", () => {
     expect(deriveInlineComparisons(TABLE, "line", { x: "Year", y: "Population" })).toEqual([
-      { id: "cmp_inline_1", label: "Data", dimensions: {}, customLabel: null, color: null },
+      { id: "cmp_inline_1", label: "Population", dimensions: {}, customLabel: null, color: null },
     ]);
   });
 
@@ -157,5 +161,57 @@ describe("inlineTableOf", () => {
     expect(inlineTableOf({ question: { dataset: { kind: "inline", inline: TABLE } } })).toBe(TABLE);
     expect(inlineTableOf({ data: { source: "inline", inline: TABLE } })).toBe(TABLE);
     expect(inlineTableOf({ question: { dataset: { kind: "module" } } })).toBeNull();
+  });
+});
+
+import * as datasetInlineQuestion from "@/lib/visualization/inlineQuestion";
+import { boundInline as datasetBoundInline } from "@/tests/fixtures/byod-shapes/helpers";
+const wideDataset = {
+  columns: [{ name: "Date", type: "date" }, { name: "Nation", type: "text" },
+    { name: "Share", type: "number", unit: "percent" }, { name: "Cost", type: "number", unit: "usd" }],
+  rows: [["Feb 2020", "Britain", "40", "120"], ["Jan 2020", "France", "60", "130"]],
+};
+describe("dataset range: inline bindings", () => {
+  it("reads a single column name and a list the same way", () => {
+    expect(datasetInlineQuestion.bindingColumns("Share")).toEqual(["Share"]);
+    expect(datasetInlineQuestion.bindingColumns(["Share"])).toEqual(["Share"]);
+    expect(datasetInlineQuestion.bindingColumns(null)).toEqual([]);
+    for (const y of ["Share", ["Share"]]) expect(resolveInlineRoles("line", { x: "Date", y })).toMatchObject({ value: "Share", values: ["Share"] });
+  });
+  it("makes one comparison per value column, labelled by the column", () => {
+    expect(deriveInlineComparisons(wideDataset, "line", { x: "Date", y: ["Share", "Cost"] })).toMatchObject([
+      { label: "Share", valueColumn: "Share" }, { label: "Cost", valueColumn: "Cost" },
+    ]);
+  });
+  it("makes one comparison per pair when a comparison column is also mapped", () => {
+    expect(deriveInlineComparisons(wideDataset, "line", { x: "Date", y: ["Share", "Cost"], series: "Nation" }).map(c => c.label)).toEqual([
+      "Britain - Share", "Britain - Cost", "France - Share", "France - Cost",
+    ]);
+  });
+  it("keeps a custom label and color when the value list changes", () => {
+    const previous = [{ id: "stable", label: "Share", valueColumn: "Share", customLabel: "Our share", color: "#293B54" }];
+    const result = deriveInlineComparisons(wideDataset, "line", { x: "Date", y: ["Cost", "Share"] }, previous);
+    expect(result.map(c => c.label)).toEqual(["Cost", "Share"]);
+    expect(result[1]).toMatchObject(previous[0]);
+    expect(new Set(result.map(c => c.id)).size).toBe(2);
+  });
+  it("takes each outcome's unit from its column", () => {
+    const spec = datasetBoundInline(wideDataset, "scatter", { x: "Cost", y: "Share", unit: "Nation" });
+    expect(spec.question.outcomes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ role: "x", measureId: "Cost", unit: "usd" }),
+      expect.objectContaining({ role: "y", measureId: "Share", unit: "percent" }),
+    ]));
+    expect(datasetBoundInline(wideDataset, "line", { x: "Date", y: ["Share", "Cost"] }).question.outcomes).toMatchObject([{ role: "y", measureId: "Share", unit: "percent" }]);
+  });
+  it("sorts month-name periods by date, not alphabetically", () => {
+    expect(inlinePeriods(wideDataset, "line", { x: "Date", y: "Share" })).toEqual(["Jan 2020", "Feb 2020"]);
+  });
+  it("names a lone series after its value column, not Data", () => {
+    expect(deriveInlineComparisons(wideDataset, "line", { x: "Date", y: "Share" }).map(c => c.label)).toEqual(["Share"]);
+  });
+  it("auto-maps all value columns unless a comparison column is present", () => {
+    const table = { columns: wideDataset.columns.filter(c => c.name !== "Nation"), rows: wideDataset.rows.map(([date, , share, cost]) => [date, share, cost]) };
+    expect(guessInlineBindings("line", table)).toEqual({ x: "Date", y: ["Share", "Cost"] });
+    expect(guessInlineBindings("line", wideDataset)).toEqual({ x: "Date", y: "Share", series: "Nation" });
   });
 });

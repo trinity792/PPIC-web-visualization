@@ -1,0 +1,3 @@
+County	2010	2020
+Alameda	10	20
+Butte	15	25

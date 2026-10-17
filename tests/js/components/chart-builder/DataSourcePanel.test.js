@@ -10,6 +10,8 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import DataSourcePanel from "@/components/chart-builder/DataSourcePanel";
+import { gridTable } from "@/tests/fixtures/spreadsheet-grid";
+import { cell, enter } from "./data-grid/spreadsheetTestUtils";
 
 const state = vi.hoisted(() => ({
   dispatch: vi.fn(),
@@ -53,6 +55,18 @@ describe("DataSourcePanel standalone import", () => {
 
     const pasteBox = screen.getByLabelText("Paste from Excel or Sheets");
     expect(pasteBox).toHaveClass("h-32", "overflow-y-auto", "[field-sizing:fixed]");
+  });
+
+  it("preserves formulas, row marks and import metadata from the edit dialog", async () => {
+    const table = { ...gridTable(), rowMarks: { 1: "total" }, meta: { title: "Survey", rawText: "Region\tYes\tNo\nNorth\t40\t60" } };
+    state.config = { data: { source: "inline", inline: table }, tier: "moderate" };
+    render(<DataSourcePanel />);
+    await userEvent.click(screen.getByRole("button", { name: "Edit table" }));
+    fireEvent.doubleClick(cell(2, 3));
+    enter("=B2*2");
+    expect(state.dispatch.mock.lastCall[0]).toMatchObject({ type: "SET_DATA_SOURCE", inline: {
+      formulas: { "0:2": "=B2*2" }, rowMarks: { 1: "total" }, meta: table.meta,
+    } });
   });
 
   it("stores an optional dataset name with the imported table", async () => {

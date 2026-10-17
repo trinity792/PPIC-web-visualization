@@ -1,9 +1,8 @@
 "use client";
 
 /**
- * StepNav.js — the wizard's horizontal chevron stepper (Import → Chart Type →
- * Edit → Export). Driven entirely by the `steps` prop, so the module editor's
- * three-step flow is produced simply by passing the list without "import".
+ * StepNav.js — the wizard's horizontal chevron stepper (Import → Edit).
+ * Driven entirely by the ordered `steps` prop.
  *
  * Props:
  *   steps       {Array<{id,label}>} — ordered steps to render, left to right

@@ -1256,7 +1256,7 @@ export function ExportDataButton({
 
 /**
  * ======================================================================
- * Composed surface (wizard Export step)
+ * Composed export controls
  * ======================================================================
  */
 

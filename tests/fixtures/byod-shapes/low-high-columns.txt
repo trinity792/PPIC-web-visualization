@@ -1,0 +1,3 @@
+Occupation	Low	High
+Teachers	30	60
+Nurses	40	80

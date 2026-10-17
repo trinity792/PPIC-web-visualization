@@ -114,7 +114,7 @@ function renderMenu() {
   return { graphDiv };
 }
 
-// Two-chart workspace passed via the preview props ExportStep supplies.
+// Two-chart workspace passed via the preview props the editor footer supplies.
 function renderMultiMenu() {
   const graphDivs = {
     c1: { id: "gd-1", _fullLayout: { width: 600, height: 380 } },

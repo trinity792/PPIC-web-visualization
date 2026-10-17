@@ -3,32 +3,36 @@
 /**
  * advancedMode.js — the Advanced Mode switch shared by both chart editors.
  *
- * A single boolean, held per editor shell, that hides the controls a reader only
+ * A boolean, held per editor shell, that hides the controls a reader only
  * needs occasionally. It is deliberately NOT the old three-tier registry
  * (`.trash/settingsTiers.js`), which gated dozens of controls from a central
  * table and mostly meant a user could not find a control they had been told
  * about. Here each section decides for itself what it hides, such as ranked
  * geography controls, custom color composition, and per-series legend editing.
  *
- * The flag is editor state, not chart state: it never reaches `config`, is not
- * serialized into a saved view, and does not survive a reload.
+ * The flag and the mouse-hover preference are editor state: neither reaches
+ * `config`, is serialized into a saved view, or survives a reload.
  *
  * Exports:
  *   AdvancedModeProvider — holds the flag for one editor shell
- *   useAdvancedMode()    — { advanced } for sections deciding what to render
+ *   useAdvancedMode()    — Advanced Mode and mouse-hover session preferences
  *   AdvancedModeToggle   — the switch itself; must sit inside the provider
  *   AdvancedModeBoundary — provides only where no ancestor already does
  *                          (Workstream F4; see its own doc comment)
+ *   EditorOptionsMenu   — shared three-dot menu for session preferences
  *
  * Data sources:
  *   - None (component state)
  *
  * UI Kit reference:
- *   - Implements the label + switch pattern
+ *   - Implements the label + switch and dropdown-menu patterns
  */
 
 import React, { createContext, useContext, useMemo, useState } from "react";
+import { Ellipsis } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/components/ui/utils";
@@ -41,11 +45,12 @@ const AdvancedModeContext = createContext(null);
  * surface that forgets the provider renders an extra block, rather than losing
  * one silently.
  */
-const ALWAYS_VISIBLE = Object.freeze({ advanced: true, setAdvanced: () => {} });
+const ALWAYS_VISIBLE = Object.freeze({ advanced: true, setAdvanced: () => {}, mouseHoverAnimations: true, setMouseHoverAnimations: () => {} });
 
 export function AdvancedModeProvider({ defaultAdvanced = false, children }) {
   const [advanced, setAdvanced] = useState(defaultAdvanced);
-  const value = useMemo(() => ({ advanced, setAdvanced }), [advanced]);
+  const [mouseHoverAnimations, setMouseHoverAnimations] = useState(true);
+  const value = useMemo(() => ({ advanced, setAdvanced, mouseHoverAnimations, setMouseHoverAnimations }), [advanced, mouseHoverAnimations]);
 
   return (
     <AdvancedModeContext.Provider value={value}>
@@ -56,6 +61,32 @@ export function AdvancedModeProvider({ defaultAdvanced = false, children }) {
 
 export function useAdvancedMode() {
   return useContext(AdvancedModeContext) || ALWAYS_VISIBLE;
+}
+
+/**
+ * Session-only chart interaction options, shared by the two preview cards.
+ * Props: className {string} — optional positioning classes for the menu button.
+ */
+export function EditorOptionsMenu({ className }) {
+  const { mouseHoverAnimations, setMouseHoverAnimations } = useAdvancedMode();
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button type="button" variant="ghost" size="icon" aria-label="Editor options" className={cn("size-8 text-muted-foreground", className)}>
+          <Ellipsis aria-hidden="true" className="size-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuCheckboxItem
+          checked={!mouseHoverAnimations}
+          onCheckedChange={(disabled) => setMouseHoverAnimations(disabled !== true)}
+          onSelect={(event) => event.preventDefault()}
+        >
+          Disable mouse hover animations
+        </DropdownMenuCheckboxItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 }
 
 /**

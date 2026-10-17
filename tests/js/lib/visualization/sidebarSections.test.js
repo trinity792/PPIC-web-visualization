@@ -50,8 +50,8 @@ const LINE_SECTIONS = [
   "axis",
   "geography",
   "time",
-  "labels",
   "appearance",
+  "labels",
   "typography",
 ];
 

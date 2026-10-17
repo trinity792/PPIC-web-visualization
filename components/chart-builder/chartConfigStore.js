@@ -37,8 +37,11 @@ import { getChartCapabilities, getChartType } from "@/lib/visualization/chartReg
 import { impliedBindings } from "@/lib/visualization/impliedRoles";
 import {
   autoMapInlineBindings,
+  inlineRenderBlock,
   suggestChartType,
 } from "@/lib/visualization/inlineMapping";
+import { profileTable, rankInlineCharts } from "@/lib/visualization/inlineProfile";
+import { recalculate } from "@/lib/tabular/formulas";
 import {
   migrateSpec,
   normalizeSpec,
@@ -49,6 +52,7 @@ import {
   normalizeQuestion,
 } from "@/lib/visualization/questionSpec";
 import {
+  bindingColumns,
   guessInlineBindings,
   inlinePeriods,
   isInlineQuestion,
@@ -620,20 +624,74 @@ function withInlineQuestion(config, table, chartType, bindings, schema) {
   });
 }
 
+/**
+ * A fresh import whose table brought its own source or notes (lines under the
+ * pasted table, moved out by lib/tabular/cleanTable.js): the source-and-notes
+ * box, off by default in the tool because a pasted table normally has nothing
+ * to cite, is turned on, and the notes fill an empty footnote.
+ */
+function withImportedNotes(config, meta) {
+  if (!meta?.source && !meta?.notes) return config;
+  const presentation = config.presentation || {};
+  const labels = presentation.labels || {};
+  return {
+    ...config,
+    presentation: {
+      ...presentation,
+      appearance: { ...(presentation.appearance || {}), showSource: true },
+      labels: meta.notes && !labels.footnote ? { ...labels, footnote: meta.notes } : labels,
+    },
+  };
+}
+
 function reduceV3ChartConfig(config, action, schema) {
   if (action.type === "SET_DATA_SOURCE") {
     // Bring-your-own-data: a fresh import (`defaultChart`) picks a chart that
     // fits the columns; a table edit keeps the chart. Either way the columns
     // are re-mapped onto the chart's roles and the question re-derived.
-    if (action.source !== "inline" || !action.inline) return config;
-    const table = clone(action.inline);
-    const chartType = action.defaultChart
-      ? suggestChartType(table)
-      : config.presentation?.chartType || suggestChartType(table);
-    const previous = config.question?.dataset?.bindings || {};
-    const bindings = guessInlineBindings(chartType, table, previous);
+    //
+    // Dataset-range plan, workstream 5: a fresh import switches to the chart
+    // the table's shape ranks first, with that candidate's mapping and
+    // presets. A table edit keeps the current chart, unless it can no longer
+    // draw the edited table; only then does it switch the same way.
+    if (action.source !== "inline") return config;
+    // No table: the reader removed their data. Clear the table and everything
+    // derived from it (mapping, outcome, comparisons, time), so the wizard
+    // falls back to Import; the chart's own settings stay.
+    if (!action.inline) {
+      if (!isInlineQuestion(config)) return config;
+      return normalizeQuestion({
+        ...config,
+        question: {
+          ...config.question,
+          dataset: { kind: "inline", inline: null, bindings: {} },
+          outcomes: [],
+          comparisons: [],
+          time: { contract: "none" },
+          calculation: { id: "actual", params: {} },
+        },
+      });
+    }
+    // Every table edit recalculates its formula cells, so no path can save
+    // a stale value (import overhaul).
+    const table = recalculate(clone(action.inline));
+    const current = config.presentation?.chartType;
+    let candidate = null;
+    let chartType = current;
+    let bindings = null;
+    if (!action.defaultChart && current) {
+      bindings = guessInlineBindings(current, table, config.question?.dataset?.bindings || {});
+      if (inlineRenderBlock(current, table, bindings)) bindings = null;
+    }
+    if (!bindings) {
+      candidate = rankInlineCharts(profileTable(table))[0] || null;
+      chartType = candidate?.chartType || suggestChartType(table);
+      bindings = candidate && Object.keys(candidate.bindings).length
+        ? clone(candidate.bindings)
+        : guessInlineBindings(chartType, table, {});
+    }
     let next = withInlineQuestion(config, table, chartType, bindings, schema);
-    if (chartType !== config.presentation?.chartType) {
+    if (chartType !== current) {
       next = applyChartType(next, chartType);
       const presentation = getChartCapabilities(chartType)?.comparison?.default;
       next = normalizeQuestion({
@@ -641,18 +699,49 @@ function reduceV3ChartConfig(config, action, schema) {
         presentation: { ...next.presentation, comparisonPresentation: presentation },
       });
     }
-    return next;
+    if (candidate && Object.keys(candidate.appearance).length) {
+      next = normalizeQuestion({
+        ...next,
+        presentation: {
+          ...next.presentation,
+          appearance: { ...(next.presentation.appearance || {}), ...clone(candidate.appearance) },
+        },
+      });
+    }
+    return action.defaultChart ? withImportedNotes(next, table.meta) : next;
   }
   if (action.type === "SET_BINDING") {
     // { role, column } — a column of "" or null clears the role.
+    // { role, columns } — a value-list role's columns, in order (dataset-range
+    //   plan, workstream 4); an empty list clears the role.
+    // { role: "valuesArePeriods", value } — a line chart's value columns are
+    //   periods (years across the top), not series.
     const table = config.question?.dataset?.inline;
     if (!table) return config;
     const bindings = { ...(config.question.dataset.bindings || {}) };
-    if (action.column) bindings[action.role] = action.column;
-    else delete bindings[action.role];
-    // A column serves one role at a time, as auto-mapping guarantees.
-    for (const [role, column] of Object.entries(bindings)) {
-      if (role !== action.role && column === action.column) delete bindings[role];
+    if (action.role === "valuesArePeriods") {
+      if (action.value) {
+        bindings.valuesArePeriods = true;
+        delete bindings.x;
+      } else delete bindings.valuesArePeriods;
+      return withInlineQuestion(config, table, config.presentation?.chartType, bindings, schema);
+    }
+    const chosen = Array.isArray(action.columns)
+      ? bindingColumns(action.columns)
+      : bindingColumns(action.column);
+    if (!chosen.length) delete bindings[action.role];
+    else bindings[action.role] = Array.isArray(action.columns) ? chosen : chosen[0];
+    // A column serves one role at a time, as auto-mapping guarantees: the
+    // chosen columns leave every other role, including another role's list.
+    for (const [role, value] of Object.entries(bindings)) {
+      if (role === action.role || role === "valuesArePeriods") continue;
+      if (Array.isArray(value)) {
+        const kept = value.filter((name) => !chosen.includes(name));
+        if (kept.length) bindings[role] = kept;
+        else delete bindings[role];
+      } else if (chosen.includes(value)) {
+        delete bindings[role];
+      }
     }
     return withInlineQuestion(config, table, config.presentation?.chartType, bindings, schema);
   }

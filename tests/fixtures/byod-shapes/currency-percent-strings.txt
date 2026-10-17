@@ -1,0 +1,3 @@
+Name	Income	Share
+A	$1,200	45%
+B	$2,400	55%

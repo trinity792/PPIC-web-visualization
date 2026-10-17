@@ -183,3 +183,19 @@ it("keeps series names in the key and the axis title when there are several seri
   expect(several.valueTitleInKey).toBe(false);
   expect(buildBarModel(input("bar", { comparisons: [comparisons[0]], appearance: { legendPosition: "hidden" } })).valueTitleInKey).toBe(false);
 });
+
+import { boundInline as datasetSpec, modelInput as datasetInput } from "@/tests/fixtures/byod-shapes/helpers";
+it("stacks value columns to 100% in their checklist order", () => {
+  const table = { columns: [{ name: "Nation", type: "text" }, { name: "Yes", type: "number", unit: "percent" }, { name: "No", type: "number", unit: "percent" }], rows: [["Britain", "40", "60"], ["France", "30", "70"]] };
+  const config = datasetSpec(table, "bar", { category: "Nation", y: ["No", "Yes"] }, { stackMode: "percent", orientation: "horizontal" });
+  const model = buildBarModel(datasetInput(config));
+  expect(model.series.map(s => s.label)).toEqual(["No", "Yes"]);
+  expect(model.bars.filter(b => b.category === "Britain").map(b => [b.start, b.end])).toEqual([[0, 60], [60, 100]]);
+  expect(model.bars.filter(b => b.category === "France").map(b => [b.start, b.end])).toEqual([[0, 70], [70, 100]]);
+});
+
+it("shows a pasted percent column's values as percentages on hover", () => {
+  const table = { columns: [{ name: "Nation", type: "text" }, { name: "Share", type: "number", unit: "percent", decimals: 0 }], rows: [["Britain", "40"], ["France", "30"]] };
+  const model = buildBarModel(datasetInput(datasetSpec(table, "bar", { category: "Nation", y: ["Share"] })));
+  expect(model.bars.map(bar => bar.text)).toEqual(["40%", "30%"]);
+});

@@ -38,10 +38,19 @@
  */
 
 import { outcomeFor, readOutcomes } from "@/lib/visualization/questionSpec";
-import React, { useState } from "react";
+import React, { useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { GripVertical } from "lucide-react";
+import { ChevronDown, GripVertical } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -66,7 +75,8 @@ import {
   supportsRole,
 } from "@/lib/visualization/fieldTypes";
 import { impliedBindings, impliedRoleHint } from "@/lib/visualization/impliedRoles";
-import { bindableFields, inlineFields } from "@/lib/visualization/inlineMapping";
+import { bindableFields, bindingColumns, inlineFields } from "@/lib/visualization/inlineMapping";
+import { parseDateToken } from "@/lib/tabular/columnTypes";
 import { roleLabel } from "@/lib/visualization/roleLabels";
 import { calculationOptionsFor, getCalculation } from "@/lib/data/visualization/calculationRegistry";
 
@@ -91,6 +101,21 @@ function InlineRoles({ config, dispatch }) {
   return (
     <div className="grid grid-cols-2 gap-3">
       {roles.map((role) => {
+        if (role === chart.multiValueRole) {
+          return (
+            <ValueColumnSelect
+              key={role}
+              role={role}
+              chartType={chartType}
+              fields={fields}
+              accepted={chart.roleConstraints[role] || []}
+              bindings={bindings}
+              dispatch={dispatch}
+            />
+          );
+        }
+        // Years across the top replace the x column on a line chart.
+        if (role === "x" && chartType === "line" && bindings.valuesArePeriods) return null;
         const accepted = chart.roleConstraints[role] || [];
         const required = chart.requiredRoles.includes(role);
         const options = Object.entries(fields).filter(
@@ -122,6 +147,119 @@ function InlineRoles({ config, dispatch }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/**
+ * A value-list role: a dropdown with one checked item per number column, in
+ * table order, each checked column drawn as its own series. It stays open
+ * while choosing multiple outcomes, keeping the sidebar compact.
+ * On a line chart whose checked columns are all named like periods, a switch
+ * reads them as the time axis instead (years across the top).
+ */
+function ValueColumnSelect({ role, chartType, fields, accepted, bindings, dispatch }) {
+  const options = Object.entries(fields)
+    .filter(([, field]) => !accepted.length || accepted.includes(field.kind))
+    .map(([name]) => name);
+  const binding = bindings[role];
+  const chosen = useMemo(() => bindingColumns(binding), [binding]);
+  // Summarize alphabetically without changing the chart's series order.
+  const sortedChosen = useMemo(() => [...chosen].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" })), [chosen]);
+  const summaryRef = useRef(null);
+  const [visibleCount, setVisibleCount] = useState(sortedChosen.length);
+  const hiddenCount = Math.max(0, sortedChosen.length - visibleCount);
+
+  useLayoutEffect(() => {
+    const element = summaryRef.current;
+    let disposed = false;
+    let context;
+    function fitSummary() {
+      if (disposed || !element) return;
+      const available = element.clientWidth;
+      let count = sortedChosen.length;
+      if (available > 0 && count > 1) {
+        context ||= document.createElement("canvas").getContext("2d");
+        if (context) {
+          const style = getComputedStyle(element);
+          context.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+          const spacing = Number.parseFloat(style.letterSpacing) || 0;
+          while (count > 1) {
+            const remaining = sortedChosen.length - count;
+            const text = sortedChosen.slice(0, count).join(", ") + (remaining ? `, +${remaining}` : "");
+            if (context.measureText(text).width + Math.max(0, text.length - 1) * spacing <= available) break;
+            count -= 1;
+          }
+        }
+      }
+      setVisibleCount(count);
+    }
+    fitSummary();
+    const observer = new ResizeObserver(fitSummary);
+    observer.observe(element);
+    // A web font can change text widths without changing the button's width.
+    document.fonts?.ready.then(fitSummary);
+    return () => { disposed = true; observer.disconnect(); };
+  }, [sortedChosen]);
+  const setColumns = (columns) =>
+    dispatch({ type: "SET_BINDING", role, columns: options.filter((name) => columns.includes(name)) });
+  const periodHeaders = chosen.length > 1 && chosen.every((name) => parseDateToken(name));
+  const label = roleLabel(role, chartType);
+  const id = `v3-role-${role}`;
+
+  return (
+    <div className="col-span-2 grid min-w-0 gap-2">
+      <Label htmlFor={id}>{label}</Label>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            id={id}
+            type="button"
+            variant="outline"
+            aria-label={label}
+            className="h-9 w-full min-w-0 justify-between border-input bg-input-background px-3 py-2 font-normal shadow-none"
+          >
+            <span ref={summaryRef} className="flex min-w-0 flex-1 text-left" title={sortedChosen.join(", ") || undefined}>
+              <span className="truncate">
+                {sortedChosen.length ? sortedChosen.slice(0, visibleCount).join(", ") : "Choose columns"}
+              </span>
+              {hiddenCount > 0 ? <span className="shrink-0">, +{hiddenCount}</span> : null}
+            </span>
+            <ChevronDown aria-hidden="true" className="size-4 opacity-50" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" aria-label={label} className="w-(--radix-dropdown-menu-trigger-width)">
+          <DropdownMenuItem onSelect={(event) => { event.preventDefault(); setColumns(options); }}>
+            Select all
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          {options.map((name) => (
+            <DropdownMenuCheckboxItem
+              key={name}
+              checked={chosen.includes(name)}
+              onSelect={(event) => event.preventDefault()}
+              onCheckedChange={(checked) =>
+                setColumns(checked ? [...chosen, name] : chosen.filter((column) => column !== name))
+              }
+              className="whitespace-normal break-words"
+            >
+              {name}
+            </DropdownMenuCheckboxItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {chartType === "line" && (periodHeaders || bindings.valuesArePeriods) ? (
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor="v3-values-are-periods" className="text-sm font-normal">
+            Columns are periods
+          </Label>
+          <Switch
+            id="v3-values-are-periods"
+            checked={Boolean(bindings.valuesArePeriods)}
+            onCheckedChange={(value) => dispatch({ type: "SET_BINDING", role: "valuesArePeriods", value })}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

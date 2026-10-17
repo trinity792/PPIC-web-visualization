@@ -32,10 +32,23 @@ vi.mock("@/components/chart-builder/ValidationNotice", () => ({
 import {
   AdvancedModeProvider,
   AdvancedModeToggle,
+  EditorOptionsMenu,
 } from "@/components/chart-builder/advancedMode";
 import CategoriesSection from "@/components/chart-builder/sections/CategoriesSection";
 import GeographySection from "@/components/chart-builder/sections/GeographySection";
 import ModuleSidebar from "@/components/chart-builder/workbench/ModuleSidebar";
+
+it("resets the mouse hover option when the editor is remounted", async () => {
+  const user = userEvent.setup();
+  const first = render(<AdvancedModeProvider><EditorOptionsMenu /></AdvancedModeProvider>);
+  await user.click(screen.getByRole("button", { name: "Editor options" }));
+  await user.click(screen.getByRole("menuitemcheckbox", { name: "Disable mouse hover animations" }));
+  expect(screen.getByRole("menuitemcheckbox", { name: "Disable mouse hover animations" })).toBeChecked();
+  first.unmount();
+  render(<AdvancedModeProvider><EditorOptionsMenu /></AdvancedModeProvider>);
+  await user.click(screen.getByRole("button", { name: "Editor options" }));
+  expect(screen.getByRole("menuitemcheckbox", { name: "Disable mouse hover animations" })).not.toBeChecked();
+});
 
 const baseSchema = {
   id: "widgets",

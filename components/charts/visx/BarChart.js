@@ -39,9 +39,9 @@
  * the hovered bar's series keeps its color and shows every one of its values,
  * the other series fade to a 30% tint, and the key (here or in ChartFrame,
  * through chartFocus.js) fades the other swatches the same way. A stacked
- * segment too small for its value shows it past the end of the stack. With
- * one series, the hovered
- * bar darkens (official orange to official red) and shows its value above it
+ * segment too small for its value shows it beside that segment, switching
+ * sides at the plot edge. With one series, the hovered
+ * bar darkens (official orange to official red) and shows its value inside it
  * in bold, unless its value label is already shown. Either way the hovered
  * category label turns bold and dark; the others stay as they are. The hovered value
  * carries role="tooltip" with the series and category for screen readers.
@@ -69,7 +69,7 @@ import { GridRows } from "@visx/grid";
 import { Group } from "@visx/group";
 import { scaleLinear } from "@visx/scale";
 
-import { useChartFocus } from "@/components/charts/chartFocus";
+import { useChartFocus, useChartHover } from "@/components/charts/chartFocus";
 import ChartKey from "@/components/charts/visx/ChartKey";
 
 import { periodTicks } from "@/lib/visualization/chartLayout/axisScale";
@@ -197,9 +197,7 @@ export default function BarChart({ model, width, height }) {
   // The reader's Hide grid lines switch (axes, zero lines and baselines stay).
   const showGrid = model.grid?.show !== false;
   // The hover label belongs to one model; a new model (new data) starts closed.
-  const [hovered, setHovered] = React.useState(null);
-  const active = hovered?.model === model ? hovered.index : null;
-  const setActive = (index) => setHovered(index === null || index === undefined ? null : { model, index });
+  const [active, setActive, setPointerActive] = useChartHover(model);
   const tooltipId = React.useId();
   const clipId = svgSafeId("plot-clip", React.useId());
   // The key around the chart (ChartFrame) fades the other series.
@@ -450,78 +448,76 @@ export default function BarChart({ model, width, height }) {
     if (focusSeries) return item.seriesId === focusSeries ? item.color : tint(item.color, hoverStyle.fadeShare);
     return index === active ? (hoverStyle.shades[item.color] ?? darken(item.color, hoverStyle.darken)) : item.color;
   };
-  /**
-   * Past the end of a stack, beyond its total when totals are shown: where a
-   * hovered segment's value goes when the series' values do not all fit
-   * inside their segments (a segment's value never sits just outside the
-   * segment itself, which would read as the stack's).
-   */
-  const stackEndSpot = (index) => {
-    const slot = bars[index].slot;
-    const boxes = geometry.filter((_, other) => bars[other].slot === slot);
-    const total = (model.totals || []).find((entry) => entry.slot === slot);
+  // A narrow hovered segment still gets its own value, beside that segment.
+  // Keep it within the plot by switching to the other side at an edge.
+  const hoverSpot = (index) => {
+    const item = bars[index];
+    const inside = settle(index, item.text, "inside");
+    if (inside || !stacked) return inside;
+    const box = geometry[index];
+    const wide = textWidth(item.text, labelSize);
     const gap = barStyle.labelGap;
+    const negative = item.end < item.start;
     if (horizontal) {
-      const end = Math.max(...boxes.map((box) => box.x + box.width));
-      const x = end + gap + (total ? textWidth(total.text, labelSize) + 2 * gap : 0);
-      return { x, y: geometry[index].y + geometry[index].height / 2, anchor: "start", placement: "outside" };
+      const after = box.x + box.width + gap;
+      const before = box.x - gap;
+      const useBefore = negative ? before - wide >= 0 : after + wide > plotWidth;
+      const x = useBefore ? before : after;
+      const y = box.y + box.height / 2;
+      return {
+        x, y, anchor: useBefore ? "end" : "start", placement: "outside",
+        box: { x0: useBefore ? x - wide : x, x1: useBefore ? x : x + wide, y0: y - labelSize / 2, y1: y + labelSize / 2 },
+      };
     }
-    const end = Math.min(...boxes.map((box) => box.y));
-    const y = end - gap - labelSize / 2 - (total ? labelSize + gap : 0);
-    return { x: geometry[index].x + geometry[index].width / 2, y, anchor: "middle", placement: "outside" };
+    const above = box.y - gap - labelSize / 2;
+    const below = box.y + box.height + gap + labelSize / 2;
+    const useBelow = negative ? below + labelSize / 2 <= plotHeight : above - labelSize / 2 < 0;
+    const x = Math.max(wide / 2, Math.min(plotWidth - wide / 2, box.x + box.width / 2));
+    const y = useBelow ? below : above;
+    return {
+      x, y, anchor: "middle", placement: "outside",
+      box: { x0: x - wide / 2, x1: x + wide / 2, y0: y - labelSize / 2, y1: y + labelSize / 2 },
+    };
   };
 
-  // Hover numbers take the hovered bar's color (owner, 2026-09-30): outside a
-  // bar, its fill darkened just enough to read; inside, white or dark gray,
-  // whichever reads on the fill.
   const hoverTextColor = (item, index, placement) => {
     const fill = fillFor(item, index);
-    return placement === "inside" ? textColorOn(fill) : readableTextColor(fill);
+    if (placement === "inside") return textColorOn(fill);
+    return stacked ? text.axis.color : readableTextColor(fill);
   };
 
-  // The focused series' other values. A stack labels them only when every
-  // one fits inside its segment, so hovering any stack shows the same thing
-  // (owner, 2026-09-30); otherwise only the hovered value shows, past its stack.
+  // Only visible static labels reserve space while a series is highlighted.
+  placedBoxes.length = 0;
+  valueLabels.forEach((label) => {
+    if (!focusSeries || label.item.seriesId === focusSeries) placedBoxes.push(label.box);
+  });
+  const activeSpot = activeBar && !labeledKeys.has(activeBar.key) ? hoverSpot(active) : null;
+  if (activeSpot) placedBoxes.push(activeSpot.box);
+
+  // Place every value independently: a small sibling never hides the series'
+  // other values or moves values that already fit inside their segments.
   const hoverLabels = [];
-  let stackLabelsFit = true;
   if (focusSeries) {
-    const candidates = [];
     bars.forEach((item, index) => {
-      if (item.seriesId !== focusSeries || labeledKeys.has(item.key)) return;
-      const spot = settle(index, item.text, "inside");
-      if (stacked && !spot) stackLabelsFit = false;
-      if (index !== active) candidates.push({ item, index, spot });
+      if (index === active || item.seriesId !== focusSeries || labeledKeys.has(item.key)) return;
+      const spot = hoverSpot(index);
+      if (!spot || !labelFits(spot.box)) return;
+      placedBoxes.push(spot.box);
+      hoverLabels.push({ item, ...spot, fill: hoverTextColor(item, index, spot.placement) });
     });
-    if (!stacked || stackLabelsFit) {
-      for (const { item, index, spot } of candidates) {
-        if (!spot || !labelFits(spot.box)) continue;
-        placedBoxes.push(spot.box);
-        hoverLabels.push({ item, ...spot, fill: hoverTextColor(item, index, spot.placement) });
-      }
-    }
   }
 
   // The hovered bar's own value is the tooltip: shown on the bar unless its
   // value label already is, and always read to screen readers.
   let tooltip = null;
   if (activeBar) {
-    const visible = !labeledKeys.has(activeBar.key);
-    let spot = null;
-    if (visible && stacked) {
-      spot = (focusSeries ? stackLabelsFit : true) ? settle(active, activeBar.text, "inside") : null;
-      spot = spot ?? stackEndSpot(active);
-    } else if (visible) {
-      spot = settle(active, activeBar.text, focusSeries ? "inside" : "outside") ??
-        { ...spotFor(active, activeBar.text, "inside"), placement: "inside" };
-    }
-    const usable = spot && Number.isFinite(spot.x) ? spot : null;
     tooltip = {
-      visible: Boolean(usable),
-      placement: usable?.placement ?? (visible ? "outside" : "inside"),
-      left: left + (usable?.x ?? geometry[active].x + geometry[active].width / 2),
-      top: top + (usable?.y ?? geometry[active].y),
-      shift: usable?.anchor === "start" ? "0" : usable?.anchor === "end" ? "-100%" : "-50%",
-      color: hoverTextColor(activeBar, active, usable?.placement ?? "outside"),
+      visible: Boolean(activeSpot),
+      placement: activeSpot?.placement ?? "inside",
+      left: left + (activeSpot?.x ?? geometry[active].x + geometry[active].width / 2),
+      top: top + (activeSpot?.y ?? geometry[active].y),
+      shift: activeSpot?.anchor === "start" ? "0" : activeSpot?.anchor === "end" ? "-100%" : "-50%",
+      color: hoverTextColor(activeBar, active, activeSpot?.placement ?? "inside"),
     };
   }
   const activeSlot = activeBar ? activeBar.slot : null;
@@ -675,8 +671,8 @@ export default function BarChart({ model, width, height }) {
                   data-mark="bar"
                   data-key={item.key}
                   data-series={item.seriesId}
-                  onPointerEnter={() => setActive(index)}
-                  onPointerLeave={() => setActive(null)}
+                  onPointerEnter={() => setPointerActive(index)}
+                  onPointerLeave={() => setPointerActive(null)}
                 />
               );
             })}
@@ -741,6 +737,7 @@ export default function BarChart({ model, width, height }) {
                 fontWeight={700}
                 fill={label.fill}
                 data-mark="hover-label"
+                data-placement={label.placement}
                 data-key={label.item.key}
                 pointerEvents="none"
               >
@@ -929,7 +926,7 @@ export default function BarChart({ model, width, height }) {
                   lineHeight: 1,
                   color: tooltip.color,
                   // A white outline keeps an outside value readable over grid lines.
-                  textShadow: tooltip.placement === "outside" ? halo : undefined,
+                  textShadow: tooltip.placement === "outside" && !stacked ? halo : undefined,
                 }
                 : undefined
             }

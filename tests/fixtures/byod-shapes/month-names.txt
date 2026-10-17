@@ -1,0 +1,4 @@
+Month	Sales
+Mar 2020	30
+Jan 2020	10
+Feb 2020	20

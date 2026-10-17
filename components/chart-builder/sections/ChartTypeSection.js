@@ -10,6 +10,9 @@
  * the list still appears, appended, so a new chart type is never silently
  * unreachable.
  *
+ * For a pasted table the tiles behind "Show more" follow the shape ranking
+ * (lib/visualization/inlineProfile.js), best first.
+ *
  * Only the first four available tiles show until the reader asks for more
  * ("Show more (N)"); the rest stay one click away. The grid opens, and
  * re-opens, on its own whenever the selected chart is one of the hidden tiles,
@@ -43,7 +46,7 @@
  *   - Implements the "Chart Type tile" pattern in the Editor Sidebar showcase
  */
 
-import React, { useId, useState } from "react";
+import React, { useId, useMemo, useState } from "react";
 
 import { ChevronDown, ChevronUp } from "lucide-react";
 
@@ -53,6 +56,8 @@ import GraphTabs from "@/components/charts/GraphTabs";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/utils";
 import { isChartTypeAvailable } from "@/lib/visualization/chartAvailability";
+import { inlineTableOf } from "@/lib/visualization/inlineQuestion";
+import { profileTable, rankInlineCharts } from "@/lib/visualization/inlineProfile";
 import {
   CHART_FAMILIES,
   CHART_TYPE_IDS,
@@ -113,6 +118,23 @@ function orderedTiles(schema) {
       return { ...tile, ids: tile.ids.filter((chartId) => isChartTypeAvailable(chartId, schema)) };
     })
     .filter((tile) => tile.ids.length > 0);
+}
+
+/**
+ * For a pasted table, the tiles behind "Show more" follow the shape ranking
+ * (dataset-range plan, workstream 5), so the next-best charts come first. The
+ * first tiles keep their curated places; a tile ranks by its best variant.
+ */
+function rankedTiles(tiles, ranking) {
+  if (!ranking?.length) return tiles;
+  const rank = new Map(ranking.map((candidate, index) => [candidate.chartType, index]));
+  const best = (tile) => Math.min(...tile.ids.map((id) => rank.get(id) ?? Infinity));
+  const rest = tiles
+    .slice(VISIBLE_TILES)
+    .map((tile, index) => ({ tile, index }))
+    .sort((a, b) => best(a.tile) - best(b.tile) || a.index - b.index)
+    .map(({ tile }) => tile);
+  return [...tiles.slice(0, VISIBLE_TILES), ...rest];
 }
 
 /**
@@ -182,7 +204,9 @@ function VariantControl({ tile, selectedId, choiceOf, onSelect }) {
 
 export default function ChartTypeSection() {
   const { config, dispatch, schema, editorModel } = useChartConfig();
-  const tiles = orderedTiles(schema);
+  const table = config?.question?.dataset?.kind === "inline" ? inlineTableOf(config) : null;
+  const ranking = useMemo(() => (table ? rankInlineCharts(profileTable(table)) : null), [table]);
+  const tiles = rankedTiles(orderedTiles(schema), ranking);
   const choices = new Map((editorModel?.chartChoices || []).map((choice) => [choice.id, choice]));
   // A type the editor model says nothing about is available.
   const choiceOf = (id) => choices.get(id) || { available: true };

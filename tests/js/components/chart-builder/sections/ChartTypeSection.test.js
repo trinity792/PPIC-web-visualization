@@ -13,7 +13,10 @@ const state = vi.hoisted(() => ({
   // A module that holds county geometry, so the two map tiles are offerable.
   schema: { id: "widgets", fields: { Y: { kind: "measure" }, X: { kind: "measure" }, Size: { kind: "measure" } }, subsets: { Counties: ["County"], Regions: ["Region"] } },
 }));
-vi.mock("@/components/chart-builder/chartConfigStore", () => ({
+// The real store passes through for the byod-shapes helpers (createChartConfig,
+// reduceChartConfig); only the hook the component reads is replaced.
+vi.mock("@/components/chart-builder/chartConfigStore", async (importOriginal) => ({
+  ...(await importOriginal()),
   useChartConfig: () => state,
 }));
 vi.mock("@/lib/visualization/chartRegistry", async (importOriginal) => {
@@ -339,4 +342,22 @@ describe("ChartTypeSection", () => {
       expect(screen.getByText("Scatter and bubble charts need two measures.")).toBeInTheDocument();
     });
   });
+});
+
+import { fixtureTable as datasetFixture, importInline as datasetImport } from "@/tests/fixtures/byod-shapes/helpers";
+it("orders the extra tiles by the ranking for pasted data", async () => {
+  const user = userEvent.setup();
+  state.schema = { id: "byod", inlineOnly: true, fields: {}, subsets: {} };
+  state.editorModel = null;
+  state.config = datasetImport(await datasetFixture("two-labels-grid"));
+  render(<ChartTypeSection />);
+  // The import opens on Heatmap, a hidden tile, so the grid is already open
+  // (the selected tile is never hidden); expand only if it is not.
+  if (screen.queryByRole("button", { name: /^Show more/ })) await showMore(user);
+  const labels = tileLabels();
+  // A complete grid makes Heatmap the best extra chart, ahead of Scatter's
+  // sparse-grid alternative and Pie. The first four curated tiles stay put.
+  expect(labels.indexOf("Matrix Heatmap")).toBeGreaterThanOrEqual(0);
+  expect(labels.indexOf("Matrix Heatmap")).toBeLessThan(labels.indexOf("Scatter"));
+  expect(labels.indexOf("Matrix Heatmap")).toBeLessThan(labels.indexOf("Pie / Donut"));
 });

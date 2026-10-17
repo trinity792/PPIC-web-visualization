@@ -46,6 +46,7 @@
  */
 
 import React from "react";
+import { useChartHover } from "@/components/charts/chartFocus";
 
 import { AxisBottom, AxisLeft } from "@visx/axis";
 import { GridRows } from "@visx/grid";
@@ -55,7 +56,7 @@ import { LinePath } from "@visx/shape";
 
 import ChartKey from "@/components/charts/visx/ChartKey";
 
-import { periodTicks } from "@/lib/visualization/chartLayout/axisScale";
+import { calendarTicks, periodTicks } from "@/lib/visualization/chartLayout/axisScale";
 import { plotClipRect, svgSafeId } from "@/lib/visualization/chartLayout/plotClip";
 import { dashedSegments } from "@/lib/visualization/chartLayout/dashedRange";
 import { readableTextColor } from "@/lib/visualization/chartLayout/contrast";
@@ -157,9 +158,7 @@ export default function LineChart({ model, width, height }) {
   // The reader's Hide grid lines switch (axes, zero lines and baselines stay).
   const showGrid = model.grid?.show !== false;
   // The hover label belongs to one model; a new model (new data) starts closed.
-  const [hovered, setHovered] = React.useState(null);
-  const active = hovered?.model === model ? hovered.target : null;
-  const setActiveTarget = (target) => setHovered(target ? { model, target } : null);
+  const [active, setActiveTarget, setPointerTarget] = useChartHover(model);
 
   const periods = model.periods || [];
   const series = model.series || [];
@@ -237,20 +236,44 @@ export default function LineChart({ model, width, height }) {
   const numeric = periods.length > 0 && periods.every((period) => Number.isFinite(Number(period)));
   const xRange = [0, plotWidth];
   const shown = periods.slice(visibleRange.periods[0], visibleRange.periods[1] + 1);
+  // Dated periods (months, quarters, days, school years) sit at their place
+  // in time, so a missing month or an uneven survey date shows as space.
+  const positionOf = new Map(periods.map((period, index) => [String(period), model.periodPositions?.[index]]));
+  const calendar = !numeric && periods.length > 0 &&
+    periods.every((period) => Number.isFinite(positionOf.get(String(period))));
+  const linearDomain = (values) =>
+    values.length > 1 && values[0] !== values.at(-1) ? [values[0], values.at(-1)] : [values[0] - 1, values[0] + 1];
   const xScale = numeric
-    ? scaleLinear({
-      domain: shown.length > 1 ? [Number(shown[0]), Number(shown.at(-1))] : [Number(shown[0]) - 1, Number(shown[0]) + 1],
-      range: xRange,
-    })
-    : scalePoint({ domain: shown.map(String), range: xRange, padding: 0.5 });
-  const xOf = (period) => (numeric ? xScale(Number(period)) : xScale(String(period)));
+    ? scaleLinear({ domain: linearDomain(shown.map(Number)), range: xRange })
+    : calendar
+      ? scaleLinear({ domain: linearDomain(shown.map((period) => positionOf.get(String(period)))), range: xRange })
+      : scalePoint({ domain: shown.map(String), range: xRange, padding: 0.5 });
+  const xOf = (period) =>
+    numeric
+      ? xScale(Number(period))
+      : calendar
+        ? xScale(positionOf.get(String(period)))
+        : xScale(String(period));
   const positions = periods.map(xOf);
 
   const dashed = dashedSegments(periods, model.dashedRange);
-  const periodTickValues = periodTicks(periods, {
-    width: plotWidth - spacing.vertical * periodGaps,
-    increment: model.xAxis?.increment,
-  }).map((period) => (numeric ? Number(period) : String(period)));
+  const tickWidth = plotWidth - spacing.vertical * periodGaps;
+  const calendarAxis = calendar
+    ? calendarTicks({
+      min: xScale.domain()[0],
+      max: xScale.domain()[1],
+      width: tickWidth,
+      granularity: model.periodGranularity,
+      increment: model.xAxis?.increment,
+    })
+    : null;
+  const periodTickValues = calendarAxis
+    ? calendarAxis.ticks
+    : periodTicks(periods, {
+      width: tickWidth,
+      increment: model.xAxis?.increment,
+    }).map((period) => (numeric ? Number(period) : String(period)));
+  const periodTickText = (value, index) => (calendarAxis ? calendarAxis.tickText[index] : String(value));
 
   // ── Interaction ──
   const moveTo = (event) => {
@@ -258,7 +281,7 @@ export default function LineChart({ model, width, height }) {
     if (!box.width || !box.height) return;
     const x = ((event.clientX - box.left) / box.width) * plotWidth;
     const y = ((event.clientY - box.top) / box.height) * plotHeight;
-    setActiveTarget(nearestPoint(series, positions, yScale, x, y));
+    setPointerTarget(nearestPoint(series, positions, yScale, x, y));
   };
   const onKeyDown = (event) => {
     const first = active ?? (() => {
@@ -366,7 +389,7 @@ export default function LineChart({ model, width, height }) {
               tickLength={tickLabelTop}
               scale={xScale}
               tickValues={periodTickValues}
-              tickFormat={(value) => String(value)}
+              tickFormat={periodTickText}
               stroke={graphLine.color}
               strokeWidth={graphLine.width}
               hideTicks
@@ -473,7 +496,7 @@ export default function LineChart({ model, width, height }) {
               fill="transparent"
               data-chart-interaction=""
               onPointerMove={moveTo}
-              onPointerLeave={() => setActiveTarget(null)}
+              onPointerLeave={() => setPointerTarget(null)}
             />
           </Group>
         </svg>
@@ -517,7 +540,7 @@ export default function LineChart({ model, width, height }) {
                 color: hoverLabel.detail.color,
               }}
             >
-              <div>{String(activePoint.period)}</div>
+              <div>{activePoint.periodText ?? String(activePoint.period)}</div>
               <div className="tabular-nums">{activePoint.text}</div>
             </div>
           </div>

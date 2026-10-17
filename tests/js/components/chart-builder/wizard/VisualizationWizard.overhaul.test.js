@@ -5,7 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import React from "react";
 
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -39,9 +39,6 @@ vi.mock("@/components/chart-builder/wizard/steps/ImportStep", () => ({
 vi.mock("@/components/chart-builder/wizard/steps/EditStep", () => ({
   default: () => <div>Edit content</div>,
 }));
-vi.mock("@/components/chart-builder/wizard/steps/ExportStep", () => ({
-  default: () => <div>Export content</div>,
-}));
 
 import VisualizationWizard, {
   DEFAULT_STEPS,
@@ -49,13 +46,13 @@ import VisualizationWizard, {
 import * as wizardModule from "@/components/chart-builder/wizard/VisualizationWizard";
 
 describe("standalone VisualizationWizard after module divergence", () => {
-  it("shows exactly three steps", () => {
+  it("shows only Import and Edit steps", () => {
     state.config = { data: { source: "inline", inline: null } };
     render(<VisualizationWizard schema={state.schema} initialConfig={{}} />);
-    expect(DEFAULT_STEPS).toEqual(["import", "edit", "export"]);
+    expect(DEFAULT_STEPS).toEqual(["import", "edit"]);
     expect(
-      screen.getAllByRole("button").slice(0, 3).map((button) => button.textContent),
-    ).toEqual(["Import", "Edit", "Export"]);
+      within(screen.getByRole("navigation", { name: "Visualization steps" })).getAllByRole("button").map((button) => button.textContent),
+    ).toEqual(["Import", "Edit"]);
   });
 
   it("offers no Chart Type step", () => {
@@ -64,11 +61,11 @@ describe("standalone VisualizationWizard after module divergence", () => {
     expect(screen.queryByText("Chart Type content")).not.toBeInTheDocument();
   });
 
-  it("disables Edit and Export until a table is imported", () => {
+  it("disables Edit until a table is imported", () => {
     state.config = { data: { source: "inline", inline: null } };
     render(<VisualizationWizard schema={state.schema} initialConfig={{}} />);
     expect(screen.getByRole("button", { name: "Edit" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Export" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Export", exact: true })).not.toBeInTheDocument();
   });
 
   it("falls back to Import when the table is cleared", async () => {
@@ -120,7 +117,7 @@ describe("standalone VisualizationWizard after module divergence", () => {
       "components/chart-builder/wizard/VisualizationWizard.js",
       "components/chart-builder/wizard/steps/ImportStep.js",
       "components/chart-builder/wizard/steps/EditStep.js",
-      "components/chart-builder/wizard/steps/ExportStep.js",
+      "components/chart-builder/wizard/EditPreview.js",
       "components/chart-builder/sections/EditorSidebar.js",
     ];
     const source = files

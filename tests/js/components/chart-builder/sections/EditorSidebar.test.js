@@ -34,8 +34,8 @@ vi.mock("@/lib/visualization/sidebarSections", () => {
     { value: "datasets", label: "Datasets", Component: () => null },
     { value: "chart-type", label: "Chart Type", Component: () => null },
     { value: "axis", label: "Outcome", Component: () => null },
-    { value: "labels", label: "Labels", Component: () => null },
     { value: "appearance", label: "Appearance", Component: () => null },
+    { value: "labels", label: "Labels", Component: () => null },
   ];
   return {
     visibleSectionsFor: (_config, _schema, { only, exclude } = {}) =>
@@ -93,7 +93,7 @@ describe("EditorSidebar", () => {
       .getAllByRole("button")
       .map((button) => button.textContent.trim())
       .filter((name) => ["Datasets", "Chart Type", "Outcome", "Labels", "Appearance"].includes(name));
-    expect(names).toEqual(["Datasets", "Chart Type", "Outcome", "Labels", "Appearance"]);
+    expect(names).toEqual(["Datasets", "Chart Type", "Outcome", "Appearance", "Labels"]);
   });
 
   it("renders no presets block without the capability, even in advanced mode", () => {

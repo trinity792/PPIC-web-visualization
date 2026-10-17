@@ -38,6 +38,7 @@
  */
 
 import React from "react";
+import { useChartHover } from "@/components/charts/chartFocus";
 
 import { interTextWidth, textWidth } from "@/lib/visualization/chartLayout/textWidth";
 import { CHART_STYLE } from "@/lib/visualization/chartStyle";
@@ -51,9 +52,7 @@ const LINE_HEIGHT = 1.2;
 
 export default function Heatmap({ model, width, height }) {
   // The hover belongs to one model; a new model (new data) starts closed.
-  const [hovered, setHovered] = React.useState(null);
-  const active = hovered?.model === model ? hovered.index : null;
-  const setActive = (index) => setHovered(index === null || index === undefined ? null : { model, index });
+  const [active, setActive, setPointerActive] = useChartHover(model);
   const tooltipId = React.useId();
 
   const categories = model.categories || [];
@@ -133,7 +132,7 @@ export default function Heatmap({ model, width, height }) {
         aria-describedby={activeCell ? tooltipId : undefined}
         onKeyDown={onKeyDown}
         onBlur={() => setActive(null)}
-        onPointerLeave={() => setActive(null)}
+        onPointerLeave={() => setPointerActive(null)}
       >
         {yTitle ? (
           <text
@@ -193,7 +192,7 @@ export default function Heatmap({ model, width, height }) {
                 data-mark="cell"
                 data-key={cell.key}
                 data-missing={cell.fill ? undefined : "true"}
-                onPointerEnter={() => setActive(cellIndex)}
+                onPointerEnter={() => setPointerActive(cellIndex)}
               />
               {cell.fill && valueVisible(cellIndex) ? (
                 <text

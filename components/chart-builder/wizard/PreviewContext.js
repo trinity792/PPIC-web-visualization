@@ -5,9 +5,9 @@
  *
  * Lifts the question-load + observation-adapter pipeline into a provider, so
  * a single loaded answer and a single mounted Plotly graph div are shared
- * across wizard steps. The Chart Type / Edit steps render the chart through
- * <PreviewPane>; the Export step reads the same `result` and `graphDivRef` to
- * drive ExportMenu — all off one request and one graph div.
+ * across wizard steps. Edit renders the chart through <PreviewPane>; its footer
+ * reads the same `result` and `graphDivRef` to drive the image and data exports
+ * — all off one request and one graph div.
  *
  * Props (PreviewProvider):
  *   children           {ReactNode}

@@ -852,3 +852,45 @@ describe("Workstream Q extra measure selects", () => {
     expect(screen.queryByRole("combobox", { name: "Bubble size" })).not.toBeInTheDocument();
   });
 });
+
+it("keeps multiple outcomes in a dropdown that stays open while selecting", async () => {
+  const user = userEvent.setup();
+  state.dispatch.mockClear();
+  state.schema = BYOD_SCHEMA;
+  state.config = {
+    version: 3, question: { dataset: { kind: "inline", inline: {
+      columns: [{ name: "Date", type: "date" }, { name: "Chrome", type: "number", unit: "percent" }, { name: "Firefox", type: "number", unit: "percent" }],
+      rows: [["2020-01", "60", "40"]], issues: [],
+    }, bindings: { x: "Date", y: ["Chrome"] } }, outcomes: [{ role: "y", measureId: "Chrome", unit: "percent" }], comparisons: [], time: { contract: "range", startYear: "2020-01", endYear: "2020-01" }, calculation: { id: "actual", params: {} } },
+    presentation: { chartType: "line", appearance: {}, labels: {} },
+  };
+  const view = render(<OutcomeSection />);
+  const outcome = screen.getByRole("button", { name: "Outcome", exact: true });
+  expect(outcome).toHaveTextContent("Chrome");
+  expect(screen.queryByRole("menuitemcheckbox")).not.toBeInTheDocument();
+  await user.click(outcome);
+  expect(screen.getByRole("menuitemcheckbox", { name: "Chrome" })).toBeChecked();
+  expect(screen.getByRole("menuitemcheckbox", { name: "Firefox" })).not.toBeChecked();
+  expect(screen.queryByRole("menuitemcheckbox", { name: "Date" })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("menuitemcheckbox", { name: "Firefox" }));
+  expect(state.dispatch).toHaveBeenCalledWith({ type: "SET_BINDING", role: "y", columns: ["Chrome", "Firefox"] });
+  expect(screen.getByRole("menu", { name: "Outcome" })).toBeInTheDocument();
+  state.dispatch.mockClear();
+  await user.click(screen.getByRole("menuitem", { name: /select all/i }));
+  expect(state.dispatch).toHaveBeenCalledWith({ type: "SET_BINDING", role: "y", columns: ["Chrome", "Firefox"] });
+  state.dispatch.mockClear();
+  await user.click(screen.getByRole("menuitemcheckbox", { name: "Chrome" }));
+  expect(state.dispatch).toHaveBeenCalledWith({ type: "SET_BINDING", role: "y", columns: [] });
+  await user.keyboard("{Escape}");
+  expect(screen.queryByRole("menuitemcheckbox")).not.toBeInTheDocument();
+  state.config = {
+    ...state.config,
+    question: {
+      ...state.config.question,
+      dataset: { ...state.config.question.dataset, bindings: { x: "Date", y: ["Firefox", "Chrome"] } },
+    },
+  };
+  view.rerender(<AdvancedModeProvider defaultAdvanced={false}><OutcomeSection /></AdvancedModeProvider>);
+  expect(outcome).toHaveTextContent("Chrome, Firefox");
+  expect(state.config.question.dataset.bindings.y).toEqual(["Firefox", "Chrome"]);
+});

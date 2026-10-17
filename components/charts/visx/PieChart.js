@@ -45,7 +45,7 @@ import React from "react";
 
 import { Pie } from "@visx/shape";
 
-import { useChartFocus } from "@/components/charts/chartFocus";
+import { useChartFocus, useChartHover } from "@/components/charts/chartFocus";
 
 import { readableTextColor, tint } from "@/lib/visualization/chartLayout/contrast";
 import { textWidth, wrapText } from "@/lib/visualization/chartLayout/textWidth";
@@ -91,9 +91,7 @@ function spreadLabels(items, min, max) {
 
 export default function PieChart({ model, width, height }) {
   // The hover belongs to one model; a new model (new data) starts closed.
-  const [hovered, setHovered] = React.useState(null);
-  const active = hovered?.model === model ? hovered.index : null;
-  const setActive = (index) => setHovered(index === null || index === undefined ? null : { model, index });
+  const [active, setActive, setPointerActive] = useChartHover(model);
   const tooltipId = React.useId();
   // The key around the chart (ChartFrame), when shown, fades the other slices.
   const { setFocusId } = useChartFocus();
@@ -235,8 +233,8 @@ export default function PieChart({ model, width, height }) {
                   data-key={arc.data.key}
                   data-inner-radius={String(inner)}
                   data-outer-radius={String(radius)}
-                  onPointerEnter={() => setActive(index)}
-                  onPointerLeave={() => setActive(null)}
+                  onPointerEnter={() => setPointerActive(index)}
+                  onPointerLeave={() => setPointerActive(null)}
                 />
               ))}
             </g>
@@ -272,8 +270,8 @@ export default function PieChart({ model, width, height }) {
                 data-mark="slice-label"
                 data-key={slice.key}
                 data-leader={item.leader ? "true" : undefined}
-                onPointerEnter={() => setActive(item.index)}
-                onPointerLeave={() => setActive(null)}
+                onPointerEnter={() => setPointerActive(item.index)}
+                onPointerLeave={() => setPointerActive(null)}
               >
                 {item.block.lines.map((line, lineIndex) => (
                   <tspan

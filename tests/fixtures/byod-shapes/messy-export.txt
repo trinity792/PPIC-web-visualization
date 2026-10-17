@@ -1,0 +1,10 @@
+Regional employment			
+Region	Employment		
+Name	Jobs	Vacancies	Positions
+North	12.3*	4	16.3
+	14	5	19
+South	n/a	6	20
+West	(D)	7	21
+Total	26.3	22	76.3
+Source: Example survey			
+Note: Provisional estimates			

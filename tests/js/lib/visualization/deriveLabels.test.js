@@ -154,7 +154,9 @@ describe("v3 geography-aware labels", () => {
     spec.presentation.chartType = "scatter";
     spec.question.outcome = { measureId: "HHI" };
     spec.question.dataset = { kind: "inline", bindings: { x: "LQ_Q5", y: "HHI", unit: "Region" } };
-    expect(deriveLabels(spec, v3Schema)).toMatchObject({ title: "HHI vs LQ_Q5", xAxis: "LQ_Q5", yAxis: "HHI" });
+    // Dataset-range plan, workstream 7 (byod-shapes corpus): a pasted scatter
+    // with a unit column is titled by that column; the axes name both measures.
+    expect(deriveLabels(spec, v3Schema)).toMatchObject({ title: "HHI by Region", xAxis: "LQ_Q5", yAxis: "HHI" });
   });
 
   // Workstream Q: a module scatter names its horizontal and vertical measures.
@@ -185,5 +187,44 @@ describe("v3 geography-aware labels", () => {
     spec.presentation.appearance = { categoryAxis: "period" };
     expect(deriveLabels(spec, v3Schema).xAxis).not.toBe("Location");
     expect(deriveLabels(spec, v3Schema).yAxis).toBe("Population");
+  });
+});
+
+import { boundInline as datasetSpec } from "@/tests/fixtures/byod-shapes/helpers";
+import { BYOD_SCHEMA as datasetSchema } from "@/lib/visualization/moduleRegistry";
+const datasetLabelsTable = {
+  columns: [{ name: "Month", type: "date" }, { name: "Nation", type: "text" },
+    ...["Chrome", "IE", "Firefox", "Safari", "Edge", "Other"].map(name => ({ name, type: "number", unit: "percent" }))],
+  rows: [["2020-01", "Britain", "40", "20", "15", "10", "10", "5"]],
+};
+describe("dataset range: labels", () => {
+  it("titles a pasted line chart from its value and date columns, with no geography wording", () => {
+    const labels = deriveLabels(datasetSpec(datasetLabelsTable, "line", { x: "Month", y: "Chrome" }), datasetSchema);
+    expect(labels).toMatchObject({ title: "Chrome over time", xAxis: "Month", yAxis: "Chrome" });
+    expect(labels.title).not.toMatch(/geography|Britain/);
+  });
+  it("lists up to three value columns and counts the rest", () => {
+    const labels = deriveLabels(datasetSpec(datasetLabelsTable, "line", { x: "Month", y: ["Chrome", "IE", "Firefox", "Safari", "Edge", "Other"] }), datasetSchema);
+    expect(labels).toMatchObject({ title: "Chrome, IE, Firefox, and 3 more over time", yAxis: "Percent" });
+  });
+  it.each([["vertical", "Nation", "Chrome"], ["horizontal", "Chrome", "Nation"]])("names the axes after the mapped columns in either bar orientation: %s", (orientation, xAxis, yAxis) => {
+    expect(deriveLabels(datasetSpec(datasetLabelsTable, "bar", { category: "Nation", y: "Chrome" }, { orientation }), datasetSchema)).toMatchObject({ title: "Chrome by Nation", xAxis, yAxis });
+  });
+  it("uses the table's own title when one was captured", () => {
+    const table = { ...datasetLabelsTable, meta: { title: "Browser adoption" } };
+    expect(deriveLabels(datasetSpec(table, "line", { x: "Month", y: "Chrome" }), datasetSchema).title).toBe("Browser adoption");
+  });
+  it("keeps typed labels ahead of captured and derived labels", () => {
+    const config = datasetSpec({ ...datasetLabelsTable, meta: { title: "Captured title" } }, "line", { x: "Month", y: "Chrome" });
+    config.presentation.labels = { title: "My title", xAxis: "My dates", yAxis: "My values" };
+    expect(effectiveLabels(config, datasetSchema)).toMatchObject({ title: "My title", xAxis: "My dates", yAxis: "My values" });
+  });
+  it("leaves the value-axis label blank for mixed units", () => {
+    const table = { ...datasetLabelsTable, columns: datasetLabelsTable.columns.map(c => c.name === "IE" ? { ...c, unit: "usd" } : c) };
+    expect(deriveLabels(datasetSpec(table, "line", { x: "Month", y: ["Chrome", "IE"] }), datasetSchema).yAxis).toBe("");
+  });
+  it("leaves topic labels unchanged", () => {
+    const config = { version: 3, question: { dataset: { kind: "module", moduleId: "population" }, outcomes: [{ role: "y", measureId: "Population" }], geography: { subset: "Counties", locations: ["Alameda"] }, comparisons: [] }, presentation: { chartType: "line" } };
+    expect(deriveLabels(config, { fields: { Population: { label: "Population" }, Year: { kind: "temporal", label: "Year" } } })).toEqual({ title: "Population over time in Alameda", xAxis: "Year", yAxis: "Population" });
   });
 });

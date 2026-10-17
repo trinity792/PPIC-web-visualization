@@ -66,7 +66,9 @@ it("left-aligns row labels by default", () => expect(buildRangeModel(input("dumb
 it("labels each endpoint in the value axis number format", () => {
   const model = buildRangeModel(input("dumbbell", { appearance: { showPointLabels: true, horizontalNumberType: "usd", decimalPlaces: 0 } }));
   expect(model.rows[0].start.label).toBe("$40,000");
-  expect(model.rows[0].start.text).toBe("40,000");
+  // Hover text follows the value axis format too (owner, 2026-10-16:
+  // percentages read as percentages wherever a value is shown).
+  expect(model.rows[0].start.text).toBe("$40,000");
 });
 it("orders rows by the dragged location order", () => {
   const value = input("dumbbell", { observations: observations.filter(r => r.comparisonId === "latina"), comparisons: [comparisons[0]] });

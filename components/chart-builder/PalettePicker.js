@@ -2,6 +2,7 @@
 
 /**
  * PalettePicker.js — the color palette select.
+ * Official PPIC palettes are always listed first; other choices require Advanced Mode.
  *
  * The per-series rename, hide, and color list that used to sit below it in
  * Advanced Mode was removed (renderer plan C): it never saved for version 3
@@ -26,12 +27,16 @@ import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
 
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
+import { useAdvancedMode } from "@/components/chart-builder/advancedMode";
 import {
   DEFAULT_PALETTE,
   defaultRampPalette,
@@ -86,6 +91,7 @@ function RampSwatch({ scale }) {
  */
 export default function PalettePicker({ seriesNames = [], kind = "categorical" }) {
   const { config: storedConfig, dispatch } = useChartConfig();
+  const { advanced } = useAdvancedMode();
   const config = storedConfig.version === 3
     ? { ...storedConfig, appearance: storedConfig.presentation?.appearance || {} }
     : storedConfig;
@@ -98,10 +104,14 @@ export default function PalettePicker({ seriesNames = [], kind = "categorical" }
     : "Automatic PPIC categorical";
   const options = [
     ...(automatic
-      ? [[AUTOMATIC_PPIC, { label: automaticLabel, kind: "categorical" }]]
+      ? [[AUTOMATIC_PPIC, { label: automaticLabel, kind: "categorical", official: true }]]
       : []),
     ...palettesOfKind(kind).map((id) => [id, PALETTES[id]]),
   ];
+  const groups = [
+    { label: "Official PPIC palettes", options: options.filter(([, palette]) => palette.official) },
+    ...(advanced ? [{ label: "Other palettes", options: options.filter(([, palette]) => !palette.official) }] : []),
+  ].filter((group) => group.options.length);
   // `appearance.palette` is one key shared by every chart type, so a reader who
   // set a categorical palette on a line and then switched to a choropleth is
   // holding an id this list does not contain. Showing it blank would be a lie
@@ -113,6 +123,13 @@ export default function PalettePicker({ seriesNames = [], kind = "categorical" }
     : rampMode
       ? defaultRampPalette(chartType, kind) || FALLBACK_RAMP[kind]
       : DEFAULT_PALETTE;
+  const selectedPalette = options.find(([id]) => id === selected)?.[1];
+  const renderPalette = (palette) => (
+    <span className="flex items-center gap-2">
+      {rampMode ? <RampSwatch scale={palette.scale} /> : null}
+      {palette.label}
+    </span>
+  );
 
   return (
     <div className="grid gap-2">
@@ -127,16 +144,20 @@ export default function PalettePicker({ seriesNames = [], kind = "categorical" }
         }
       >
         <SelectTrigger id="appearance-palette">
-          <SelectValue />
+          {/* Keep saved Advanced choices accurately named when the mode is switched off. */}
+          <SelectValue>{renderPalette(selectedPalette)}</SelectValue>
         </SelectTrigger>
         <SelectContent>
-          {options.map(([id, palette]) => (
-            <SelectItem key={id} value={id}>
-              <span className="flex items-center gap-2">
-                {rampMode ? <RampSwatch scale={palette.scale} /> : null}
-                {palette.label}
-              </span>
-            </SelectItem>
+          {groups.map((group, index) => (
+            <React.Fragment key={group.label}>
+              {index > 0 ? <SelectSeparator /> : null}
+              <SelectGroup>
+                <SelectLabel>{group.label}</SelectLabel>
+                {group.options.map(([id, palette]) => (
+                  <SelectItem key={id} value={id}>{renderPalette(palette)}</SelectItem>
+                ))}
+              </SelectGroup>
+            </React.Fragment>
           ))}
         </SelectContent>
       </Select>

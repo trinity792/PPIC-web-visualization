@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * VisualizationWizard.js — the step-based chart-editor shell (Import → Chart
- * Type → Edit → Export) behind the standalone Visualization Tool. It wraps the
+ * VisualizationWizard.js — the chart-editor shell (Import → Edit) behind the
+ * standalone Visualization Tool, with exports in the Edit preview footer. It wraps the
  * declarative chart-config store and preview pipeline; each step reuses the
  * shared chart-builder panels.
  *
@@ -40,18 +40,14 @@ import PreviewPane from "@/components/chart-builder/wizard/PreviewPane";
 import StepNav from "@/components/chart-builder/wizard/StepNav";
 import ImportStep from "@/components/chart-builder/wizard/steps/ImportStep";
 import EditStep from "@/components/chart-builder/wizard/steps/EditStep";
-import ExportStep from "@/components/chart-builder/wizard/steps/ExportStep";
 
 const STEP_DEFS = {
   import: { id: "import", label: "Import" },
   edit: { id: "edit", label: "Edit" },
-  export: { id: "export", label: "Export" },
 };
 
-// Workstream F5: the standalone wizard's Chart Type step folded into the Edit
-// step's sidebar (ChartTypeSection), so it no longer occupies its own step.
-// Three steps now, not four.
-export const DEFAULT_STEPS = ["import", "edit", "export"];
+// Chart type and exports belong to Edit, alongside the live preview.
+export const DEFAULT_STEPS = ["import", "edit"];
 
 function EmbedChromeHider() {
   useEffect(() => {
@@ -107,8 +103,6 @@ function WizardInner({ steps }) {
         return <ImportStep onProceed={goToNextStep} />;
       case "edit":
         return <EditStep />;
-      case "export":
-        return <ExportStep />;
       default:
         return null;
     }

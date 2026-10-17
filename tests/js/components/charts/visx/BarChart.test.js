@@ -1,10 +1,40 @@
 import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { expect, it } from "vitest";
 import { input, lineRows, comparisons, observations } from "@/tests/fixtures/visualization-v3/renderer";
 
 import BarChart from "@/components/charts/visx/BarChart";
 import { buildBarModel } from "@/lib/visualization/models/barModel";
+import { boundInline, modelInput } from "@/tests/fixtures/byod-shapes/helpers";
+import { AdvancedModeProvider, EditorOptionsMenu } from "@/components/chart-builder/advancedMode";
+
+it("disables mouse labels and fading while preserving keyboard interaction", async () => {
+  const user = userEvent.setup();
+  const model = buildBarModel(input("bar"));
+  const { container } = render(<AdvancedModeProvider><EditorOptionsMenu /><BarChart model={model} width={650} height={400} /></AdvancedModeProvider>);
+  hover(container, "latina|06037|2025");
+  expect(screen.getByRole("tooltip")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Editor options" }));
+  const toggle = screen.getByRole("menuitemcheckbox", { name: "Disable mouse hover animations" });
+  expect(toggle).not.toBeChecked();
+  await user.click(toggle);
+  expect(toggle).toBeChecked();
+  await user.keyboard("{Escape}");
+  expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+  hover(container, "latina|06037|2025");
+  expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+  expect(fillOf(container, "white|06037|2025")).toBe("#293B54");
+  fireEvent.keyDown(screen.getByRole("img"), { key: "ArrowRight" });
+  expect(screen.getByRole("tooltip")).toBeInTheDocument();
+  fireEvent.keyDown(screen.getByRole("img"), { key: "Escape" });
+  await user.click(screen.getByRole("button", { name: "Editor options" }));
+  await user.click(screen.getByRole("menuitemcheckbox", { name: "Disable mouse hover animations" }));
+  await user.keyboard("{Escape}");
+  hover(container, "latina|06037|2025");
+  expect(screen.getByRole("tooltip")).toBeInTheDocument();
+});
+
 function draw(appearance = {}, overrides = {}, width = 650) {
   const model = buildBarModel(input("bar", { appearance, ...overrides }));
   return { model, ...render(<BarChart model={model} width={width} height={400} />) };
@@ -174,7 +204,7 @@ it("moves between bars with the arrow keys", () => {
 // Several series: the hovered series stays, the others fade to a 30% tint,
 // and every bar of the hovered series shows its value. One series: the
 // hovered bar darkens (official orange to official red) and shows its value
-// above it unless its value is already shown. No floating label box.
+// inside it unless its value is already shown. No floating label box.
 const hover = (container, key) => fireEvent.pointerEnter(container.querySelector(`[data-mark="bar"][data-key="${key}"]`));
 const fillOf = (container, key) => container.querySelector(`[data-mark="bar"][data-key="${key}"]`).getAttribute("fill");
 
@@ -192,13 +222,13 @@ it("darkens other colors while keeping their hue", () => {
   const lightness = hex => hex.slice(1).match(/../g).map(v => parseInt(v, 16)).reduce((a, b) => a + b, 0);
   expect(lightness(fill)).toBeLessThan(lightness("#293B54"));
 });
-it("shows a single series' hovered value above the bar in bold", () => {
+it("shows a single series' hovered value inside the bar in bold", () => {
   const { container } = draw({}, onlyLatina());
   hover(container, "latina|06037|2025");
   const tip = screen.getByRole("tooltip");
   expect(tip).toHaveTextContent("2,520,000");
   expect(tip).not.toHaveClass("sr-only");
-  expect(tip).toHaveAttribute("data-placement", "outside");
+  expect(tip).toHaveAttribute("data-placement", "inside");
   expect(tip.style.fontWeight).toBe("700");
 });
 it("only darkens a bar whose value is already shown", () => {
@@ -219,7 +249,7 @@ it("fades the other series and labels every bar of the hovered one", () => {
 });
 // Owner, 2026-09-30: hovering a stacked segment showed nothing when its value
 // did not fit inside it.
-it("shows a stacked segment's value past the stack when it does not fit inside", () => {
+it("shows a stacked segment's value beside the segment when it does not fit inside", () => {
   const { container } = draw({ stackMode: "stacked" });
   hover(container, "latina|06075|2025");
   const tooltip = screen.getByRole("tooltip");
@@ -227,16 +257,52 @@ it("shows a stacked segment's value past the stack when it does not fit inside",
   expect(tooltip).toHaveAttribute("data-placement", "outside");
   expect(tooltip).toHaveTextContent("50,000");
 });
-// Owner, 2026-09-30: hovering Inland Empire showed Bay Area's value inside its
-// segment while the others did not fit. A stack now labels the hovered series
-// everywhere or only at the hovered stack.
-it("labels a stacked series in every stack or only past the hovered one", () => {
+it("keeps the hovered value inside even when another segment is too small", () => {
   const { container } = draw({ stackMode: "stacked" });
   // Los Angeles' 2,520,000 fits inside its segment; San Francisco's 50,000 does not.
   hover(container, "latina|06037|2025");
-  expect(container.querySelectorAll('[data-mark="hover-label"]')).toHaveLength(0);
-  expect(screen.getByRole("tooltip")).toHaveAttribute("data-placement", "outside");
+  expect(container.querySelector('[data-mark="hover-label"]')).toHaveTextContent("50,000");
+  expect(container.querySelector('[data-mark="hover-label"]')).toHaveAttribute("data-placement", "outside");
+  expect(screen.getByRole("tooltip")).toHaveAttribute("data-placement", "inside");
   expect(screen.getByRole("tooltip")).toHaveTextContent("2,520,000");
+});
+it.each([
+  ["horizontal", false], ["horizontal", true],
+  ["vertical", false], ["vertical", true],
+])("places small %s hover values beside their segment (at plot edge: %s)", (orientation, atEdge) => {
+  const table = {
+    columns: [{ name: "Nation", type: "text" }, { name: "Yes", type: "number", unit: "percent" }, { name: "No", type: "number", unit: "percent" }],
+    rows: [["Britain", "40", "60"], ["France", "1", "99"]],
+  };
+  const model = buildBarModel(modelInput(boundInline(table, "bar", { category: "Nation", y: atEdge ? ["No", "Yes"] : ["Yes", "No"] }, { stackMode: "percent", orientation })));
+  const { container } = render(<BarChart model={model} width={650} height={400} />);
+  const bar = model.bars.find((item) => item.category === "Britain" && item.value === 40);
+  const small = model.bars.find((item) => item.category === "France" && item.value === 1);
+  // Static labels are off; highlighting one series reveals all its values.
+  expect(container.querySelector('[data-mark="hover-label"]')).toBeNull();
+  hover(container, bar.key);
+  expect(screen.getByRole("tooltip")).toHaveAttribute("data-placement", "inside");
+  expect(screen.getByRole("tooltip")).toHaveTextContent("40%");
+  const label = container.querySelector(`[data-mark="hover-label"][data-key="${small.key}"]`);
+  const segment = container.querySelector(`[data-mark="bar"][data-key="${small.key}"]`);
+  expect(label).toHaveTextContent("1%");
+  expect(label).toHaveAttribute("data-placement", "outside");
+  expect(label).toHaveAttribute("fill", "#6C7075");
+  const number = (node, attr) => Number(node.getAttribute(attr));
+  if (orientation === "horizontal") {
+    expect(label).toHaveAttribute("text-anchor", atEdge ? "end" : "start");
+    expect(number(label, "x")).toBeCloseTo(atEdge ? number(segment, "x") - 4 : number(segment, "x") + number(segment, "width") + 4);
+    expect(number(label, "y")).toBeCloseTo(number(segment, "y") + number(segment, "height") / 2);
+  } else {
+    const y = number(label, "y");
+    expect(atEdge ? y > number(segment, "y") + number(segment, "height") : y < number(segment, "y")).toBe(true);
+    expect(number(label, "x")).toBeCloseTo(number(segment, "x") + number(segment, "width") / 2);
+  }
+  // The active small segment uses the same placement rule as its siblings.
+  hover(container, small.key);
+  expect(screen.getByRole("tooltip")).toHaveAttribute("data-placement", "outside");
+  expect(screen.getByRole("tooltip").style.color).toBe("rgb(108, 112, 117)");
+  expect(container.querySelector('[data-mark="hover-label"]')).toHaveTextContent("40%");
 });
 // Owner, 2026-09-30: hover numbers take the hovered bar's color.
 it("writes hover numbers in the hovered bar's color", () => {
@@ -249,8 +315,8 @@ it("writes hover numbers in the hovered bar's color", () => {
   expect(container.querySelector('[data-mark="hover-label"]')).toHaveAttribute("fill", "#FFFFFF");
   const single = draw({}, onlyLatina()).container;
   hover(single, "latina|06037|2025");
-  // One series: the bar darkens to the official red, and so does its value.
-  expect(screen.getAllByRole("tooltip").at(-1).style.color).toBe("rgb(131, 37, 34)");
+  // One series: white text stays readable inside the darkened official-red bar.
+  expect(screen.getAllByRole("tooltip").at(-1).style.color).toBe("rgb(255, 255, 255)");
 });
 it("fades the other series in the key, as on the bars", () => {
   const { container } = draw({ legendPosition: "automatic" });

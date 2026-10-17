@@ -45,6 +45,7 @@
  */
 
 import React from "react";
+import { useChartHover } from "@/components/charts/chartFocus";
 
 import { Group } from "@visx/group";
 import { scaleLinear } from "@visx/scale";
@@ -103,9 +104,7 @@ export default function PointChart({ model, width, height }) {
   // The reader's Hide grid lines switch (the axes stay).
   const showGrid = model.grid?.show !== false;
   // The hover label belongs to one model; a new model (new data) starts closed.
-  const [hovered, setHovered] = React.useState(null);
-  const active = hovered?.model === model ? hovered.index : null;
-  const setActive = (index) => setHovered(index === null || index === undefined ? null : { model, index });
+  const [active, setActive, setPointerActive] = useChartHover(model);
   const hoverLabelId = React.useId();
   const clipId = svgSafeId("plot-clip", React.useId());
 
@@ -229,7 +228,7 @@ export default function PointChart({ model, width, height }) {
     if (!box.width || !box.height) return;
     const x = ((event.clientX - box.left) / box.width) * plotWidth;
     const y = ((event.clientY - box.top) / box.height) * plotHeight;
-    setActive(pointAt(points, positions, x, y, shown));
+    setPointerActive(pointAt(points, positions, x, y, shown));
   };
   const byX = [...shownIndexes].sort((a, b) => positions[a].x - positions[b].x || a - b);
   const byY = [...shownIndexes].sort((a, b) => positions[b].y - positions[a].y || a - b);
@@ -479,7 +478,7 @@ export default function PointChart({ model, width, height }) {
             fill="transparent"
             data-chart-interaction=""
             onPointerMove={moveTo}
-            onPointerLeave={() => setActive(null)}
+            onPointerLeave={() => setPointerActive(null)}
           />
         </Group>
       </svg>

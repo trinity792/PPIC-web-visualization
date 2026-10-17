@@ -26,6 +26,7 @@ import React from "react";
 import dynamic from "next/dynamic";
 
 import { useIsMobile } from "@/components/ui/use-mobile";
+import { useAdvancedMode } from "@/components/chart-builder/advancedMode";
 import { cn } from "@/components/ui/utils";
 
 import { CHART_HEIGHTS } from "@/lib/constants";
@@ -53,6 +54,7 @@ export default function PlotlyChart({
   onGraphDiv = null,
 }) {
   const isMobile = useIsMobile();
+  const { mouseHoverAnimations = true } = useAdvancedMode();
   const containerRef = React.useRef(null);
   const [chartWidth, setChartWidth] = React.useState(0);
   const accessibleSummary =
@@ -100,13 +102,13 @@ export default function PlotlyChart({
     // wizard step could inherit a different height. For forest plots,
     // effectiveHeight already includes the adapter's row-based automatic
     // height plus any user-selected top/bottom padding.
-    const dimensionedLayout = { ...layout, height: effectiveHeight };
+    const dimensionedLayout = { ...layout, height: effectiveHeight, ...(!mouseHoverAnimations ? { hovermode: false } : {}) };
     return fitFootnoteLayout(
       dimensionedLayout,
       effectiveWidth || chartWidth,
       effectiveHeight,
     );
-  }, [chartWidth, effectiveHeight, effectiveWidth, layout]);
+  }, [chartWidth, effectiveHeight, effectiveWidth, layout, mouseHoverAnimations]);
 
   // Remove Plotly's built-in image button so ExportMenu is the only export
   // path; preserve any buttons the caller already asked to remove (deduped).

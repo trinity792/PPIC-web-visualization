@@ -10,7 +10,10 @@ const state = vi.hoisted(() => ({
   schema: { id: "byod", inlineOnly: true, fields: {}, subsets: {} },
 }));
 
-vi.mock("@/components/chart-builder/chartConfigStore", () => ({
+// The real store passes through for the byod-shapes helpers (createChartConfig,
+// reduceChartConfig); only the hook the component reads is replaced.
+vi.mock("@/components/chart-builder/chartConfigStore", async (importOriginal) => ({
+  ...(await importOriginal()),
   useChartConfig: () => state,
 }));
 vi.mock("@/components/chart-builder/ValidationNotice", () => ({ default: () => null }));
@@ -43,8 +46,8 @@ vi.mock("@/lib/visualization/sidebarSections", () => {
     { value: "datasets", label: "Datasets", Component: () => null },
     { value: "chart-type", label: "Chart Type", Component: ChartTypeProbe },
     { value: "axis", label: "Outcome", Component: () => null },
-    { value: "labels", label: "Labels", Component: () => null },
     { value: "appearance", label: "Appearance", Component: () => null },
+    { value: "labels", label: "Labels", Component: () => null },
   ];
   return {
     visibleSectionsFor: (_config, _schema, { only, exclude } = {}) =>
@@ -98,4 +101,15 @@ describe("EditStep shared sidebar", () => {
     render(<ModuleSidebar />);
     expect(sectionNames()).toEqual(wizardSections);
   });
+});
+
+import { fixtureTable as datasetFixture, importInline as datasetImport, dispatchInline as datasetDispatch } from "@/tests/fixtures/byod-shapes/helpers";
+it("shows the reason until the reader changes chart type", async () => {
+  state.config = datasetImport(await datasetFixture("wide-monthly-shares"));
+  state.schema = { id: "byod", inlineOnly: true, fields: {}, subsets: {} };
+  const view = render(<EditStep />);
+  expect(screen.getByText(/line chart:.*date column.*(six|6).*number columns/i)).toBeInTheDocument();
+  state.config = datasetDispatch(state.config, { type: "SET_CHART_TYPE", chartType: "scatter" });
+  view.rerender(<EditStep />);
+  expect(screen.queryByText(/line chart:.*date column/i)).not.toBeInTheDocument();
 });

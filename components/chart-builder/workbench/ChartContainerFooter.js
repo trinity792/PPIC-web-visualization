@@ -18,6 +18,7 @@
  * Props:
  *   viewMode         {"chart"|"data"} — which body the container is showing
  *   onViewModeChange {Function}       — called with the next view mode
+ *   viewModes        {Array<{id,label}>} — optional labels for the view switcher
  *   status           {string}         — preview status ("ready" enables export)
  *   graphDivRef      {Object|null}    — forwarded to ExportChartButton
  *   loaded           {Object|null}    — forwarded to both export buttons
@@ -41,8 +42,8 @@ import {
   ExportChartButton,
   ExportDataButton,
 } from "@/components/chart-builder/ExportMenu";
+import ViewModeToggle from "@/components/chart-builder/ViewModeToggle";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/components/ui/utils";
 
 const VIEW_MODES = [
   { id: "chart", label: "View Chart" },
@@ -52,6 +53,7 @@ const VIEW_MODES = [
 export default function ChartContainerFooter({
   viewMode = "chart",
   onViewModeChange,
+  viewModes = VIEW_MODES,
   status = "loading",
   graphDivRef = null,
   loaded = null,
@@ -63,31 +65,7 @@ export default function ChartContainerFooter({
 
   return (
     <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-      <div
-        role="group"
-        aria-label="Chart or data view"
-        className="inline-flex items-center gap-1 rounded-full bg-muted p-1"
-      >
-        {VIEW_MODES.map((mode) => {
-          const active = viewMode === mode.id;
-          return (
-            <button
-              key={mode.id}
-              type="button"
-              aria-pressed={active}
-              onClick={() => onViewModeChange?.(mode.id)}
-              className={cn(
-                "rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
-                active
-                  ? "bg-ppic-orange-300 text-foreground shadow-sm"
-                  : "text-muted-foreground hover:bg-background/70 hover:text-foreground",
-              )}
-            >
-              {mode.label}
-            </button>
-          );
-        })}
-      </div>
+      <ViewModeToggle modes={viewModes} value={viewMode} onChange={onViewModeChange} />
 
       <div className="flex flex-wrap items-center gap-2">
         {documentationHref ? (

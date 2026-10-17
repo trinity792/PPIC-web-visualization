@@ -1,0 +1,5 @@
+Age group	Region	Count
+Young	North	10
+Young	South	20
+Older	North	30
+Older	South	40

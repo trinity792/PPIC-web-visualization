@@ -48,3 +48,28 @@ it("formats each point axis using that role's own calculation", () => {
   expect(settings.axes.x.format(5)).not.toContain("%");
   expect(settings.axes.y.format(10)).toContain("%");
 });
+
+import { boundInline as datasetSpec, modelInput as datasetInput } from "@/tests/fixtures/byod-shapes/helpers";
+it("formats a pasted percent column as percent with no number type chosen", () => {
+  const table = { columns: [{ name: "Date", type: "date" }, { name: "Share", type: "number", unit: "percent", decimals: 2 }], rows: [["2020-01", "45.12"]] };
+  const config = datasetSpec(table, "line", { x: "Date", y: "Share" });
+  expect(sharedSettings(datasetInput(config)).axes.y.format(45.12)).toBe("45.1%");
+  config.presentation.appearance = { verticalNumberType: "number", decimalPlaces: 2 };
+  expect(sharedSettings(datasetInput(config)).axes.y.format(45.12)).toBe("45.12");
+});
+it("leaves topic charts' number format unchanged", () => {
+  const moduleInput = input("line", { observations: [{ ...input().observations[0], unit: "percent", value: 45.12 }] });
+  expect(sharedSettings(moduleInput).axes.y.format(45.12)).toBe("45.12");
+});
+it("formats each pasted scatter axis from that column's unit", () => {
+  const table = { columns: [{ name: "Cost", type: "number", unit: "usd", decimals: 0 }, { name: "Share", type: "number", unit: "percent", decimals: 0 }], rows: [["1200", "45"]] };
+  const result = sharedSettings(datasetInput(datasetSpec(table, "scatter", { x: "Cost", y: "Share" })));
+  expect(result.axes.x.format(1200)).toBe("$1,200");
+  expect(result.axes.y.format(45)).toBe("45%");
+});
+
+it("uses the first value column's unit on a mixed-unit pasted axis", () => {
+  const table = { columns: [{ name: "Date", type: "date" }, { name: "Cost", type: "number", unit: "usd", decimals: 0 }, { name: "Share", type: "number", unit: "percent", decimals: 0 }], rows: [["2020-01", "1200", "45"]] };
+  const result = sharedSettings(datasetInput(datasetSpec(table, "line", { x: "Date", y: ["Cost", "Share"] })));
+  expect(result.axes.y.format(1200)).toBe("$1,200");
+});

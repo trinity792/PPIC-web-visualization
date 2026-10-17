@@ -6,7 +6,8 @@
 
 import React from "react";
 
-import { render, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const plotlyMock = vi.hoisted(() => ({
@@ -29,6 +30,21 @@ vi.mock("@/components/ui/use-mobile", () => ({
 }));
 
 import PlotlyChart from "@/components/charts/PlotlyChart";
+import { AdvancedModeProvider, EditorOptionsMenu } from "@/components/chart-builder/advancedMode";
+
+it("turns off Plotly hover without disabling zoom or changing the saved layout", async () => {
+  const user = userEvent.setup();
+  const layout = { hovermode: "closest", dragmode: "pan" };
+  render(<AdvancedModeProvider><EditorOptionsMenu /><PlotlyChart layout={layout} /></AdvancedModeProvider>);
+  expect(plotlyMock.props.layout.hovermode).toBe("closest");
+  await user.click(screen.getByRole("button", { name: "Editor options" }));
+  await user.click(screen.getByRole("menuitemcheckbox", { name: "Disable mouse hover animations" }));
+  expect(plotlyMock.props.layout.hovermode).toBe(false);
+  expect(plotlyMock.props.layout.dragmode).toBe("pan");
+  expect(layout.hovermode).toBe("closest");
+  await user.click(screen.getByRole("menuitemcheckbox", { name: "Disable mouse hover animations" }));
+  expect(plotlyMock.props.layout.hovermode).toBe("closest");
+});
 
 describe("PlotlyChart export integration", () => {
   beforeEach(() => {

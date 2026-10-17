@@ -4,7 +4,7 @@ Content Type: project specification
 pinned: true
 description: "The current source of truth for the PPIC Data Explorer product, topic pipelines, application architecture, API boundaries, operational logs, documentation, and contributor standards."
 Date Published: June 23, 2026
-Last Updated: 10/05/2026 - 08:30 PM
+Last Updated: 10/16/2026 - 05:00 PM
 Status: Updating
 ---
 
@@ -86,7 +86,7 @@ The application exposes six primary surfaces.
 |---|---|---|
 | `/` | Directory of the six data topics | `app/page.js`, `lib/visualization/topicRegistry.js` |
 | `/[module]` | Single-screen topic workbench | `app/[module]/page.js`, `ModuleWorkbench` |
-| `/visualization-tool` | Import, edit, and export charts from a reader-supplied table | `VisualizationWizard` |
+| `/visualization-tool` | Import, edit, and export charts from a reader-supplied table (Import and Edit steps; exports in the Edit footer) | `VisualizationWizard` |
 | `/documents` | Searchable catalog and reader for committed Markdown documents | `lib/docs/documents.js` |
 | `/logs` | Pipeline run records and curated changelog | `lib/logs/*`, `lib/changelog/*` |
 | `/ui-kit` | Design-system and chart examples for implementation review | `components/ui-kit/*` |
@@ -356,7 +356,7 @@ The topic schema declares the periods an editor can offer. RHNA Progress intenti
 
 ## Frontend Architecture (UI Layer)
 
-The frontend is one shared editor system with two interfaces: a single-screen topic workbench and a three-step bring-your-own-data tool. Both use the same question model, chart catalog, sidebar sections, observation contract, and rendering adapters.
+The frontend is one shared editor system with two interfaces: a single-screen topic workbench and a two-step (Import, Edit) bring-your-own-data tool. Both use the same question model, chart catalog, sidebar sections, observation contract, and rendering adapters.
 
 For detailed chart behavior, see [[visualization-specification]].
 
@@ -376,7 +376,29 @@ For detailed chart behavior, see [[visualization-specification]].
 
 The topic page resolves a schema and a default version 3 question, then renders `ModuleWorkbench`, `ModuleSidebar`, `ChartContainer`, and `ChartContainerFooter`.
 
-The standalone tool renders `VisualizationWizard` with Import, Edit, and Export steps. `DataSourcePanel` and `InputTableEditor` parse and correct reader-supplied data. The shared Edit step uses the same chart-type and setting sections as the topic workbench.
+The standalone tool renders `VisualizationWizard` with Import and Edit steps; image, data, and embed exports sit in the Edit preview's footer (`ChartContainerFooter`), as on a topic page. `DataSourcePanel` and `InputTableEditor` parse and correct reader-supplied data. `InputTableEditor` delegates to `data-grid/SpreadsheetGrid` through the `DataGrid` compatibility entry point; the grid is a DOM spreadsheet with sticky headers and gutter, row virtualization, range selection, fill, clipboard, and row/column structure edits. `useGridPointer` and `useGridKeyboard` connect these interactions to the client-safe tabular helpers. `GridToolbar`, `FormulaBar`, `StatusBar`, `GridContextMenu`, and `ShortcutsMenu` own the controls and help. Every caller forwards the complete inline table, including formulas and row marks, and supplies the store's undo and redo callbacks. The `react-data-grid` dependency is removed. See [[table-editor-specification]] for the behavior contract.
+
+The shared Edit step uses the same chart-type and setting sections as the topic workbench. Its Edit Data view uses this same spreadsheet without changing the current chart type when the edited table still supports it.
+
+`EditPreview` swaps the chart for the table editor behind the shared `ViewModeToggle` (View Chart / Edit Data). `EditDataProvider` lets other parts of the Edit step open it: PreviewPane's **Fix in data** links, the unconfigured-chart message, and `ChartChoiceNote`. An edit goes through `SET_DATA_SOURCE`, which keeps the chart unless `inlineRenderBlock` says it can no longer draw the table.
+
+### Reading a reader's table
+
+The client-safe helpers in `lib/tabular/` and `lib/visualization/` turn a pasted or uploaded table into observations. None imports a server module.
+
+| Module | Responsibility |
+|---|---|
+| `parseTable.js` | Paste and file parsing, header-row detection, and `rereadTable` for Import settings (separator, header rows, number and date conventions, tidy). Keeps `meta.raw` and `meta.rawText` up to 1 MB |
+| `cleanTable.js` | `cleanGrid` moves titles, sources, notes, and two-row headers out of the grid; `tableFindings`, `visibleFindings`, and `applyFinding` drive the Check panel |
+| `columnTypes.js` | Column types, missing and suppressed tokens, number and date parsing with calendar positions, unit and decimals, `rowShares`, `profileColumns`, and `chartableTable` (drops ignored columns and marked rows) |
+| `formulas.js`, `tableEdits.js` | Cell formulas (header is row 1) and every table edit: paste, fill, move, sort, insert, delete, row marks, kinds |
+| `gridSelection.js`, `gridKeymap.js`, `gridClipboard.js`, `fillSeries.js` | Selection, shortcut schemes, clipboard, and fill series for the grid; adapted from Fortune-sheet (MIT), credited in each doc comment |
+| `toObservations.js` | `tableToObservations` and `executeInlineQuestion`: one observation per row per value column, with `periodPosition`, `columnFormat`, statuses, and the `inlineRowsShareMapping` warning |
+| `inlineQuestion.js`, `inlineMapping.js` | Role-to-column bindings, where a multi-value role holds a list (`bindingColumns`) and `valuesArePeriods` reads years across the top |
+| `inlineProfile.js` | `profileTable` and `rankInlineCharts`: the best chart first, with its mapping, presets, and reason. `suggestChartType` returns the first candidate |
+| `deriveLabels.js` | `deriveInlineLabels` writes titles and axes from the mapped column names |
+
+The observation contract has a fourth issue level, `warning`, used only by the tool. `LineChart` places points by `periodPosition` when every period has one, and `calendarTicks` in `axisScale.js` chooses ticks at calendar boundaries. See [[visualization-specification]] for the reader-facing behavior.
 
 ### The question specification
 

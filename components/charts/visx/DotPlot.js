@@ -49,6 +49,7 @@
  */
 
 import React from "react";
+import { useChartHover } from "@/components/charts/chartFocus";
 
 import { Group } from "@visx/group";
 import { scaleLinear } from "@visx/scale";
@@ -106,9 +107,7 @@ export default function DotPlot({ model, width, height }) {
   // The reader's Hide grid lines switch (axes, zero lines and baselines stay).
   const showGrid = model.grid?.show !== false;
   // The hover belongs to one model; a new model (new data) starts closed.
-  const [hovered, setHovered] = React.useState(null);
-  const active = hovered?.model === model ? hovered.index : null;
-  const setActive = (index) => setHovered(index === null || index === undefined ? null : { model, index });
+  const [active, setActive, setPointerActive] = useChartHover(model);
   const tooltipId = React.useId();
   const clipId = svgSafeId("plot-clip", React.useId());
 
@@ -428,8 +427,8 @@ export default function DotPlot({ model, width, height }) {
                     fill="transparent"
                     data-mark="point-hit"
                     data-key={point.key}
-                    onPointerEnter={() => setActive(index)}
-                    onPointerLeave={() => setActive(null)}
+                    onPointerEnter={() => setPointerActive(index)}
+                    onPointerLeave={() => setPointerActive(null)}
                   />
                 ))}
                 </g>

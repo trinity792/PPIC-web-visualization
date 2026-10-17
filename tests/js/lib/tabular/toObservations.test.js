@@ -261,3 +261,57 @@ it("ranks a pasted scatter by x and retains the same place's y", () => {
   expect(result.observations.find(row => !row.measureRole).value).toBe(100);
   expect(result.observations.find(row => row.measureRole === "x").value).toBe(0.4);
 });
+
+import { boundInline as datasetSpec } from "@/tests/fixtures/byod-shapes/helpers";
+const datasetTable = {
+  columns: [{ name: "Date", type: "date", granularity: "month" }, { name: "Chrome", type: "number", unit: "percent" }, { name: "Budget", type: "number", unit: "usd" }],
+  rows: [["2020-01", "40%", ""], ["2020-02", "n/a", "$1,200"], ["2020-03", "(D)", "$1,400"]],
+};
+const datasetRows = (table = datasetTable, y = ["Chrome", "Budget"]) => tableToObservations(table, {
+  chartType: "line", bindings: { x: "Date", y }, measure: { id: "Chrome", unit: "percent" },
+});
+describe("dataset range: observations", () => {
+  it("gives suppressed cells suppressed status and placeholders missing status", () => {
+    expect(datasetRows(datasetTable, "Chrome").map(r => [r.value, r.status])).toEqual([[40, "available"], [null, "missing"], [null, "suppressed"]]);
+  });
+  it("uses the table's detected source in place of Inline data", () => {
+    const rows = datasetRows({ ...datasetTable, meta: { source: "Example survey" } }, "Chrome");
+    expect(rows.map(r => r.source)).toEqual(["Example survey", "Example survey", "Example survey"]);
+  });
+  it("adds periodPosition and keeps the period label", () => {
+    const rows = datasetRows(datasetTable, "Chrome");
+    expect(rows.map(r => r.period)).toEqual(["2020-01", "2020-02", "2020-03"]);
+    [2020, 2020 + 1 / 12, 2020 + 2 / 12].forEach((position, i) => expect(rows[i].periodPosition).toBeCloseTo(position, 8));
+  });
+  it("emits one observation per row per value column with that column's unit", () => {
+    const rows = datasetRows();
+    expect(rows).toHaveLength(6);
+    expect(rows.filter(r => r.measureId === "Chrome")).toHaveLength(3);
+    expect(rows.filter(r => r.measureId === "Budget")).toHaveLength(3);
+    for (const row of rows) {
+      expect(row.measureLabel).toBe(row.measureId);
+      expect(row.unit).toBe(row.measureId === "Chrome" ? "percent" : "usd");
+      expect(validateObservation(row).valid).toBe(true);
+    }
+    expect(rows.filter(r => r.measureId === "Budget").map(r => r.value)).toEqual([null, 1200, 1400]);
+    expect(new Set(rows.map(r => r.comparisonId)).size).toBe(2);
+  });
+  it("reads years across the top as periods", () => {
+    const table = { columns: [{ name: "Location", type: "text" }, ...["2019", "2020", "2021"].map(name => ({ name, type: "number", unit: "number" }))], rows: [["North", "10", "20", "30"], ["South", "40", "50", "60"]] };
+    const spec = datasetSpec(table, "line", { series: "Location", y: ["2019", "2020", "2021"], valuesArePeriods: true });
+    const result = executeInlineQuestion(spec);
+    expect(result.observations).toHaveLength(6);
+    expect(result.periods).toEqual([2019, 2020, 2021]);
+    expect(result.observations.map(r => [r.comparisonLabel, r.period, r.value])).toEqual([
+      ["North", 2019, 10], ["North", 2020, 20], ["North", 2021, 30],
+      ["South", 2019, 40], ["South", 2020, 50], ["South", 2021, 60],
+    ]);
+  });
+  it("starts a series at its first filled cell", () => {
+    expect(datasetRows().filter(r => r.measureId === "Budget").map(r => [r.value, r.status])).toEqual([[null, "missing"], [1200, "available"], [1400, "available"]]);
+  });
+  it("uses the detected number convention in observations", () => {
+    const table = { columns: [{ name: "Date", type: "date" }, { name: "Chrome", type: "number", unit: "number", locale: "eu" }], rows: [["2020-01", "1.234,5"]] };
+    expect(datasetRows(table, "Chrome")[0].value).toBe(1234.5);
+  });
+});

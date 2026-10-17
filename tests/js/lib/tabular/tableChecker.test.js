@@ -21,6 +21,10 @@ const mixedTable = {
 };
 
 describe("gradeTable", () => {
+  it("grades a formula error as malformed even in a text column", () => {
+    const table = { columns: [{ name: "Label", type: "text" }], rows: [["#REF!"], ["#REF!"]], formulas: { "0:0": "=Z99" } };
+    expect(gradeTable(table).slice(1)).toEqual([[CELL_GRADES.MALFORMED], [CELL_GRADES.TEXT]]);
+  });
   it("grades the header row as HEADING, one column per header", () => {
     const grades = gradeTable(mixedTable);
     expect(grades[0]).toEqual([CELL_GRADES.HEADING, CELL_GRADES.HEADING]);
@@ -104,4 +108,15 @@ describe("GRADE_CLASSNAMES", () => {
       expect(GRADE_CLASSNAMES[grade]).toBeTruthy();
     }
   });
+});
+
+it("grades suppressed tokens apart from empty and malformed cells", () => {
+  const tokens = ["(D)", "(X)", "(S)", "*", "**", "suppressed", "n/a", "-", "", "broken", "12.3*"];
+  const grades = gradeTable({ columns: [{ name: "Value", type: "number" }], rows: tokens.map(value => [value]), issues: [] });
+  expect(CELL_GRADES.SUPPRESSED).toBe("suppressed");
+  expect(grades.slice(1).map(row => row[0])).toEqual([
+    "suppressed", "suppressed", "suppressed", "suppressed", "suppressed", "suppressed",
+    CELL_GRADES.EMPTY, CELL_GRADES.EMPTY, CELL_GRADES.EMPTY, CELL_GRADES.MALFORMED, CELL_GRADES.NUMBER,
+  ]);
+  expect(GRADE_CLASSNAMES.suppressed).toBeTruthy();
 });

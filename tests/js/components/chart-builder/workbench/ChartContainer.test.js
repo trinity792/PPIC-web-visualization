@@ -22,7 +22,8 @@ const state = vi.hoisted(() => ({
 vi.mock("@/components/chart-builder/chartConfigStore", () => ({
   useChartConfig: () => state.configStore,
 }));
-vi.mock("@/components/chart-builder/advancedMode", () => ({
+vi.mock("@/components/chart-builder/advancedMode", async (original) => ({
+  ...(await original()),
   useAdvancedMode: () => ({ advanced: state.advanced }),
 }));
 vi.mock("@/components/chart-builder/editorCapabilities", () => ({

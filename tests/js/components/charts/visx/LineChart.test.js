@@ -137,3 +137,25 @@ it("keeps lines flush with the plot edges when no spacing is set", () => {
   expect(path).toMatch(/^M0[,\s]/);
   expect(ys[0]).toBe(0);
 });
+
+import { boundInline as datasetSpec, modelInput as datasetInput, fixtureTable as datasetFixture } from "@/tests/fixtures/byod-shapes/helpers";
+it("labels monthly data with years and hovers with the month", () => {
+  const table = { columns: [{ name: "Month", type: "date", granularity: "month" }, { name: "Share", type: "number", unit: "percent" }], rows: [["2009-01", "10"], ["2014-12", "20"], ["2020-01", "30"]] };
+  const config = datasetSpec(table, "line", { x: "Month", y: "Share" });
+  const { container } = render(<LineChart model={buildLineModel(datasetInput(config))} width={650} height={400} />);
+  const ticks = [...container.querySelectorAll('.visx-axis-bottom .visx-axis-tick text')].map(n => n.textContent);
+  expect(ticks.length).toBeGreaterThan(0);
+  for (const tick of ticks) expect(tick).toMatch(/^\d{4}$/);
+  const chart = screen.getByRole("img");
+  fireEvent.focus(chart);
+  fireEvent.keyDown(chart, { key: "Home" });
+  fireEvent.keyDown(chart, { key: "ArrowRight" });
+  expect(screen.getByRole("tooltip")).toHaveTextContent("Dec 2014");
+});
+it("draws irregular dates at unequal horizontal distances", async () => {
+  const config = datasetSpec(await datasetFixture("irregular-dates"), "line", { x: "Survey date", y: "Responses" }, { markerMode: "on" });
+  const { container } = render(<LineChart model={buildLineModel(datasetInput(config))} width={650} height={400} />);
+  const xs = [...container.querySelectorAll('[data-mark="point"]')].map(node => Number(node.getAttribute("cx")));
+  expect(xs).toHaveLength(3);
+  expect((xs[2] - xs[0]) / (xs[1] - xs[0])).toBeCloseTo(100, 4);
+});

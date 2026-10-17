@@ -14,6 +14,7 @@ vi.mock("@/lib/visualization/chartRegistry", async original => {
   return { ...actual, rendererFor: (type, preview) => { state.requested.push(preview); return preview === "visx" && type === "line" ? "visx" : state.defaultRenderer; } };
 });
 import { ChartConfigProvider } from "@/components/chart-builder/chartConfigStore";
+import { AdvancedModeProvider } from "@/components/chart-builder/advancedMode";
 import { PreviewProvider, usePreview } from "@/components/chart-builder/wizard/PreviewContext";
 function Probe() {
   const { previews } = usePreview();
@@ -46,4 +47,33 @@ it("draws the tagged result through ChartRenderer in the actual PreviewPane", as
   render(<ChartConfigProvider schema={schema} initialConfig={config()} autoBind={false}><PreviewProvider><PreviewPane /></PreviewProvider></ChartConfigProvider>);
   expect(await screen.findByTestId("renderer-boundary")).toHaveTextContent("plotly");
   expect(screen.queryByTestId("legacy-plotly")).not.toBeInTheDocument();
+});
+
+it.each([false, true])("shows shared-row diagnostics only in Advanced Mode: advanced=%s", async (advanced) => {
+  state.load.mockResolvedValue({ status: "ok", observations: input().observations, comparisons: input().comparisons, periods: [2020, 2025, 2030], issues: [
+    { code: "inlineRowsShareMapping", level: "warning", comparisonId: null, message: '4 rows share a bar because “Job” is not mapped. Map “Job” to a role.' },
+    { code: "inlineMixedUnits", level: "information", comparisonId: null, message: "These outcomes use different units." },
+  ] });
+  render(<AdvancedModeProvider defaultAdvanced={advanced}><ChartConfigProvider schema={schema} initialConfig={config()} autoBind={false}><PreviewProvider><PreviewPane /></PreviewProvider></ChartConfigProvider></AdvancedModeProvider>);
+  const chart = await screen.findByTestId("renderer-boundary");
+  expect(screen.getByText("These outcomes use different units.")).toBeInTheDocument();
+  if (advanced) {
+    const warning = screen.getByText(/4 rows share a bar/);
+    expect(warning.compareDocumentPosition(chart) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  } else {
+    expect(screen.queryByText(/4 rows share a bar/)).not.toBeInTheDocument();
+  }
+});
+
+it("offers to fix a pasted-data warning in the data", async () => {
+  const { EditDataContext } = await import("@/components/chart-builder/wizard/EditDataContext");
+  const { default: PreviewPane } = await import("@/components/chart-builder/wizard/PreviewPane");
+  const { fireEvent } = await import("@testing-library/react");
+  const openData = vi.fn();
+  state.load.mockResolvedValue({ status: "ok", observations: input().observations, comparisons: input().comparisons, periods: [2020, 2025, 2030], issues: [
+    { code: "inlineRowsShareMapping", level: "warning", comparisonId: null, columns: ["Job"], message: "4 rows share 2 bars because “Job” is not mapped." },
+  ] });
+  render(<ChartConfigProvider schema={schema} initialConfig={config()} autoBind={false}><PreviewProvider><EditDataContext.Provider value={{ openData }}><PreviewPane /></EditDataContext.Provider></PreviewProvider></ChartConfigProvider>);
+  fireEvent.click(await screen.findByRole("button", { name: "Fix in data" }));
+  expect(openData).toHaveBeenCalledWith({ column: "Job" });
 });

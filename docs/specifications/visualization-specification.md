@@ -4,7 +4,7 @@ Content Type: project specification
 pinned: true
 description: "Current product and technical specification for building, rendering, sharing, and exporting visualizations in the PPIC Data Explorer."
 Date Published: July 27, 2026
-Last Updated: 10/12/2026 - 03:00 PM
+Last Updated: 10/16/2026 - 05:00 PM
 Status: Finalized
 ---
 
@@ -64,7 +64,7 @@ The same question model and rendering pipeline support two interfaces.
 |---|---|---|
 | Route | A topic route implemented by `/[module]` | `/visualization-tool` |
 | Data | A curated PPIC dataset | A table supplied by the reader |
-| Layout | One screen with a persistent sidebar and chart card | Three steps: Import, Edit, Export |
+| Layout | One screen with a persistent sidebar and chart card | Two steps: Import, Edit. Exports sit in the Edit preview's footer |
 | First view | A chart-shaped skeleton; no data request is made until the reader acts | Import begins with an empty inline question |
 | Field mapping | The topic schema supplies outcomes, comparison dimensions, time, and geography | The tool infers column types and proposes chart-role mappings |
 | Saved browser views | Not offered | Offered because the inline table must travel with the view |
@@ -86,11 +86,25 @@ A complete built-in view, deep link, or embed may render immediately because it 
 
 The standalone tool is designed for a reader's own table:
 
-1. **Import** - Paste or upload data and confirm column types.
-2. **Edit** - Choose the chart and edit the shared sidebar settings beside a live preview.
-3. **Export** - Download or embed the result.
+1. **Import** - Paste or upload data, check what the tool noticed, and correct the table.
+2. **Edit** - Choose the chart and edit the shared sidebar settings beside a live preview. The preview's footer holds the image, data, and embed exports, the same ones a topic workbench offers. A **View Chart / Edit Data** toggle swaps the preview for the table editor, so a misread is fixed beside its chart.
 
 The imported table is stored inside the question. Role-to-column bindings connect chart concepts such as outcome, time, category, and series to the actual column names.
+
+`InputTableEditor` uses the shared `SpreadsheetGrid` in Import, Edit Data, and the Data Source dialog. It supports rectangular and disjoint selections, row and column moves, fill, formulas and point mode, clipboard blocks, sorting, type pills, and row marks. The letter row, header row (spreadsheet row 1), and gutter stay fixed; tables above 200 data rows are virtualized. Google Sheets shortcuts are the default, with an Excel scheme remembered in browser storage. Each bulk edit is one store undo step. More contains Import settings, Transpose, Show hidden columns, Revert, and Keyboard shortcuts. [[table-editor-specification]] is the detailed behavior contract.
+
+#### How the tool reads a table
+
+No import guesses every table right, so each automatic decision is visible and can be overridden. The Import step's Check panel lists what was moved or noticed, each with its fix and **Show me** (see [[table-editor-specification]]).
+
+- **Cleaning.** Title lines above the header become the table's title. `Source:` and `Note:` lines under the data become its source and notes. A header split over two rows is joined into one name per column. Each move is listed and can be undone. Blank labels in grouped exports, total rows, footnote marks, ambiguous slash dates, and percent columns written as fractions are pointed out, not changed, until the reader accepts the fix.
+- **Missing and suppressed cells.** Placeholders such as `n/a`, `-`, and `..` are missing; `(D)`, `(X)`, and `*` are suppressed. Neither decides a column's type or grades red. Observations carry the matching status, so hover and View Data tell them apart.
+- **Numbers.** Footnote marks, Unicode minus signs, and space thousands separators are read. A column's decimal convention (1,234.5 or 1.234,5) is detected per column. A column of percentages or dollars keeps its unit, so the value axis and labels show it, and calculations that make no sense for shares are not offered.
+- **Dates.** Years, quarters, months, month names, ISO and slash dates, and fiscal or school years are read, each with a calendar position. A line chart spaces its points by that position and labels ticks at calendar boundaries ("2010", "Q1 2010", "Jan 2010"), so a missing month or an uneven date shows. Slash dates read as month first unless a value proves day first; the Import step's **Date format** setting and Import settings override it. Bars, heatmaps, and dot plots keep one slot per period, in calendar order.
+- **Several value columns.** A line, bar, or dot plot role that takes a list can map several number columns, which become one series each, in the checklist's order. A table that has years as column headers draws as a line chart with **Columns are periods**, without transposing it. Mixed units use the first column's unit, and a notice names the others. Above 12 series, a notice suggests tabs.
+- **The first chart.** A fresh import opens on the best chart for the table's shape, with the few presets it needs (for example, 100% stacked bars for columns that add up to 100). The Edit step says why in one line, with **Not right? Edit data**; the note disappears when the reader picks another chart. The Chart Type tiles follow the same ranking, so the next-best charts are one click away. Pie and the maps are never chosen automatically. Later edits keep the current chart unless it can no longer draw the table.
+- **Titles and labels.** Defaults are written from the mapped column names: "Chrome, IE, and Firefox over time", never "by geography". A table's captured title is the chart title. Anything the reader types still wins.
+- **Rows that share a place.** When two rows share every mapped column, for example a label column that is not mapped, a **warning** names the column and the fix. Nothing is combined or hidden. The warning is shown in Advanced Mode, with **Fix in data**.
 
 ### Shared behavior
 
@@ -252,7 +266,7 @@ Built September 30, 2026 (Workstream E), following the style guide and the PPIC 
 - **Key.** The key sits above the chart by default. With one series, its entry names what the bars measure and the value axis title is not repeated above the axis (unless the key is hidden). With **Automatic**, stacked vertical bars name each series beside the last stack instead, falling back to a key on the right when the names do not fit.
 - **Track rail and minimal axis.** Both work on every bar chart, not only diverging ones. Track rail is in Advanced Mode.
 - **Threshold colors.** Only the style guide's ten official colors are offered.
-- **Hover.** This matches PPIC's published bar charts: the information goes on the chart, with no floating box. With several series, the hovered series keeps its color and shows all of its values, the others fade to a 30% tint, and so do their swatches in the key. A stack labels the hovered series in every segment only when all of them fit; otherwise only the hovered value shows, past the end of its stack. With one series, the hovered bar darkens (official orange to official red) and shows its value above it in bold, unless it is already labeled. Hover numbers take the hovered bar's color, darkened just enough to read outside a bar, and white or dark gray inside one. The hovered category label turns bold; the others keep their gray. Screen readers hear the series, category, value, and any stack total.
+- **Hover.** This matches PPIC's published bar charts: the information goes on the chart, with no floating box. With several series, the hovered series keeps its color and shows all of its values, the others fade to a 30% tint, and so do their swatches in the key. Each value in a hovered stack series appears inside its segment when it fits, otherwise immediately beside that segment in neutral gray, switching sides at the plot edge. Static labels omit values that cannot fit inside a stacked segment. With one series, the hovered bar darkens (official orange to official red) and shows its value inside in bold when it fits, otherwise just outside, unless it is already labeled. Hover numbers inside a bar use white or dark gray for contrast; outside unstacked bars they take the bar's color, darkened just enough to read. The hovered category label turns bold; the others keep their gray. Screen readers hear the series, category, value, and any stack total.
 - **Keyboard.** The chart takes focus; the arrow keys step through the bars, Home and End jump to the first and last, and Escape clears the hover.
 - **Axis labels.** X-Axis and Y-Axis name the horizontal and vertical axes, so a horizontal bar's automatic labels put the measure on X.
 
@@ -396,6 +410,7 @@ Issues are explicit and machine-readable:
 - **Blocking** issues stop the whole question.
 - **Comparison** issues identify one comparison that cannot be answered.
 - **Information** issues explain a non-blocking condition.
+- **Warning** issues belong to the Visualization Tool. They say that pasted data draws in a way the reader probably did not intend, and name the fix. They never change the chart.
 
 A response cannot mark a comparison invalid without attributing a comparison-level issue to it.
 
@@ -826,6 +841,8 @@ These are intentional current boundaries, not hidden fallback behavior:
 - A workspace can contain at most four charts.
 - Server-provided map geometry currently covers counties.
 - Pasted tables cannot supply custom map geometry or coordinates.
+- A pasted table's import settings can be read again only from the first 1 MB of its raw text or cells.
+- Sections or panels and highlighting one series in a pasted-data chart wait for renderer Workstream P.
 - Browser-saved views are a standalone Visualization Tool feature.
 - Old version 1 and version 2 views are unsupported.
 - A topic's **View Data** table shows the full cleaned dataset, not only the chart's filtered rows.
@@ -842,3 +859,4 @@ These are intentional current boundaries, not hidden fallback behavior:
 - [[visualization-backend-refractor]] - Version 3 backend goals and migration record
 - [[visualization-backend-removal-changelog]] - Reviewed quarantine and removal ledger
 - [[chart-renderer-implementation-plan]] - The Plotly-to-visx renderer plan and its decisions
+- [[table-editor-specification]] - The Visualization Tool's table editor: selection, editing, shortcuts, clipboard, fill, and import findings

@@ -193,3 +193,22 @@ describe("Group column mapping", () => {
     expect(dotAgain.group).toBeUndefined();
   });
 });
+
+import { expectations as datasetExpectations } from "@/tests/fixtures/byod-shapes/expectations";
+import { fixtureTable as datasetFixture } from "@/tests/fixtures/byod-shapes/helpers";
+import { getChartCapabilities as datasetCapabilities } from "@/lib/visualization/chartRegistry";
+it.each(datasetExpectations)("suggestChartType returns the first candidate: $id", async entry => {
+  expect(suggestChartType(await datasetFixture(entry.id))).toBe(entry.chartType);
+});
+it("declares a list role only on line, bar, and dot plot", () => {
+  expect(datasetCapabilities("line").multiValueRole).toBe("y");
+  expect(datasetCapabilities("bar").multiValueRole).toBe("y");
+  expect(datasetCapabilities("dotPlot").multiValueRole).toBe("color");
+  for (const chart of ["scatter", "bubble", "forest", "dumbbell", "heatmap", "pie"]) expect(datasetCapabilities(chart).multiValueRole ?? null).toBeNull();
+});
+it("accepts a value list and years across columns in the render gate", () => {
+  const wide = table(["Region", "2019", "2020", "2021"], ["text", "number", "number", "number"], [["North", "10", "20", "30"]]);
+  expect(inlineRenderBlock("bar", wide, { category: "Region", y: ["2019", "2020", "2021"] })).toBeNull();
+  expect(inlineRenderBlock("line", wide, { series: "Region", y: ["2019", "2020", "2021"], valuesArePeriods: true })).toBeNull();
+  expect(inlineRenderBlock("bar", wide, { category: "Region", y: ["missing"] })).not.toBeNull();
+});

@@ -1,0 +1,7 @@
+Job	Nation	I typically tip	I do not typically tip, but I might sometimes tip	Don't know	I never tip
+Restaurant waiters/waitresses	Britain	59.13978495	29.03225806	2.150537634	9.677419355
+Restaurant waiters/waitresses	Denmark	23.65591398	39.78494624	3.225806452	33.33333333
+Restaurant waiters/waitresses	France	36.95652174	35.86956522	4.347826087	22.82608696
+Hairdressers / barbers	Britain	37.64705882	28.23529412	3.529411765	30.58823529
+Hairdressers / barbers	Denmark	2.272727273	7.954545455	4.545454545	85.22727273
+Hairdressers / barbers	France	24.41860465	23.25581395	5.813953488	46.51162791

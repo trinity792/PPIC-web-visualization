@@ -9,7 +9,7 @@
  * an export handle (its frame, plus a way to draw it again at the export size)
  * up to the context. A map sits in the same frame and hands up its frame and
  * Plotly graph div together; any other Plotly chart hands up its graph div. Either way the
- * Export step drives image export off the same rendered figure.
+ * The editor footer drives image export off the same rendered figure.
  * This is the extracted render half of ModuleEditor's former ChartWorkspace.
  *
  * Props:
@@ -48,8 +48,11 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { cn } from "@/components/ui/utils";
 
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
+import { useAdvancedMode } from "@/components/chart-builder/advancedMode";
 import { roleLabel } from "@/components/chart-builder/sections/OutcomeSection";
 import { usePreview } from "@/components/chart-builder/wizard/PreviewContext";
+import { useEditData } from "@/components/chart-builder/wizard/EditDataContext";
+import { Button } from "@/components/ui/button";
 import { CHART_HEIGHTS } from "@/lib/constants";
 import { CHART_STYLE } from "@/lib/visualization/chartStyle";
 import { tabValues } from "@/lib/tabular/toSeries";
@@ -304,8 +307,15 @@ function visxExportHandle(result, element) {
   };
 }
 
+// Pasted-data notices that the reader fixes in the table itself.
+const DATA_ISSUE_CODES = new Set(["inlineRowsShareMapping", "inlineMixedUnits", "inlineManySeries"]);
+
 function ChartSlot({ preview, layout, multi, embedded, fill, onGraphDiv }) {
   const { dispatch, schema } = useChartConfig();
+  const { advanced } = useAdvancedMode();
+  // Inside the Visualization Tool's Edit step, a pasted-data problem links to
+  // the data grid (import overhaul, phase 4); elsewhere there is no link.
+  const editData = useEditData();
   const {
     id,
     name,
@@ -358,8 +368,10 @@ function ChartSlot({ preview, layout, multi, embedded, fill, onGraphDiv }) {
     (preview.result?.periods || []).length > 1
     ? preview.result.periods
     : [];
+  // Shared rows are a mapping diagnostic for fine-tuning in Advanced Mode.
   const comparisonIssues = (preview.result?.issues || []).filter(
-    (issue) => issue.level === "comparison" || issue.level === "information",
+    (issue) => ["comparison", "information", "warning"].includes(issue.level) &&
+      (issue.code !== "inlineRowsShareMapping" || advanced),
   );
 
   return (
@@ -454,8 +466,25 @@ function ChartSlot({ preview, layout, multi, embedded, fill, onGraphDiv }) {
       {comparisonIssues.length ? (
         <div className="mx-3 mt-2 grid gap-1 text-xs text-muted-foreground" role="status">
           {comparisonIssues.map((issue, index) => (
-            <p key={`${issue.code}-${issue.comparisonId || "chart"}-${index}`}>
+            <p
+              key={`${issue.code}-${issue.comparisonId || "chart"}-${index}`}
+              className={issue.level === "warning" ? "font-medium text-foreground" : undefined}
+            >
               {issue.message}
+              {editData && DATA_ISSUE_CODES.has(issue.code) ? (
+                <>
+                  {" "}
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="sm"
+                    className="h-auto p-0 text-xs"
+                    onClick={() => editData.openData(issue.columns?.length ? { column: issue.columns[0] } : {})}
+                  >
+                    Fix in data
+                  </Button>
+                </>
+              ) : null}
             </p>
           ))}
         </div>
@@ -473,10 +502,18 @@ function ChartSlot({ preview, layout, multi, embedded, fill, onGraphDiv }) {
           <ChartSkeleton shape={skeletonShapeFor(chartType, appearance)} />
         ) : null}
         {status === "unconfigured" ? (
-          <ChartSkeleton
-            shape={skeletonShapeFor(chartType, appearance)}
-            message={unconfiguredMessage(config, schema)}
-          />
+          <div className="grid w-full justify-items-center gap-2">
+            <ChartSkeleton
+              shape={skeletonShapeFor(chartType, appearance)}
+              message={unconfiguredMessage(config, schema)}
+            />
+            {/* Often the table, not the mapping, is what needs fixing. */}
+            {editData && config.question?.dataset?.kind === "inline" ? (
+              <Button type="button" variant="outline" size="sm" onClick={() => editData.openData()}>
+                Fix in data
+              </Button>
+            ) : null}
+          </div>
         ) : null}
         {status === "loading" ? (
           <div role="status" className="flex items-center gap-2 text-muted-foreground">

@@ -1,0 +1,3 @@
+Study	Estimate	Lower	Upper
+Trial A	5	3	7
+Trial B	9	6	12
