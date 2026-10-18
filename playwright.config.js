@@ -3,8 +3,9 @@
  *
  * The Vitest suite runs in jsdom, which has no layout engine and no canvas, so
  * it can assert that a Plotly figure or a visx chart model is correct but not
- * that the picture is. Line, Bar, Range, and Heatmap are the four approved
- * baselines; the renderer plan adds one set per chart type as each is reviewed.
+ * that the picture is. The renderer plan adds a baseline per chart type once a
+ * person has reviewed it; the four original Plotly baselines were retired in
+ * renderer plan O.
  *
  * The fixture page draws through the editor's ChartRenderer, which marks its
  * container `data-chart-ready="true"` once either library has finished drawing;

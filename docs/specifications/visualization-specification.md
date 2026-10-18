@@ -4,7 +4,7 @@ Content Type: project specification
 pinned: true
 description: "Current product and technical specification for building, rendering, sharing, and exporting visualizations in the PPIC Data Explorer."
 Date Published: July 27, 2026
-Last Updated: 10/16/2026 - 05:00 PM
+Last Updated: 10/18/2026 - 04:00 PM
 Status: Finalized
 ---
 
@@ -226,7 +226,7 @@ The choropleth and symbol maps share one **Maps** tile (owner decision, October 
 
 ### Chart renderers
 
-Charts are moving from Plotly to visx one type at a time, following [[chart-renderer-implementation-plan]]. Every registry descriptor declares `renderer: "plotly" | "visx"`.
+Every chart except the two maps draws with visx; the move from Plotly is recorded in [[chart-renderer-implementation-plan]]. Every registry descriptor declares `renderer: "plotly" | "visx"`.
 
 | Chart | Default renderer | Notes |
 |---|---|---|
@@ -239,9 +239,9 @@ Charts are moving from Plotly to visx one type at a time, following [[chart-rend
 | Choropleth Map, Symbol Map | Plotly | Stay on Plotly permanently, drawn inside `ChartFrame` since October 12, 2026 |
 | Data Table | Plotly adapter | Drawn by `DataTableView`; never gains a visx drawing |
 
-- `rendererFor(type, preview)` picks the renderer. A `?renderer=visx` or `?renderer=plotly` page-address parameter previews the other drawing for comparison. It is honored only when that drawing exists (`VISX_CHART_TYPES`) and is ignored in embeds (`embed=1`), so a shared embed always shows the default.
+- `rendererFor(type)` returns the descriptor's renderer. Since renderer plan O (October 18, 2026) there is no page-address override: the non-map Plotly drawings were removed, so a `renderer=` parameter is ignored.
 - A visx chart is drawn from a chart model (`lib/visualization/models/`) inside `ChartFrame`, which draws the PPIC frame: eyebrow, title, subtitle, the drawing and its key, and the source-and-notes box.
-- Maps sit in the same `ChartFrame`: Plotly draws only the geography, and the frame draws the title, key, and source box. Other Plotly drawings (the `?renderer=plotly` previews) keep their titles inside Plotly.
+- Maps sit in the same `ChartFrame`: Plotly draws only the geography, and the frame draws the title, key, and source box.
 - Comparison tabs above a chart show only when there are two or more comparisons to switch between.
 
 #### The visx line chart
@@ -257,7 +257,7 @@ Charts are moving from Plotly to visx one type at a time, following [[chart-rend
 
 #### The visx bar chart
 
-Built September 30, 2026 (Workstream E), following the style guide and the PPIC bar charts in `mockups/bar chart reference/`. It is the default bar drawing; `?renderer=plotly` shows the Plotly version.
+Built September 30, 2026 (Workstream E), following the style guide and the PPIC bar charts in `mockups/bar chart reference/`. It is the only bar drawing.
 
 - **Bars.** The value axis starts at zero, and no bar is narrower than 10px: the gap between groups shrinks first, and when even that is not enough the chart asks for fewer categories. Vertical bars draw horizontal grid lines; horizontal bars draw none, since theirs would be vertical. Missing and suppressed values are gaps, never zero-height bars.
 - **Layouts.** Orientation, Stacking (side by side, stacked, or stacked to 100%), and Diverging bars (bars grow from a center value, with an optional reference line, manual value range, and threshold colors). A stack is shaded dark to light: the series' own colors are handed out darkest first from the bottom segment up. In Advanced Mode, **Bars along** puts periods on the axis instead of locations, and **Color bars by** (shown when the bars have several comparisons and several periods) colors by comparison or period and nests the other inside each location, with dividers on vertical bars and bold header rows on horizontal ones.
@@ -272,7 +272,7 @@ Built September 30, 2026 (Workstream E), following the style guide and the PPIC 
 
 #### The visx range chart
 
-Built October 1, 2026 (Workstream F), following PPIC's published range plots in `mockups/range chart reference/`. It is the default range drawing; `?renderer=plotly` shows the Plotly version.
+Built October 1, 2026 (Workstream F), following PPIC's published range plots in `mockups/range chart reference/`. It is the only range drawing.
 
 - **Rows.** One row per category, labeled at the left, with a dotted guide line along it. With several comparisons and several locations, each location becomes a group with a bold header row, holding one row per comparison. With several comparisons and one location, each row is a comparison. Rows keep data order until the reader drags the locations in the Geographic Level list, which orders the rows (or the groups); Ranked values sits there too in Advanced Mode. The empty Categories panel no longer shows for range charts.
 - **Ends.** Each end has its own color on every row: Navy for the start and Orange for the end, or the first two colors of a chosen categorical palette. **Range style** chooses Dots (a filled dot at each end, joined by a thick light gray bar) or Arrow (an arrow from the start to the end in the end's color, pointing left for a decline). A row missing either value keeps its label and the mark it has, with no connector.
@@ -285,7 +285,7 @@ Built October 1, 2026 (Workstream F), following PPIC's published range plots in 
 
 #### The visx dot plot
 
-Built October 5, 2026 (Workstream G), on the range chart's row layout and PPIC's published business-regulation plots. It is the default dot plot drawing; `?renderer=plotly` shows the Plotly version.
+Built October 5, 2026 (Workstream G), on the range chart's row layout and PPIC's published business-regulation plots. It is the only dot plot drawing.
 
 - **Dots and rows.** With several comparisons, each comparison is a dot, colored as the Plotly dot plot colors it; with one period the rows are the places, and with several each row is a period, grouped under a bold header per place. With one comparison over several periods, each period is a dot: Navy, then Orange, then the official colors without light Gray (or a chosen categorical palette). A light band runs from each row's lowest dot to its highest. A dot that overlaps an earlier one in its row gets a white outline. Missing and suppressed values draw no dot.
 - **Order and labels.** Rows keep data order until the reader drags the locations in the Geographic Level list. Row label alignment, Hide X-Axis (including an old `showValueAxis: false`), and the value axis (fits the data, with a darker line at zero) match the range chart.
@@ -297,7 +297,7 @@ Built October 5, 2026 (Workstream G), on the range chart's row layout and PPIC's
 
 #### The visx scatter and bubble charts
 
-Built October 5, 2026 (Workstream J), following the owner's reference scatter (HHI against LQ of the most exposed quintile). They are the default scatter and bubble drawings; `?renderer=plotly` shows the Plotly versions. One chart model (`pointModel.js`) serves both, and both renderers assemble points from one row per measure through `pairOutcomes`.
+Built October 5, 2026 (Workstream J), following the owner's reference scatter (HHI against LQ of the most exposed quintile). They are the only scatter and bubble drawings. One chart model (`pointModel.js`) serves both, assembling points from one row per measure through `pairOutcomes`.
 
 - **Points.** Small filled points in their comparison's color (one comparison is all PPIC orange). Bubbles are sized by area up to a 28px radius, a little translucent with a white outline, in data order; the unused `sizeByArea` setting is ignored. A point missing its horizontal value, vertical value, or (on a bubble) size is left out, never drawn at zero; a genuine zero stays. A chart with nothing to place says why.
 - **Axes.** The vertical axis starts at zero, as the guide asks, and the horizontal axis fits the data. **Fit both axes to the data** fits both, as the reference does. Either axis gets a darker zero line when it crosses zero. Light grid lines run both ways at each labeled tick. The axis titles sit in bold inside the plot, the vertical one at the top left and the horizontal one at the bottom right, in a clear band beyond the outermost ticks.
@@ -601,10 +601,12 @@ Presentation-only edits such as label or palette changes reuse the existing answ
 | Inline question execution | `lib/tabular/toObservations.js` |
 | Observation and response validation | `lib/visualization/observationContract.js` |
 | Client request and geometry boundary | `components/chart-builder/chartData.js` |
-| Observations-to-figure rendering (Plotly) | `lib/visualization/adapters/index.js` |
+| Observations-to-figure rendering (Plotly maps, data table rows) | `lib/visualization/adapters/index.js` |
+| Editor series names, for every chart type | `lib/visualization/seriesNames.js` |
 | Renderer choice per chart type | `lib/visualization/chartRegistry.js` (`renderer`, `rendererFor`) |
 | Observations-to-chart-model (visx) | `lib/visualization/models/` |
 | Drawing either renderer, and the ready signal | `components/charts/ChartRenderer.js` |
+| UI Kit example charts on the production renderers | `components/ui-kit/SpecimenChart.js` |
 | PPIC frame and source box | `components/charts/ChartFrame.js` |
 | Style-guide values | `lib/visualization/chartStyle.js` |
 | Shared settings reader | `lib/visualization/models/sharedSettings.js` |
@@ -614,7 +616,7 @@ Presentation-only edits such as label or palette changes reuse the existing answ
 | Saved view and workspace serialization | `components/chart-builder/savedViews.js` |
 | Image, data, and embed export | `components/chart-builder/ExportMenu.js` and `lib/export/*` |
 
-`toPlotly.js` is not the production editor renderer. It remains live for UI Kit examples. Production editor figures come from `adaptObservations`.
+`toPlotly.js` was retired on October 18, 2026 (renderer plan O) and is quarantined in `.trash/renderer-cleanup/`. Production editor figures come from the visx models, and from `adaptObservations` for the two maps and the data table only (the non-map Plotly adapters were removed the same day, along with the `renderer=` preview parameter and the four legacy Plotly screenshot baselines), and the UI Kit's example charts draw through the same `ChartFrame` and `ChartRenderer` (`components/ui-kit/SpecimenChart.js`). `components/charts/PlotlyChart.js` is the only file that imports `react-plotly.js`, and only `ChartRenderer` mounts it. Adapters take no raw Plotly layout: the old `appearance.layout` pass-through is gone. The editor's series names (palette group count, bar and dot plot series controls) come from `lib/visualization/seriesNames.js`, not from Plotly trace names.
 
 ### Interface components and migration notes
 
@@ -755,16 +757,16 @@ This block is generated from `lib/visualization/settingsRegistry.js`. It is the 
 | classification | Class breaks | Appearance | standard | Charts: choroplethMap, symbolMap; datasets: All | quantile, equalInterval, custom, continuous | presentation.appearance.classification | lib/visualization/colorScale.js |
 | comparisonColor | Comparison color | Appearance | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.comparisons[].color | lib/visualization/palettes.js |
 | comparisonGeographyOverride | Comparison geography override | Comparisons | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.comparisons[].geography | lib/data/visualization/executeQuestion.js |
-| comparisonLegendLabel | Comparison legend label | Appearance | standard | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.comparisons[].customLabel | lib/visualization/adapters/index.js |
-| comparisonPresentation | Comparison presentation | Comparisons | standard | Charts: All; datasets: All | See resolved chart and dataset capabilities | presentation.comparisonPresentation | lib/visualization/adapters/index.js |
+| comparisonLegendLabel | Comparison legend label | Appearance | standard | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.comparisons[].customLabel | lib/visualization/comparisons.js |
+| comparisonPresentation | Comparison presentation | Comparisons | standard | Charts: All; datasets: All | See resolved chart and dataset capabilities | presentation.comparisonPresentation | lib/visualization/lineSeries.js |
 | comparisons | Comparisons | Comparisons | standard | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.comparisons | lib/data/visualization/executeQuestion.js |
 | comparisonTimeOverride | Comparison time override | Comparisons | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.comparisons[].time | lib/data/visualization/executeQuestion.js |
-| comparisonVisibility | Comparison visibility | Appearance | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | presentation.comparisonVisibility | lib/visualization/adapters/index.js |
+| comparisonVisibility | Comparison visibility | Appearance | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | presentation.comparisonVisibility | lib/visualization/lineSeries.js |
 | customDivergingStops | Custom diverging stops | Appearance | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | presentation.appearance.divergingStops | lib/visualization/palettes.js |
 | dashedRange | Dashed lines for a range of periods | Appearance | standard | Charts: line; datasets: All | See resolved chart and dataset capabilities | presentation.appearance.dashedRange | lib/visualization/models/lineModel.js |
 | fitAxes | Fit both axes to the data | Appearance | standard | Charts: scatter, bubble; datasets: All | On or off (off: the vertical axis starts at zero) | presentation.appearance.fitAxes | lib/visualization/models/pointModel.js |
 | hideGridLines | Hide grid lines | Appearance | standard | Charts: line, bar, dumbbell, dotPlot, forest, scatter, bubble; datasets: All | On or off (off by default); the axes stay | presentation.appearance.hideGridLines | lib/visualization/models/sharedSettings.js |
-| hideXAxis | Hide horizontal axis | Appearance | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | presentation.appearance.hideXAxis | lib/visualization/adapters/index.js |
+| hideXAxis | Hide horizontal axis | Appearance | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | presentation.appearance.hideXAxis | lib/visualization/models/rangeModel.js |
 | hole | Donut hole | Appearance | standard | Charts: pie; datasets: All | Share of the radius, 0 to 0.6 (0, a full pie, by default) | presentation.appearance.hole | lib/visualization/models/pieModel.js |
 | markerSize | Marker size | Appearance | standard | Charts: dotPlot; datasets: All | Dot diameter in px, 6 to 20 (9 by default) | presentation.appearance.markerSize | lib/visualization/models/dotPlotModel.js |
 | outcomes | Outcome | Outcome | standard | Charts: All; datasets: All | See resolved chart and dataset capabilities | question.outcomes | lib/data/visualization/executeQuestion.js |

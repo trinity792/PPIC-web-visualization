@@ -6,7 +6,7 @@
 
 import React from "react";
 
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -109,47 +109,5 @@ describe("PlotlyChart export integration", () => {
     expect(layout.height).toBe(740);
     expect(plotlyMock.props.style.height).toBe("740px");
     expect(plotlyMock.props.layout.height).toBe(740);
-  });
-
-  it("turns horizontal line spacing into physical and internal Plotly height", () => {
-    render(
-      <PlotlyChart
-        data={[]}
-        layout={{
-          height: 740,
-          meta: {
-            ppicLinePadding: { horizontal: 10, horizontalCount: 3 },
-          },
-        }}
-        height={520}
-      />,
-    );
-
-    expect(plotlyMock.props.style.height).toBe("800px");
-    expect(plotlyMock.props.layout.height).toBe(800);
-    expect(plotlyMock.props.layout.yaxis?.nticks).toBeUndefined();
-  });
-
-  it("turns vertical line spacing into physical width", async () => {
-    const rect = vi
-      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
-      .mockReturnValue({ width: 600 });
-    try {
-      render(
-        <PlotlyChart
-          data={[]}
-          layout={{
-            meta: {
-              ppicLinePadding: { vertical: 12, verticalCount: 5 },
-            },
-          }}
-        />,
-      );
-
-      await waitFor(() => expect(plotlyMock.props.style.width).toBe("720px"));
-      expect(plotlyMock.props.layout.xaxis?.nticks).toBeUndefined();
-    } finally {
-      rect.mockRestore();
-    }
   });
 });

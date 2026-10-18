@@ -2,12 +2,10 @@ import { expect, it } from "vitest";
 import { input } from "@/tests/fixtures/visualization-v3/renderer";
 
 import { buildHeatmapModel } from "@/lib/visualization/models/heatmapModel";
-import { adaptObservations } from "@/lib/visualization/adapters";
-it("uses the same color scale the Plotly heatmap uses", () => {
+it("uses the chosen diverging stops as its color scale", () => {
   const fixture = input("heatmap", { appearance: { colorScale: "diverging", divergingStops: ["#8F3811", "#ECE8E7", "#0F4880"] } });
   const expected = [[0,"#8F3811"],[0.5,"#ECE8E7"],[1,"#0F4880"]];
   expect(buildHeatmapModel(fixture).colorScale).toEqual(expected);
-  expect(adaptObservations(fixture).data[0].colorscale).toEqual(expected);
 });
 it("draws a missing cell as empty, not the lowest color", () => {
   const cell = buildHeatmapModel(input("heatmap")).cells.find(c => c.category === "10-14" && c.period === 2025);

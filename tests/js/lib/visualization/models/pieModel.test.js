@@ -2,11 +2,9 @@ import { expect, it } from "vitest";
 import { input, lineRows } from "@/tests/fixtures/visualization-v3/renderer";
 
 import { buildPieModel } from "@/lib/visualization/models/pieModel";
-import { adaptObservations } from "@/lib/visualization/adapters";
-it("gives each slice the same color the Plotly pie gives it", () => {
+it("gives each slice its color", () => {
   const fixture = input("pie", { observations: lineRows.filter(r => r.period === 2025) });
   expect(buildPieModel(fixture).slices.map(s => s.color)).toEqual(["#CA4F1A", "#293B54"]);
-  expect(adaptObservations(fixture).data[0].marker.colors).toEqual(["#CA4F1A", "#293B54"]);
 });
 it("leaves out a missing slice rather than drawing it as zero", () => expect(buildPieModel(input("pie")).slices.map(s => [s.label,s.value])).toEqual([["0-4",3000],["5-9",3500]]));
 it("orders and hides slices as chosen", () => expect(buildPieModel(input("pie", { appearance: { categoryOrder: ["5-9", "0-4", "10-14"], hiddenCategories: ["0-4"] } })).slices.map(s => s.label)).toEqual(["5-9"]));
@@ -28,7 +26,6 @@ const regionInput = () => input("pie", {
 });
 it("names each place slice by its place when one comparison spans several places", () => {
   expect(buildPieModel(regionInput()).slices.map(s => s.label)).toEqual(["Bay Area", "Central Coast", "Far North"]);
-  expect(adaptObservations(regionInput()).data[0].labels).toEqual(["Bay Area", "Central Coast", "Far North"]);
 });
 it("gives each place slice its own color, not the comparison's", () => {
   const colors = buildPieModel(regionInput()).slices.map(s => s.color);

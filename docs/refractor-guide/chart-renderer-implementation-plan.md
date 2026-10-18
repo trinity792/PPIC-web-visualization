@@ -4,7 +4,7 @@ Content Type: implementation plan
 pinned: false
 description: "A tests-first plan for moving every chart except maps from Plotly to visx, one chart type at a time, so each chart follows the PPIC Data Visualization Style Guide and every editor control works. Written for programmers continuing the visualization work."
 Date Published: September 26, 2026
-Last Updated: 10/12/2026 - 02:40 PM
+Last Updated: 10/18/2026 - 04:00 PM
 Status: Updating
 ---
 
@@ -35,6 +35,8 @@ The work runs in five stages, plus an optional sixth and a seventh. A stage star
 > **October 10, 2026.** Workstreams H (forest plot) and K (pie chart) are built and, after owner review, are the visx default on the same terms. The forest plot is now offered only on pasted data, because no module question returns interval bounds. Their screenshot baselines await review. Workstreams I and L to O remain.
 >
 > **October 12, 2026.** Workstreams I (heatmap) and L (maps) are built. The heatmap is the visx default, with image export on. The owner decided three things for the maps the same day: one Maps tile with a Choropleth or Symbols choice, discrete color classes by default (as PPIC's published maps draw them), and maps inside the PPIC frame now rather than in Workstream M. That last decision brings forward M's step 5 (maps join the frame). Screenshot baselines for both await review. Workstreams N and O remain.
+>
+> **October 18, 2026.** Workstream O is built. The owner approved removing the non-map Plotly adapters the same day, along with the `renderer=` preview parameter and the four legacy Plotly screenshot baselines (see the October 18 note in Workstream O). Plotly now draws only the two maps. The full unit suite passes.
 >
 > On September 30 the owner collected twelve published PPIC bar charts (`mockups/bar chart reference/`). Workstream E was widened to cover them, and the owner decided its eleven new rows the same day (ten Build, one Remove). The features they share with other chart types (callouts, highlights, context gray, custom label text, and panels) went into a new optional Workstream P. Workstream E was built the same day, and after two rounds of owner review the bar chart became visx by default, as the line chart had (see the exception below).
 
@@ -1416,6 +1418,21 @@ Extend `tests/js/architecture/visualizationV3Cutover.test.js`:
 | `no adapter reads appearance.layout` | The raw pass-through is gone. |
 
 Remove or rewrite the `toPlotly.*.test.js` files together with `toPlotly.js`, stating in the change which cases moved to the new model tests and which were dropped because the feature they tested no longer exists.
+
+> [!note] As built, October 18, 2026
+> - **UI Kit.** `GraphsShowcase.js` and `CardsShowcase.js` draw their examples through the production renderers, using a new helper, `components/ui-kit/SpecimenChart.js`, which builds the same tagged visx result as `PreviewContext` and draws it in `ChartFrame` with `ChartRenderer`. The key swatches under each example are read from the built model. The Cards trend chart had two value axes in Plotly; the visx line has one, so both series now share it, in millions. New test: `tests/js/components/ui-kit/showcaseSpecimens.test.js`.
+> - **`toPlotly.js` retired.** Nothing imported it except `PlotlyChart.js` (for `fitFootnoteLayout`) and the two orphaned files. `fitFootnoteLayout` was not moved: it only acted on the `ppic-footnote` annotation that `toPlotly` alone created, and maps draw their notes in `ChartFrame`, so `PlotlyChart` no longer calls it. `toPlotly.js` and five test files (`toPlotly.test.js`, `.palette`, `.forest`, `.catalog`, `.decimalPlaces`) moved to `.trash/renderer-cleanup/`. Every case in them drew through `toPlotly`, so none moved to model tests; the visx models already have their own. `toPlotly.palette.v3.test.js` never used `toPlotly` and was renamed `palettes.valueRamps.test.js`. Two `toPlotly` checks in `moduleWorkbenchMigrations.test.js` and one in `chartRegistry.catalog.test.js` were dropped; the migration they guarded is still pinned by the tests beside them.
+> - **`appearance.layout` pass-through removed** from `layoutFor` in `adapters/index.js`. The screenshot fixture now carries its pinned legacy layout as `pinnedLayout` and lays it over the adapter's result itself, with the same one-level axis merge, so the four approved baselines are unchanged.
+> - **Orphans.** `ComponentsOfChangeLineSection.js` and `PopHousingLineSection.js` moved to `.trash/renderer-cleanup/`.
+> - **Dependencies.** `recharts` uninstalled. `react-plotly.js` is imported only by `PlotlyChart.js`, which only `ChartRenderer.js` mounts.
+> - **Step 2, adapters (owner-approved the same day).** `adapters/index.js` now handles only the two maps and the data table; the line, bar, range, dot plot, forest, heatmap, scatter, bubble, and pie adapters are gone, and `adaptObservations` reports any other type as unregistered. Two things depended on them:
+>   - **Editor series names.** `PreviewContext` read the palette group count and the bar and dot plot series names off the Plotly trace names for every chart type. A new module, `lib/visualization/seriesNames.js`, returns the same names from the shared helpers (`lineSeries`, `barSeries`, visible comparisons, range rows; none for pie, heatmap, and forest, whose traces had none). Before removal it was checked against the old adapter on 89 fixture cases. Test: `seriesNames.test.js`.
+>   - **Line spacing in `PlotlyChart`.** The `ppicLinePadding` sizing was set only by the removed line adapters, so `PlotlyChart` no longer reads it (the visx charts space their own lines); its two tests went.
+> - **The `renderer=` preview parameter is gone.** `rendererFor(type)` returns the descriptor's renderer; `PreviewContext`, the fixture page, and the Playwright spec no longer pass one. `PreviewPane.renderer.test.js` now checks the real choices (visx for every non-map type, Plotly for maps) and that an address parameter is ignored.
+> - **Legacy screenshots retired.** The four Plotly baselines (`line-comparisons`, `bar-comparisons`, `range-two-period`, `heatmap-active-comparison`) and their tests moved to `.trash/renderer-cleanup/`; the fixture page always reads the renderer scenarios. They pictured Plotly charts the editor no longer drew, ran only by hand, and the owner reviews charts on the dev server.
+> - **Tests.** In `adapters/comparisonPresentation.test.js` the four map tests stay; fifteen Plotly-only tests went; the rules that still apply moved to visx model tests in `models/presentationRules.test.js` (tabs keep colors, a chosen comparison color beats the palette, palette selection, place names in series labels, the official palette sized to every line, no recomputed change, no re-sorted ranking, multi-year bars, the pie's selected-years note). `adapters/points.test.js` (Plotly/visx parity only) moved to `.trash/`. The one-line Plotly parity checks in six model tests and `renderer.contract.test.js` now assert the pinned values alone. The cutover test's routing check now accepts the model builders for visx types.
+> - **Settings registry.** Four `consumer` paths that named `adapters/index.js` now name the files that read those settings (`lineSeries.js`, `comparisons.js`, `models/rangeModel.js`); the settings reference was regenerated.
+> - **Also left in place:** `lib/visualization/plotlyDefaults.js` and its test. Nothing in the app imports it any longer.
 
 ---
 

@@ -3,11 +3,9 @@ import { input, pointRows, pointGroups, comparisons } from "@/tests/fixtures/vis
 import { moduleScatterRows } from "@/tests/fixtures/visualization-v3/modulePoints";
 
 import { buildPointModel } from "@/lib/visualization/models/pointModel";
-import { adaptObservations } from "@/lib/visualization/adapters";
-it.each(["scatter", "bubble"])("gives each comparison the same color the Plotly chart gives it: %s", chartType => {
+it.each(["scatter", "bubble"])("gives each point its comparison's color: %s", chartType => {
   const fixture = input(chartType, { comparisons: [comparisons[0]] });
   expect(buildPointModel(fixture).points.map(p => p.color)).toEqual(["#CA4F1A", "#CA4F1A"]);
-  expect(adaptObservations(fixture).data[0].marker.color).toBe("#CA4F1A");
 });
 it("sizes bubbles by area", () => {
   const points = buildPointModel(input("bubble", { appearance: { sizeByArea: false } })).points;

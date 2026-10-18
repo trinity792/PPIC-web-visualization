@@ -2,11 +2,9 @@ import { expect, it } from "vitest";
 import { input, gapRows, comparisons, observations } from "@/tests/fixtures/visualization-v3/renderer";
 
 import { buildBarModel } from "@/lib/visualization/models/barModel";
-import { adaptObservations } from "@/lib/visualization/adapters";
 import { tableToObservations } from "@/lib/tabular/toObservations";
-it("gives each comparison the same color the Plotly bar chart gives it", () => {
+it("gives each comparison its color", () => {
   expect(buildBarModel(input("bar")).series.map(s => s.color)).toEqual(["#CA4F1A", "#293B54"]);
-  expect(adaptObservations(input("bar")).data.map(s => s.marker.color)).toEqual(["#CA4F1A", "#293B54"]);
 });
 it("starts the value axis at zero", () => expect(buildBarModel(input("bar")).valueAxis.domain[0]).toBe(0));
 it("keeps missing values as gaps, not zero-height bars", () => {
@@ -102,7 +100,8 @@ it("keeps today's series and colors when Color bars by is not saved", () => {
   const model = buildBarModel(value);
   expect(model.series.map(s => s.label)).toEqual(["Latina Women · 2020", "Latina Women · 2025", "White Women · 2020", "White Women · 2025"]);
   expect(model.groups).toEqual([]);
-  expect(model.series.map(s => s.color)).toEqual(adaptObservations(value).data.map(s => s.marker.color));
+  // The colors the Plotly bar drew before renderer plan O removed it.
+  expect(model.series.map(s => s.color)).toEqual(["#CA4F1A", "#293B54", "#CCCB74", "#44AFD0"]);
 });
 it("labels only the chosen series", () => {
   const model = buildBarModel(input("bar", { appearance: { showValueLabels: true, valueLabelSeries: { "White Women": false } } }));

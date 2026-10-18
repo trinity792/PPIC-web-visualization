@@ -1,9 +1,8 @@
 /**
  * Workstream E - value ramps stay separate from comparison colours.
  *
- * Belongs to `toPlotly.palette.test.js` and folds back into it once
- * `lib/visualization/adapters/` exists. Split out only so an unwritten module
- * does not stop the live palette-plumbing tests from collecting.
+ * Was `toPlotly.palette.v3.test.js`; renamed when `toPlotly.js` and its own
+ * palette tests were retired (renderer plan O). Nothing here used `toPlotly`.
  */
 
 import { describe, expect, it } from "vitest";

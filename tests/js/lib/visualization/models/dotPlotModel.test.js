@@ -2,10 +2,8 @@ import { expect, it } from "vitest";
 import { input, gapRows, comparisons, observations } from "@/tests/fixtures/visualization-v3/renderer";
 
 import { buildDotPlotModel } from "@/lib/visualization/models/dotPlotModel";
-import { adaptObservations } from "@/lib/visualization/adapters";
-it("gives each series the same color the Plotly dot plot gives it", () => {
+it("gives each series its comparison's color", () => {
   expect(buildDotPlotModel(input("dotPlot")).series.map(s => s.color)).toEqual(["#CA4F1A", "#293B54"]);
-  expect(adaptObservations(input("dotPlot")).data.map(s => s.marker.color)).toEqual(["#CA4F1A", "#293B54"]);
 });
 it("keeps missing values as gaps", () => {
   const model = buildDotPlotModel(input("dotPlot", { observations: gapRows, comparisons: [comparisons[2]] }));

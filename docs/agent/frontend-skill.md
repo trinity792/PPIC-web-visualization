@@ -15,7 +15,7 @@ Topic: Skill Guide
 Content Type: agent instructions
 pinned: false
 Date Published: June 30, 2026
-Last Updated: 10/05/2026 - 08:30 PM
+Last Updated: 10/18/2026 - 04:00 PM
 Status: Finalized
 ---
 
@@ -325,37 +325,25 @@ State lives in the lowest common ancestor of the components that need it. Avoid 
 
 ## Chart Component Conventions
 
-Charts are moving from Plotly.js (via `react-plotly.js`) to visx, one chart type at a time; see [[chart-renderer-implementation-plan]]. The line, bar, range, dot plot, scatter, bubble, forest, and pie charts draw with visx (`components/charts/visx/`), maps stay on Plotly, and each chart type's renderer is declared in `lib/visualization/chartRegistry.js`. Chart components follow these conventions.
+Every chart except the two maps draws with visx (`components/charts/visx/`): line, bar, range, dot plot, scatter, bubble, forest, heatmap, and pie. Plotly.js (via `react-plotly.js`) draws only the choropleth and symbol maps, and is loaded on demand through `next/dynamic` inside `components/charts/PlotlyChart.js`. Each chart type's renderer is declared in `lib/visualization/chartRegistry.js`; see [[chart-renderer-implementation-plan]] for how the move was made. Chart components follow these conventions.
 
-### Wrapper Pattern
+### Model and Drawing Pattern
 
-Every chart type gets a single reusable wrapper. The wrapper accepts data and configuration as props and builds the Plotly `data`/`layout`/`config` objects internally.
+A chart is built in two steps, so the drawing stays testable without a browser:
 
-```js
-/**
- * TimeSeriesChart.js — Plotly line chart wrapper for multi-location time series.
- *
- * Props:
- *   traces    {Array<Object>}  — array of { name, x, y } trace definitions
- *   title     {string}         — chart title
- *   yLabel    {string}         — y-axis label
- *   baseYear  {number|null}    — if set, index to 100 at this year
- *   height    {number}         — chart height in pixels (default: 500)
- *
- * Data sources:
- *   - Via props from parent
- *
- * UI Kit reference:
- *   - Implements the "Chart Container" pattern from the UI Kit page
- */
-```
+1. **A model builder** in `lib/visualization/models/` turns prepared observations into a plain description of what to draw (series, points, axis ranges, key entries). It is a pure function with no React.
+2. **A visx drawing** in `components/charts/visx/` takes `{ model, width, height }` and draws it. It never measures itself: `ChartFrame` measures the space and hands it an exact size, and draws the title, key, and source box around it.
+
+`components/charts/ChartRenderer.js` is the one place that maps a chart type to its drawing, and the only file that mounts `PlotlyChart`. Nothing else imports `react-plotly.js` or `PlotlyChart`; a guard test in `tests/js/architecture/visualizationV3Cutover.test.js` enforces this. A new chart type registers in three places in one change: `VISX_CHART_TYPES` (chartRegistry.js), `MODEL_BUILDERS` (`lib/visualization/models/index.js`), and `VISX_CHARTS` (ChartRenderer.js).
+
+To show a chart outside the editor (the UI Kit, a fixture page), build the same tagged result the editor builds and draw it through `ChartFrame` and `ChartRenderer`, as `components/ui-kit/SpecimenChart.js` does. Never hand-build a Plotly figure or a one-off chart.
 
 ### Configuration Defaults
 
 Chart style values (type sizes, line weights, spacing, export widths, the grid rule, the source box, and the hover label) live in one frozen object, `CHART_STYLE` in `lib/visualization/chartStyle.js`, built from `lib/constants.js` tokens. Every chart reads it:
 
 - visx charts and `ChartFrame` read it directly;
-- the Plotly defaults in `lib/visualization/plotlyDefaults.js` (`PLOTLY_FONT`, `PLOTLY_GRID_COLOR`, `legendFor`) read their font and grid from it; and
+- the map adapters in `lib/visualization/adapters/index.js` take the Plotly map's font from it; and
 - the settings every chart shares (labels, typography, key placement, number formats) are read once, by `lib/visualization/models/sharedSettings.js`.
 
 Do not repeat style values per chart. Add a missing value to `constants.js` or `chartStyle.js`, then import it.

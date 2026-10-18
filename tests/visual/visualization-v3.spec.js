@@ -1,16 +1,13 @@
 /**
- * Workstream F - visual regression for the four approved chart families.
+ * Workstream F flows and the renderer plan's screenshot, embed, and keyboard
+ * checks.
  *
- * These four cover the layout risks the figure-object tests cannot see: a
- * legend that overlaps the plot, a grouped bar that collides at eight
- * comparisons, connectors that cross their endpoints, and a colour scale whose
- * legend loses its labels.
- *
- * Requires a deterministic fixture route (Workstream F, implementation step 4)
- * at `/__visual/visualization-v3`, which renders one chart from
+ * The chart checks use a deterministic fixture route at
+ * `/__visual/visualization-v3`, which renders one chart from
  * `tests/fixtures/visualization-v3/` with no network access, no random ids, and
  * no timestamps. It is a test-only route and must not ship in the public
- * navigation.
+ * navigation. The four original Plotly baselines (line, bar, range, heatmap)
+ * were retired in renderer plan O, when Plotly stopped drawing those charts.
  *
  * A failing baseline is a question, not a chore: look at the diff, decide
  * whether the new picture is the intended one, and only then re-record.
@@ -22,7 +19,6 @@ const FIXTURE_ROUTE = "/__visual/visualization-v3";
 
 /** Wait for the renderer-neutral ready signal and loaded fonts (plan B).
  * `scenario` selects tests/fixtures/visualization-v3/rendererVisual.js.
- * Stage 1 deliberately does not implement the fixture-route renderer switch.
  */
 async function openChart(page, chart, options = {}) {
   const query = new URLSearchParams({ chart, ...options });
@@ -33,54 +29,10 @@ async function openChart(page, chart, options = {}) {
 
 const plot = (page) => page.getByTestId("visual-fixture-plot");
 
-test.describe("visualization v3 baselines", () => {
-  test.beforeEach(async ({ page }) => {
-    // Plotly transitions and CSS animation both make a screenshot depend on
-    // when it was taken.
-    await page.emulateMedia({ reducedMotion: "reduce" });
-  });
-
-  test("matches the approved Line comparison layout", async ({ page }) => {
-    await openChart(page, "line");
-
-    // Four comparisons, combined, with full derived labels - the default
-    // presentation and the one a legend can most easily break.
-    await expect(page.getByText("San Francisco Latina Women")).toBeVisible();
-    await expect(plot(page)).toHaveScreenshot("line-comparisons.png");
-  });
-
-  test("matches the approved Bar comparison layout", async ({ page }) => {
-    await openChart(page, "bar");
-
-    // Grouping, category labels, and the spacing between groups. This is where
-    // a comparison count change shows up as overlapping tick labels.
-    await expect(plot(page)).toHaveScreenshot("bar-comparisons.png");
-  });
-
-  test("matches the approved Range layout", async ({ page }) => {
-    await openChart(page, "dumbbell");
-
-    // Two endpoints, the connector between them, and the row labels. A Range
-    // chart drawn from swapped endpoints still renders; it just points the
-    // wrong way, which only a picture catches.
-    await expect(plot(page)).toHaveScreenshot("range-two-period.png");
-  });
-
-  test("matches the approved Heatmap tab layout", async ({ page }) => {
-    await openChart(page, "heatmap");
-
-    // The active comparison tab, the colour scale legend, the cell grid, and
-    // the axis labels.
-    await expect(page.getByRole("tab", { selected: true })).toBeVisible();
-    await expect(plot(page)).toHaveScreenshot("heatmap-active-comparison.png");
-  });
-});
-
 test.describe("full flows", () => {
   /**
    * The eight flows from Workstream F. They exercise the editor rather than a
-   * static fixture, so they assert behaviour and leave the pixels to the four
-   * baselines above.
+   * static fixture, so they assert behaviour, not pixels.
    */
 
   test("generates comparisons and draws a combined Line with full legend labels", async ({
@@ -188,7 +140,7 @@ test.describe("renderer plan screenshots", () => {
   ];
   for(const [name, chart, scenario, filename] of cases) test(name, async ({ page }) => {
     const renderer = ["choroplethMap", "symbolMap"].includes(chart) ? "plotly" : "visx";
-    await openChart(page, chart, { renderer, scenario, width: scenario === "narrow" ? "330" : "950" });
+    await openChart(page, chart, { scenario, width: scenario === "narrow" ? "330" : "950" });
     // Prove the route honored the requested scenario before comparing pixels.
     await expect(plot(page)).toHaveAttribute("data-scenario", scenario);
     await expect(plot(page).locator('[data-chart-ready="true"]')).toHaveAttribute("data-renderer", renderer);
@@ -228,7 +180,7 @@ test.describe("renderer plan embed and keyboard access", () => {
   }
   for(const chart of ["line", "bar", "dumbbell", "dotPlot", "forest", "heatmap", "scatter", "bubble", "pie"]) {
     test(`${chart} tooltip is keyboard reachable with visible focus`, async ({ page }) => {
-      await openChart(page, chart, { renderer: "visx", scenario: "default" });
+      await openChart(page, chart, { scenario: "default" });
       const drawing = plot(page).getByRole("img");
       // Reach through the tab order, not element.focus(), which bypasses it.
       for(let i = 0; i < 30; i++) {

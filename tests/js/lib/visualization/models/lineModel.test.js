@@ -2,16 +2,13 @@ import { expect, it } from "vitest";
 import { input, observations, gapRows, comparisons } from "@/tests/fixtures/visualization-v3/renderer";
 
 import { buildLineModel } from "@/lib/visualization/models/lineModel";
-import { adaptObservations } from "@/lib/visualization/adapters";
-it("gives each series the same color the Plotly line chart gives it", () => {
+it("gives each series its comparison's color", () => {
   const model = buildLineModel(input());
   expect(model.series.map(s => s.color)).toEqual(["#CA4F1A", "#293B54"]);
-  expect(adaptObservations(input()).data.map(s => s.line.color)).toEqual(["#CA4F1A", "#293B54"]);
 });
-it("keeps series order and names from the Plotly line chart", () => {
+it("keeps series order and names", () => {
   const model = buildLineModel(input());
   expect(model.series.map(s => s.label)).toEqual(["Latina Women", "White Women"]);
-  expect(adaptObservations(input()).data.map(s => s.name)).toEqual(["Latina Women", "White Women"]);
   expect(model.periods).toEqual([2020, 2025, 2030]);
   expect(model.series[0].points.map(p => p.value)).toEqual([40000, 50000, 60000]);
   expect(model.series[0].points[2]).toMatchObject({ period: 2030, status: "available", valueKind: "projected" });

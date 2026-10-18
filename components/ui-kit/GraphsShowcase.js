@@ -1,7 +1,13 @@
 "use client";
 
 /**
- * GraphsShowcase.js — Plotly chart-type specimens and their visual properties.
+ * GraphsShowcase.js — chart-type specimens drawn with the production renderers,
+ * and their visual properties.
+ *
+ * Each specimen goes through the same model builders, ChartFrame, and
+ * ChartRenderer as the editor (renderer plan O), so the UI Kit shows exactly
+ * what users get. The key swatches below each chart are read from the built
+ * model, so they cannot drift from the drawing.
  *
  * Props:
  *   None.
@@ -15,41 +21,19 @@
 
 import React from "react";
 
-import PlotlyChart from "@/components/charts/PlotlyChart";
 import { Section } from "@/components/ui-kit/Section";
+import SpecimenChart, {
+  specimenObservation,
+  specimenResult,
+} from "@/components/ui-kit/SpecimenChart";
 
-import {
-  BASE_PLOTLY_COLORS,
-  COLORS,
-  UI_KIT_CHART_HEIGHT,
-} from "@/lib/constants";
-import {
-  DEFAULT_PLOTLY_CONFIG,
-  PLOTLY_FONT_FAMILY,
-  PLOTLY_GRID_COLOR,
-  PLOTLY_SURFACE,
-  legendFor,
-} from "@/lib/visualization/plotlyDefaults";
+import { UI_KIT_CHART_HEIGHT } from "@/lib/constants";
 
 /**
  * ======================================================================
- * Chart Configuration and Data
+ * Demonstration data
  * ======================================================================
  */
-
-// Shared production defaults keep showcase figures visually aligned with live charts.
-const baseConfig = { ...DEFAULT_PLOTLY_CONFIG, displayModeBar: false };
-
-const baseLayout = {
-  // Reserve enough bottom space for the shared bottom-legend anchor.
-  margin: { t: 12, r: 16, b: 72, l: 48 },
-  font: { family: PLOTLY_FONT_FAMILY, size: 12, color: COLORS.gray5 },
-  ...PLOTLY_SURFACE,
-  ...legendFor("bottom"),
-  hoverlabel: { font: { family: PLOTLY_FONT_FAMILY, size: 13 } },
-};
-
-// ── Demonstration data ───────────────────────────────────────────────
 
 const donutData = [
   { name: "Bay Area", value: 7.7 },
@@ -60,24 +44,26 @@ const donutData = [
 ];
 
 const lineData = [
-  { year: "2018", owners: 54.9, renters: 45.1 },
-  { year: "2019", owners: 55.3, renters: 44.7 },
-  { year: "2020", owners: 55.9, renters: 44.1 },
-  { year: "2021", owners: 56.0, renters: 44.0 },
-  { year: "2022", owners: 55.6, renters: 44.4 },
-  { year: "2023", owners: 55.8, renters: 44.2 },
-  { year: "2024", owners: 56.4, renters: 43.6 },
+  { year: 2018, owners: 54.9, renters: 45.1 },
+  { year: 2019, owners: 55.3, renters: 44.7 },
+  { year: 2020, owners: 55.9, renters: 44.1 },
+  { year: 2021, owners: 56.0, renters: 44.0 },
+  { year: 2022, owners: 55.6, renters: 44.4 },
+  { year: 2023, owners: 55.8, renters: 44.2 },
+  { year: 2024, owners: 56.4, renters: 43.6 },
 ];
 
-const scatterA = [
-  { income: 62, cost: 410 }, { income: 71, cost: 520 }, { income: 80, cost: 610 },
-  { income: 88, cost: 690 }, { income: 95, cost: 760 }, { income: 104, cost: 880 },
-  { income: 112, cost: 940 },
-];
-const scatterB = [
-  { income: 58, cost: 360 }, { income: 66, cost: 440 }, { income: 74, cost: 500 },
-  { income: 83, cost: 560 }, { income: 90, cost: 640 }, { income: 99, cost: 700 },
-];
+const scatterData = {
+  coastal: [
+    { income: 62, cost: 410 }, { income: 71, cost: 520 }, { income: 80, cost: 610 },
+    { income: 88, cost: 690 }, { income: 95, cost: 760 }, { income: 104, cost: 880 },
+    { income: 112, cost: 940 },
+  ],
+  inland: [
+    { income: 58, cost: 360 }, { income: 66, cost: 440 }, { income: 74, cost: 500 },
+    { income: 83, cost: 560 }, { income: 90, cost: 640 }, { income: 99, cost: 700 },
+  ],
+};
 
 const dumbbellData = [
   { region: "Bay Area", start: 712, end: 1180 },
@@ -86,132 +72,76 @@ const dumbbellData = [
   { region: "Sacramento", start: 360, end: 590 },
 ];
 
-// ── Plotly figures ───────────────────────────────────────────────────
+// ── Specimens (built once; the data never changes) ────────────────────
 
-const donutFigure = {
-  data: [
-    {
-      type: "pie",
-      hole: 0.55,
-      labels: donutData.map((d) => d.name),
-      values: donutData.map((d) => d.value),
-      sort: false,
-      direction: "clockwise",
-      textinfo: "none",
-      marker: { colors: BASE_PLOTLY_COLORS, line: { color: COLORS.white, width: 1 } },
-      hovertemplate: "%{label}: %{value}M<extra></extra>",
-    },
-  ],
-  layout: { ...baseLayout, margin: { t: 12, r: 12, b: 72, l: 12 } },
-};
+const population = { id: "population", label: "Population" };
+const donut = specimenResult({
+  chartType: "pie",
+  comparisons: [population],
+  observations: donutData.map(({ name, value }) =>
+    specimenObservation({
+      comparison: population,
+      measure: "Population (millions)",
+      period: 2024,
+      place: name,
+      value,
+    }),
+  ),
+  appearance: { hole: 0.55 },
+});
 
-const lineFigure = {
-  data: [
-    {
-      type: "scatter",
-      mode: "lines+markers",
-      name: "Owners",
-      x: lineData.map((d) => d.year),
-      y: lineData.map((d) => d.owners),
-      line: { color: COLORS.blue3, width: 2.5, shape: "spline" },
-      marker: { size: 6 },
-      hovertemplate: "%{x}: %{y}%<extra>Owners</extra>",
-    },
-    {
-      type: "scatter",
-      mode: "lines+markers",
-      name: "Renters",
-      x: lineData.map((d) => d.year),
-      y: lineData.map((d) => d.renters),
-      line: { color: COLORS.orange3, width: 2.5, shape: "spline" },
-      marker: { size: 6 },
-      hovertemplate: "%{x}: %{y}%<extra>Renters</extra>",
-    },
-  ],
-  layout: {
-    ...baseLayout,
-    xaxis: { showgrid: false, linecolor: COLORS.gray3, ticks: "outside", tickcolor: COLORS.gray3 },
-    yaxis: { gridcolor: PLOTLY_GRID_COLOR, zeroline: false, ticksuffix: "%" },
-  },
-};
+const medianCost = { id: "cost", label: "Median cost" };
+const dumbbell = specimenResult({
+  chartType: "dumbbell",
+  comparisons: [medianCost],
+  observations: dumbbellData.flatMap(({ region, start, end }) =>
+    [[2014, start], [2024, end]].map(([period, value]) =>
+      specimenObservation({
+        comparison: medianCost,
+        measure: "Median cost ($k)",
+        period,
+        place: region,
+        value,
+      }),
+    ),
+  ),
+});
 
-const scatterFigure = {
-  data: [
-    {
-      type: "scatter",
-      mode: "markers",
-      name: "Coastal",
-      x: scatterA.map((d) => d.income),
-      y: scatterA.map((d) => d.cost),
-      marker: { color: COLORS.blue3, size: 9 },
-      hovertemplate: "%{x}k income · %{y}k cost<extra>Coastal</extra>",
-    },
-    {
-      type: "scatter",
-      mode: "markers",
-      name: "Inland",
-      x: scatterB.map((d) => d.income),
-      y: scatterB.map((d) => d.cost),
-      marker: { color: COLORS.orange3, size: 9 },
-      hovertemplate: "%{x}k income · %{y}k cost<extra>Inland</extra>",
-    },
-  ],
-  layout: {
-    ...baseLayout,
-    // This chart has an x-axis title, so reserve extra bottom margin on top of the
-    // shared bottom-legend anchor so the legend clears the axis title/ticks.
-    margin: { ...baseLayout.margin, b: 104 },
-    xaxis: { gridcolor: PLOTLY_GRID_COLOR, zeroline: false, ticksuffix: "k", title: { text: "Income", font: { size: 12 } } },
-    yaxis: { gridcolor: PLOTLY_GRID_COLOR, zeroline: false, ticksuffix: "k" },
-  },
-};
+const owners = { id: "owners", label: "Owners" };
+const renters = { id: "renters", label: "Renters" };
+const line = specimenResult({
+  chartType: "line",
+  comparisons: [owners, renters],
+  observations: lineData.flatMap(({ year, ...shares }) =>
+    [owners, renters].map((comparison) =>
+      specimenObservation({
+        comparison,
+        measure: "Share of households",
+        unit: "percent",
+        period: year,
+        place: "California",
+        value: shares[comparison.id],
+      }),
+    ),
+  ),
+});
 
-const dumbbellFigure = {
-  data: [
-    // Connecting segments (one polyline broken by nulls between regions).
-    {
-      type: "scatter",
-      mode: "lines",
-      x: dumbbellData.flatMap((d) => [d.start, d.end, null]),
-      y: dumbbellData.flatMap((d) => [d.region, d.region, null]),
-      line: { color: COLORS.gray3, width: 3 },
-      hoverinfo: "skip",
-      showlegend: false,
-    },
-    {
-      type: "scatter",
-      mode: "markers",
-      name: "2014",
-      x: dumbbellData.map((d) => d.start),
-      y: dumbbellData.map((d) => d.region),
-      marker: {
-        color: COLORS.blue3,
-        size: 13,
-        line: { color: COLORS.white, width: 2 },
-      },
-      hovertemplate: "%{y}: %{x}k<extra>2014</extra>",
-    },
-    {
-      type: "scatter",
-      mode: "markers",
-      name: "2024",
-      x: dumbbellData.map((d) => d.end),
-      y: dumbbellData.map((d) => d.region),
-      marker: {
-        color: COLORS.orange3,
-        size: 13,
-        line: { color: COLORS.white, width: 2 },
-      },
-      hovertemplate: "%{y}: %{x}k<extra>2024</extra>",
-    },
-  ],
-  layout: {
-    ...baseLayout,
-    margin: { t: 12, r: 16, b: 72, l: 96 },
-    xaxis: { gridcolor: PLOTLY_GRID_COLOR, zeroline: false, ticksuffix: "k" },
-    yaxis: { automargin: true, ticksuffix: "  " },
-  },
-};
+const coastal = { id: "coastal", label: "Coastal" };
+const inland = { id: "inland", label: "Inland" };
+const scatter = specimenResult({
+  chartType: "scatter",
+  comparisons: [coastal, inland],
+  observations: [coastal, inland].flatMap((comparison) =>
+    scatterData[comparison.id].flatMap(({ income, cost }, index) => {
+      const point = { comparison, period: 2024, place: `${comparison.label} ${index + 1}` };
+      return [
+        specimenObservation({ ...point, measure: "Housing cost ($k)", value: cost }),
+        specimenObservation({ ...point, measure: "Income ($k)", value: income, role: "x" }),
+      ];
+    }),
+  ),
+  labels: { xAxis: "Income ($k)", yAxis: "Housing cost ($k)" },
+});
 
 /**
  * ======================================================================
@@ -225,110 +155,48 @@ export function GraphsShowcase() {
       id="graphs"
       eyebrow="Components"
       title="Example Graphs"
-      description="Chart types styled with the PPIC data palette, rendered with Plotly. Categorical series cycle through BASE_PLOTLY_COLORS; comparison pairs lead with blue (baseline) and orange (current)."
+      description="Chart types drawn with the same visx renderer, frame, and color rules as the editor. Comparison colors come from the official PPIC scheme; the swatches below each chart are read from the drawn chart's key."
     >
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Donut */}
         <GraphCard
           title="Donut · Population share by region"
           summary="Southern California has the largest population share at 23.8 million; the Bay Area follows at 7.7 million."
-          chart={
-            <PlotlyChart
-              data={donutFigure.data}
-              layout={donutFigure.layout}
-              config={baseConfig}
-              height={UI_KIT_CHART_HEIGHT}
-            />
-          }
+          result={donut}
           properties={[
-            { label: "Type", value: "Donut / arc" },
-            { label: "Hole", value: "0.55" },
-            { label: "Slice colors", value: "BASE_PLOTLY_COLORS" },
-            { label: "Engine", value: "Plotly pie" },
+            { label: "Type", value: "Pie, donut variant" },
+            { label: "Hole", value: "0.55 of the radius" },
+            { label: "Slices", value: "Named by place, in data order" },
           ]}
         />
 
-        {/* Dumbbell */}
         <GraphCard
           title="Dumbbell · Median cost 2014 → 2024"
           summary="Median costs increase in every displayed region from 2014 to 2024."
-          chart={
-            <PlotlyChart
-              data={dumbbellFigure.data}
-              layout={dumbbellFigure.layout}
-              config={baseConfig}
-              height={UI_KIT_CHART_HEIGHT}
-            />
-          }
+          result={dumbbell}
           properties={[
-            { label: "Type", value: "Dumbbell / range" },
-            {
-              label: "Endpoints",
-              value: (
-                <>
-                  <Swatch color={COLORS.blue3} label="2014" />
-                  <Swatch color={COLORS.orange3} label="2024" />
-                </>
-              ),
-            },
-            { label: "Connector", value: <Swatch color={COLORS.gray3} label="gray3" /> },
-            { label: "Engine", value: "Plotly scatter" },
+            { label: "Type", value: "Range (dumbbell)" },
+            { label: "Ends", value: "One color per end" },
+            { label: "Axis", value: "Fits the data" },
           ]}
         />
 
-        {/* Line */}
         <GraphCard
           title="Line · Owner vs renter share"
           summary="The owner share rises from 54.9 percent in 2018 to 56.4 percent in 2024 while the renter share declines."
-          chart={
-            <PlotlyChart
-              data={lineFigure.data}
-              layout={lineFigure.layout}
-              config={baseConfig}
-              height={UI_KIT_CHART_HEIGHT}
-            />
-          }
+          result={line}
           properties={[
             { label: "Type", value: "Multi-series line" },
-            {
-              label: "Series",
-              value: (
-                <>
-                  <Swatch color={COLORS.blue3} label="Owners" />
-                  <Swatch color={COLORS.orange3} label="Renters" />
-                </>
-              ),
-            },
-            { label: "Stroke", value: "2.5px · spline" },
             { label: "Grid", value: "Horizontal only" },
           ]}
         />
 
-        {/* Scatter */}
         <GraphCard
           title="Scatter · Income vs housing cost"
           summary="The sample shows housing costs increasing with income for both coastal and inland observations."
-          chart={
-            <PlotlyChart
-              data={scatterFigure.data}
-              layout={scatterFigure.layout}
-              config={baseConfig}
-              height={UI_KIT_CHART_HEIGHT}
-            />
-          }
+          result={scatter}
           properties={[
             { label: "Type", value: "Scatter / XY" },
-            {
-              label: "Series",
-              value: (
-                <>
-                  <Swatch color={COLORS.blue3} label="Coastal" />
-                  <Swatch color={COLORS.orange3} label="Inland" />
-                </>
-              ),
-            },
-            { label: "Axes", value: "Income (k) × Cost (k)" },
-            { label: "Markers", value: "9px" },
+            { label: "Axes", value: "Income ($k) × Cost ($k)" },
           ]}
         />
       </div>
@@ -338,14 +206,29 @@ export function GraphsShowcase() {
 
 // ── Tightly coupled sub-components ───────────────────────────────────
 
-function GraphCard({ title, summary, chart, properties }) {
+function GraphCard({ title, summary, result, properties }) {
+  const keyEntries = result.model?.key?.entries || [];
+  const rows = keyEntries.length
+    ? [
+        ...properties,
+        {
+          label: "Key",
+          value: keyEntries.map((entry) => (
+            <Swatch key={entry.id ?? entry.label} color={entry.color} label={entry.label} />
+          )),
+        },
+        { label: "Engine", value: "visx (same as the editor)" },
+      ]
+    : [...properties, { label: "Engine", value: "visx (same as the editor)" }];
   return (
     <div className="rounded-2xl border border-ppic-border bg-white p-6 shadow-[0_4px_4px_rgba(0,0,0,0.08)]">
       <h3 className="font-serif text-[22px] text-neutral-900">{title}</h3>
-      <div className="mt-3 w-full">{chart}</div>
+      <div className="mt-3 w-full">
+        <SpecimenChart result={result} height={UI_KIT_CHART_HEIGHT} />
+      </div>
       <p className="sr-only">{summary}</p>
       <dl className="mt-4 space-y-1.5 border-t border-ppic-neutral-50 pt-4">
-        {properties.map((property) => (
+        {rows.map((property) => (
           <div
             key={property.label}
             className="flex items-start gap-3 font-sans text-[13px]"

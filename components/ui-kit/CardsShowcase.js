@@ -17,16 +17,13 @@ import React from "react";
 
 import { ArrowRight } from "lucide-react";
 
-import PlotlyChart from "@/components/charts/PlotlyChart";
 import { Section } from "@/components/ui-kit/Section";
+import SpecimenChart, {
+  specimenObservation,
+  specimenResult,
+} from "@/components/ui-kit/SpecimenChart";
 
-import { COLORS, UI_KIT_CHART_HEIGHT } from "@/lib/constants";
-import {
-  DEFAULT_PLOTLY_CONFIG,
-  PLOTLY_FONT_FAMILY,
-  PLOTLY_GRID_COLOR,
-  PLOTLY_SURFACE,
-} from "@/lib/visualization/plotlyDefaults";
+import { UI_KIT_CHART_HEIGHT } from "@/lib/constants";
 
 const stats = [
   { label: "Median House Cost", value: "873.5k" },
@@ -46,56 +43,25 @@ const trend = [
   { year: "2026", housing: 14.9, population: 39.5 },
 ];
 
-const chartConfig = { ...DEFAULT_PLOTLY_CONFIG, displayModeBar: false };
-
-const trendFigure = {
-  data: [
-    {
-      type: "scatter",
-      mode: "lines",
-      name: "Total Housing Units",
-      x: trend.map(({ year }) => year),
-      y: trend.map(({ housing }) => housing),
-      line: { color: COLORS.orange3, width: 2 },
-      hovertemplate: "%{x}: %{y}M units<extra></extra>",
-    },
-    {
-      type: "scatter",
-      mode: "lines",
-      name: "Total Population",
-      x: trend.map(({ year }) => year),
-      y: trend.map(({ population }) => population),
-      yaxis: "y2",
-      line: { color: COLORS.blue5, width: 2 },
-      hovertemplate: "%{x}: %{y}M people<extra></extra>",
-    },
-  ],
-  layout: {
-    ...PLOTLY_SURFACE,
-    showlegend: false,
-    margin: { t: 8, r: 44, b: 32, l: 40 },
-    font: { family: PLOTLY_FONT_FAMILY, size: 12, color: COLORS.gray5 },
-    xaxis: {
-      showgrid: false,
-      linecolor: COLORS.gray3,
-      tickcolor: COLORS.gray3,
-    },
-    yaxis: {
-      range: [14, 15],
-      gridcolor: PLOTLY_GRID_COLOR,
-      tickfont: { color: COLORS.orange3 },
-      zeroline: false,
-    },
-    yaxis2: {
-      overlaying: "y",
-      side: "right",
-      range: [38.5, 40],
-      showgrid: false,
-      tickfont: { color: COLORS.blue5 },
-      zeroline: false,
-    },
-  },
-};
+// Drawn by the production line chart (renderer plan O). The visx line has one
+// value axis, so both series share it, in millions.
+const housing = { id: "housing", label: "Total Housing Units" };
+const population = { id: "population", label: "Total Population" };
+const trendChart = specimenResult({
+  chartType: "line",
+  comparisons: [housing, population],
+  observations: trend.flatMap(({ year, ...values }) =>
+    [housing, population].map((comparison) =>
+      specimenObservation({
+        comparison,
+        measure: "Millions",
+        period: Number(year),
+        place: "California",
+        value: values[comparison.id],
+      }),
+    ),
+  ),
+});
 
 export function CardsShowcase() {
   return (
@@ -113,36 +79,13 @@ export function CardsShowcase() {
 
       <div className="mt-6 rounded-2xl border border-ppic-border bg-white p-6 shadow-[0_4px_4px_rgba(0,0,0,0.08)]">
         <div className="mb-4 flex items-start justify-between gap-4">
-          <div>
-            <h3 className="font-serif text-2xl text-neutral-900">
-              Population & Housing Trends
-            </h3>
-            <div className="mt-2 flex items-center gap-5 font-sans text-[13px] text-neutral-600">
-              <span className="flex items-center gap-2">
-                <span
-                  aria-hidden="true"
-                  className="inline-block h-2.5 w-5 rounded-full bg-ppic-brand"
-                />
-                Total Housing Units
-              </span>
-              <span className="flex items-center gap-2">
-                <span
-                  aria-hidden="true"
-                  className="inline-block h-2.5 w-5 rounded-full bg-ppic-blue-400"
-                />
-                Total Population
-              </span>
-            </div>
-          </div>
+          <h3 className="font-serif text-2xl text-neutral-900">
+            Population & Housing Trends
+          </h3>
           <SeeMore />
         </div>
 
-        <PlotlyChart
-          data={trendFigure.data}
-          layout={trendFigure.layout}
-          config={chartConfig}
-          height={UI_KIT_CHART_HEIGHT}
-        />
+        <SpecimenChart result={trendChart} height={UI_KIT_CHART_HEIGHT} />
         <p className="sr-only">
           From 2018 to 2026, housing units rise from 14.1 to 14.9 million while
           population changes from 39.4 to 39.5 million.

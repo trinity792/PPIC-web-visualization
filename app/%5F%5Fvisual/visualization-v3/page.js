@@ -21,7 +21,6 @@ export default async function VisualizationV3FixturePage({ searchParams }) {
   return (
     <VisualizationV3Fixture
       chart={chart}
-      renderer={typeof params?.renderer === "string" ? params.renderer : null}
       scenario={typeof params?.scenario === "string" ? params.scenario : null}
       width={widthParam(params?.width)}
       embedded={params?.embed === "1"}

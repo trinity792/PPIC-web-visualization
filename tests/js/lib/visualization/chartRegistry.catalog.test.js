@@ -15,7 +15,6 @@ import {
 } from "@/lib/visualization/chartRegistry";
 import { RETIRED_CHART_TYPES } from "@/lib/visualization/chartSpec";
 import { FIELD_KINDS } from "@/lib/visualization/fieldTypes";
-import { toPlotly } from "@/lib/visualization/toPlotly";
 
 describe("Phase 6 catalog ids", () => {
   it("registers pie, symbolMap, and dataTable as base chart types", () => {
@@ -151,72 +150,6 @@ describe("descriptor metadata", () => {
   it("does not register the retired Slopegraph", () => {
     expect(CHART_TYPE_IDS).not.toContain("slope");
     expect(getChartType("slope")).toBeUndefined();
-  });
-
-  it("keeps a working toPlotly builder for every remaining registered type", () => {
-    const specs = {
-      line: {
-        bindings: { x: "Year", y: "Value" },
-        series: [{ location: "A", years: [2024, 2025], values: [1, 2] }],
-      },
-      bar: {
-        bindings: { category: "category", y: "value" },
-        series: [{ category: "A", value: 1 }],
-      },
-      choroplethMap: {
-        bindings: { geography: "geoid", color: "value" },
-        series: [{ geoid: "06001", value: 1 }],
-        geometry: { type: "FeatureCollection", features: [] },
-      },
-      dumbbell: {
-        bindings: { category: "category", start: "start", end: "end" },
-        series: [{ category: "A", start: 1, end: 2 }],
-      },
-      dotPlot: {
-        bindings: { y: "row", x: "column", color: "value" },
-        series: { x: ["X"], y: ["A"], z: [[1]] },
-      },
-      forest: {
-        bindings: { category: "category", start: "start", end: "end" },
-        series: [{ category: "A", start: 1, end: 2 }],
-      },
-      scatter: {
-        bindings: { unit: "location", x: "x", y: "y" },
-        series: [{ location: "A", x: 1, y: 2 }],
-      },
-      bubble: {
-        bindings: { unit: "location", x: "x", y: "y", size: "size" },
-        series: [{ location: "A", x: 1, y: 2, size: 3 }],
-      },
-      heatmap: {
-        bindings: { x: "column", y: "row", color: "value" },
-        series: { x: ["X"], y: ["A"], z: [[1]] },
-      },
-      pie: {
-        bindings: { category: "category", y: "value" },
-        series: [{ category: "A", value: 1 }],
-      },
-      symbolMap: {
-        bindings: { geography: "location", size: "value" },
-        series: [{ location: "A", lat: 37, lon: -122, value: 1 }],
-      },
-      dataTable: {
-        bindings: {},
-        series: { columns: [{ name: "Value" }], rows: [[1]] },
-      },
-    };
-
-    for (const chartType of CHART_TYPE_IDS) {
-      expect(() =>
-        toPlotly({
-          chartType,
-          labels: {},
-          appearance: {},
-          period: {},
-          ...specs[chartType],
-        }),
-      `chart type: ${chartType}`).not.toThrow();
-    }
   });
 
   it("declares every implied role as also required, resolving to an acceptable kind", () => {
@@ -529,16 +462,18 @@ describe("Workstream A capability matrix", () => {
   });
 });
 
-// Renderer plan B/M: final defaults, with preview support for staged rollout.
-// dataTable remains the existing accessible table path, not a visx drawing.
+// Renderer plan B/M/O: final defaults. There is no preview override since plan
+// O; dataTable remains the existing accessible table path, not a visx drawing.
 import * as rendererRegistry from "@/lib/visualization/chartRegistry";
 describe("renderer catalog", () => {
   it("every chart type declares a renderer", () => {
     for(const id of CHART_TYPE_IDS) expect(["plotly", "visx"], id).toContain(getChartType(id).renderer);
   });
   it.each(["choroplethMap", "symbolMap"])("maps are drawn by plotly: %s", id => expect(getChartType(id).renderer).toBe("plotly"));
-  it.each(["choroplethMap", "symbolMap"])("ignores a preview request for a type with no visx drawing: %s", id => expect(rendererRegistry.rendererFor(id, "visx")).toBe("plotly"));
+  it.each(["choroplethMap", "symbolMap"])("draws a map with plotly: %s", id => expect(rendererRegistry.rendererFor(id)).toBe("plotly"));
   it.each(["line", "bar", "dumbbell", "dotPlot", "forest", "heatmap", "scatter", "bubble", "pie"])("every non-map chart type defaults to visx: %s", id => expect(getChartType(id).renderer).toBe("visx"));
-  it("honors an available visx preview request", () => expect(rendererRegistry.rendererFor("line", "visx")).toBe("visx"));
-  it("ignores an unknown preview renderer", () => expect(rendererRegistry.rendererFor("line", "typo")).toBe("visx"));
+  it("draws every non-map chart type with visx", () => {
+    for(const id of rendererRegistry.VISX_CHART_TYPES) expect(rendererRegistry.rendererFor(id), id).toBe("visx");
+  });
+  it("ignores a leftover preview argument", () => expect(rendererRegistry.rendererFor("line", "plotly")).toBe("visx"));
 });

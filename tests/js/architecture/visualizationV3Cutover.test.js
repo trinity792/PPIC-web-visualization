@@ -21,7 +21,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { CHART_TYPE_IDS } from "@/lib/visualization/chartRegistry";
+import { CHART_TYPE_IDS, rendererFor } from "@/lib/visualization/chartRegistry";
 import { MODULE_SCHEMAS } from "@/lib/visualization/moduleRegistry";
 
 const root = process.cwd();
@@ -76,17 +76,20 @@ function changelogEntries() {
 }
 
 describe("every chart family cuts over together", () => {
-  it("routes every registered chart through the v3 observation adapter", () => {
-    const adapters = walk(path.join(root, "lib/visualization/adapters")).map((file) =>
-      fs.readFileSync(file, "utf8"),
-    );
-    const registered = adapters.join("\n");
+  it("routes every registered chart through the v3 adapter or model for its renderer", () => {
+    // Since renderer plan O, Plotly adapters handle only the maps and the data
+    // table; every visx chart type is handled by a model builder.
+    const adapters = walk(path.join(root, "lib/visualization/adapters"))
+      .map((file) => fs.readFileSync(file, "utf8"))
+      .join("\n");
+    const models = code(path.join(root, "lib/visualization/models/index.js"));
 
     for (const chartTypeId of CHART_TYPE_IDS) {
-      // Not "an adapter exists somewhere" but "this id is handled": a chart
-      // type with no adapter would otherwise fall through to whatever the
+      // Not "a handler exists somewhere" but "this id is handled": a chart
+      // type with none would otherwise fall through to whatever the
       // dispatcher's default happens to be.
-      expect(registered, `chart type: ${chartTypeId}`).toContain(chartTypeId);
+      const handlers = rendererFor(chartTypeId) === "visx" ? models : adapters;
+      expect(handlers, `chart type: ${chartTypeId}`).toContain(chartTypeId);
     }
   });
 
@@ -126,7 +129,9 @@ describe("every chart family cuts over together", () => {
     const routes = walk(path.join(root, "app/api")).filter((file) =>
       file.endsWith(`route.js`),
     );
-    const moduleRoutes = routes.filter((file) => !/geography|doc-asset|module-status/.test(file));
+    // Not module data routes: geometry, document assets, module status, and the
+    // GET-only document library search.
+    const moduleRoutes = routes.filter((file) => !/geography|doc-asset|module-status|search[\\/]documents/.test(file));
 
     for (const file of moduleRoutes) {
       expect(code(file), path.relative(root, file)).toMatch(/export\s+async\s+function\s+POST/);

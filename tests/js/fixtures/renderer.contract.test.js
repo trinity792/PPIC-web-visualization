@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { adaptObservations } from "@/lib/visualization/adapters";
+import { buildChartModel } from "@/lib/visualization/models";
 import { input, lineRows, gapRows } from "@/tests/fixtures/visualization-v3/renderer";
 import { rendererVisualScenario } from "@/tests/fixtures/visualization-v3/rendererVisual";
 
@@ -11,12 +11,10 @@ it("uses the shared observed, projected, missing, and suppressed fixture values"
     ["06075","suppressed"], ["06037","missing"],
   ]);
 });
-it("pins comparison colors independently of the future models", () => {
-  for(const [type, colors] of [
-    ["line", f => f.data.map(t => t.line.color)],
-    ["bar", f => f.data.map(t => t.marker.color)],
-    ["dotPlot", f => f.data.map(t => t.marker.color)],
-  ]) expect(colors(adaptObservations(input(type)))).toEqual(["#CA4F1A","#293B54"]);
+it("pins comparison colors for the series charts", () => {
+  for(const type of ["line", "bar", "dotPlot"]) {
+    expect(buildChartModel(input(type)).series.map(s => s.color), type).toEqual(["#CA4F1A","#293B54"]);
+  }
 });
 it("supplies distinct series for the crowded visual cases", () => {
   const five = rendererVisualScenario("line", "five-lines");

@@ -2,17 +2,11 @@ import React from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { config, schema, input, VISX_TYPES, MAP_TYPES } from "@/tests/fixtures/visualization-v3/renderer";
-const state = vi.hoisted(() => ({ load: vi.fn(), geometry: vi.fn(), requested: [], defaultRenderer: "plotly" }));
+const state = vi.hoisted(() => ({ load: vi.fn(), geometry: vi.fn() }));
 vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams(window.location.search), usePathname: () => window.location.pathname, useRouter: () => ({ replace: vi.fn() }) }));
 // Maps load their geometry beside the observations; serve the fixture's shapes
 // rather than fetching them.
 vi.mock("@/components/chart-builder/chartData", async original => ({ ...(await original()), loadObservations: state.load, loadObservationGeometry: state.geometry }));
-// Stage B's Plotly default is injected, so this regression test remains valid
-// after Stage M switches production defaults to visx.
-vi.mock("@/lib/visualization/chartRegistry", async original => {
-  const actual = await original();
-  return { ...actual, rendererFor: (type, preview) => { state.requested.push(preview); return preview === "visx" && type === "line" ? "visx" : state.defaultRenderer; } };
-});
 import { ChartConfigProvider } from "@/components/chart-builder/chartConfigStore";
 import { AdvancedModeProvider } from "@/components/chart-builder/advancedMode";
 import { PreviewProvider, usePreview } from "@/components/chart-builder/wizard/PreviewContext";
@@ -23,21 +17,36 @@ function Probe() {
 function mount(type) {
   render(<ChartConfigProvider schema={schema} initialConfig={config(type)} autoBind={false}><PreviewProvider><Probe /></PreviewProvider></ChartConfigProvider>);
 }
+// ChartFrame draws a visx chart only once it has measured its width.
+class MeasuredResizeObserver {
+  constructor(callback) { this.callback = callback; }
+  observe(target) { this.callback([{ target, contentRect: { width: 650, height: 400 }, contentBoxSize: [{ inlineSize: 650, blockSize: 400 }] }]); }
+  unobserve() {}
+  disconnect() {}
+}
 beforeEach(() => {
-  state.requested = []; state.defaultRenderer = "plotly";
+  vi.stubGlobal("ResizeObserver", MeasuredResizeObserver);
   state.geometry.mockReset().mockImplementation(async (type) => (["choroplethMap", "symbolMap"].includes(type) ? input(type).geometry : null));
   state.load.mockReset().mockResolvedValue({ status: "ok", blocked: false, observations: input().observations, comparisons: input().comparisons, periods: [2020,2025,2030], issues: [] });
 });
-afterEach(() => window.history.replaceState({}, "", "/"));
-it.each([...VISX_TYPES,...MAP_TYPES])("draws every chart type with Plotly when nothing is switched: %s", type => {
+afterEach(() => {
+  window.history.replaceState({}, "", "/");
+  vi.unstubAllGlobals();
+});
+// Renderer plan O: Plotly draws only the maps, and there is no page-address
+// override any more.
+it.each(VISX_TYPES)("draws every non-map chart type with visx: %s", type => {
+  mount(type);
+  return waitFor(() => expect(screen.getByTestId("preview")).toHaveTextContent('"renderer":"visx"'));
+});
+it.each(MAP_TYPES)("draws every map with Plotly: %s", type => {
   mount(type);
   return waitFor(() => expect(screen.getByTestId("preview")).toHaveTextContent('"renderer":"plotly"'));
 });
-it("ignores the renderer switch in embed mode", async () => {
-  window.history.replaceState({}, "", "/?embed=1&renderer=visx");
+it("ignores a renderer parameter in the page address", async () => {
+  window.history.replaceState({}, "", "/?renderer=plotly");
   mount("line");
-  await waitFor(() => expect(screen.getByTestId("preview")).toHaveTextContent('"renderer":"plotly"'));
-  expect(state.requested).not.toContain("visx");
+  await waitFor(() => expect(screen.getByTestId("preview")).toHaveTextContent('"renderer":"visx"'));
 });
 
 import PreviewPane from "@/components/chart-builder/wizard/PreviewPane";
@@ -45,7 +54,7 @@ vi.mock("@/components/charts/ChartRenderer", () => ({ default: ({ result }) => <
 vi.mock("@/components/charts/PlotlyChart", () => ({ default: () => <div data-testid="legacy-plotly" /> }));
 it("draws the tagged result through ChartRenderer in the actual PreviewPane", async () => {
   render(<ChartConfigProvider schema={schema} initialConfig={config()} autoBind={false}><PreviewProvider><PreviewPane /></PreviewProvider></ChartConfigProvider>);
-  expect(await screen.findByTestId("renderer-boundary")).toHaveTextContent("plotly");
+  expect(await screen.findByTestId("renderer-boundary")).toHaveTextContent("visx");
   expect(screen.queryByTestId("legacy-plotly")).not.toBeInTheDocument();
 });
 

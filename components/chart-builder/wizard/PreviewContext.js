@@ -26,13 +26,12 @@
  *
  * Each preview's drawable result is tagged with the renderer that produced it
  * (`chart.renderer`, "plotly" or "visx"; renderer plan Workstream B). The
- * registry's `rendererFor` picks it per chart type. A `renderer=visx|plotly`
- * page address parameter asks for a preview drawing; it is ignored in embed
- * mode (`embed=1`), so a shared embed always shows the default.
+ * registry's `rendererFor` picks it per chart type: visx for every chart
+ * except the two maps, which Plotly draws (renderer plan O).
  *
  * Data sources:
  *   - components/chart-builder/chartData.js (loadObservations; inline or API)
- *   - lib/visualization/adapters (observations → Plotly figure)
+ *   - lib/visualization/adapters (observations → Plotly map figure, data table)
  *   - lib/visualization/models (observations → visx chart model)
  */
 
@@ -52,6 +51,7 @@ import {
   loadObservations,
 } from "@/components/chart-builder/chartData";
 import { adaptObservations } from "@/lib/visualization/adapters";
+import { seriesNamesFor } from "@/lib/visualization/seriesNames";
 import { rendererFor } from "@/lib/visualization/chartRegistry";
 import { heatmapCategoryNames } from "@/lib/visualization/heatmapGrid";
 import { buildChartModel } from "@/lib/visualization/models";
@@ -113,18 +113,6 @@ function canHoldV3MapWhileLoading(state, config) {
   );
 }
 
-/**
- * The renderer preview request in the page address, or null. Read after mount
- * (never during render), so server and first client render agree and no router
- * hook is needed. Embeds never honor it.
- */
-function previewRendererRequest() {
-  if (typeof window === "undefined") return null;
-  const params = new URLSearchParams(window.location.search);
-  if (params.get("embed") === "1") return null;
-  return params.get("renderer");
-}
-
 /** What ChartFrame draws around a chart: its labels, settings, and sources. */
 function frameFor(input, schema) {
   return {
@@ -136,9 +124,9 @@ function frameFor(input, schema) {
   };
 }
 
-function adaptV3Result(config, schema, result, chartType, previewRenderer) {
+function adaptV3Result(config, schema, result, chartType) {
   const input = previewInput(config, schema, result, chartType);
-  const renderer = rendererFor(input.chartType, previewRenderer);
+  const renderer = rendererFor(input.chartType);
   if (renderer === "visx") {
     return {
       renderer,
@@ -172,10 +160,6 @@ export function PreviewProvider({ children, deferInitialRender = false }) {
   // One graph div per chart slot; ExportMenu reads the active slot through the
   // compatibility `graphDivRef` below.
   const graphDivRefs = useRef({});
-  const [previewRenderer, setPreviewRenderer] = useState(null);
-  useEffect(() => {
-    setPreviewRenderer(previewRendererRequest());
-  }, []);
 
   const charts = workspace?.charts || [];
   const activeChartId = workspace?.activeChartId || charts[0]?.id;
@@ -248,13 +232,10 @@ export function PreviewProvider({ children, deferInitialRender = false }) {
           let seriesNames = [];
           let categoryNames = [];
           if (next.observations?.length) {
-            // Series names come from the Plotly adapter's traces whichever
-            // renderer draws the chart; they feed the editor, not the drawing.
+            // Series names feed the editor, not the drawing; seriesNames.js
+            // reads them from the same helpers the chart is drawn from.
             const input = previewInput(config, schema, next);
-            const figure = adaptObservations(input);
-            seriesNames = (figure.data || [])
-              .map((trace) => trace.name)
-              .filter((name) => name != null && name !== "");
+            seriesNames = seriesNamesFor(input);
             // The Categories panel lists a pie's slices (renderer plan K) and
             // a heatmap's rows (renderer plan I).
             if (input.chartType === "pie") categoryNames = pieSliceNames(input);
@@ -373,7 +354,6 @@ export function PreviewProvider({ children, deferInitialRender = false }) {
               schema,
               state.result,
               renderChartType,
-              previewRenderer,
             );
           } catch (nextError) {
             renderError = nextError;
@@ -392,7 +372,7 @@ export function PreviewProvider({ children, deferInitialRender = false }) {
           renderError,
         };
       }),
-    [activeChartId, armed, charts, previewRenderer, previewState, schema],
+    [activeChartId, armed, charts, previewState, schema],
   );
 
   const activePreview =
