@@ -9,7 +9,7 @@ import Home from "@/app/page";
 import { TOPICS } from "@/lib/visualization/topicRegistry";
 
 const INTRO =
-  "Each topic is a self-contained dataset with interactive charts and downloadable tables. Pick a topic below to open its dashboard and start exploring.";
+  "A data visualization tool for exploring California population and housing data. Select a topic below to chart its data, or choose Custom visualizations at the top of the page to create charts with your own data.";
 
 describe("landing page", () => {
   it("renders the tool's name and the topic subtext", () => {

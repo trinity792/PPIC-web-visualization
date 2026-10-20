@@ -29,10 +29,11 @@ export default function Home() {
         <h1 className="mt-3 max-w-3xl font-serif text-4xl leading-[1.08] text-ppic-neutral-600 sm:text-5xl">
           PPIC Interactive Visualization Tool
         </h1>
-        <p className="mt-4 max-w-2xl text-lg leading-relaxed text-ppic-neutral-main">
-          Each topic is a self-contained dataset with interactive charts and
-          downloadable tables. Pick a topic below to open its dashboard and start
-          exploring.
+        <p className="mt-4 text-lg leading-relaxed text-ppic-neutral-main">
+          A data visualization tool for exploring California population and
+          housing data. Select a topic below to chart its data, or choose Custom
+          visualizations at the top of the page to create charts with your own
+          data.
         </p>
       </section>
 
