@@ -4,6 +4,7 @@ import { expect, it, vi } from "vitest";
 import { input, lineRows, gapRows, comparisons } from "@/tests/fixtures/visualization-v3/renderer";
 
 import LineChart from "@/components/charts/visx/LineChart";
+import { CHART_STYLE } from "@/lib/visualization/chartStyle";
 import { buildLineModel } from "@/lib/visualization/models/lineModel";
 function draw(appearance = {}, overrides = {}, width = 650) {
   const model = buildLineModel(input("line", { appearance, ...overrides }));
@@ -21,10 +22,25 @@ it("draws one line per series", () => {
 it("draws no markers by default", () => expect(draw().container.querySelectorAll('[data-mark="point"]')).toHaveLength(0));
 it("draws markers when Markers is on", () => expect(draw({ markerMode: "on" }).container.querySelectorAll('[data-mark="point"]')).toHaveLength(6));
 it("draws a marker for a one-point series", () => expect(draw({}, { observations: [lineRows[0]], comparisons: [comparisons[0]] }).container.querySelectorAll('[data-mark="point"]')).toHaveLength(1));
-it("draws no vertical grid lines", () => {
-  const { container } = draw();
+it("draws only horizontal grid lines when the grid is enabled", () => {
+  const { container } = draw({ hideGridLines: false });
   expect(container.querySelectorAll('[data-grid="vertical"]')).toHaveLength(0);
   expect(container.querySelectorAll('[data-grid="horizontal"]').length).toBeGreaterThan(0);
+});
+it.each([undefined, true, false])("keeps both axis lines when hideGridLines is %s", (hideGridLines) => {
+  const { container } = draw({ hideGridLines });
+  const yAxis = container.querySelector(".visx-axis-left .visx-axis-line");
+  const xAxis = container.querySelector(".visx-axis-bottom .visx-axis-line");
+  for (const axis of [yAxis, xAxis]) {
+    expect(axis).toBeInTheDocument();
+    expect(axis).toHaveAttribute("stroke", CHART_STYLE.graphLine.color);
+    expect(axis).toHaveAttribute("stroke-width", String(CHART_STYLE.graphLine.width));
+  }
+  expect(yAxis.getAttribute("x1")).toBe(yAxis.getAttribute("x2"));
+  expect(Math.abs(Number(yAxis.getAttribute("y2")) - Number(yAxis.getAttribute("y1")))).toBeGreaterThan(0);
+  expect(xAxis.getAttribute("y1")).toBe(xAxis.getAttribute("y2"));
+  expect(Math.abs(Number(xAxis.getAttribute("x2")) - Number(xAxis.getAttribute("x1")))).toBeGreaterThan(0);
+  expect(container.querySelectorAll("[data-grid]").length > 0).toBe(hideGridLines === false);
 });
 it("draws no dashed segments by default", () => {
   const { container } = draw();
@@ -120,9 +136,9 @@ it("adds the vertical line spacing between neighbouring periods", () => {
   expect(scroll.className).toMatch(/overflow-x-auto/);
 });
 it("adds the horizontal line spacing between neighbouring gridlines", () => {
-  const baseGaps = gridYs(draw().container);
+  const baseGaps = gridYs(draw({ hideGridLines: false }).container);
   const baseGap = baseGaps[1] - baseGaps[0];
-  const { container } = draw({ horizontalLinePadding: 20 });
+  const { container } = draw({ hideGridLines: false, horizontalLinePadding: 20 });
   const ys = gridYs(container);
   expect(ys).toHaveLength(5);
   for (let i = 1; i < ys.length; i++) expect(ys[i] - ys[i - 1]).toBeCloseTo(baseGap + 20, 5);
@@ -130,7 +146,7 @@ it("adds the horizontal line spacing between neighbouring gridlines", () => {
   expect(Number(container.querySelector('svg[role="img"]').getAttribute("height"))).toBe(480);
 });
 it("keeps lines flush with the plot edges when no spacing is set", () => {
-  const { container } = draw();
+  const { container } = draw({ hideGridLines: false });
   const ys = gridYs(container);
   const path = container.querySelector('[data-mark="series-line"]').getAttribute("d");
   // The first point (2020) sits on the left edge of the plot, x = 0.

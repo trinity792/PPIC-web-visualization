@@ -94,7 +94,7 @@ export default function ModuleWorkbench({
   viewId = null,
   hasBuiltInView = false,
   embedded = false,
-  deferInitialRender = !embedded && !viewId,
+  deferInitialRender = false,
 }) {
   const { width: sidebarWidth, applyWidth: applySidebarWidth } =
     useResizableSidebarWidth();
@@ -117,11 +117,8 @@ export default function ModuleWorkbench({
       initialConfig={initialConfig}
       autoBind={false}
     >
-      {/* Landing on a module builds no chart: the container shows a skeleton and
-          issues no request until the reader changes a setting. Two cases opt
-          back out, because in both the chart has already been asked for by name:
-          an iframe embed, which has no sidebar to touch and would otherwise show
-          a skeleton forever, and any `?view=` deep link or saved view. */}
+      {/* Topic defaults, saved views and embeds render on arrival. An explicit
+          deferInitialRender can still hold a preview until an editor action. */}
       <PreviewProvider deferInitialRender={deferInitialRender}>
         <ViewHydrator viewId={viewId} hasBuiltInView={hasBuiltInView} />
         {embedded ? (

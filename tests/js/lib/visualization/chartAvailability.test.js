@@ -67,7 +67,13 @@ describe("isChartTypeAvailable", () => {
     expect(isChartTypeAvailable("line", RHNA_PROGRESS_SCHEMA)).toBe(false);
     expect(isChartTypeAvailable("bar", RHNA_PROGRESS_SCHEMA)).toBe(true);
     expect(isChartTypeAvailable("choroplethMap", RHNA_PROGRESS_SCHEMA)).toBe(true);
-    expect(isChartTypeAvailable("symbolMap", RHNA_PROGRESS_SCHEMA)).toBe(false);
+    expect(isChartTypeAvailable("symbolMap", RHNA_PROGRESS_SCHEMA)).toBe(true);
+  });
+
+  it("restores RHNA snapshot charts without offering charts that require history or intervals", () => {
+    expect(availableChartTypes(RHNA_PROGRESS_SCHEMA)).toEqual([
+      "bar", "choroplethMap", "dotPlot", "scatter", "bubble", "pie", "symbolMap", "dataTable",
+    ]);
   });
 
   it("never offers an unregistered id, retired or invented", () => {

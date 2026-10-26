@@ -4,14 +4,10 @@
  * AppearanceSection.js — palette, legend, spacing, footnote, and the styling a
  * particular chart type needs.
  *
- * Ordered as the mockup draws it: the chart-conditional Color binding, Color
- * Palette, Legend Position, the two line spacings, applicable tick increments,
- * axis ranges, Footnote. Everything after Footnote is chart-type-conditional (starting
- * with Hide grid lines on the charts that draw a grid), so a default
- * line chart shows Color with the shared appearance controls and a diverging bar
- * or forest plot grows the extras it actually needs. That ordering is a
- * contract, not a preference — the tested one — because it is what keeps the
- * common case from being buried under options nine charts out of ten ignore.
+ * The main controls are Color Palette, Legend Position, and Hide grid lines
+ * on charts with an internal grid. Grid visibility stays beside the legend in
+ * standard mode so it is easy to find. Fine-tuning controls follow in Advanced
+ * Mode, then Footnote and the remaining chart-specific controls.
  *
  * Typography moved to its own section. The renderer plan (Workstream C) removed
  * the Tooltip template field — every chart uses the standard tooltip format —
@@ -78,7 +74,7 @@ import { adaptObservations } from "@/lib/visualization/adapters";
 import { buildBarModel } from "@/lib/visualization/models/barModel";
 import { buildDotPlotModel } from "@/lib/visualization/models/dotPlotModel";
 import { buildRangeModel } from "@/lib/visualization/models/rangeModel";
-import { showsSourceBox } from "@/lib/visualization/models/sharedSettings";
+import { showsGridLines, showsSourceBox } from "@/lib/visualization/models/sharedSettings";
 import { previewInput } from "@/lib/visualization/previewInput";
 import { bindableFields } from "@/lib/visualization/inlineMapping";
 import {
@@ -1744,6 +1740,19 @@ export default function AppearanceSection() {
         </Select>
       </div>
 
+      {/* Grid visibility is a main appearance control for every chart that
+          draws a grid; axes, baselines and zero lines remain visible. */}
+      {chart?.drawsGrid ? (
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor="appearance-hide-grid-lines">Hide grid lines</Label>
+          <Switch
+            id="appearance-hide-grid-lines"
+            checked={!showsGridLines(appearance, config.chartType)}
+            onCheckedChange={(checked) => setAppearance("hideGridLines", checked)}
+          />
+        </div>
+      ) : null}
+
       {/* Line spacing, both tick increments, Markers, and the dashed range are
           fine-tuning, so they sit behind Advanced Mode (owner, 2026-09-29);
           saved values still apply in standard mode. */}
@@ -1810,19 +1819,6 @@ export default function AppearanceSection() {
       </div>
 
       {/* ---- Everything below here is chart-type-conditional ---- */}
-
-      {/* Only the charts that draw an internal grid (chart registry drawsGrid);
-          the axes, baselines and zero lines are not part of it. */}
-      {chart?.drawsGrid ? (
-        <div className="flex items-center justify-between gap-3">
-          <Label htmlFor="appearance-hide-grid-lines">Hide grid lines</Label>
-          <Switch
-            id="appearance-hide-grid-lines"
-            checked={appearance.hideGridLines === true}
-            onCheckedChange={(checked) => setAppearance("hideGridLines", checked)}
-          />
-        </div>
-      ) : null}
 
       {storedConfig.version !== 3 && chart?.roleConstraints?.group && config.bindings?.group ? (
         <div className="grid gap-2">

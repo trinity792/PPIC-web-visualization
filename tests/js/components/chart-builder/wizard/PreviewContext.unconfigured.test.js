@@ -71,7 +71,11 @@ function Probe() {
   );
 }
 
-function mount({ initialConfig = getDefaultQuestion("pophousing") } = {}) {
+function mount({ initialConfig } = {}) {
+  if (!initialConfig) {
+    initialConfig = getDefaultQuestion("pophousing");
+    initialConfig.question.geography = { subset: "", locations: [] };
+  }
   return render(
     <ChartConfigProvider schema={schema} initialConfig={initialConfig} autoBind={false}>
       {/* Armed from the start, so the assertions below are about the question
@@ -118,12 +122,25 @@ describe("unconfigured previews", () => {
   });
 
   it("reports unconfigured and fetches nothing while the question is unanswered", async () => {
-    // The module default names no geographic level and no place.
+    // An explicitly cleared question names no geographic level and no place.
     mount();
 
     expect(screen.getByTestId("status")).toHaveTextContent("unconfigured");
     await Promise.resolve();
     expect(state.loadObservations).not.toHaveBeenCalled();
+  });
+
+  it("loads the preloaded topic immediately and keeps subsequent edits", async () => {
+    const user = userEvent.setup();
+    mount({ initialConfig: getDefaultQuestion("pophousing") });
+    await waitFor(() => expect(screen.getByTestId("status")).toHaveTextContent("ready"));
+    expect(state.loadObservations).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole("button", { name: "set place" }));
+    await waitFor(() => expect(state.loadObservations).toHaveBeenCalledTimes(2));
+    expect(JSON.parse(screen.getByTestId("geography").textContent)).toEqual({
+      subset: "Counties", locations: ["Alameda"],
+    });
   });
 
   it("renders once every selection is made", async () => {

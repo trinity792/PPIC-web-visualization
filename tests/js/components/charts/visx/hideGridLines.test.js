@@ -44,7 +44,7 @@ describe("Hide grid lines", () => {
   });
 
   it.each(Object.keys(RENDERERS))("%s: removes the grid and keeps the axes", (chartType) => {
-    const shown = draw(chartType);
+    const shown = draw(chartType, { hideGridLines: false });
     const hidden = draw(chartType, { hideGridLines: true });
 
     expect(shown.querySelectorAll("[data-grid]").length, chartType).toBeGreaterThan(0);
@@ -53,5 +53,10 @@ describe("Hide grid lines", () => {
     expect(hidden.querySelectorAll("text").length, chartType).toBe(
       shown.querySelectorAll("text").length,
     );
+  });
+
+  it.each(Object.keys(RENDERERS))("%s: uses its default grid visibility", (chartType) => {
+    const chart = draw(chartType);
+    expect(chart.querySelectorAll("[data-grid]").length > 0).toBe(chartType !== "line");
   });
 });

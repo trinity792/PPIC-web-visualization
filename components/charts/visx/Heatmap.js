@@ -40,7 +40,7 @@
 import React from "react";
 import { useChartHover } from "@/components/charts/chartFocus";
 
-import { interTextWidth, textWidth } from "@/lib/visualization/chartLayout/textWidth";
+import { chartTextWidth, textWidth } from "@/lib/visualization/chartLayout/textWidth";
 import { CHART_STYLE } from "@/lib/visualization/chartStyle";
 
 const { text, heatmap: style } = CHART_STYLE;
@@ -77,7 +77,7 @@ export default function Heatmap({ model, width, height }) {
   const yTitle = model.labels?.yAxis ?? null;
 
   // ── Layout: row names on the left, periods along the bottom ──
-  const widestRow = Math.max(...categories.map((name) => interTextWidth(name, axisSize)));
+  const widestRow = Math.max(...categories.map((name) => chartTextWidth(name, axisSize)));
   const rowColumn = Math.min(Math.ceil(widestRow), Math.floor(width * 0.35));
   const left = rowColumn + style.labelGap;
   const top = (yTitle ? titleSize * LINE_HEIGHT + TITLE_GAP : 0) + EDGE;

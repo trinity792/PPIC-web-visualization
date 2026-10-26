@@ -16,7 +16,7 @@ const ROWS = [["groupLabelAlignment", "right"], ["variableLabelAlignment", "cent
 // Hide grid lines (2026-10-14) applies to every chart that draws a grid.
 const GRID = [["hideGridLines", true]];
 const TABLE = {
-  line: [...SHARED, ...AXES.filter(([key]) => key !== "horizontalAxisRange"), ["verticalNumberType", "usd"], ["categoryOrder", ["Los Angeles", "San Francisco"]], ["dashedRange", { from: 2025, to: 2030, label: "Forecast" }], ...GRID],
+  line: [...SHARED, ...AXES.filter(([key]) => key !== "horizontalAxisRange"), ["verticalNumberType", "usd"], ["categoryOrder", ["Los Angeles", "San Francisco"]], ["dashedRange", { from: 2025, to: 2030, label: "Forecast" }], ["hideGridLines", false]],
   bar: [...SHARED, ...AXES.filter(([key]) => !["horizontalTickIncrement", "horizontalAxisRange"].includes(key)), ["horizontalTickIncrement", 10000, { orientation: "horizontal" }], ["horizontalAxisRange", [-1000, 123456], { orientation: "horizontal" }], ["verticalNumberType", "usd"], ["horizontalNumberType", "usd", { orientation: "horizontal" }], ["orientation", "horizontal"], ["stackMode", "stacked"], ["groupGap", 2], ["categoryOrder", ["Los Angeles", "San Francisco"]], ["diverging", true], ["center", 60000, { diverging: true }], ["referenceValue", 0, { diverging: true }], ["referenceLabel", "Benchmark", { diverging: true, referenceValue: 0 }], ["valueRange", [-100,3000000], { diverging: true }], ["colorBuckets", [{ at: 60000, color: "Navy" }, { at: null, color: "Orange" }], { diverging: true }],
     // Owner decisions 2026-09-30 (PPIC bar references). Track rail and Minimal
     // axis now work on ordinary bars, so they need no diverging prerequisite.

@@ -97,8 +97,7 @@ export default async function DetailedModulePage({ params, searchParams }) {
   const viewId = query.view || null;
   const builtIn = viewId ? getBuiltInView(viewId) : null;
   const hasBuiltInView = Boolean(builtIn && builtIn.question.dataset.moduleId === module);
-  // Every module opens on its v3 default question (an unanswered one: the
-  // workbench never chooses a setting for the reader). A built-in deep link
+  // Every module opens on its preloaded v3 default question. A built-in deep link
   // is a complete v3 spec for this module and replaces it outright.
   const initialConfig = hasBuiltInView ? builtIn : getDefaultQuestion(module);
   if (!initialConfig) notFound();

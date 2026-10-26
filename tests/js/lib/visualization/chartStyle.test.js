@@ -4,8 +4,8 @@ import { CHART_STYLE } from "@/lib/visualization/chartStyle";
 import { COLORS } from "@/lib/constants";
 // The object shape below is the proposed public contract for Workstream A.
 describe("PPIC chart style", () => {
-  it("uses Inter for every chart text role", () => {
-    for (const role of ["title", "subtitle", "keyTitle", "key", "eyebrow", "axis", "dataLabel", "source"]) expect(CHART_STYLE.text[role].fontFamily).toBe("Inter, sans-serif");
+  it("uses Proxima Nova for every chart text role", () => {
+    for (const role of ["title", "subtitle", "keyTitle", "key", "eyebrow", "axis", "dataLabel", "source"]) expect(CHART_STYLE.text[role].fontFamily).toBe("proxima-nova, sans-serif");
   });
   it("matches the style guide type sizes", () => {
     expect(Object.fromEntries(Object.entries(CHART_STYLE.text).map(([k,v]) => [k,v.fontSize]))).toEqual({ title: 20, subtitle: 18, keyTitle: 16, key: 14, eyebrow: 12, axis: 14, dataLabel: 14, source: 11 });

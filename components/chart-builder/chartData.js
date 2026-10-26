@@ -51,6 +51,9 @@ export async function loadObservations(spec, { apiPath, signal } = {}) {
     });
     response = await result.json();
   } catch (error) {
+    // Cancellation belongs to the caller's loading lifecycle, not the data
+    // question's blocking issues. Preserve it so the preview can discard it.
+    if (signal?.aborted || error?.name === "AbortError") throw error;
     return blockedResponse("requestFailed", error.message);
   }
   const validation = validateResponse(response);

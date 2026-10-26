@@ -4,7 +4,7 @@ Content Type: implementation plan
 pinned: false
 description: "A tests-first plan for moving every chart except maps from Plotly to visx, one chart type at a time, so each chart follows the PPIC Data Visualization Style Guide and every editor control works. Written for programmers continuing the visualization work."
 Date Published: September 26, 2026
-Last Updated: 10/18/2026 - 04:00 PM
+Last Updated: 10/26/2026 - 01:57 PM
 Status: Updating
 ---
 
@@ -94,7 +94,7 @@ These were settled with the project owner. They are recorded here so no one has 
 | Question | Decision |
 |---|---|
 | Which library draws which charts | Plotly keeps the choropleth map and the symbol map. Every other chart type moves to visx. |
-| Chart font | Keep Inter for all chart text. The style guide's Proxima Nova and Arial are not used. |
+| Chart font | Use Proxima Nova for all chart text, matching the website. |
 | Dashed lines | Lines are solid by default, as the guide asks. The user can turn on dashes for a range of periods they choose, for example projected years. |
 | Hover | Build hover information (a tooltip) for the visx charts. On September 29, 2026 the owner chose to match the hover label on PPIC's published Datawrapper charts: it names only the one point nearest the pointer, with no box (see Workstream D, step 6). |
 | Source line | Decided September 29, 2026. The source-and-notes box cites each topic's datasets in full (publisher and dataset, for example "California Department of Finance (DOF), P-3 Population Projections"), not the Source filter value ("DoF P-3"). A "Show source and notes" switch can turn the whole box off. |
@@ -211,7 +211,7 @@ Stage 2 builds the pieces every chart needs. No chart changes appearance for use
 The chart style values are spread out, and the charts users see do not use most of them. `lib/visualization/plotlyDefaults.js` defines the font and grid color:
 
 ```js
-export const PLOTLY_FONT_FAMILY = "Inter, sans-serif";
+export const PLOTLY_FONT_FAMILY = "proxima-nova, sans-serif";
 export const PLOTLY_GRID_COLOR = COLORS.gray2;
 ```
 
@@ -223,7 +223,7 @@ Some guide values are not in `lib/constants.js` at all. The guide's graph line a
 
 1. **`lib/constants.js`.** Add the three guide colors as named tokens next to the existing grays: graph line and axis label `#6C7075`, subtitle `#646D76`, and source box `#EFF0F2`. The project rule is that colors live in `constants.js` and nowhere else. Do not change any existing token's value, because the UI Kit and site pages use them.
 2. **New file `lib/visualization/chartStyle.js`.** One frozen object holding the guide's rules, built from `constants.js` tokens. It must be safe to use in the browser. It holds:
-   - **Type sizes.** Title 20px bold, subtitle 18px regular in the subtitle color, key title 16px bold, key text 14px, figure eyebrow 12px bold with 5% letter spacing, axis labels 14px in the axis color, data labels 14px, and source and notes 11px. The family is Inter throughout, by decision.
+   - **Type sizes.** Title 20px bold, subtitle 18px regular in the subtitle color, key title 16px bold, key text 14px, figure eyebrow 12px bold with 5% letter spacing, axis labels 14px in the axis color, data labels 14px, and source and notes 11px. The family is Proxima Nova throughout, by decision.
    - **Line weights.** Data lines 2px, graph and axis lines 1px in the axis color, and table row dividers 1px in the source-box color.
    - **Spacing.** 48px between chart parts (eyebrow, title, chart, key, source box), key swatches at most 20px and square, and bars no narrower than 10px.
    - **Standard export widths.** The guide's 950px, 650px, and 330px.
@@ -244,7 +244,7 @@ New file: `tests/js/lib/visualization/chartStyle.test.js`. Write each expected v
 
 | Test | What it checks |
 |---|---|
-| `uses Inter for every chart text role` | Title, subtitle, key, axis, data label, and source all name Inter. |
+| `uses Proxima Nova for every chart text role` | Title, subtitle, key, axis, data label, and source all name Proxima Nova. |
 | `matches the style guide type sizes` | Each size listed in step 2, written out by hand. |
 | `draws graph lines at 1px in #6C7075` | The guide's graph line rule. |
 | `draws data lines at 2px` | The guide's data line rule. |
@@ -1232,7 +1232,7 @@ New file: `tests/js/lib/visualization/adapters/maps.test.js`. Map adapters need 
 
 | Test | What it checks |
 |---|---|
-| `uses Inter and the guide's colors` | Style reaches the maps. |
+| `uses Proxima Nova and the guide's colors` | Style reaches the maps. |
 | `defaults to the orange sequential ramp` | The guide's default. |
 | `reverses the ramp when Invert is on` | `invertScale`. |
 | `colors symbols by value when Color gradient is on` | `symbolGradient`. |
@@ -1289,8 +1289,8 @@ Export only knows how to ask Plotly for an image. `lib/export/exportImage.js` ca
 1. **New file `lib/export/exportSvgChart.js`.** Builds one self-contained SVG image of the whole chart, frame included, from what is on screen:
    - Copy the chart's SVG, and draw the frame's text parts (eyebrow, title, subtitle, key, source box) into the same SVG at the same positions, using `chartStyle.js` sizes. Do not use `foreignObject`, which some PDF and image tools drop.
    - Write every style into the SVG itself, not as class names, because a saved file has no access to the page's CSS.
-   - Embed the Inter font inside the SVG, so the image looks the same on a computer without Inter. Inter is freely licensed (SIL Open Font License). Keep a copy of the weights the charts use in `public/fonts/`, so export does not depend on the file names Next.js generates.
-2. **Formats.** Save the SVG directly. For PNG and JPG, draw the SVG onto a canvas at the chosen quality scale and save that, reusing the existing `IMAGE_QUALITIES`. For PDF, pass the SVG to the existing `jsPDF` plus `svg2pdf.js` path. Every failure returns the existing named `EXPORT_*` errors, so the export menu's error messages still work.
+   - Embed the Proxima Nova font inside the SVG, so the image looks the same on a computer without Proxima Nova. Use the 400 and 700 webfont faces from the same Adobe Fonts kit as the website.
+2. **Formats.** Save the SVG directly. For PNG and JPG, draw the SVG onto a canvas at the chosen quality scale and save that, reusing the existing `IMAGE_QUALITIES`. PDF export is currently disabled. Every failure returns the existing named `EXPORT_*` errors, so the export menu's error messages still work.
 3. **Sizes.** Offer the guide's widths (950px, 650px, 330px) as export size choices, drawn at that exact width rather than scaled from the screen.
 4. **`lib/export/exportImage.js`.** Pick the path by renderer. Visx charts use `exportSvgChart.js`, and maps keep today's `Plotly.toImage` path. The workspace export that combines several charts must accept a mix of both.
 5. **Maps join the frame.** Move map titles, subtitles, and sources out of Plotly and into `ChartFrame`. Map export then places Plotly's SVG output for the map inside the same frame SVG. After this, every chart has the same frame on screen and in files.
@@ -1309,7 +1309,7 @@ New file: `tests/js/lib/export/exportSvgChart.test.js`:
 |---|---|
 | `includes the title, subtitle, and source in the exported SVG` | The frame is not lost. |
 | `writes styles into the SVG instead of class names` | No dependence on page CSS. |
-| `embeds the Inter font` | The file contains an `@font-face` for Inter. |
+| `embeds the Proxima Nova font` | The file contains an `@font-face` for Proxima Nova. |
 | `draws at the chosen standard width` | 650 gives a 650px-wide image. |
 | `exports every visx chart type` | One case per chart type, from a hand-written list. |
 | `fails with a named export error when the chart is missing` | The existing error codes. |

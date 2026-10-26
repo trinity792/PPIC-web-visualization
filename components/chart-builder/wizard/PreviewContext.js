@@ -229,6 +229,9 @@ export function PreviewProvider({ children, deferInitialRender = false }) {
       ]).then(([result, geometry]) => ({ ...result, geometry }));
       load
         .then((next) => {
+          // Cleanup cancels this effect's requests. A queued/cached response
+          // may still resolve, but must not change the preview or its metadata.
+          if (controller.signal.aborted) return;
           let seriesNames = [];
           let categoryNames = [];
           if (next.observations?.length) {
@@ -276,7 +279,7 @@ export function PreviewProvider({ children, deferInitialRender = false }) {
           }));
         })
         .catch((nextError) => {
-          if (nextError.name === "AbortError") return;
+          if (controller.signal.aborted || nextError?.name === "AbortError") return;
           setPreviewState((current) => ({
             ...current,
             [id]: {

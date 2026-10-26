@@ -16,8 +16,8 @@ function frame() {
 }
 beforeEach(() => {
   // No font/network dependency. Binary is fixture bytes; production owns actual
-  // bundled Inter font paths and font loading, asserted by embedded font data.
-  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, arrayBuffer: async () => new Uint8Array([0,1,0,0,73,110,116,101,114]).buffer }));
+  // Adobe Proxima Nova font URLs and font loading, asserted by embedded font data.
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, arrayBuffer: async () => new Uint8Array([0,1,0,0,80,78]).buffer }));
 });
 afterEach(() => { document.querySelectorAll("body > figure").forEach(el => el.remove()); vi.restoreAllMocks(); });
 const parse = text => new DOMParser().parseFromString(text, "image/svg+xml");
@@ -34,10 +34,10 @@ it("writes styles into the SVG instead of class names", async () => {
   expect(path.getAttribute("stroke") || path.style.stroke).toMatch(/#CA4F1A|rgb\(202, 79, 26\)/i);
   expect(path.getAttribute("stroke-width") || path.style.strokeWidth).toBe("2");
 });
-it("embeds the Inter font", async () => {
+it("embeds the Proxima Nova font", async () => {
   const text = await buildSvgChart(frame(), { width: 650 });
   expect(text).toMatch(/@font-face/);
-  expect(text).toMatch(/font-family:\s*["']?Inter/i);
+  expect(text).toMatch(/font-family:\s*["']?proxima-nova/i);
   expect(text).toMatch(/url\(["']?data:(?:font|application)\/[^;]+;base64,/);
   expect(text).not.toMatch(/url\(["']?https?:/);
 });
@@ -103,4 +103,9 @@ it("moves text drawn on a central baseline onto the alphabetic baseline, for PDF
   expect(text.getAttribute("transform")).toBe("translate(0 5)");
   expect(text.getAttribute("style") || "").not.toMatch(/dominant-baseline/);
   expect(label.style.dominantBaseline).toBe("central");
+});
+
+it("rejects PDF export before loading fonts or rendering", async () => {
+  await expect(renderSvgChart(frame(), { format: "pdf" })).rejects.toMatchObject({ code: "EXPORT_FORMAT_DISABLED" });
+  expect(fetch).not.toHaveBeenCalled();
 });

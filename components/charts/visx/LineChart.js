@@ -61,7 +61,7 @@ import { plotClipRect, svgSafeId } from "@/lib/visualization/chartLayout/plotCli
 import { dashedSegments } from "@/lib/visualization/chartLayout/dashedRange";
 import { readableTextColor } from "@/lib/visualization/chartLayout/contrast";
 import { directLabels } from "@/lib/visualization/chartLayout/directLabels";
-import { interTextWidth, textWidth } from "@/lib/visualization/chartLayout/textWidth";
+import { chartTextWidth, textWidth } from "@/lib/visualization/chartLayout/textWidth";
 import { CHART_STYLE } from "@/lib/visualization/chartStyle";
 import { COLORS } from "@/lib/constants";
 
@@ -188,7 +188,7 @@ export default function LineChart({ model, width, height }) {
   // The widest value label starts at the drawing's left edge, in line with the
   // title and the y-axis title above it (owner, 2026-10-12).
   const left = Math.max(
-    Math.ceil(Math.max(...tickText.map((label) => interTextWidth(label, axisSize)), 0)) + Y_LABEL_GAP,
+    Math.ceil(Math.max(...tickText.map((label) => chartTextWidth(label, axisSize)), 0)) + Y_LABEL_GAP,
     periodLabelHalf,
   );
   const tickLabelTop = TICK_GAP; // tick labels hang this far below the axis
@@ -378,7 +378,8 @@ export default function LineChart({ model, width, height }) {
               scale={yScale}
               tickValues={model.yAxis.ticks}
               tickFormat={(_, index) => tickText[index]}
-              hideAxisLine
+              stroke={graphLine.color}
+              strokeWidth={graphLine.width}
               hideTicks
               tickLength={TICK_GAP}
               tickComponent={TickLabel}

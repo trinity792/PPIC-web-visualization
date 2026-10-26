@@ -20,7 +20,7 @@ beforeEach(() => {
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 const visx = () => ({ renderer: "visx", element: document.createElement("figure") });
 const map = () => ({ renderer: "plotly", chartType: "choroplethMap", graphDiv: document.createElement("div"), element: document.createElement("figure") });
-it.each(["svg", "png", "jpeg", "pdf"])("uses the SVG path for a visx chart: %s", async format => {
+it.each(["svg", "png", "jpeg"])("uses the SVG path for a visx chart: %s", async format => {
   const chart = visx();
   await exportImage(chart, { format, width: 650 });
   expect(mocks.renderSvgChart).toHaveBeenCalledWith(chart.element, expect.objectContaining({ format, width: 650 }));
@@ -50,10 +50,18 @@ it("combines a visx chart and a map in one workspace export", async () => {
   expect(clicks).toHaveLength(1);
 });
 
-vi.mock("jspdf", () => ({ jsPDF: class { output() { return "data:application/pdf;base64,cGRm"; } } }));
-vi.mock("svg2pdf.js", () => ({ svg2pdf: vi.fn().mockResolvedValue(undefined) }));
 it("preserves named SVG export errors for the menu", async () => {
   mocks.renderSvgChart.mockRejectedValueOnce(Object.assign(new Error("Cannot draw"), { code: "EXPORT_RENDER_FAILED" }));
   await expect(exportImage(visx(), { format: "png", width: 650 })).rejects.toMatchObject({ code: "EXPORT_RENDER_FAILED" });
+  expect(clicks).toHaveLength(0);
+});
+
+it.each(["visx", "map", "combined"])("rejects disabled PDF export for %s", async kind => {
+  const task = kind === "combined"
+    ? exportCombinedImage([visx(), map()], { format: "pdf" })
+    : exportImage(kind === "map" ? map() : visx(), { format: "pdf" });
+  await expect(task).rejects.toMatchObject({ code: "EXPORT_FORMAT_DISABLED" });
+  expect(mocks.renderSvgChart).not.toHaveBeenCalled();
+  expect(plotly).not.toHaveBeenCalled();
   expect(clicks).toHaveLength(0);
 });

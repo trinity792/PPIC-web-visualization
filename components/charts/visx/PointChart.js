@@ -53,7 +53,7 @@ import { scaleLinear } from "@visx/scale";
 import { readableTextColor } from "@/lib/visualization/chartLayout/contrast";
 import { plotClipRect, svgSafeId } from "@/lib/visualization/chartLayout/plotClip";
 import { placePointLabels } from "@/lib/visualization/chartLayout/pointLabels";
-import { interTextWidth, textWidth } from "@/lib/visualization/chartLayout/textWidth";
+import { chartTextWidth, textWidth } from "@/lib/visualization/chartLayout/textWidth";
 import { CHART_STYLE } from "@/lib/visualization/chartStyle";
 
 const { text, graphLine, hoverLabel, point: pointStyle, range: rangeStyle } = CHART_STYLE;
@@ -133,7 +133,7 @@ export default function PointChart({ model, width, height }) {
   // ── Size ──
   // The widest value label starts at the drawing's left edge, in line with the
   // title above it (owner, 2026-10-12).
-  const left = Math.ceil(Math.max(0, ...yAxis.tickText.map((label) => interTextWidth(label, axisSize)))) + Y_LABEL_NUDGE;
+  const left = Math.ceil(Math.max(0, ...yAxis.tickText.map((label) => chartTextWidth(label, axisSize)))) + Y_LABEL_NUDGE;
   const lastTickHalf = Math.ceil(textWidth(xAxis.tickText.at(-1) || "", axisSize) / 2);
   const right = Math.max(EDGE, lastTickHalf);
   const top = EDGE;

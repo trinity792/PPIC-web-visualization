@@ -7,7 +7,7 @@
  * place them wherever it likes:
  *
  *   • ExportChartButton — a live image-preview dialog with format and quality
- *     controls for PNG/SVG/JPG/PDF, plus an embed dialog for the workspace.
+ *     controls for PNG/SVG/JPG, plus an embed dialog for the workspace.
  *   • ExportDataButton  — the chart-shaped table under its active settings
  *     (including rows hidden by its visual ranking cap), or the module's entire
  *     cleaned dataset (fetched full, ignoring the chart's filters), as CSV or

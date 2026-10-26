@@ -14,11 +14,19 @@
 import { describe, expect, it } from "vitest";
 
 import { POST as BUILDING_PERMITS_POST } from "@/app/api/building-permits/route";
+import { POST as COMPONENTS_OF_CHANGE_POST } from "@/app/api/components-of-change/route";
 import { POST as HOUSING_STRESS_POST } from "@/app/api/housing-stress/route";
 import { POST as POPHOUSING_POST } from "@/app/api/pophousing/route";
+import { POST as PROJECTIONS_POST } from "@/app/api/projections/route";
 import { POST as RHNA_PROGRESS_POST } from "@/app/api/rhna-progress/route";
 import { getDefaultQuestion } from "@/lib/visualization/defaultQuestions";
+import { loadGeometry, loadRepresentativePoints } from "@/lib/data/geography";
+import { adaptObservations } from "@/lib/visualization/adapters";
+import { getChartCapabilities } from "@/lib/visualization/chartRegistry";
+import { buildChartModel } from "@/lib/visualization/models";
+import { getModuleSchema } from "@/lib/visualization/moduleRegistry";
 import { validateResponse } from "@/lib/visualization/observationContract";
+import { previewInput } from "@/lib/visualization/previewInput";
 
 async function post(handler, moduleId, questionPatch, comparisons) {
   const spec = getDefaultQuestion(moduleId);
@@ -36,6 +44,28 @@ async function post(handler, moduleId, questionPatch, comparisons) {
 
 const available = (body) =>
   body.observations.filter((row) => row.status === "available");
+
+describe("preloaded topic defaults", () => {
+  it.each([
+    ["pophousing", POPHOUSING_POST],
+    ["components-of-change", COMPONENTS_OF_CHANGE_POST],
+    ["demographic-projections", PROJECTIONS_POST],
+    ["housing-stress", HOUSING_STRESS_POST],
+    ["building-permits", BUILDING_PERMITS_POST],
+    ["rhna-progress", RHNA_PROGRESS_POST],
+  ])("%s returns data for its default comparisons and locations", async (moduleId, handler) => {
+    const spec = getDefaultQuestion(moduleId);
+    const { status, body } = await post(handler, moduleId);
+    expect(status).toBe(200);
+    expect(validateResponse(body).valid).toBe(true);
+    for (const comparison of spec.question.comparisons) {
+      const locations = new Set(available(body)
+        .filter((row) => row.comparisonId === comparison.id)
+        .map((row) => row.geographyLabel));
+      expect([...locations].sort(), comparison.id).toEqual([...spec.question.geography.locations].sort());
+    }
+  });
+});
 
 describe("building-permits v3 POST", () => {
   it("answers the derived region and Rest of US places the location list offers", async () => {
@@ -119,6 +149,49 @@ describe("pophousing v3 POST", () => {
 });
 
 describe("rhna-progress v3 POST", () => {
+  it("joins every default county to both map types while retaining HCD labels", async () => {
+    const spec = getDefaultQuestion("rhna-progress");
+    const { status, body } = await post(RHNA_PROGRESS_POST, "rhna-progress");
+    expect(status).toBe(200);
+    const geojson = await loadGeometry("counties");
+    const points = await loadRepresentativePoints("counties");
+    const featureIds = new Set(geojson.features.map((feature) => feature.properties.GEOID));
+    for (const row of available(body)) {
+      expect(featureIds.has(row.geographyId), row.geographyLabel).toBe(true);
+      expect(row.geographyLabel).toMatch(/ County$/);
+    }
+    const schema = getModuleSchema("rhna-progress");
+    const map = adaptObservations(previewInput(spec, schema, { ...body, geometry: geojson }));
+    expect(map.data[0].locations).toHaveLength(spec.question.geography.locations.length);
+    expect(map.layout.geo.projection.type).toBe("mercator");
+    const symbols = adaptObservations(previewInput(spec, schema, {
+      ...body, geometry: { points, geojson },
+    }, "symbolMap"));
+    expect(symbols.data.find((trace) => trace.mode === "markers").lon)
+      .toHaveLength(spec.question.geography.locations.length);
+  });
+
+  it.each([
+    ["bar", "bars"], ["dotPlot", "points"], ["scatter", "points"],
+    ["bubble", "points"], ["pie", "slices"], ["dataTable", "table"],
+  ])("draws RHNA's restored %s option from snapshot observations", async (chartType, marks) => {
+    const spec = getDefaultQuestion("rhna-progress");
+    const outcomes = [{ role: "y", measureId: "Units" }];
+    if (["scatter", "bubble"].includes(chartType)) outcomes.push({ role: "x", measureId: "RHNA" });
+    if (chartType === "bubble") outcomes.push({ role: "size", measureId: "Projected Units" });
+    const { status, body } = await post(RHNA_PROGRESS_POST, "rhna-progress", { outcomes });
+    expect(status).toBe(200);
+    spec.question.outcomes = outcomes;
+    spec.presentation = {
+      ...spec.presentation,
+      chartType,
+      comparisonPresentation: getChartCapabilities(chartType).comparison.default,
+    };
+    const input = previewInput(spec, getModuleSchema("rhna-progress"), body);
+    const model = chartType === "dataTable" ? adaptObservations(input) : buildChartModel(input);
+    expect(chartType === "dataTable" ? model.table.rows.length : model[marks].length).toBeGreaterThan(0);
+  });
+
   it("resolves a bare snapshot to the latest row when no period list is published", async () => {
     const res = await post(
       RHNA_PROGRESS_POST,

@@ -4,7 +4,7 @@ Content Type: project specification
 pinned: true
 description: "Current product and technical specification for building, rendering, sharing, and exporting visualizations in the PPIC Data Explorer."
 Date Published: July 27, 2026
-Last Updated: 10/18/2026 - 04:00 PM
+Last Updated: 10/26/2026 - 01:57 PM
 Status: Finalized
 ---
 
@@ -468,7 +468,7 @@ The current interface supports:
 
 The owner removed three controls, and saved views that still hold their settings open normally and ignore them: the Legend switch (`showLegend`), the Tooltip template (`labels.tooltip`), and the per-series rename, hide, and color list (`legendLabels`, `hiddenSeries`, `seriesColors`).
 
-Style values come from one owner, `lib/visualization/chartStyle.js`, built from `lib/constants.js` tokens, including the style guide's graph-line gray `#6C7075`, subtitle gray `#646D76`, and source-box gray `#EFF0F2`. Chart text uses Inter, whose 400 and 700 weights are loaded. `lib/visualization/models/sharedSettings.js` is the one reader for the settings every chart shares.
+Style values come from one owner, `lib/visualization/chartStyle.js`, built from `lib/constants.js` tokens, including the style guide's graph-line gray `#6C7075`, subtitle gray `#646D76`, and source-box gray `#EFF0F2`. Chart text uses Proxima Nova, whose 400 and 700 weights are loaded through the website's Adobe Fonts kit. `lib/visualization/models/sharedSettings.js` is the one reader for the settings every chart shares.
 
 For visx charts, the source-and-notes box follows PPIC's published Datawrapper standard:
 
@@ -526,13 +526,12 @@ Chart export supports:
 
 - PNG;
 - SVG;
-- JPG;
-- PDF; and
+- JPG; and
 - an iframe embed.
 
 Image export follows the chart's renderer (Workstream M of [[chart-renderer-implementation-plan]]):
 
-- **visx charts** export from the drawn picture. `lib/export/exportSvgChart.js` builds one self-contained SVG of the whole frame, with Inter embedded, then saves it or converts it to PNG, JPG, or PDF. A type exports this way once one file of each format has been checked (`SVG_EXPORT_CHART_TYPES`). Every visx chart but the forest plot is on that list; the forest plot's image dialog still says image export is coming soon.
+- **visx charts** export from the drawn picture. `lib/export/exportSvgChart.js` builds one self-contained SVG of the whole frame, with Proxima Nova embedded, then saves it or converts it to PNG or JPG. PDF export is currently disabled. A type exports this way once one file of each format has been checked (`SVG_EXPORT_CHART_TYPES`). Every visx chart but the forest plot is on that list; the forest plot's image dialog still says image export is coming soon.
 - **Maps** export with their frame. `Plotly.toImage` draws the map alone as SVG at the size of the frame's drawing area, and `exportSvgChart.js` places it inside the frame's SVG.
 - **Other Plotly drawings** export through `Plotly.toImage`.
 
@@ -765,7 +764,7 @@ This block is generated from `lib/visualization/settingsRegistry.js`. It is the 
 | customDivergingStops | Custom diverging stops | Appearance | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | presentation.appearance.divergingStops | lib/visualization/palettes.js |
 | dashedRange | Dashed lines for a range of periods | Appearance | standard | Charts: line; datasets: All | See resolved chart and dataset capabilities | presentation.appearance.dashedRange | lib/visualization/models/lineModel.js |
 | fitAxes | Fit both axes to the data | Appearance | standard | Charts: scatter, bubble; datasets: All | On or off (off: the vertical axis starts at zero) | presentation.appearance.fitAxes | lib/visualization/models/pointModel.js |
-| hideGridLines | Hide grid lines | Appearance | standard | Charts: line, bar, dumbbell, dotPlot, forest, scatter, bubble; datasets: All | On or off (off by default); the axes stay | presentation.appearance.hideGridLines | lib/visualization/models/sharedSettings.js |
+| hideGridLines | Hide grid lines | Appearance | standard | Charts: line, bar, dumbbell, dotPlot, forest, scatter, bubble; datasets: All | On or off (on by default for line charts, off for other charts); the axes stay | presentation.appearance.hideGridLines | lib/visualization/models/sharedSettings.js |
 | hideXAxis | Hide horizontal axis | Appearance | advanced | Charts: All; datasets: All | See resolved chart and dataset capabilities | presentation.appearance.hideXAxis | lib/visualization/models/rangeModel.js |
 | hole | Donut hole | Appearance | standard | Charts: pie; datasets: All | Share of the radius, 0 to 0.6 (0, a full pie, by default) | presentation.appearance.hole | lib/visualization/models/pieModel.js |
 | markerSize | Marker size | Appearance | standard | Charts: dotPlot; datasets: All | Dot diameter in px, 6 to 20 (9 by default) | presentation.appearance.markerSize | lib/visualization/models/dotPlotModel.js |

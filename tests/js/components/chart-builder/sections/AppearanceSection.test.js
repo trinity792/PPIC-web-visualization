@@ -303,20 +303,26 @@ describe("AppearanceSection", () => {
   });
 
   it.each(["line", "bar", "dumbbell", "dotPlot", "forest", "scatter", "bubble"])(
-    "offers Hide grid lines below Footnote on %s and saves it",
+    "offers Hide grid lines beside Legend Position on %s in standard mode and saves it",
     async (chartType) => {
       const user = userEvent.setup();
-      state.config = config(chartType);
-      render(<AppearanceSection />);
+      state.config = {
+        version: 3,
+        question: { comparisons: [] },
+        presentation: { chartType, appearance: {}, labels: {}, bindings: {} },
+      };
+      renderBasic();
       const labels = labelOrder();
-      expect(labels.indexOf("Hide grid lines")).toBeGreaterThan(labels.indexOf("Footnote"));
+      expect(labels.indexOf("Hide grid lines")).toBe(labels.indexOf("Legend Position") + 1);
+      expect(labels.indexOf("Hide grid lines")).toBeLessThan(labels.indexOf("Footnote"));
       const toggle = screen.getByLabelText("Hide grid lines");
-      expect(toggle).not.toBeChecked();
+      if (chartType === "line") expect(toggle).toBeChecked();
+      else expect(toggle).not.toBeChecked();
       await user.click(toggle);
       expect(state.dispatch).toHaveBeenCalledWith({
         type: "SET_APPEARANCE",
         key: "hideGridLines",
-        value: true,
+        value: chartType !== "line",
       });
     },
   );

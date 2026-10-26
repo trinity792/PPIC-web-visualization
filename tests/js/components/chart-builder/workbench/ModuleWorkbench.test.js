@@ -132,8 +132,13 @@ describe("ModuleWorkbench", () => {
   });
 
   describe("deferred first render", () => {
-    it("defers on a plain module landing", () => {
+    it("renders the preloaded chart on a plain module landing", () => {
       render(<ModuleWorkbench schema={schema} initialConfig={{ module: "widgets" }} />);
+      expect(previewProps.last.deferInitialRender).toBe(false);
+    });
+
+    it("honors an explicit request to defer rendering", () => {
+      render(<ModuleWorkbench schema={schema} initialConfig={{ module: "widgets" }} deferInitialRender />);
       expect(previewProps.last.deferInitialRender).toBe(true);
     });
 

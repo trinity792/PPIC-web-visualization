@@ -38,7 +38,6 @@ vi.mock("@/lib/export/exportImage", () => ({
     { id: "png", label: "PNG", supportsAlpha: true, vector: false, ext: "png" },
     { id: "svg", label: "SVG", supportsAlpha: true, vector: true, ext: "svg" },
     { id: "jpeg", label: "JPG", supportsAlpha: false, vector: false, ext: "jpg" },
-    { id: "pdf", label: "PDF", supportsAlpha: false, vector: true, ext: "pdf" },
   ],
   IMAGE_QUALITIES: [
     { id: "max", label: "Maximum", scale: 4, jpegQuality: 1 },

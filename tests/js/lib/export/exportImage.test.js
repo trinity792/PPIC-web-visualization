@@ -1,7 +1,7 @@
 /**
  * Tests for lib/export/exportImage.js - Phase 5 image export. The module must
  * stay client-safe: Plotly is supplied by the mounted graph div/global runtime,
- * while PDF dependencies are loaded only for PDF export.
+ * and PDF export is disabled.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -36,12 +36,11 @@ function stubAnchorClick() {
 }
 
 describe("IMAGE_FORMATS", () => {
-  it("advertises PNG, SVG, JPEG, and PDF with alpha/vector capabilities", () => {
+  it("advertises PNG, SVG, and JPEG with alpha/vector capabilities", () => {
     expect(IMAGE_FORMATS.map((format) => format.id)).toEqual([
       "png",
       "svg",
       "jpeg",
-      "pdf",
     ]);
     expect(IMAGE_FORMATS.find((format) => format.id === "png")).toMatchObject({
       supportsAlpha: true,
@@ -55,10 +54,7 @@ describe("IMAGE_FORMATS", () => {
       supportsAlpha: false,
       vector: false,
     });
-    expect(IMAGE_FORMATS.find((format) => format.id === "pdf")).toMatchObject({
-      supportsAlpha: false,
-      vector: true,
-    });
+    expect(IMAGE_FORMATS.some((format) => format.id === "pdf")).toBe(false);
   });
 });
 
@@ -247,68 +243,11 @@ describe("exportImage", () => {
     );
   });
 
-  it("fits the vector SVG to a PDF page with the chart's dimensions", async () => {
-    const graphDiv = { id: "graph" };
-    const svg =
-      '<svg width="960" height="520" viewBox="0 0 960 520">' +
-      '<text class="legendtext"><tspan>South San Joaquin\u2003\u2003</tspan>' +
-      '<tspan>Valley\u2003\u2003</tspan></text>' +
-      '<text class="chart-title">Intentional\u2003space</text></svg>';
-    globalThis.Plotly.toImage.mockResolvedValueOnce(
-      `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`,
-    );
-    const pdfConstructor = vi.fn();
-    const svg2pdfMock = vi.fn().mockResolvedValue(undefined);
-    vi.doMock("jspdf", () => ({
-      jsPDF: class PdfStub {
-        constructor(options) {
-          pdfConstructor(options);
-        }
-
-        output() {
-          return dataUrl("application/pdf", "pdf");
-        }
-      },
-    }));
-    vi.doMock("svg2pdf.js", () => ({ svg2pdf: svg2pdfMock }));
+  it("rejects PDF export before rendering or downloading", async () => {
     const { clicks } = stubAnchorClick();
-
-    await exportImage(graphDiv, {
-      format: "pdf",
-      scale: 1,
-      width: 960,
-      height: 520,
-      transparent: false,
-      filename: "chart.pdf",
-    });
-
-    expect(globalThis.Plotly.toImage).toHaveBeenCalledWith(
-      graphDiv,
-      expect.objectContaining({ format: "svg" }),
-    );
-    expect(pdfConstructor).toHaveBeenCalledWith(
-      expect.objectContaining({
-        orientation: "landscape",
-        unit: "px",
-        format: [960, 520],
-        hotfixes: ["px_scaling"],
-      }),
-    );
-    expect(svg2pdfMock).toHaveBeenCalledWith(
-      expect.any(Element),
-      expect.anything(),
-      { x: 0, y: 0, width: 960, height: 520 },
-    );
-    const pdfSvg = svg2pdfMock.mock.calls[0][0];
-    expect(pdfSvg.querySelector(".legendtext").textContent).toBe(
-      "South San JoaquinValley",
-    );
-    expect(pdfSvg.querySelector(".chart-title").textContent).toBe(
-      "Intentional\u2003space",
-    );
-    expect(clicks[0].download).toBe("chart.pdf");
-    vi.doUnmock("jspdf");
-    vi.doUnmock("svg2pdf.js");
+    await expect(exportImage({ id: "graph" }, { format: "pdf" })).rejects.toMatchObject({ code: "EXPORT_FORMAT_DISABLED" });
+    expect(globalThis.Plotly.toImage).not.toHaveBeenCalled();
+    expect(clicks).toHaveLength(0);
   });
 
   it("rejects Plotly render failures with EXPORT_RENDER_FAILED", async () => {

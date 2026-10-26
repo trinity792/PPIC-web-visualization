@@ -38,6 +38,7 @@ vi.mock("@/lib/visualization/chartRegistry", async (importOriginal) => {
 });
 
 import { DEMOGRAPHIC_PROJECTIONS_SCHEMA } from "@/lib/visualization/moduleSchemas/demographicProjections";
+import { RHNA_PROGRESS_SCHEMA } from "@/lib/visualization/moduleSchemas/rhnaProgress";
 import ChartTypeSection from "@/components/chart-builder/sections/ChartTypeSection";
 
 // Owner, 2026-10-12: the first four tiles are Line, Bar, Range, Maps; the rest
@@ -83,6 +84,17 @@ describe("ChartTypeSection", () => {
     await showMore(user);
     expect(tileLabels()).toEqual(orderedLabels);
     expect(screen.getByRole("group", { name: "Chart type" })).toHaveClass("grid-cols-2");
+  });
+
+  it("offers RHNA's snapshot charts with Maps selected on arrival", async () => {
+    const user = userEvent.setup();
+    state.schema = RHNA_PROGRESS_SCHEMA;
+    state.config = { chartType: "choroplethMap" };
+    render(<ChartTypeSection />);
+    expect(tileLabels()).toEqual(["Bar", "Maps", "Scatter", "Pie / Donut"]);
+    expect(screen.getByRole("button", { name: "Maps", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await showMore(user);
+    expect(tileLabels()).toEqual(["Bar", "Maps", "Scatter", "Pie / Donut", "Data Table"]);
   });
 
   // Owner, 2026-10-12: icon tiles, four shown by default.

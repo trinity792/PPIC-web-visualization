@@ -7,7 +7,7 @@ it("Plotly font and grid come from chartStyle", () => {
   expect(defaults.PLOTLY_GRID_COLOR).toBe("#6C7075");
 });
 it("keeps its existing export names", () => {
-  expect(defaults.PLOTLY_FONT).toMatchObject({ family: "Inter, sans-serif" });
-  expect(defaults.PLOTLY_FONT_FAMILY).toBe("Inter, sans-serif");
+  expect(defaults.PLOTLY_FONT).toMatchObject({ family: "proxima-nova, sans-serif" });
+  expect(defaults.PLOTLY_FONT_FAMILY).toBe("proxima-nova, sans-serif");
   expect(defaults.legendFor).toBeTypeOf("function");
 });

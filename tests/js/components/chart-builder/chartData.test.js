@@ -104,6 +104,38 @@ describe("Workstream C v3 loader", () => {
     vi.unstubAllGlobals();
   });
 
+  it.each(["fetch", "body"])("preserves cancellation while reading the %s", async (stage) => {
+    const cancellation = new DOMException("The operation was aborted.", "AbortError");
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      if (stage === "fetch") throw cancellation;
+      return { ok: true, json: async () => { throw cancellation; } };
+    }));
+    const { loadObservations } = await chartDataModule();
+    await expect(loadObservations(v3Question(), { apiPath: "/api/projections" }))
+      .rejects.toBe(cancellation);
+  });
+
+  it("preserves a custom abort reason from a cancelled signal", async () => {
+    const controller = new AbortController();
+    const cancellation = new Error("Superseded request");
+    controller.abort(cancellation);
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(cancellation));
+    const { loadObservations } = await chartDataModule();
+    await expect(loadObservations(v3Question(), {
+      apiPath: "/api/projections", signal: controller.signal,
+    })).rejects.toBe(cancellation);
+  });
+
+  it("still reports a genuine network failure", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Network unavailable")));
+    const { loadObservations } = await chartDataModule();
+    await expect(loadObservations(v3Question(), { apiPath: "/api/projections" }))
+      .resolves.toMatchObject({
+        blocked: true,
+        issues: [{ code: "requestFailed", level: "blocking", message: "Network unavailable" }],
+      });
+  });
+
   it("sends one POST body for all comparisons", async () => {
     const fetchMock = stubResponse({
       status: "ok",

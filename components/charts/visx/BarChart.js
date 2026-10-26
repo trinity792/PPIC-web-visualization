@@ -77,7 +77,7 @@ import { plotClipRect, svgSafeId } from "@/lib/visualization/chartLayout/plotCli
 import { darken, readableTextColor, textColorOn, tint } from "@/lib/visualization/chartLayout/contrast";
 import { directLabels } from "@/lib/visualization/chartLayout/directLabels";
 import { rowLabels } from "@/lib/visualization/chartLayout/rowLabels";
-import { interTextWidth, textWidth, wrapText } from "@/lib/visualization/chartLayout/textWidth";
+import { chartTextWidth, textWidth, wrapText } from "@/lib/visualization/chartLayout/textWidth";
 import { CHART_STYLE } from "@/lib/visualization/chartStyle";
 import { COLORS } from "@/lib/constants";
 
@@ -171,10 +171,10 @@ function categoryLabelLayout(labels, fontSize, slotSize) {
     const lines = Math.max(1, ...wrapped.map((item) => item.length));
     return { angle: 0, wrapped, depth: lines * fontSize * LINE_HEIGHT, overhang: 0 };
   }
-  // Angled and upright labels reserve their real width (Inter's advances): the
+  // Angled and upright labels reserve their real width (Proxima Nova's advances): the
   // estimate's over-reach, turned down the page, left a gap above the axis
   // title (owner, 2026-10-12).
-  const widths = labels.map((label) => interTextWidth(label, fontSize));
+  const widths = labels.map((label) => chartTextWidth(label, fontSize));
   const single = labels.map((label) => [label]);
   if (slotSize >= ANGLED_LABEL_SLOT * fontSize) {
     return {
@@ -245,7 +245,7 @@ export default function BarChart({ model, width, height }) {
   // title above it (owner, 2026-10-12).
   const tickLabelWidth = minimal
     ? 0
-    : Math.ceil(Math.max(0, ...tickText.map((label) => interTextWidth(label, axisSize))));
+    : Math.ceil(Math.max(0, ...tickText.map((label) => chartTextWidth(label, axisSize))));
   // The drawing ends at its lowest text's descent, so the frame's gap below it
   // (to the key or the source box) is measured from the text, as PPIC
   // publishes it (owner, 2026-10-12).

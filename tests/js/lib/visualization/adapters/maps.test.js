@@ -14,9 +14,9 @@ function tenPlaces(type, appearance = {}) {
   const points = Object.fromEntries(observations.map(entry => [entry.geographyId, [-120, 36]]));
   return { ...base, observations, appearance, geometry: type === "symbolMap" ? { geojson: base.geometry.geojson, points } : base.geometry };
 }
-it.each(["choroplethMap", "symbolMap"])("uses Inter and the guide's colors: %s", type => {
+it.each(["choroplethMap", "symbolMap"])("uses Proxima Nova and the guide's colors: %s", type => {
   const figure = adaptObservations(input(type));
-  expect(figure.layout.font).toMatchObject({ family: "Inter, sans-serif", color: "#6C7075" });
+  expect(figure.layout.font).toMatchObject({ family: "proxima-nova, sans-serif", color: "#6C7075" });
   if(type === "symbolMap") expect(figure.data[0].line).toMatchObject({ color: "#6C7075", width: 1 });
 });
 it("defaults to the guide's five orange map classes", () => {

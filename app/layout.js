@@ -1,5 +1,5 @@
 import React from "react";
-import { Inter, Source_Serif_4 } from "next/font/google";
+import localFont from "next/font/local";
 import Navbar from "@/components/Navbar";
 import ReportProblemDialog from "@/components/feedback/ReportProblemDialog";
 import BackToTopButton from "@/components/documents/BackToTopButton";
@@ -7,20 +7,14 @@ import { PAGE_LAYOUT } from "@/lib/constants";
 import "./globals.css";
 import { Analytics } from "@vercel/analytics/next"
 
-// Retained for visualization rendering; website typography uses Proxima Nova.
-// 700 is loaded for the charts' bold text (titles, hover labels, and the
-// source box's "SOURCE:" / "NOTES:" captions); without it the browser fakes
-// bold, which barely shows at the source box's 11px.
-const inter = Inter({
-  subsets: ["latin"],
-  weight: ["400", "700"],
-  variable: "--font-inter",
-});
-
-// Variable serif used globally. No pinned weight so the full variable range is
-// available for the heading hierarchy.
-const sourceSerif = Source_Serif_4({
-  subsets: ["latin"],
+// The same Latin variable serif, retaining its full heading weight range.
+const sourceSerif = localFont({
+  src: "../public/fonts/SourceSerif4-latin.woff2",
+  weight: "200 900",
+  style: "normal",
+  display: "swap",
+  declarations: [{ prop: "font-family", value: "Source Serif 4" }],
+  adjustFontFallback: "Times New Roman",
   variable: "--font-source-serif",
 });
 
@@ -46,7 +40,7 @@ export default function RootLayout({ children }) {
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${inter.variable} ${sourceSerif.variable}`}
+      className={sourceSerif.variable}
     >
       <head>
         <link rel="preconnect" href="https://use.typekit.net" crossOrigin="anonymous" />
