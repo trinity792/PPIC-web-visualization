@@ -1,28 +1,21 @@
 /**
- * DocumentCard.js — one row in the Documents landing list.
- *
- * Ported from the Figma reference "document-card.tsx", adapted to Next.js:
- * links to the document's slug route, uses a Content-Type icon tile in place of
- * a photo, reuses the shared Badge for the type chip, and displays the
- * frontmatter Status with the UI Kit's status-chip pattern.
+ * DocumentCard.js — thumbnail, publication date, title, and summary preview.
  *
  * Props:
- *   doc {Object} — normalized record from lib/docs/documents.js
- *     { slug, title, type, status, summary, category, publishedISO,
- *       publishedRaw, updatedLabel }
+ *   doc {Object} — normalized document from lib/docs/documents.js
+ *   variant {string} — "default" or the smaller "compact" plan preview
  *
  * Data sources:
  *   - Via props from DocumentsBrowser
  *
  * UI Kit reference:
- *   - Implements the shared "Card" / "Tag" patterns (Badge) with PPIC tokens
+ *   - Shared card pattern, adapted to mockups/Doc Page Mockup.jpg
  */
 
 import React from "react";
 import Link from "next/link";
 
 import {
-  ArrowUpRight,
   Bot,
   BookMarked,
   BookOpen,
@@ -33,13 +26,14 @@ import {
   ListChecks,
   MessageSquareText,
   NotebookPen,
+  NotepadText,
+  Save,
   ScrollText,
   Workflow,
   Wrench,
 } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
-import { COLORS } from "@/lib/constants";
+import { DOCUMENT_PAGE_COLORS } from "@/lib/constants";
 import { docTypeStyle } from "@/lib/docs/docTypeStyles";
 
 // Resolve lucide icon names from docTypeStyles into components.
@@ -54,142 +48,61 @@ const ICONS = {
   ListChecks,
   MessageSquareText,
   NotebookPen,
+  NotepadText,
+  Save,
   ScrollText,
   Workflow,
   Wrench,
 };
 
-const STATUS_COLORS = {
-  Archive: COLORS.gray6,
-  Finalized: COLORS.officialBlue,
-  "In Progress": COLORS.blue2,
-  "Not Started": COLORS.gray3,
-  Updating: COLORS.blue5,
-  Draft: COLORS.maroonRed2
-};
-
 function formatDate(doc) {
   if (doc.publishedISO) {
     return new Date(doc.publishedISO).toLocaleDateString("en-US", {
-      month: "short",
+      month: "long",
       day: "numeric",
       year: "numeric",
+      timeZone: "UTC",
     });
   }
   return doc.publishedRaw || "";
 }
 
-export function DocumentCard({ doc }) {
+export function DocumentCard({ doc, variant = "default" }) {
   const style = docTypeStyle(doc.type);
   const Icon = ICONS[style.icon] || FileText;
   const published = formatDate(doc);
+  const isCompact = variant === "compact";
 
   return (
     <Link
       href={`/documents/${doc.slug}`}
-      className="group flex gap-5 rounded-xl p-4 transition-all"
-      style={{
-        background: "var(--ppic-card)",
-        border: "1px solid var(--ppic-border)",
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = "var(--ppic-brand)";
-        e.currentTarget.style.boxShadow = "0 8px 24px -12px rgba(227,106,24,0.4)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = "var(--ppic-border)";
-        e.currentTarget.style.boxShadow = "none";
-      }}
+      className={`group flex overflow-hidden rounded-2xl border bg-background font-sans text-foreground transition-shadow hover:shadow-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ppic-brand motion-reduce:transition-none ${
+        isCompact ? "min-h-32" : "min-h-40 lg:min-h-42"
+      }`}
+      style={{ borderColor: DOCUMENT_PAGE_COLORS.cardBorder }}
     >
-      {/* Content-type icon tile (replaces the reference's photo thumbnail) */}
       <div
-        className="flex h-24 w-32 shrink-0 items-center justify-center rounded-lg"
+        className={`flex shrink-0 items-center justify-center ${isCompact ? "w-[26%]" : "w-[17%]"}`}
         style={{ background: style.bg, color: style.fg }}
+        aria-hidden="true"
       >
-        <Icon className="h-8 w-8" aria-hidden="true" />
+        <Icon className="h-auto w-1/4 max-w-14" />
       </div>
-
-      <div className="flex min-w-0 flex-1 flex-col justify-center">
-        <div className="mb-2 flex flex-wrap items-center gap-2 self-start">
-          <Badge
-            className="rounded-full border-transparent uppercase"
-            style={{ background: style.bg, color: style.fg, letterSpacing: "0.06em" }}
-          >
-            {doc.type}
-          </Badge>
-          {doc.status ? (
-            <Badge
-              className="gap-2 uppercase bg-ppic-neutral-50 text-ppic-neutral-600 rounded-full border-transparent"
-              style={{ letterSpacing: "0.06em" }}
-            >
-              <span
-                aria-hidden="true"
-                className="size-2 rounded-full"
-                style={{ backgroundColor: STATUS_COLORS[doc.status] || COLORS.gray3 }}
-              />
-              {doc.status}
-            </Badge>
-          ) : null}
-        </div>
-
-        <h3
-          className="line-clamp-2"
-          style={{
-            color: "var(--ppic-ink, #0d0d0d)",
-            lineHeight: 1.3,
-            fontFamily: "var(--font-serif)",
-            fontSize: 19,
-            fontWeight: 400,
-          }}
-        >
+      <div className={`min-w-0 flex-1 py-4 ${isCompact ? "px-5 lg:px-6" : "px-5 lg:px-8"}`}>
+        {published ? (
+          <time dateTime={doc.publishedISO || undefined} className={`block font-proxima font-bold ${isCompact ? "text-[11px]" : "text-[13px]"}`}>
+            {published}
+          </time>
+        ) : null}
+        <h3 className={`mt-2 line-clamp-2 font-serif font-regular leading-tight ${isCompact ? "text-lg" : "text-2xl"}`}>
           {doc.title}
         </h3>
-
         {doc.summary ? (
-          <p
-            className="mt-1.5 line-clamp-2"
-            style={{
-              color: "var(--ppic-neutral-500)",
-              fontSize: 13.5,
-              lineHeight: 1.5,
-              fontFamily: "var(--font-sans)",
-            }}
-          >
+          <p className={`mt-2 line-clamp-2 font-proxima leading-relaxed ${isCompact ? "text-xs" : "text-sm"}`}>
             {doc.summary}
           </p>
         ) : null}
-
-        <div
-          className="mt-2 flex flex-wrap items-center gap-3"
-          style={{ fontFamily: "var(--font-sans)" }}
-        >
-          <span style={{ color: "var(--ppic-neutral-400)", fontSize: 13 }}>
-            {doc.category}
-          </span>
-          {published ? (
-            <>
-              <span style={{ color: "var(--ppic-border)" }}>•</span>
-              <span style={{ color: "var(--ppic-neutral-400)", fontSize: 13 }}>
-                {published}
-              </span>
-            </>
-          ) : null}
-          {doc.updatedLabel ? (
-            <>
-              <span style={{ color: "var(--ppic-border)" }}>•</span>
-              <span style={{ color: "var(--ppic-neutral-400)", fontSize: 13 }}>
-                Updated {doc.updatedLabel}
-              </span>
-            </>
-          ) : null}
-        </div>
       </div>
-
-      <ArrowUpRight
-        className="h-5 w-5 shrink-0 self-center transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
-        style={{ color: "var(--ppic-brand)" }}
-        aria-hidden="true"
-      />
     </Link>
   );
 }

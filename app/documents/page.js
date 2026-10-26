@@ -1,7 +1,7 @@
 /**
  * app/documents/page.js — Documents landing page (server component).
  *
- * Reads the committed docs/ Markdown library and renders the browsable catalog.
+ * Reads the committed docs/ Markdown library and renders collection previews.
  * Filter options are derived from the files, so new documents appear without
  * code changes.
  *
@@ -33,6 +33,7 @@ export default function DocumentsPage() {
 
   return (
     <DocumentsBrowser
+      view="landing"
       docs={docs}
       contentTypes={contentTypes}
       statuses={statuses}

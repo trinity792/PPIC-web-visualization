@@ -1,27 +1,26 @@
 "use client";
 
 /**
- * DocumentsBrowser.js — client island for the Documents landing page.
- *
- * Ported from the Figma reference "App.tsx": owns the search, topic, type,
- * status, and sort state and the filter+sort pipeline, then renders the hero band, the
- * filter sidebar, the sort control, and the results list. All data (documents
- * and filter options) arrives as props from the server page.
+ * DocumentsBrowser.js — collection previews or the full filterable catalog.
  *
  * Props:
- *   docs         {Object[]} — normalized records from lib/docs/documents.js
- *   contentTypes {string[]} — filter options from getContentTypes()
- *   statuses     {string[]} — filter options from getStatuses()
- *   topics       {string[]} — filter options from getTopics()
+ *   docs {Object[]} — normalized documents, pinned first then newest first
+ *   contentTypes, statuses, topics {string[]} — catalog-derived filter options
+ *   view {string} — "landing" previews or "browse" with sidebar and sorting
+ *   initialTypes {string[]} — content types selected by a collection link
+ *   initialQuery {string} — search submitted from the landing page
  *
  * Data sources:
- *   - Via props from app/documents/page.js (server component)
+ *   - Server props from app/documents/page.js and app/documents/browse/page.js
  *
  * UI Kit reference:
- *   - Composes shared Select/Checkbox/Badge primitives with PPIC tokens
+ *   - Shared Select/Checkbox controls and DocumentCard previews
  */
 
 import React, { useMemo, useState } from "react";
+import Link from "next/link";
+import { ArrowLeft, ArrowRight, Search } from "lucide-react";
+import { DOCUMENT_COLLECTIONS, isCollectionType } from "@/lib/docs/collections";
 
 import { DocumentFilterSidebar } from "./DocumentFilterSidebar";
 import { DocumentCard } from "./DocumentCard";
@@ -39,13 +38,24 @@ const SORT_LABELS = {
   az: "Title A–Z",
 };
 
-export default function DocumentsBrowser({ docs, contentTypes, statuses, topics }) {
+// Keep the original catalog search field consistent in both views.
+const SEARCH_INPUT_CLASS = "h-10 w-full rounded-lg border border-ppic-border bg-ppic-card pr-10 pl-3.5 font-sans text-sm text-ppic-neutral-600 outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ppic-brand";
+
+export default function DocumentsBrowser({
+  docs,
+  contentTypes,
+  statuses,
+  topics,
+  view = "browse",
+  initialTypes = [],
+  initialQuery = "",
+}) {
   const defaultTopic = topics[0] || "All topics";
   const defaultStatus = statuses[0] || "All statuses";
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const [topic, setTopic] = useState(defaultTopic);
   const [status, setStatus] = useState(defaultStatus);
-  const [selectedTypes, setSelectedTypes] = useState([]);
+  const [selectedTypes, setSelectedTypes] = useState(initialTypes);
   const [sort, setSort] = useState("newest");
 
   const toggleType = (t) =>
@@ -66,7 +76,9 @@ export default function DocumentsBrowser({ docs, contentTypes, statuses, topics 
         !q ||
         d.title.toLowerCase().includes(q) ||
         d.summary.toLowerCase().includes(q) ||
-        d.category.toLowerCase().includes(q);
+        d.category.toLowerCase().includes(q) ||
+        d.topic.toLowerCase().includes(q) ||
+        d.type.toLowerCase().includes(q);
       const matchesType = selectedTypes.length === 0 || selectedTypes.includes(d.type);
       const matchesTopic = topic === defaultTopic || d.topic === topic;
       const matchesStatus = status === defaultStatus || d.status === status;
@@ -94,11 +106,7 @@ export default function DocumentsBrowser({ docs, contentTypes, statuses, topics 
 
   return (
     <div className="min-h-screen w-full" style={{ background: "var(--background)" }}>
-      {/* Hero band */}
-      <section
-        className="w-full border-b"
-        style={{ background: "var(--ppic-surface)", borderColor: "var(--ppic-border)" }}
-      >
+      <section className="w-full border-b border-ppic-border bg-ppic-surface">
         <div className="page-container px-6 py-14 text-center">
           <h1
             style={{
@@ -109,91 +117,134 @@ export default function DocumentsBrowser({ docs, contentTypes, statuses, topics 
               color: "var(--ppic-ink, #0d0d0d)",
             }}
           >
-            Browse PPIC Resources
+            Documents
           </h1>
-          <p
-            className="mx-auto mt-3 max-w-xl"
-            style={{ color: "var(--ppic-neutral-400)", fontFamily: "var(--font-sans)" }}
-          >
-            Explore reports, guides, and plans from this project
+          <p className="mx-auto mt-3 max-w-xl font-sans text-ppic-neutral-400">
+            Explore explainers, guides, &amp; plans from this project
           </p>
         </div>
       </section>
 
-      {/* Content */}
-      <main className="page-container flex flex-col gap-10 px-6 py-10 md:flex-row">
-        <DocumentFilterSidebar
-          topics={topics}
-          topic={topic}
-          onTopic={setTopic}
-          statuses={statuses}
-          status={status}
-          onStatus={setStatus}
-          contentTypes={contentTypes}
-          selectedTypes={selectedTypes}
-          onToggleType={toggleType}
-          onClear={clear}
-        />
-
-        <section className="min-w-0 flex-1" style={{ fontFamily: "var(--font-sans)" }}>
-          <div className="mb-5 flex items-center justify-between">
-            <span style={{ color: "var(--ppic-neutral-400)", fontSize: 14 }}>
-              {results.length} {results.length === 1 ? "document" : "documents"}
-            </span>
-
-            <div className="flex items-center gap-2">
-              <span style={{ color: "var(--ppic-neutral-400)", fontSize: 14 }}>
-                Sort by:
-              </span>
-              <Select value={sort} onValueChange={setSort}>
-                <SelectTrigger className="h-9 w-44">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.keys(SORT_LABELS).map((k) => (
-                    <SelectItem key={k} value={k}>
-                      {SORT_LABELS[k]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Search */}
-          <div className="mb-4">
+      {view === "landing" ? (
+        <main className="page-container px-6 py-12 sm:px-10 lg:px-[5.7%]">
+          <form action="/documents/browse" role="search" className="relative mb-8">
+            <label htmlFor="document-search" className="sr-only">Search documents</label>
             <input
+              id="document-search"
+              name="q"
               type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
               placeholder="Search documents"
-              className="h-10 w-full rounded-lg px-3.5 text-sm outline-none"
-              style={{
-                background: "var(--ppic-card)",
-                border: "1px solid var(--ppic-border)",
-                color: "var(--ppic-neutral-600)",
-              }}
+              className={SEARCH_INPUT_CLASS}
             />
+            <button type="submit" aria-label="Search documents" className="absolute inset-y-0 right-0 flex w-10 items-center justify-center rounded-lg text-ppic-neutral-400 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ppic-brand">
+              <Search className="size-4" aria-hidden="true" />
+            </button>
+          </form>
+          <div className="grid items-start gap-10 lg:grid-cols-[2.13fr_1fr] lg:gap-6">
+            {DOCUMENT_COLLECTIONS.map((collection) => {
+              const previews = docs.filter((doc) => isCollectionType(doc.type, collection.id)).slice(0, 3);
+              return (
+                <section key={collection.id} aria-labelledby={`${collection.id}-heading`} className="min-w-0">
+                  <div className="mb-6 flex items-center justify-between gap-4 border-b border-foreground pb-1">
+                    <h2 id={`${collection.id}-heading`} className="font-serif text-2xl font-normal leading-tight">{collection.title}</h2>
+                    <Link href={`/documents/browse?collection=${collection.id}`} aria-label={`View more ${collection.title.toLowerCase()}`} className="flex shrink-0 items-center gap-1 py-3 font-sans text-sm hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ppic-brand">
+                      View more <ArrowRight className="size-3.5" aria-hidden="true" />
+                    </Link>
+                  </div>
+                  <div className="flex flex-col gap-6">
+                    {previews.map((doc) => <DocumentCard key={doc.slug} doc={doc} variant={collection.id === "plans" ? "compact" : "default"} />)}
+                    {previews.length === 0 ? <p className="font-sans text-ppic-neutral-400">No {collection.title.toLowerCase()} yet.</p> : null}
+                  </div>
+                </section>
+              );
+            })}
           </div>
+          <div className="mt-10 flex justify-start">
+            <Link href="/documents/browse" className="inline-flex items-center gap-2 py-2 font-sans text-sm text-ppic-neutral-400 hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ppic-brand">
+              Browse all documents <ArrowRight className="size-4" aria-hidden="true" />
+            </Link>
+          </div>
+        </main>
+      ) : (
+        <>
+        <div className="page-container px-6 pt-8">
+          <Link href="/documents" className="inline-flex items-center gap-2 font-sans text-sm text-ppic-neutral-400 hover:underline">
+            <ArrowLeft className="size-4" aria-hidden="true" /> All collections
+          </Link>
+        </div>
+        {/* Content */}
+        <main className="page-container flex flex-col gap-10 px-6 py-10 md:flex-row">
+          <DocumentFilterSidebar
+            topics={topics}
+            topic={topic}
+            onTopic={setTopic}
+            statuses={statuses}
+            status={status}
+            onStatus={setStatus}
+            contentTypes={contentTypes}
+            selectedTypes={selectedTypes}
+            onToggleType={toggleType}
+            onClear={clear}
+          />
 
-          <div className="flex flex-col gap-3">
-            {results.map((doc) => (
-              <DocumentCard key={doc.slug} doc={doc} />
-            ))}
-            {results.length === 0 ? (
-              <div
-                className="rounded-xl py-20 text-center"
-                style={{
-                  color: "var(--ppic-neutral-400)",
-                  border: "1px dashed var(--ppic-border)",
-                }}
-              >
-                No documents match your filters.
+          <section className="min-w-0 flex-1" style={{ fontFamily: "var(--font-sans)" }}>
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+              <span style={{ color: "var(--ppic-neutral-400)", fontSize: 14 }}>
+                {results.length} {results.length === 1 ? "document" : "documents"}
+              </span>
+
+              <div className="flex items-center gap-2">
+                <span style={{ color: "var(--ppic-neutral-400)", fontSize: 14 }}>
+                  Sort by:
+                </span>
+                <Select value={sort} onValueChange={setSort}>
+                  <SelectTrigger aria-label="Sort documents" className="h-9 w-44">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.keys(SORT_LABELS).map((k) => (
+                      <SelectItem key={k} value={k}>
+                        {SORT_LABELS[k]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            ) : null}
-          </div>
-        </section>
-      </main>
+            </div>
+
+            {/* Search */}
+            <div className="relative mb-4">
+              <input
+                aria-label="Search documents"
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search documents"
+                className={SEARCH_INPUT_CLASS}
+              />
+              <Search className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-ppic-neutral-400" aria-hidden="true" />
+            </div>
+
+            <div className="flex flex-col gap-3">
+              {results.map((doc) => (
+                <DocumentCard key={doc.slug} doc={doc} />
+              ))}
+              {results.length === 0 ? (
+                <div
+                  className="rounded-xl py-20 text-center"
+                  style={{
+                    color: "var(--ppic-neutral-400)",
+                    border: "1px dashed var(--ppic-border)",
+                  }}
+                >
+                  No documents match your filters.
+                </div>
+              ) : null}
+            </div>
+          </section>
+        </main>
+        </>
+      )}
     </div>
   );
 }
