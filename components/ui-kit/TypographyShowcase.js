@@ -21,12 +21,12 @@ export function TypographyShowcase() {
       id="type"
       eyebrow="Foundations"
       title="Typography"
-      description="Orbitron carries the PPIC wordmark, Georgia delivers editorial headlines and the big statistical numerals, Source Sans 3 handles UI headings and body, and Inter covers labels and controls. Each specimen lists its size, weight, line spacing, and tracking."
+      description="Proxima Nova handles UI headings, body text, labels, and controls. Source Serif 4 delivers editorial headlines and large statistical numerals. Each specimen lists its size, weight, line spacing, and tracking."
     >
       <div className="grid gap-6 lg:grid-cols-2">
         <Panel>
           <Row
-            family="Inter"
+            family="Proxima Nova"
             role="Super heading / eyebrow"
             sample="FOUNDATIONS · COMPONENTS · PATTERNS"
             className="font-sans text-xs font-semibold uppercase leading-[1.4] tracking-[0.22em]"
@@ -36,17 +36,7 @@ export function TypographyShowcase() {
             tracking="0.22em"
           />
           <Row
-            family="Orbitron"
-            role="Wordmark / Logo"
-            sample="PPIC"
-            className="font-display text-[52px] font-black leading-none tracking-[0.08em]"
-            size="52px"
-            weight={900}
-            lineHeight="1.00"
-            tracking="0.08em"
-          />
-          <Row
-            family="Georgia"
+            family="Source Serif 4"
             role="Display headline"
             sample="California Population & Housing Trends"
             className="font-serif text-[34px] leading-[1.15]"
@@ -54,7 +44,7 @@ export function TypographyShowcase() {
             lineHeight="1.15"
           />
           <Row
-            family="Georgia"
+            family="Source Serif 4"
             role="Big stat numeral"
             sample="39.5M"
             className="font-serif text-[56px] leading-none"
@@ -65,7 +55,7 @@ export function TypographyShowcase() {
 
         <Panel>
           <Row
-            family="Source Sans 3"
+            family="Proxima Nova"
             role="Section heading"
             sample="Data Sources"
             className="font-heading text-[28px] leading-[1.2] tracking-[0.06em]"
@@ -74,7 +64,7 @@ export function TypographyShowcase() {
             tracking="0.06em"
           />
           <Row
-            family="Source Sans 3"
+            family="Proxima Nova"
             role="Body / paragraph"
             sample="Net migration and total housing units across California regions, 2013–2026."
             className="font-body text-base leading-[1.6]"
@@ -82,7 +72,7 @@ export function TypographyShowcase() {
             lineHeight="1.60"
           />
           <Row
-            family="Inter"
+            family="Proxima Nova"
             role="Label / caption"
             sample="X Axis: Year · Y Axis: Total Population"
             className="font-sans text-[13px] leading-[1.4] tracking-[0.04em]"
@@ -93,7 +83,7 @@ export function TypographyShowcase() {
         </Panel>
       </div>
 
-      <Caption>Type scale — eyebrow 12 · display 52 · h1 34 · h2 28 · body 16 · caption 13</Caption>
+      <Caption>Type scale — eyebrow 12 · stat 56 · h1 34 · h2 28 · body 16 · caption 13</Caption>
     </Section>
   );
 }

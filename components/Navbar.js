@@ -110,7 +110,7 @@ export default function Navbar() {
       aria-label="Primary navigation"
       className="relative z-30 min-h-30 bg-white font-proxima tracking-wider text-black shadow-md"
     >
-      <div className="mx-auto flex max-w-400 flex-col gap-4 px-6 py-4 sm:px-12 lg:min-h-30 lg:flex-row lg:items-center lg:justify-between lg:px-16">
+      <div className="page-content flex flex-col gap-4 py-4 lg:min-h-30 lg:flex-row lg:items-center lg:justify-between">
         <Link
           href="/"
           aria-label="PPIC home"

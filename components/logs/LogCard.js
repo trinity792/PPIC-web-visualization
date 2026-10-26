@@ -281,14 +281,14 @@ export default function LogCard({ entry, mode }) {
           >
             {entry.moduleLabel}
           </h3>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <SeverityChip severity={entry.severity} />
             <CopyButton text={rawRecord} label="Copy" />
           </div>
         </div>
 
         <p
-          className="mt-1"
+          className="mt-1 break-words"
           style={{ color: "var(--ppic-neutral-500)", fontSize: 13.5, lineHeight: 1.5 }}
         >
           {entry.summary}

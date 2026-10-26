@@ -74,7 +74,7 @@ export default function LogsBrowser({ entries, modules, severities }) {
   const hasMore = visibleCount < results.length;
 
   return (
-    <main className="page-container flex flex-col gap-10 px-6 py-10 md:flex-row">
+    <main className="page-content flex flex-col gap-10 py-10 md:flex-row">
         <LogFilterSidebar
           modules={modules}
           module={module}

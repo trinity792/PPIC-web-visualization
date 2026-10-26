@@ -1,3 +1,16 @@
+/**
+ * page.js — UI Kit reference with the shared Documents and Logs page layout.
+ *
+ * Props:
+ *   None.
+ *
+ * Data sources:
+ *   - Static contents navigation and existing UI Kit showcase components.
+ *
+ * UI Kit reference:
+ *   - Composes all foundation, component, chart, and authoring tool showcases.
+ */
+
 import React from "react";
 import { ConsiderationsShowcase } from "@/components/ui-kit/ConsiderationsShowcase";
 import { ColorPalette } from "@/components/ui-kit/ColorPalette";
@@ -39,35 +52,29 @@ const toc = [
 
 export default function UiKitPage() {
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "var(--ppic-surface)" }}>
+    <div className="min-h-screen w-full bg-background">
       {/* Hero */}
-      <div className="border-b" style={{ borderColor: "var(--ppic-border)" }}>
-        <div className="page-container px-6 py-12">
+      <section className="w-full border-b border-ppic-border bg-ppic-surface">
+        <div className="page-content py-14 text-center">
           <p
             className="mb-2 text-[13px] uppercase tracking-[0.24em]"
             style={{ fontFamily: "var(--font-sans)", color: "var(--ppic-orange-300)" }}
           >
             Design System
           </p>
-          <h1
-            className="max-w-3xl text-neutral-900"
-            style={{ fontFamily: "var(--font-serif)", fontSize: 52, lineHeight: 1.1 }}
-          >
+          <h1 className="font-serif text-[44px] font-normal leading-[1.15] text-foreground">
             PPIC Data Visualization UI Kit
           </h1>
-          <p
-            className="mt-4 max-w-2xl text-[17px] leading-relaxed text-neutral-600"
-            style={{ fontFamily: "var(--font-body)" }}
-          >
+          <p className="mx-auto mt-3 max-w-2xl font-sans text-ppic-neutral-400">
             The shared foundations and components behind California&apos;s population and
             housing dashboards — color, type, buttons, controls, cards, and editor
             patterns in one reference.
           </p>
         </div>
-      </div>
+      </section>
 
       {/* Body */}
-      <div className="page-container gap-10 px-6 py-12 lg:grid lg:grid-cols-[200px_1fr]">
+      <div className="page-content gap-10 py-12 lg:grid lg:grid-cols-[200px_minmax(0,1fr)]">
         {/* TOC */}
         <aside className="hidden lg:block">
           <nav className="sticky top-28 space-y-1">
@@ -81,7 +88,7 @@ export default function UiKitPage() {
               <a
                 key={t.id}
                 href={`#${t.id}`}
-                className="block rounded-lg px-3 py-1.5 text-[15px] text-neutral-700 transition-colors hover:bg-white hover:text-ppic-orange-300"
+                className="block rounded-lg px-3 py-1.5 text-[15px] text-neutral-700 transition-colors hover:bg-ppic-surface hover:text-ppic-orange-300"
                 style={{ fontFamily: "var(--font-sans)" }}
               >
                 {t.label}

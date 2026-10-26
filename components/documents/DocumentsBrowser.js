@@ -107,7 +107,7 @@ export default function DocumentsBrowser({
   return (
     <div className="min-h-screen w-full" style={{ background: "var(--background)" }}>
       <section className="w-full border-b border-ppic-border bg-ppic-surface">
-        <div className="page-container px-6 py-14 text-center">
+        <div className="page-content py-14 text-center">
           <h1
             style={{
               fontFamily: "var(--font-serif)",
@@ -126,7 +126,7 @@ export default function DocumentsBrowser({
       </section>
 
       {view === "landing" ? (
-        <main className="page-container px-6 py-12 sm:px-10 lg:px-[5.7%]">
+        <main className="page-content py-12">
           <form action="/documents/browse" role="search" className="relative mb-8">
             <label htmlFor="document-search" className="sr-only">Search documents</label>
             <input
@@ -167,13 +167,13 @@ export default function DocumentsBrowser({
         </main>
       ) : (
         <>
-        <div className="page-container px-6 pt-8">
+        <div className="page-content pt-8">
           <Link href="/documents" className="inline-flex items-center gap-2 font-sans text-sm text-ppic-neutral-400 hover:underline">
             <ArrowLeft className="size-4" aria-hidden="true" /> All collections
           </Link>
         </div>
         {/* Content */}
-        <main className="page-container flex flex-col gap-10 px-6 py-10 md:flex-row">
+        <main className="page-content flex flex-col gap-10 py-10 md:flex-row">
           <DocumentFilterSidebar
             topics={topics}
             topic={topic}

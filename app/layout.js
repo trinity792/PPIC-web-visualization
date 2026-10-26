@@ -1,5 +1,5 @@
 import React from "react";
-import { Orbitron, Source_Sans_3, Inter, Source_Serif_4 } from "next/font/google";
+import { Inter, Source_Serif_4 } from "next/font/google";
 import Navbar from "@/components/Navbar";
 import ReportProblemDialog from "@/components/feedback/ReportProblemDialog";
 import BackToTopButton from "@/components/documents/BackToTopButton";
@@ -7,18 +7,7 @@ import { PAGE_LAYOUT } from "@/lib/constants";
 import "./globals.css";
 import { Analytics } from "@vercel/analytics/next"
 
-const orbitron = Orbitron({
-  subsets: ["latin"],
-  weight: ["900"],
-  variable: "--font-orbitron",
-});
-
-const sourceSans = Source_Sans_3({
-  subsets: ["latin"],
-  weight: ["400"],
-  variable: "--font-source-sans",
-});
-
+// Retained for visualization rendering; website typography uses Proxima Nova.
 // 700 is loaded for the charts' bold text (titles, hover labels, and the
 // source box's "SOURCE:" / "NOTES:" captions); without it the browser fakes
 // bold, which barely shows at the source box's 11px.
@@ -57,7 +46,7 @@ export default function RootLayout({ children }) {
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${orbitron.variable} ${sourceSans.variable} ${inter.variable} ${sourceSerif.variable}`}
+      className={`${inter.variable} ${sourceSerif.variable}`}
     >
       <head>
         <link rel="preconnect" href="https://use.typekit.net" crossOrigin="anonymous" />
@@ -65,7 +54,10 @@ export default function RootLayout({ children }) {
       </head>
       <body
         className="font-body"
-        style={{ "--page-max-width": PAGE_LAYOUT.maxWidth }}
+        style={{
+          "--page-max-width": PAGE_LAYOUT.maxWidth,
+          "--page-content-width": PAGE_LAYOUT.contentWidth,
+        }}
       >
         <Navbar />
         {children}

@@ -76,7 +76,7 @@ export default function ChangelogCard({ entry }) {
           >
             {entry.title}
           </h3>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <IntensityChip intensity={entry.intensity} />
             {entry.audited ? (
               <Badge variant="secondary" className="gap-1">

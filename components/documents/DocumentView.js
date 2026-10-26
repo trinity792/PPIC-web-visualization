@@ -43,7 +43,7 @@ export default function DocumentView({ doc, toc, linkMap, assetMap }) {
     <div className="min-h-screen" style={{ background: "var(--background)" }}>
       {/* Header band */}
       <div className="border-b" style={{ borderColor: "var(--ppic-border)", background: "var(--ppic-surface)" }}>
-        <div className="page-container px-6 py-10">
+        <div className="page-content py-10">
           <Link
             href="/documents"
             className="mb-5 inline-flex items-center gap-1.5 text-sm hover:underline"
@@ -91,7 +91,7 @@ export default function DocumentView({ doc, toc, linkMap, assetMap }) {
       </div>
 
       {/* Body */}
-      <div className="page-container gap-10 px-6 py-10 lg:grid lg:grid-cols-[220px_1fr]">
+      <div className="page-content gap-10 py-10 lg:grid lg:grid-cols-[220px_minmax(0,1fr)]">
         <DocTableOfContents toc={toc} />
         <main className="min-w-0">
           <MarkdownArticle

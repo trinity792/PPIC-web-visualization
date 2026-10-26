@@ -94,7 +94,7 @@ export function DocumentCard({ doc, variant = "default" }) {
             {published}
           </time>
         ) : null}
-        <h3 className={`mt-2 line-clamp-2 font-serif font-regular leading-tight ${isCompact ? "text-lg" : "text-2xl"}`}>
+        <h3 className={`mt-2 line-clamp-2 font-serif font-regular leading-tight ${isCompact ? "text-lg" : "text-xl"}`}>
           {doc.title}
         </h3>
         {doc.summary ? (

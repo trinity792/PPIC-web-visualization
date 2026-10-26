@@ -9,9 +9,8 @@
  *     is deliberately a synchronous server component so it renders instantly)
  *
  * UI Kit reference:
- *   - Composes the "Topic Card" pattern; page measure is local to this route
- *     because PAGE_LAYOUT.maxWidth is "none" site-wide and .page-container is
- *     therefore a no-op here.
+ *   - Composes the "Topic Card" pattern; page measure uses the shared
+ *     .page-content layout, configured by PAGE_LAYOUT.contentWidth.
  */
 
 import React from "react";
@@ -22,7 +21,7 @@ import { TOPICS } from "@/lib/visualization/topicRegistry";
 export default function Home() {
   return (
     <div className="min-h-[calc(100svh-7.5rem)] bg-ppic-surface">
-      <section className="mx-auto max-w-6xl px-6 pt-14 pb-4">
+      <section className="page-content pt-14 pb-4">
         <p className="font-heading text-xs font-semibold tracking-[0.16em] text-ppic-brand uppercase">
           Explore the data
         </p>
@@ -37,7 +36,7 @@ export default function Home() {
         </p>
       </section>
 
-      <main className="mx-auto max-w-6xl px-6 pt-8 pb-20">
+      <main className="page-content pt-8 pb-20">
         <div className="mb-5 flex items-baseline justify-between">
           <h2 className="font-serif text-xl text-ppic-neutral-600">Topics</h2>
           <span className="text-sm text-ppic-neutral-main">
@@ -52,7 +51,7 @@ export default function Home() {
       </main>
 
       <footer className="border-t border-ppic-border bg-card">
-        <div className="mx-auto max-w-6xl px-6 py-6 text-xs text-ppic-neutral-main italic">
+        <div className="page-content py-6 text-xs text-ppic-neutral-main italic">
           Data drawn from the CA Department of Finance, U.S. Census Bureau, and
           CA HCD. Each module page lists its own source and last-updated date.
         </div>

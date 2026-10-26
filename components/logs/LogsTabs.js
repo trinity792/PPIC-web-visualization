@@ -31,7 +31,7 @@ export default function LogsTabs({ logProps, changelogProps }) {
         className="w-full border-b"
         style={{ background: "var(--ppic-surface)", borderColor: "var(--ppic-border)" }}
       >
-        <div className="page-container px-6 py-14 text-center">
+        <div className="page-content py-14 text-center">
           <h1
             style={{
               fontFamily: "var(--font-serif)",
@@ -55,7 +55,7 @@ export default function LogsTabs({ logProps, changelogProps }) {
 
       {/* Tabs */}
       <Tabs defaultValue="pipeline" className="w-full">
-        <div className="page-container flex justify-center px-6 pt-8">
+        <div className="page-content flex justify-center pt-8">
           <TabsList aria-label="Logs view">
             <TabsTrigger value="pipeline">Pipeline Logs</TabsTrigger>
             <TabsTrigger value="changelog">Changelog</TabsTrigger>

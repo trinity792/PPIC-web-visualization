@@ -69,7 +69,7 @@ export function CardsShowcase() {
       id="cards"
       eyebrow="Components"
       title="Cards & Charts"
-      description="Big-number stat cards surface headline figures, while chart cards pair a Georgia title, a 'See More' pill, and a data visualization built on the blue/orange data colors."
+      description="Big-number stat cards surface headline figures, while chart cards pair a Source Serif 4 title, a 'See More' pill, and a data visualization built on the blue/orange data colors."
     >
       <div className="grid gap-5 sm:grid-cols-3">
         {stats.map((s) => (
