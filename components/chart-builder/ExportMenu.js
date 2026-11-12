@@ -11,7 +11,8 @@
  *   • ExportDataButton  — the chart-shaped table under its active settings
  *     (including rows hidden by its visual ranking cap), or the module's entire
  *     cleaned dataset (fetched full, ignoring the chart's filters), as CSV or
- *     Excel.
+ *     Excel. Its quick items export every year; "Choose years…" opens a
+ *     dialog that exports only the years the reader ticks.
  *
  * The default export composes both buttons. Image quality lives with the image
  * preview so the wizard and module workbench expose the same complete flow.
@@ -34,7 +35,7 @@
  *                                 so it stays exportable from an unconfigured
  *                                 chart.
  * Data sources:
- *   - `lib/export/{exportImage,exportTable}.js`; embed link via
+ *   - `lib/export/{exportImage,exportTable,exportYears}.js`; embed link via
  *     `components/chart-builder/savedViews.js` serializeWorkspace
  *
  * UI Kit reference:
@@ -45,6 +46,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   ArrowLeft,
+  CalendarRange,
   Check,
   Code2,
   ExternalLink,
@@ -106,6 +108,11 @@ import {
   toCsv,
   toXlsxBlob,
 } from "@/lib/export/exportTable";
+import {
+  filterTableByYears,
+  tableYears,
+  temporalColumnNames,
+} from "@/lib/export/exportYears";
 import { logEditorEvent } from "@/lib/logs/editorLog";
 import { CHART_HEIGHTS } from "@/lib/constants";
 import { SVG_EXPORT_CHART_TYPES } from "@/lib/visualization/chartRegistry";
@@ -207,6 +214,27 @@ function exportGridDimensions(layout, count, width, responsive = false) {
 
 // The suffix each exportable data source appends to the download filename.
 const DATA_SUFFIX = { chart: "", original: "-original" };
+
+/**
+ * The filename suffix for a year-limited export: "-2010-2020" for an unbroken
+ * run, "-2020" for one year, "-5-years" for a scattered pick, and "" when
+ * every year is exported (`years` null).
+ */
+function yearsSuffix(years) {
+  if (!years?.length) return "";
+  const sorted = [...years].sort((a, b) => a - b);
+  const first = sorted[0];
+  const last = sorted.at(-1);
+  if (sorted.length === 1) return `-${first}`;
+  if (last - first + 1 === sorted.length) return `-${first}-${last}`;
+  return `-${sorted.length}-years`;
+}
+
+/** Insert a suffix before a filename's extension ("a.csv" + "-x" → "a-x.csv"). */
+function withSuffix(filename, suffix) {
+  if (!suffix) return filename;
+  return filename.replace(/(\.[^.]+)?$/, (ext) => `${suffix}${ext}`);
+}
 
 /**
  * The charts an export operates on: every workspace chart when the preview
@@ -1109,23 +1137,33 @@ export function ExportDataButton({
     return table;
   }
 
+  // The module's own time-column names, tried first when finding a table's
+  // year column (e.g. Building Permits' "Date", RHNA's "Snapshot Date").
+  const yearColumns = useMemo(() => temporalColumnNames(schema), [schema]);
+
   // One resolver for both export sources: the chart's own answer, or the
-  // original full-source table.
-  async function tableFor(sourceId, chartConfig, chartResult) {
-    if (sourceId === "original") {
-      return resolveOriginalTable(chartConfig, chartResult);
-    }
-    return displayTable(chartConfig, chartResult);
+  // original full-source table. `years` (null = every year) narrows the rows.
+  async function tableFor(sourceId, chartConfig, chartResult, years = null) {
+    const table =
+      sourceId === "original"
+        ? await resolveOriginalTable(chartConfig, chartResult)
+        : displayTable(chartConfig, chartResult);
+    return filterTableByYears(table, years, yearColumns);
   }
 
-  async function onExportCsv(sourceId) {
-    const suffix = DATA_SUFFIX[sourceId];
+  // " for 2010-2020" etc. in the activity log; "" for an every-year export.
+  function yearsNote(years) {
+    return years ? ` for ${yearsSuffix(years).slice(1).replace(/-years$/, " years")}` : "";
+  }
+
+  async function onExportCsv(sourceId, years = null) {
+    const suffix = DATA_SUFFIX[sourceId] + yearsSuffix(years);
     try {
       if (multi) {
         // CSV holds one table, so each chart downloads as its own file.
         let count = 0;
         for (const chart of exportCharts) {
-          const table = await tableFor(sourceId, chart.config, chart.result);
+          const table = await tableFor(sourceId, chart.config, chart.result, years);
           if (!table) continue;
           const blob = new Blob([toCsv(table)], { type: "text/csv;charset=utf-8" });
           downloadBlob(blob, `${exportBase(config)}-${slug(chart.name)}${suffix}.csv`);
@@ -1134,21 +1172,23 @@ export function ExportDataButton({
         logEditorEvent({
           severity: "info",
           code: "EXPORT_DATA",
-          summary: `Exported ${count} charts as CSV (${sourceId} data)`,
+          summary: `Exported ${count} charts as CSV (${sourceId} data)${yearsNote(years)}`,
           source: "ExportMenu",
         });
         return;
       }
-      const table = await tableFor(sourceId, config, loaded);
+      const table = await tableFor(sourceId, config, loaded, years);
       if (!table) return;
       const blob = new Blob([toCsv(table)], { type: "text/csv;charset=utf-8" });
       const filename =
-        sourceId === "original" ? `${exportBase(config)}-original.csv` : table.filename;
+        sourceId === "original"
+          ? `${exportBase(config)}${suffix}.csv`
+          : withSuffix(table.filename, yearsSuffix(years));
       downloadBlob(blob, filename);
       logEditorEvent({
         severity: "info",
         code: "EXPORT_DATA",
-        summary: `Exported ${table.rows.length} rows as CSV (${sourceId} data)`,
+        summary: `Exported ${table.rows.length} rows as CSV (${sourceId} data)${yearsNote(years)}`,
         source: "ExportMenu",
       });
     } catch (error) {
@@ -1162,14 +1202,14 @@ export function ExportDataButton({
     }
   }
 
-  async function onExportXlsx(sourceId) {
-    const suffix = DATA_SUFFIX[sourceId];
+  async function onExportXlsx(sourceId, years = null) {
+    const suffix = DATA_SUFFIX[sourceId] + yearsSuffix(years);
     try {
       if (multi) {
         // One workbook, one sheet per chart.
         const sheets = [];
         for (const chart of exportCharts) {
-          const table = await tableFor(sourceId, chart.config, chart.result);
+          const table = await tableFor(sourceId, chart.config, chart.result, years);
           if (table) sheets.push({ name: chart.name, table });
         }
         if (!sheets.length) return;
@@ -1178,23 +1218,23 @@ export function ExportDataButton({
         logEditorEvent({
           severity: "info",
           code: "EXPORT_DATA",
-          summary: `Exported ${sheets.length} charts as XLSX (${sourceId} data)`,
+          summary: `Exported ${sheets.length} charts as XLSX (${sourceId} data)${yearsNote(years)}`,
           source: "ExportMenu",
         });
         return;
       }
-      const table = await tableFor(sourceId, config, loaded);
+      const table = await tableFor(sourceId, config, loaded, years);
       if (!table) return;
       const blob = await toXlsxBlob(table);
       const filename =
         sourceId === "original"
-          ? `${exportBase(config)}-original.xlsx`
-          : table.filename.replace(/\.csv$/, ".xlsx");
+          ? `${exportBase(config)}${suffix}.xlsx`
+          : withSuffix(table.filename.replace(/\.csv$/, ".xlsx"), yearsSuffix(years));
       downloadBlob(blob, filename);
       logEditorEvent({
         severity: "info",
         code: "EXPORT_DATA",
-        summary: `Exported ${table.rows.length} rows as XLSX (${sourceId} data)`,
+        summary: `Exported ${table.rows.length} rows as XLSX (${sourceId} data)${yearsNote(years)}`,
         source: "ExportMenu",
       });
     } catch (error) {
@@ -1208,49 +1248,306 @@ export function ExportDataButton({
     }
   }
 
+  /**
+   * ----------------------------------------------------------------------
+   * "Choose years…" dialog
+   * ----------------------------------------------------------------------
+   */
+
+  const [yearsOpen, setYearsOpen] = useState(false);
+  const [yearSource, setYearSource] = useState("chart");
+  const [yearFormat, setYearFormat] = useState("csv");
+  // status: loading | ready | error. `years` is every year the chosen source
+  // holds, across all workspace charts, oldest first.
+  const [yearOptions, setYearOptions] = useState({ status: "loading", years: [], error: null });
+  const [selectedYears, setSelectedYears] = useState(() => new Set());
+  // The last year clicked, so a shift-click can set a whole run at once.
+  const yearAnchor = useRef(null);
+
+  function openYearsDialog() {
+    setYearSource(chartDataReady ? "chart" : "original");
+    setYearsOpen(true);
+  }
+
+  // List the chosen source's years each time the dialog opens or the source
+  // changes; every year starts ticked. A stale load is ignored.
+  useEffect(() => {
+    if (!yearsOpen) return undefined;
+    let cancelled = false;
+    setYearOptions({ status: "loading", years: [], error: null });
+    yearAnchor.current = null;
+    (async () => {
+      const found = new Set();
+      for (const chart of exportCharts) {
+        const table = await tableFor(yearSource, chart.config, chart.result);
+        for (const year of tableYears(table, yearColumns)) found.add(year);
+      }
+      return [...found].sort((a, b) => a - b);
+    })()
+      .then((years) => {
+        if (cancelled) return;
+        setYearOptions({ status: "ready", years, error: null });
+        setSelectedYears(new Set(years));
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setYearOptions({
+          status: "error",
+          years: [],
+          error: error.message || "The data's years could not be read.",
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+    // tableFor reads only exportCharts, schema-derived values, and refs.
+  }, [yearsOpen, yearSource, exportCharts, yearColumns]);
+
+  function onYearClick(year, event) {
+    const turnOn = !selectedYears.has(year);
+    const next = new Set(selectedYears);
+    const anchor = yearAnchor.current;
+    const run =
+      event.shiftKey && anchor !== null
+        ? yearOptions.years.filter(
+            (y) => y >= Math.min(anchor, year) && y <= Math.max(anchor, year),
+          )
+        : [year];
+    for (const y of run) {
+      if (turnOn) next.add(y);
+      else next.delete(y);
+    }
+    yearAnchor.current = year;
+    setSelectedYears(next);
+  }
+
+  const yearCount = yearOptions.years.length;
+  const pickedCount = yearOptions.years.filter((year) => selectedYears.has(year)).length;
+  const noYearColumn = yearOptions.status === "ready" && yearCount === 0;
+  const canDownloadYears =
+    yearOptions.status === "ready" && (noYearColumn || pickedCount > 0);
+
+  async function onDownloadYears() {
+    // Every year ticked (or no year column) is a plain full export: no row
+    // filter and no years in the filename.
+    const years =
+      noYearColumn || pickedCount === yearCount
+        ? null
+        : yearOptions.years.filter((year) => selectedYears.has(year));
+    setYearsOpen(false);
+    if (yearFormat === "xlsx") await onExportXlsx(yearSource, years);
+    else await onExportCsv(yearSource, years);
+  }
+
+  const pillGroupClass = "w-full gap-1 rounded-full bg-muted p-1";
+  const pillItemClass = cn(
+    "h-7 rounded-full border-0 px-3 text-xs font-medium text-muted-foreground shadow-none",
+    "first:rounded-full last:rounded-full",
+    "hover:bg-background/70 hover:text-foreground",
+    "data-[state=on]:bg-ppic-brand data-[state=on]:font-semibold data-[state=on]:text-white data-[state=on]:shadow-sm",
+  );
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" disabled={triggerDisabled}>
-          <Table aria-hidden="true" />
-          Export data
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-60">
-        {/* Each source's label and its two formats share a wrapper, so the label
-            names the items beneath it for assistive tech (and for tests that
-            resolve an item by the group it belongs to). */}
-        <DropdownMenuGroup>
-          <DropdownMenuLabel>Chart data (as displayed)</DropdownMenuLabel>
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="sm" disabled={triggerDisabled}>
+            <Table aria-hidden="true" />
+            Export data
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-60">
+          {/* Each source's label and its two formats share a wrapper, so the label
+              names the items beneath it for assistive tech (and for tests that
+              resolve an item by the group it belongs to). */}
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>Chart data (as displayed)</DropdownMenuLabel>
+            <DropdownMenuItem
+              disabled={!chartDataReady}
+              onSelect={() => onExportCsv("chart")}
+            >
+              <FileDown aria-hidden="true" />
+              CSV
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={!chartDataReady}
+              onSelect={() => onExportXlsx("chart")}
+            >
+              <FileSpreadsheet aria-hidden="true" />
+              Excel (XLSX)
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>Original data (entire cleaned dataset)</DropdownMenuLabel>
+            <DropdownMenuItem disabled={!hasOriginal} onSelect={() => onExportCsv("original")}>
+              <FileDown aria-hidden="true" />
+              CSV
+            </DropdownMenuItem>
+            <DropdownMenuItem disabled={!hasOriginal} onSelect={() => onExportXlsx("original")}>
+              <FileSpreadsheet aria-hidden="true" />
+              Excel (XLSX)
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
+          <DropdownMenuSeparator />
           <DropdownMenuItem
-            disabled={!chartDataReady}
-            onSelect={() => onExportCsv("chart")}
+            disabled={!chartDataReady && !hasOriginal}
+            onSelect={openYearsDialog}
           >
-            <FileDown aria-hidden="true" />
-            CSV
+            <CalendarRange aria-hidden="true" />
+            Choose years…
           </DropdownMenuItem>
-          <DropdownMenuItem
-            disabled={!chartDataReady}
-            onSelect={() => onExportXlsx("chart")}
-          >
-            <FileSpreadsheet aria-hidden="true" />
-            Excel (XLSX)
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuLabel>Original data (entire cleaned dataset)</DropdownMenuLabel>
-          <DropdownMenuItem disabled={!hasOriginal} onSelect={() => onExportCsv("original")}>
-            <FileDown aria-hidden="true" />
-            CSV
-          </DropdownMenuItem>
-          <DropdownMenuItem disabled={!hasOriginal} onSelect={() => onExportXlsx("original")}>
-            <FileSpreadsheet aria-hidden="true" />
-            Excel (XLSX)
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <Dialog open={yearsOpen} onOpenChange={setYearsOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Export data by year</DialogTitle>
+            <DialogDescription>
+              Tick the years to include. Shift-click a second year to tick or
+              clear every year between the two.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4">
+            <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+              <div className="grid content-start gap-2">
+                <span className="text-xs font-medium text-muted-foreground">Data</span>
+                <ToggleGroup
+                  type="single"
+                  value={yearSource}
+                  onValueChange={(value) => value && setYearSource(value)}
+                  aria-label="Data to export"
+                  className={pillGroupClass}
+                >
+                  <ToggleGroupItem
+                    value="chart"
+                    disabled={!chartDataReady}
+                    className={pillItemClass}
+                  >
+                    Chart data
+                  </ToggleGroupItem>
+                  <ToggleGroupItem
+                    value="original"
+                    disabled={!hasOriginal}
+                    className={pillItemClass}
+                  >
+                    Original data
+                  </ToggleGroupItem>
+                </ToggleGroup>
+              </div>
+              <div className="grid content-start gap-2">
+                <span className="text-xs font-medium text-muted-foreground">Format</span>
+                <ToggleGroup
+                  type="single"
+                  value={yearFormat}
+                  onValueChange={(value) => value && setYearFormat(value)}
+                  aria-label="Data export format"
+                  className={pillGroupClass}
+                >
+                  <ToggleGroupItem value="csv" className={pillItemClass}>
+                    CSV
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value="xlsx" className={pillItemClass}>
+                    Excel
+                  </ToggleGroupItem>
+                </ToggleGroup>
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs font-medium text-muted-foreground">
+                  {yearOptions.status === "ready" && yearCount
+                    ? `Years · ${pickedCount} of ${yearCount} selected`
+                    : "Years"}
+                </span>
+                {yearOptions.status === "ready" && yearCount > 0 && (
+                  <div className="flex gap-1.5">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2.5 text-xs"
+                      disabled={pickedCount === yearCount}
+                      onClick={() => setSelectedYears(new Set(yearOptions.years))}
+                    >
+                      Select all
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2.5 text-xs"
+                      disabled={pickedCount === 0}
+                      onClick={() => setSelectedYears(new Set())}
+                    >
+                      Clear
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {yearOptions.status === "loading" && (
+                <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
+                  Finding the years in this data…
+                </p>
+              )}
+              {yearOptions.status === "error" && (
+                <p role="alert" className="text-sm text-destructive">
+                  {yearOptions.error}
+                </p>
+              )}
+              {noYearColumn && (
+                <p className="text-sm text-muted-foreground">
+                  This data has no year column, so every row will be exported.
+                </p>
+              )}
+              {yearOptions.status === "ready" && yearCount > 0 && (
+                <div
+                  role="group"
+                  aria-label="Years to export"
+                  className="grid max-h-64 grid-cols-4 gap-1.5 overflow-y-auto sm:grid-cols-6"
+                >
+                  {yearOptions.years.map((year) => {
+                    const picked = selectedYears.has(year);
+                    return (
+                      <Button
+                        key={year}
+                        type="button"
+                        size="sm"
+                        variant={picked ? "default" : "outline"}
+                        aria-pressed={picked}
+                        className="h-8 px-2 text-xs tabular-nums"
+                        onClick={(event) => onYearClick(year, event)}
+                      >
+                        {year}
+                      </Button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setYearsOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={onDownloadYears} disabled={!canDownloadYears}>
+              {yearFormat === "xlsx" ? (
+                <FileSpreadsheet aria-hidden="true" />
+              ) : (
+                <FileDown aria-hidden="true" />
+              )}
+              Download {yearFormat === "xlsx" ? "Excel" : "CSV"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

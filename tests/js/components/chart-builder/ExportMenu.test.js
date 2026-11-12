@@ -6,7 +6,7 @@
 
 import React from "react";
 
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -651,5 +651,148 @@ describe("image export for a visx chart", () => {
     await user.click(screen.getByRole("button", { name: /export image/i }));
     await waitFor(() => expect(renderImagePreviewMock).toHaveBeenCalled());
     expect(screen.queryByText(/coming soon/)).not.toBeInTheDocument();
+  });
+});
+
+// "Choose years…" exports only the years the reader ticks. The year helpers
+// (lib/export/exportYears.js) run for real; only the table builders are mocked.
+describe("ExportMenu — export chosen years", () => {
+  const periodTable = {
+    filename: "widgets-line.csv",
+    columns: [{ name: "Geography" }, { name: "Period" }, { name: "Value" }],
+    rows: [
+      ["Alameda", "2018", 90],
+      ["Alameda", "2019", 95],
+      ["Alameda", "2020", 100],
+    ],
+    exportRows: [
+      ["Alameda", "2018", 90],
+      ["Alameda", "2019", 95],
+      ["Alameda", "2020", 100],
+    ],
+  };
+
+  beforeEach(() => {
+    for (const fn of Object.values(exportTableMocks)) fn.mockClear();
+    primeTableMocks();
+    exportTableMocks.displayTable.mockReturnValue(periodTable);
+    exportTableMocks.originalTable.mockReturnValue({
+      filename: "original-data.csv",
+      columns: [{ name: "Location" }, { name: "Year" }, { name: "Value" }],
+      rows: [
+        ["Alameda", 2018, 90],
+        ["Alameda", 2019, 95],
+        ["Alameda", 2020, 100],
+        ["Alameda", 2021, 105],
+      ],
+    });
+  });
+
+  async function openYears(user) {
+    await user.click(screen.getByRole("button", { name: /export data/i }));
+    await user.click(screen.getByRole("menuitem", { name: /choose years/i }));
+    return screen.findByRole("group", { name: /years to export/i });
+  }
+
+  it("lists the chart data's years, all ticked, and exports only the kept ones", async () => {
+    const user = userEvent.setup();
+    renderMenu();
+
+    const group = await openYears(user);
+    const years = within(group).getAllByRole("button");
+    expect(years.map((button) => button.textContent)).toEqual(["2018", "2019", "2020"]);
+    for (const button of years) expect(button).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("Years · 3 of 3 selected")).toBeInTheDocument();
+
+    await user.click(within(group).getByRole("button", { name: "2018" }));
+    expect(screen.getByText("Years · 2 of 3 selected")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /download csv/i }));
+
+    await waitFor(() => expect(exportTableMocks.downloadBlob).toHaveBeenCalled());
+    const exported = exportTableMocks.toCsv.mock.calls.at(-1)[0];
+    expect(exported.rows.map((row) => row[1])).toEqual(["2019", "2020"]);
+    expect(exported.exportRows.map((row) => row[1])).toEqual(["2019", "2020"]);
+    expect(exportTableMocks.downloadBlob).toHaveBeenCalledWith(
+      expect.any(Blob),
+      "widgets-line-2019-2020.csv",
+    );
+  });
+
+  it("exports the original data's years as Excel, with a shift-click range", async () => {
+    const user = userEvent.setup();
+    renderMenu();
+
+    await openYears(user);
+    await user.click(screen.getByRole("radio", { name: /original data/i }));
+    await user.click(screen.getByRole("radio", { name: /excel/i }));
+    const group = await screen.findByRole("group", { name: /years to export/i });
+    await waitFor(() =>
+      expect(within(group).getAllByRole("button")).toHaveLength(4),
+    );
+
+    // Clear 2018, then shift-click 2020 to clear 2018 through 2020.
+    await user.click(within(group).getByRole("button", { name: "2018" }));
+    await user.keyboard("{Shift>}");
+    await user.click(within(group).getByRole("button", { name: "2020" }));
+    await user.keyboard("{/Shift}");
+    expect(screen.getByText("Years · 1 of 4 selected")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /download excel/i }));
+
+    await waitFor(() => expect(exportTableMocks.downloadBlob).toHaveBeenCalled());
+    const exported = exportTableMocks.toXlsxBlob.mock.calls.at(-1)[0];
+    expect(exported.rows).toEqual([["Alameda", 2021, 105]]);
+    expect(exportTableMocks.downloadBlob).toHaveBeenCalledWith(
+      expect.any(Blob),
+      "widgets-original-2021.xlsx",
+    );
+  });
+
+  it("names the file normally when every year stays ticked", async () => {
+    const user = userEvent.setup();
+    renderMenu();
+
+    await openYears(user);
+    await user.click(screen.getByRole("button", { name: /download csv/i }));
+
+    await waitFor(() =>
+      expect(exportTableMocks.downloadBlob).toHaveBeenCalledWith(
+        expect.any(Blob),
+        "widgets-line.csv",
+      ),
+    );
+    expect(exportTableMocks.toCsv.mock.calls.at(-1)[0]).toBe(periodTable);
+  });
+
+  it("keeps Download off once every year is cleared", async () => {
+    const user = userEvent.setup();
+    renderMenu();
+
+    await openYears(user);
+    await user.click(screen.getByRole("button", { name: "Clear" }));
+    expect(screen.getByText("Years · 0 of 3 selected")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /download csv/i })).toBeDisabled();
+  });
+
+  it("says so and exports every row when the data has no year column", async () => {
+    const user = userEvent.setup();
+    exportTableMocks.displayTable.mockReturnValue({
+      filename: "widgets-bar.csv",
+      columns: [{ name: "Location" }, { name: "Value" }],
+      rows: [["Alameda", 100]],
+    });
+    renderMenu();
+
+    await user.click(screen.getByRole("button", { name: /export data/i }));
+    await user.click(screen.getByRole("menuitem", { name: /choose years/i }));
+    expect(await screen.findByText(/no year column/i)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /download csv/i }));
+
+    await waitFor(() =>
+      expect(exportTableMocks.downloadBlob).toHaveBeenCalledWith(
+        expect.any(Blob),
+        "widgets-bar.csv",
+      ),
+    );
   });
 });
