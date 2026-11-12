@@ -4,7 +4,7 @@ Content Type: project specification
 pinned: true
 description: "The current source of truth for the PPIC Data Explorer product, topic pipelines, application architecture, API boundaries, operational logs, documentation, and contributor standards."
 Date Published: June 23, 2026
-Last Updated: 10/18/2026 - 04:00 PM
+Last Updated: 11/06/2026 - 07:30 PM
 Status: Updating
 ---
 
@@ -344,7 +344,12 @@ Numbers intended for calculation are numeric or null. Missing and suppressed val
 
 Python owns source-specific geographic cleaning and aggregation. The browser receives already-labeled geographic rows through the canonical CSV and topic schema.
 
-County maps use `data/data-cleaned/geography/california-counties.geojson`. `lib/data/geography.js` is server-only and provides polygon geometry, a county-name-to-GEOID lookup, and representative points. Current shared map geometry covers counties.
+Maps draw counties, regions, and states from `california-counties.geojson`, `california-regions.geojson`, and `us-states.geojson` in `data/data-cleaned/geography/`. `lib/data/geography.js` is server-only and provides polygon geometry, a place-name-to-GEOID lookup, and representative points. `GEOMETRY_LEVEL_BY_SUBSET` in `lib/visualization/chartAvailability.js` decides which topic subsets can be mapped; every other subset has no map.
+
+`scripts/shared/geography/simplify_geometries.py` generates all three files from the detailed source GeoJSON in `assets/`, which stays unchanged for analysis. Each file carries `GEOID` and `NAME`. Regions have no official code, so a region's `GEOID` is its canonical name. States also carry `STUSPS`, because datasets label states by either name or abbreviation. Outer rings run clockwise, the reverse of the GeoJSON standard, because Plotly's d3-geo drawing reads a standard ring as filling everything outside it.
+
+> [!note] State shapes are for display
+> `us-states.geojson` relocates Alaska, Hawaii, and Puerto Rico near the lower 48, so its coordinates are for display only.
 
 ### Time
 
@@ -431,7 +436,7 @@ ChartConfigProvider
         v
 { observations, comparisons, periods, issues }
         |
-        +--> optional county geometry
+        +--> optional map geometry
         |
         v
 adaptObservations
@@ -477,7 +482,7 @@ Other application APIs are:
 
 | Route | Purpose |
 |---|---|
-| `/api/geography` | County polygons or representative points |
+| `/api/geography` | County, region, or state polygons or representative points |
 | `/api/module-status` | Latest successful pipeline timestamp for a schema id |
 | `/api/doc-asset` | Validated image assets stored inside `docs/` |
 | `/api/pophousing/update` | Starts the Population & Housing pipeline and reports whether it is running |
@@ -779,7 +784,7 @@ Use the existing pipeline orchestrator, run-record wrapper, change report, and d
 
 These are the important current boundaries:
 
-- Shared map geometry covers California counties only.
+- Shared map geometry covers California counties and regions and US states. Cities, metros, and jurisdictions have no map.
 - Housing Stress county and region estimates are approximate because PUMAs cross county boundaries.
 - Building Permits deep history depends on its immutable seed because the live source exposes only a rolling window.
 - RHNA Progress stores snapshot history, but the editor currently resolves the latest snapshot instead of offering a static historical picker.

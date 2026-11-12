@@ -334,7 +334,7 @@ function withImpliedBindings(bindings, chartTypeId, schema) {
  */
 function withGeometrySubset(chartTypeId, schema, filters) {
   if (!requiresGeometry(chartTypeId)) return filters;
-  const subset = geometrySubsetFor(schema);
+  const subset = geometrySubsetFor(schema, filters?.subset);
   if (!subset || filters?.subset === subset) return filters;
   return { ...filters, subset, locations: [] };
 }
@@ -845,7 +845,7 @@ function reduceV3ChartConfig(config, action, schema) {
       action.chartType !== config.presentation?.chartType &&
       requiresGeometry(action.chartType)
     ) {
-      const subset = geometrySubsetFor(schema);
+      const subset = geometrySubsetFor(schema, switched.question.geography?.subset);
       const forcedSource = schema?.subsetSource?.[subset];
       switched = normalizeQuestion({
         ...switched,

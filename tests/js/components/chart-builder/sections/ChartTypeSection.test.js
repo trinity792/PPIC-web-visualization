@@ -141,7 +141,7 @@ describe("ChartTypeSection", () => {
     });
 
     it("moves the next available tile up when a top-four tile is unavailable", () => {
-      state.schema = { id: "permits", subsets: { Metros: ["Metro"], States: ["State"] } };
+      state.schema = { id: "no-shapes", subsets: { Metros: ["Metro"], Cities: ["City"] } };
       render(<ChartTypeSection />);
       expect(tileLabels()).toEqual(["Line", "Bar", "Range", "Scatter"]);
     });
@@ -232,16 +232,21 @@ describe("ChartTypeSection", () => {
     expect(tileLabels()).toEqual(["Line", "Pie / Donut", "Data Table"]);
   });
 
-  // Workstream D: a map tile on a module with no county geometry could only
-  // ever fail at the data layer — Building Permits offers Metros, Regions and
-  // States, none of which we hold shapes or derived points for.
+  // Workstream D: a map tile on a module with no level we hold shapes for could
+  // only ever fail at the data layer.
   it("drops the Maps tile on a module with no level we hold geometry for", async () => {
     const user = userEvent.setup();
-    state.schema = { id: "permits", subsets: { Metros: ["Metro"], States: ["State"] } };
+    state.schema = { id: "no-shapes", subsets: { Metros: ["Metro"], Cities: ["City"] } };
     render(<ChartTypeSection />);
     await showMore(user);
     expect(tileLabels()).not.toContain("Maps");
     expect(tileLabels()).toContain("Line");
+  });
+
+  it("keeps the Maps tile on a module with Regions or States but no Counties", () => {
+    state.schema = { id: "permits", subsets: { Metros: ["Metro"], States: ["State"] } };
+    render(<ChartTypeSection />);
+    expect(tileLabels()).toContain("Maps");
   });
 
   it("keeps the Maps tile on a module that has a Counties level", () => {

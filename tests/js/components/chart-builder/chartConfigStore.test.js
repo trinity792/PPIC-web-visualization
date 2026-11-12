@@ -227,30 +227,45 @@ describe("manual encoding (autoBind: false)", () => {
 });
 
 /**
- * Workstream D. A map-shaped chart can only draw the one level we hold geometry
- * for, and the level lives in `filters.subset` — pinning the Geographic Level
- * select alone left the config on whatever level the reader was already on, and
- * the geography API answers 400 for every level but Counties.
+ * Workstream D. A map-shaped chart can only draw a level we hold geometry for,
+ * and the level lives in `filters.subset` — pinning the Geographic Level select
+ * alone left the config on whatever level the reader was already on, and the
+ * geography API answers 400 for a level with no shapes.
  */
 describe("reduceChartConfig — the geometry level a map needs", () => {
   const onRegions = createChartConfig(schema, {
     chartType: "line",
     filters: { subset: "Regions", locations: ["Bay Area"] },
   });
+  const withCities = { ...schema, subsets: { Cities: ["City"], ...schema.subsets } };
+  const onCities = createChartConfig(withCities, {
+    chartType: "line",
+    filters: { subset: "Cities", locations: ["Oakland"] },
+  });
+  const switchTo = (config, chartType, activeSchema) =>
+    reduceChartConfig(config, { type: "SET_CHART_TYPE", chartType }, activeSchema);
 
-  it("moves a symbol map to the level we hold geometry for", () => {
-    const map = dispatch(onRegions, { type: "SET_CHART_TYPE", chartType: "symbolMap" });
-    expect(map.filters.subset).toBe("Counties");
+  it.each(["symbolMap", "choroplethMap"])("keeps %s on the reader's level when it has shapes", (chartType) => {
+    const map = dispatch(onRegions, { type: "SET_CHART_TYPE", chartType });
+    expect(map.filters.subset).toBe("Regions");
+    expect(map.filters.locations).toEqual(["Bay Area"]);
   });
 
-  it("moves a choropleth the same way", () => {
-    const map = dispatch(onRegions, { type: "SET_CHART_TYPE", chartType: "choroplethMap" });
-    expect(map.filters.subset).toBe("Counties");
+  it.each(["symbolMap", "choroplethMap"])("moves %s off a level with no shapes, preferring Counties", (chartType) => {
+    expect(switchTo(onCities, chartType, withCities).filters.subset).toBe("Counties");
   });
 
-  it("clears the place selection with the level, since a region is not a county", () => {
-    const map = dispatch(onRegions, { type: "SET_CHART_TYPE", chartType: "symbolMap" });
-    expect(map.filters.locations).toEqual([]);
+  it("clears the place selection with the level, since a city is not a county", () => {
+    expect(switchTo(onCities, "symbolMap", withCities).filters.locations).toEqual([]);
+  });
+
+  it("moves a module with no Counties level to the next level with shapes", () => {
+    const noCounties = { ...schema, subsets: { Metros: ["Metro"], States: ["State"], Regions: ["Region"] } };
+    const config = createChartConfig(noCounties, {
+      chartType: "line",
+      filters: { subset: "Metros", locations: [] },
+    });
+    expect(switchTo(config, "choroplethMap", noCounties).filters.subset).toBe("Regions");
   });
 
   it("leaves a non-map chart type on whatever level the reader chose", () => {
@@ -270,7 +285,7 @@ describe("reduceChartConfig — the geometry level a map needs", () => {
   });
 
   it("leaves the level alone on a module that has no geometry level to move to", () => {
-    const noGeometry = { ...schema, subsets: { Metros: ["Metro"], States: ["State"] } };
+    const noGeometry = { ...schema, subsets: { Metros: ["Metro"], Cities: ["City"] } };
     const config = createChartConfig(noGeometry, {
       chartType: "line",
       filters: { subset: "Metros", locations: [] },
@@ -290,7 +305,7 @@ describe("reduceChartConfig — the geometry level a map needs", () => {
         dataset: { kind: "module", moduleId: "testmodule" },
         source: "Census",
         outcome: { measureId: "Total Widgets" },
-        geography: { subset: "Regions", locations: ["Bay Area"] },
+        geography: { subset: "Cities", locations: ["Oakland"] },
         time: { contract: "range", startYear: 2020, endYear: 2025 },
         calculation: { id: "actual", params: {} },
         comparisons: [{ id: "cmp_1", dimensions: {} }],
@@ -300,13 +315,23 @@ describe("reduceChartConfig — the geometry level a map needs", () => {
     const map = reduceChartConfig(
       v3,
       { type: "SET_CHART_TYPE", chartType: "choroplethMap" },
-      { ...schema, subsetSource: { Counties: "DoF" } },
+      { ...withCities, subsetSource: { Counties: "DoF" } },
     );
 
     expect(map.question.geography).toEqual({ subset: "Counties", locations: [] });
     expect(map.question.source).toBe("DoF");
     expect(map.question.time).toEqual({ contract: "snapshot" });
     expect(map.presentation.comparisonPresentation).toBe("tabs");
+
+    // A level with shapes stays. Its places still clear: one place carried over
+    // from a Line would leave the rest of the map blank.
+    const stayed = reduceChartConfig(
+      { ...v3, question: { ...v3.question, geography: { subset: "Regions", locations: ["Bay Area"] } } },
+      { type: "SET_CHART_TYPE", chartType: "choroplethMap" },
+      { ...schema, subsetSource: { Regions: "DoF" } },
+    );
+    expect(stayed.question.geography).toEqual({ subset: "Regions", locations: [] });
+    expect(stayed.question.source).toBe("DoF");
   });
 
   // 2026-09-29: Ranked values could not be switched off once set.

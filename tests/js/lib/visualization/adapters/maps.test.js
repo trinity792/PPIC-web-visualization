@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { adaptObservations } from "@/lib/visualization/adapters";
-import { input } from "@/tests/fixtures/visualization-v3/renderer";
+import { geometryFor, input } from "@/tests/fixtures/visualization-v3/renderer";
 // Owner decisions 2026-10-12 (renderer plan L): maps color places by discrete
 // class (quantile, 5 by default) as PPIC's published maps do, with Continuous
 // as a choice; the key is drawn by ChartKey in the PPIC frame, not by Plotly's
@@ -12,8 +12,23 @@ function tenPlaces(type, appearance = {}) {
   const row = base.observations[0];
   const observations = Array.from({ length: 10 }, (_, index) => ({ ...row, geographyId: `06${index}`, geographyLabel: `Place ${index}`, value: (index + 1) * 10 }));
   const points = Object.fromEntries(observations.map(entry => [entry.geographyId, [-120, 36]]));
-  return { ...base, observations, appearance, geometry: type === "symbolMap" ? { geojson: base.geometry.geojson, points } : base.geometry };
+  return { ...base, observations, appearance, geometry: type === "symbolMap" ? { geojson: base.geometry.geojson, points } : geometryFor(observations.map(entry => entry.geographyId)) };
 }
+// Building Permits' "Rest of US" sums 49 states and has no shape. It draws
+// nothing, so it must not stretch the color scale for the places that do draw.
+it("leaves a row with no shape out of the map and its color scale", () => {
+  const base = tenPlaces("choroplethMap", { classification: "continuous" });
+  const row = base.observations[0];
+  const figure = adaptObservations({ ...base, observations: [...base.observations, { ...row, geographyId: "Rest of US", geographyLabel: "Rest of US", value: 1000000 }] });
+  expect(figure.data[0].locations).not.toContain("Rest of US");
+  expect(figure.data[0].locations).toHaveLength(10);
+  expect(figure.data[0].zmax).toBe(100);
+  expect(figure.summary).toContain("10 places");
+});
+it("draws the rows as given when there are no shapes to compare them with", () => {
+  const figure = adaptObservations({ ...tenPlaces("choroplethMap"), geometry: null });
+  expect(figure.data[0].locations).toHaveLength(10);
+});
 it.each(["choroplethMap", "symbolMap"])("uses Proxima Nova and the guide's colors: %s", type => {
   const figure = adaptObservations(input(type));
   expect(figure.layout.font).toMatchObject({ family: "proxima-nova, sans-serif", color: "#6C7075" });

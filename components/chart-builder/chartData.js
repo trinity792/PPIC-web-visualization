@@ -22,6 +22,7 @@
  */
 
 import { executeInlineQuestion } from "@/lib/tabular/toObservations";
+import { geometryLevelFor } from "@/lib/visualization/chartAvailability";
 import { validateResponse } from "@/lib/visualization/observationContract";
 
 function blockedResponse(code, message) {
@@ -95,9 +96,10 @@ export async function loadFullTable(config, schema, signal) {
   return { records: body.records || [] };
 }
 
+// A subset with no shapes still goes to the server by name, so the reader gets
+// the route's "Invalid level" error rather than a silently blank map.
 function geometryLevelForSubset(subset) {
-  if (!subset) return "counties";
-  return subset === "Counties" ? "counties" : subset.toLowerCase();
+  return geometryLevelFor(subset) || subset.toLowerCase();
 }
 
 // Parsed geometry is static; cache per level so changing the measure/period on a
@@ -109,7 +111,7 @@ async function loadGeometry(level, signal) {
   const response = await fetch(`/api/geography?level=${level}`, { signal });
   const body = await response.json();
   if (!response.ok) {
-    const error = new Error(body.error || "County geometry could not be loaded.");
+    const error = new Error(body.error || "Map geometry could not be loaded.");
     error.source = body.source;
     throw error;
   }
@@ -126,7 +128,7 @@ async function loadPoints(level, signal) {
   const response = await fetch(`/api/geography?level=${level}&type=points`, { signal });
   const body = await response.json();
   if (!response.ok) {
-    const error = new Error(body.error || "County coordinates could not be loaded.");
+    const error = new Error(body.error || "Map coordinates could not be loaded.");
     error.source = body.source;
     throw error;
   }

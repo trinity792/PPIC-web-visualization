@@ -57,32 +57,39 @@ describe("GeographySection", () => {
     state.options = { status: "ready", locations, error: null };
   });
 
-  it("lists schema subsets and restricts a choropleth to Counties", async () => {
+  it("lists schema subsets and restricts maps to the levels with shapes", async () => {
     const user = userEvent.setup();
+    state.schema = { ...baseSchema, subsets: { Metros: ["Metro"], ...baseSchema.subsets } };
     const { unmount } = render(<GeographySection />);
     await user.click(screen.getByRole("combobox", { name: /geographic level/i }));
     expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+      "Metros",
       "Regions",
       "Counties",
       "States",
     ]);
     unmount();
 
+    // The levels with shapes keep the order the module lists them in.
     state.config = baseConfig({ chartType: "choroplethMap" });
     const second = render(<GeographySection />);
     await user.click(screen.getByRole("combobox", { name: /geographic level/i }));
     expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+      "Regions",
       "Counties",
+      "States",
     ]);
     second.unmount();
 
-    // A symbol map's points are derived from the same county polygons a
-    // choropleth draws, so it gets the same pin.
+    // A symbol map's points are derived from the same polygons a choropleth
+    // draws, so it gets the same limit.
     state.config = baseConfig({ chartType: "symbolMap" });
     render(<GeographySection />);
     await user.click(screen.getByRole("combobox", { name: /geographic level/i }));
     expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+      "Regions",
       "Counties",
+      "States",
     ]);
   });
 

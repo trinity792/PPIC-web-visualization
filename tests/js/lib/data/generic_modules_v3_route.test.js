@@ -67,6 +67,50 @@ describe("preloaded topic defaults", () => {
   });
 });
 
+// The labels are what vary: regions are names everywhere, while states are "AK"
+// in some datasets and "Alaska" in others. Every row must find its shape from the
+// real CSVs, or that place silently draws blank.
+describe("maps join every place to a shape", () => {
+  const SNAPSHOT = { time: { contract: "snapshot" } };
+  const shapeLevel = { Regions: "regions", States: "states", "US States": "states" };
+
+  it.each([
+    ["pophousing", POPHOUSING_POST, "Regions", 9],
+    ["components-of-change", COMPONENTS_OF_CHANGE_POST, "Regions", 9],
+    ["components-of-change", COMPONENTS_OF_CHANGE_POST, "States", 51],
+    ["demographic-projections", PROJECTIONS_POST, "Regions", 9],
+    ["demographic-projections", PROJECTIONS_POST, "US States", 50],
+    ["housing-stress", HOUSING_STRESS_POST, "Regions", 9],
+    ["housing-stress", HOUSING_STRESS_POST, "States", 50],
+    ["building-permits", BUILDING_PERMITS_POST, "Regions", 9],
+    ["building-permits", BUILDING_PERMITS_POST, "States", 50],
+  ])("%s on %s draws %i places", async (moduleId, handler, subset, count) => {
+    const schema = getModuleSchema(moduleId);
+    const spec = getDefaultQuestion(moduleId);
+    const source = schema.subsetSource?.[subset] || spec.question.source;
+    spec.question = { ...spec.question, ...SNAPSHOT, source, geography: { subset, locations: [] } };
+    spec.presentation = { ...spec.presentation, chartType: "choroplethMap", comparisonPresentation: "tabs" };
+    const res = await handler(new Request(`http://test/api/${moduleId}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(spec),
+    }));
+    const body = await res.json();
+    expect(res.status, JSON.stringify(body.issues)).toBe(200);
+
+    const geojson = await loadGeometry(shapeLevel[subset]);
+    const map = adaptObservations(previewInput(spec, schema, { ...body, geometry: geojson }));
+    expect(map.data[0].locations).toHaveLength(count);
+    const ids = new Set(geojson.features.map((feature) => feature.properties.GEOID));
+    for (const id of map.data[0].locations) expect(ids.has(id), id).toBe(true);
+    // Readers still see their own labels, never the join key.
+    expect(map.data[0].text.every((label) => typeof label === "string" && !/^\d+$/.test(label))).toBe(true);
+    // "Rest of US" sums the other states, so it would dwarf them on the scale.
+    expect(map.data[0].text).not.toContain("Rest of US");
+    expect(map.layout.geo.projection.type).toBe("mercator");
+  });
+});
+
 describe("building-permits v3 POST", () => {
   it("answers the derived region and Rest of US places the location list offers", async () => {
     // Regions and "Rest of US" exist only as on-demand aggregates in the data

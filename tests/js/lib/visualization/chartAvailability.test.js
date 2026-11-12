@@ -13,20 +13,64 @@ import { DEMOGRAPHIC_PROJECTIONS_SCHEMA } from "@/lib/visualization/moduleSchema
 import { POPHOUSING_SCHEMA } from "@/lib/visualization/moduleSchemas/pophousing";
 import { RHNA_PROGRESS_SCHEMA } from "@/lib/visualization/moduleSchemas/rhnaProgress";
 import {
-  GEOMETRY_SUBSET,
   availableChartTypes,
+  geometryLevelFor,
   geometrySubsetFor,
+  geometrySubsetsFor,
   isChartTypeAvailable,
   requiresGeometry,
 } from "@/lib/visualization/chartAvailability";
 
+const NO_SHAPES_SCHEMA = { id: "no-shapes", subsets: { Metros: ["Metro"], Cities: ["City"] } };
+
+describe("geometryLevelFor", () => {
+  it.each([
+    ["Counties", "counties"],
+    ["Regions", "regions"],
+    ["States", "states"],
+    ["US States", "states"],
+  ])("draws %s from the %s level", (subset, level) => {
+    expect(geometryLevelFor(subset)).toBe(level);
+  });
+
+  it.each(["State", "California", "Cities", "Metros", "Jurisdictions", "constructor", "", null, undefined])(
+    "has no level for %s",
+    (subset) => {
+      expect(geometryLevelFor(subset)).toBeNull();
+    },
+  );
+});
+
+describe("geometrySubsetsFor", () => {
+  it("lists a module's levels with shapes, most preferred first", () => {
+    // The schema itself lists Regions first; a map's preference is Counties.
+    expect(geometrySubsetsFor(POPHOUSING_SCHEMA)).toEqual(["Counties", "Regions"]);
+    expect(geometrySubsetsFor(BUILDING_PERMITS_SCHEMA)).toEqual(["Regions", "States"]);
+    expect(geometrySubsetsFor(DEMOGRAPHIC_PROJECTIONS_SCHEMA)).toEqual(["Counties", "Regions", "US States"]);
+  });
+});
+
 describe("geometrySubsetFor", () => {
-  it("names the level a map can draw on when the module has one", () => {
-    expect(geometrySubsetFor(POPHOUSING_SCHEMA)).toBe(GEOMETRY_SUBSET);
+  it("prefers Counties when the reader is not on a level with shapes", () => {
+    expect(geometrySubsetFor(POPHOUSING_SCHEMA)).toBe("Counties");
+    expect(geometrySubsetFor(POPHOUSING_SCHEMA, "Cities")).toBe("Counties");
+  });
+
+  it("keeps the reader's level when it has shapes", () => {
+    expect(geometrySubsetFor(POPHOUSING_SCHEMA, "Regions")).toBe("Regions");
+    expect(geometrySubsetFor(DEMOGRAPHIC_PROJECTIONS_SCHEMA, "US States")).toBe("US States");
+  });
+
+  it("does not keep a level this module does not have", () => {
+    expect(geometrySubsetFor(POPHOUSING_SCHEMA, "States")).toBe("Counties");
+  });
+
+  it("falls to the next level with shapes on a module with no Counties", () => {
+    expect(geometrySubsetFor(BUILDING_PERMITS_SCHEMA, "Metros")).toBe("Regions");
   });
 
   it("answers null for a module whose levels we hold no geometry for", () => {
-    expect(geometrySubsetFor(BUILDING_PERMITS_SCHEMA)).toBeNull();
+    expect(geometrySubsetFor(NO_SHAPES_SCHEMA)).toBeNull();
   });
 
   it("answers null for pasted data, which has no server levels at all", () => {
@@ -49,11 +93,16 @@ describe("isChartTypeAvailable", () => {
     expect(isChartTypeAvailable("symbolMap", POPHOUSING_SCHEMA)).toBe(true);
   });
 
+  it("offers both map types on a module with Regions and States but no Counties", () => {
+    expect(isChartTypeAvailable("choroplethMap", BUILDING_PERMITS_SCHEMA)).toBe(true);
+    expect(isChartTypeAvailable("symbolMap", BUILDING_PERMITS_SCHEMA)).toBe(true);
+  });
+
   it("offers neither map type on a module with no level we hold geometry for", () => {
-    expect(isChartTypeAvailable("choroplethMap", BUILDING_PERMITS_SCHEMA)).toBe(false);
-    expect(isChartTypeAvailable("symbolMap", BUILDING_PERMITS_SCHEMA)).toBe(false);
+    expect(isChartTypeAvailable("choroplethMap", NO_SHAPES_SCHEMA)).toBe(false);
+    expect(isChartTypeAvailable("symbolMap", NO_SHAPES_SCHEMA)).toBe(false);
     // The rest of that module's grid is untouched.
-    expect(isChartTypeAvailable("line", BUILDING_PERMITS_SCHEMA)).toBe(true);
+    expect(isChartTypeAvailable("line", NO_SHAPES_SCHEMA)).toBe(true);
   });
 
   it("keeps the choropleth but drops the symbol map on pasted data", () => {
@@ -97,7 +146,7 @@ describe("isChartTypeAvailable", () => {
 
 describe("availableChartTypes", () => {
   it("never offers a chart type that would fail at the data layer", () => {
-    for (const id of availableChartTypes(BUILDING_PERMITS_SCHEMA)) {
+    for (const id of availableChartTypes(NO_SHAPES_SCHEMA)) {
       expect(requiresGeometry(id), `offered without geometry: ${id}`).toBe(false);
     }
     expect(availableChartTypes(POPHOUSING_SCHEMA)).toContain("symbolMap");

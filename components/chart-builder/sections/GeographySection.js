@@ -46,7 +46,7 @@ import {
 } from "@/components/ui/select";
 
 import {
-  geometrySubsetFor,
+  geometrySubsetsFor,
   requiresGeometry,
 } from "@/lib/visualization/chartAvailability";
 import { useAdvancedMode } from "@/components/chart-builder/advancedMode";
@@ -114,15 +114,17 @@ export default function GeographySection() {
   if (!hasGeographicSubsets(config, schema)) return null;
 
   // A map-shaped chart can only draw the geometry we hold (a symbol map's
-  // points are derived from the same county polygons a choropleth draws), so it
-  // is pinned to the level that has one rather than offered levels that would
-  // render blank. The store writes that level on the chart-type switch itself
-  // (`withGeometrySubset`); this only keeps the select from offering the rest.
-  const geometrySubset = geometrySubsetFor(schema);
+  // points are derived from the same polygons a choropleth draws), so it is
+  // limited to the levels that have one rather than offered levels that would
+  // render blank. The store moves the chart onto one of them on the chart-type
+  // switch itself (`withGeometrySubset`); this only keeps the select from
+  // offering the rest.
+  const geometrySubsets = geometrySubsetsFor(schema);
+  const allSubsets = Object.keys(schema.subsets || {});
   const subsets =
-    requiresGeometry(config.chartType) && geometrySubset
-      ? [geometrySubset]
-      : Object.keys(schema.subsets || {});
+    requiresGeometry(config.chartType) && geometrySubsets.length
+      ? allSubsets.filter((subset) => geometrySubsets.includes(subset))
+      : allSubsets;
 
   const reorderable = PLACE_CATEGORY_CHART_TYPES.has(config.chartType);
   const selected = config.filters?.locations || [];

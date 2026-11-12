@@ -39,6 +39,25 @@ describe("loadObservationGeometry — v3 Symbol Map layers", () => {
       ),
     ).toEqual(["points", "polygons"]);
   });
+
+  it.each([
+    ["Counties", "counties"],
+    ["Regions", "regions"],
+    ["States", "states"],
+    ["US States", "states"],
+    // No shapes: asks by name, so the route's error reaches the reader.
+    ["Metros", "metros"],
+  ])("loads %s from the %s level", async (subset, level) => {
+    vi.resetModules();
+    const { loadObservationGeometry } = await import(
+      "@/components/chart-builder/chartData"
+    );
+    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({ features: [] }) }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await loadObservationGeometry("choroplethMap", subset, undefined);
+    expect(fetchMock).toHaveBeenCalledWith(`/api/geography?level=${level}`, { signal: undefined });
+  });
 });
 
 const chartDataModule = () => import("@/components/chart-builder/chartData");

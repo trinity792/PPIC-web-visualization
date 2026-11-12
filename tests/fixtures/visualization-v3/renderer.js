@@ -45,6 +45,17 @@ export const geometry = { type: "FeatureCollection", features: [
   { type: "Feature", properties: { GEOID: "06075" }, geometry: { type: "Polygon", coordinates: [[[-123,37],[-122,37],[-122,38],[-123,37]]] } },
   { type: "Feature", properties: { GEOID: "06037" }, geometry: { type: "Polygon", coordinates: [[[-119,34],[-118,34],[-118,35],[-119,34]]] } },
 ] };
+/** A shape for each id, for fixtures whose rows name places beyond the two above. */
+export function geometryFor(ids) {
+  return {
+    type: "FeatureCollection",
+    features: ids.map((GEOID) => ({
+      type: "Feature",
+      properties: { GEOID },
+      geometry: { type: "Polygon", coordinates: [[[-123,34],[-118,34],[-118,38],[-123,34]]] },
+    })),
+  };
+}
 export function input(chartType = "line", overrides = {}) {
   let rows = lineRows;
   if (["bar", "dotPlot", "choroplethMap", "symbolMap"].includes(chartType)) rows = observations.filter(r => r.period === 2025 && r.comparisonId !== "black");

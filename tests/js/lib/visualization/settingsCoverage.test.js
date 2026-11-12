@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildChartModel } from "@/lib/visualization/models";
 import { adaptObservations } from "@/lib/visualization/adapters";
-import { input, VISX_TYPES, MAP_TYPES, observations } from "@/tests/fixtures/visualization-v3/renderer";
+import { geometryFor, input, VISX_TYPES, MAP_TYPES, observations } from "@/tests/fixtures/visualization-v3/renderer";
 const SHARED = [
   ["labels.subtitle", "A different subtitle"], ["labels.footnote", "A different note"],
   ["showTitle", false], ["showSubtitle", false], ["showSource", false], ["legendPosition", "bottom"],
@@ -101,7 +101,7 @@ describe("maps, extra cases", () => {
     const row = base.observations[0];
     const places = Array.from({ length: 10 }, (_, index) => ({ ...row, geographyId: `06${index}`, geographyLabel: `Place ${index}`, value: (index + 1) * 10 }));
     const points = Object.fromEntries(places.map(entry => [entry.geographyId, [-120, 36]]));
-    const ten = { ...base, observations: places, geometry: type === "symbolMap" ? { ...base.geometry, points } : base.geometry };
+    const ten = { ...base, observations: places, geometry: type === "symbolMap" ? { ...base.geometry, points } : geometryFor(places.map(entry => entry.geographyId)) };
     const changed = { ...ten, appearance: { ...ten.appearance, bins: 3 } };
     expect(picture(draw(type, changed))).not.toBe(picture(draw(type, ten)));
     // Advanced Mode custom breaks (owner, 2026-10-12).
