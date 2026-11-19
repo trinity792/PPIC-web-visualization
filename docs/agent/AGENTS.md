@@ -4,7 +4,7 @@ Content Type: agent instructions
 pinned: false
 description: "Top-level orientation for AI agents maintaining the PPIC data pipelines and V3 React/Next.js visualization site. Sets project goals, commands, sources of truth, and contributor boundaries."
 Date Published: June 22, 2026
-Last Updated: 10/18/2026 - 04:00 PM
+Last Updated: 11/18/2026 - 05:28 PM
 Status: Updating
 ---
 
@@ -91,7 +91,9 @@ The project must remain understandable to non-developers and future contributors
 - Restructuring folders under `scripts/` or `lib/`
 
 🚫 **Never:**
-- Commit raw data files or cleaned CSVs to git
+- Commit raw downloads (`data/data-raw/`), archives (`data/archive/`), or live run logs to git;
+  cleaned CSVs under `data/data-cleaned/` *are* committed (the app reads them), but only
+  as output of a validated pipeline run, never hand-edited
 - Rewrite working pipeline logic without explicit instruction
 - Suppress warnings with blanket `warnings.filterwarnings("ignore")`
 

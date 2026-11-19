@@ -37,6 +37,36 @@ def test_build_run_record_recovered_when_fallback_flag_set():
     assert record["flags"] == {"source_failed": True}
 
 
+def test_build_run_record_recovered_when_bare_used_manual_flag_set():
+    # Arrange — RHNA Progress reports its manual-file fallback as a bare `used_manual` key
+    summary = {"row_count": 10, "source_failed": False, "used_manual": True}
+
+    # Act
+    record = build_run_record("rhna-progress", "RHNA Progress Report", 5, summary=summary)
+
+    # Assert
+    assert record["severity"] == "recovered"
+    assert record["flags"] == {"source_failed": False, "used_manual": True}
+
+
+def test_build_run_record_success_when_bare_used_manual_flag_falsey():
+    # Act
+    record = build_run_record(
+        "rhna-progress", "RHNA Progress Report", 5, summary={"row_count": 10, "used_manual": False}
+    )
+
+    # Assert
+    assert record["severity"] == "success"
+
+
+def test_build_run_record_ignores_keys_that_merely_end_in_used_manual():
+    # Act — only a whole `used_manual` word marks a fallback, not a suffix of another word
+    record = build_run_record("demo", "Demo Module", 5, summary={"unused_manual": True})
+
+    # Assert
+    assert record["severity"] == "success"
+
+
 def test_build_run_record_success_when_fallback_flag_falsey():
     # Act
     record = build_run_record(

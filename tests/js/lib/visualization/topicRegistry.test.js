@@ -58,7 +58,7 @@ const EXPECTED_TOPICS = [
     id: "rhna-progress",
     title: "Housing goal tracking",
     href: "/rhna-progress",
-    documentationHref: "/documents/rhna-progress-report-module",
+    documentationHref: "/documents/rhna-progress-report-topic-specification",
   },
 ];
 

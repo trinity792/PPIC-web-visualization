@@ -33,8 +33,10 @@ from scripts.shared.logging.pipeline_logging import (
 PACIFIC = ZoneInfo("America/Los_Angeles")
 DEFAULT_RUN_LOG_FILENAME = "pipeline-runs.jsonl"
 PHASE_PATTERN = re.compile(r"Phase\s+(\d+)")
-# Summary keys that mark a run as recovered (a fallback path was taken) rather than clean.
-FALLBACK_FLAG_PATTERN = re.compile(r"(_failed|_used_manual|source_failed)$")
+# Summary keys that mark a run as recovered (a fallback path was taken) rather than clean:
+# any `*_failed` key (source_failed, dof_failed, ...) and `used_manual`, either bare (RHNA
+# Progress) or source-prefixed (dof_used_manual, source_used_manual, ...).
+FALLBACK_FLAG_PATTERN = re.compile(r"(_failed|(?:^|_)used_manual)$")
 # The `File "..."` frame paths a formatted traceback carries.
 TRACEBACK_FILE_PATTERN = re.compile(r'File "([^"]+)"')
 
