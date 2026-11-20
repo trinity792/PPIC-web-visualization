@@ -228,3 +228,31 @@ describe("dataset range: labels", () => {
     expect(deriveLabels(config, { fields: { Population: { label: "Population" }, Year: { kind: "temporal", label: "Year" } } })).toEqual({ title: "Population over time in Alameda", xAxis: "Year", yAxis: "Population" });
   });
 });
+
+describe("geographic-level wording in titles", () => {
+  // Regression (2026-11-20): "Metros and US" lost the S of "US" to the
+  // plural-stripping rule and the title read "... by metros and u".
+  const line = (subset, locations) => ({
+    version: 3,
+    question: { outcome: { measureId: "Total Monthly Payment" }, geography: { subset, locations } },
+    presentation: { chartType: "line", labels: {} },
+  });
+
+  it("uses the module's own word for a level", async () => {
+    const { getModuleSchema } = await import("@/lib/visualization/moduleRegistry");
+    const { getDefaultQuestion } = await import("@/lib/visualization/defaultQuestions");
+    const zillow = getModuleSchema("zillow-affordability");
+
+    expect(deriveLabels(getDefaultQuestion("zillow-affordability"), zillow).title).toBe(
+      "Total monthly payment over time by metro",
+    );
+  });
+
+  it("never chops or lowercases an acronym when making a level singular", () => {
+    const schema = { fields: { "Total Monthly Payment": { kind: "measure", label: "Payment" } } };
+    const many = ["A", "B", "C", "D"];
+
+    expect(deriveLabels(line("Metros and US", many), schema).title).toBe("Payment over time by metros and US");
+    expect(deriveLabels(line("Jurisdictions", many), schema).title).toBe("Payment over time by jurisdiction");
+  });
+});

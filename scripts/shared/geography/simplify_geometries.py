@@ -6,12 +6,15 @@ Data sources:
     - assets/ca_regions.geojson  — detailed California regions (9 features, numbered 1-9)
     - assets/us_states.geojson   — detailed US states plus DC and Puerto Rico (52 features);
       Alaska, Hawaii, and Puerto Rico are relocated, so it is for display only
+    - assets/ca_metros.geojson   — 26 California metros, cut from the national CBSA file by
+      scripts/shared/geography/extract_california_metros.py
     - lib/pophousing_config.py   — region names and the counties in each region
 
 Outputs:
     - data/data-cleaned/geography/california-counties.geojson — properties GEOID, NAME
     - data/data-cleaned/geography/california-regions.geojson  — properties GEOID, NAME
     - data/data-cleaned/geography/us-states.geojson           — properties GEOID, NAME, STUSPS
+    - data/data-cleaned/geography/california-metros.geojson   — properties GEOID, NAME, ALT_NAME
 
 Usage:
     web-viz-venv/bin/python -m scripts.shared.geography.simplify_geometries
@@ -103,6 +106,18 @@ LAYERS = {
         tolerance=0.05,
         expected_features=52,
         properties=("GEOID", "NAME", "STUSPS"),
+    ),
+    "metros": MapLayer(
+        source="ca_metros.geojson",
+        output="california-metros.geojson",
+        tolerance=0.02,
+        expected_features=26,
+        # ALT_NAME is the second label a dataset uses for the metro (Building
+        # Permits says "Inland Empire" where Zillow says "Riverside"), or null.
+        properties=("GEOID", "NAME", "ALT_NAME"),
+        # Drops the specks left where the county and metro files disagree on
+        # Fresno's outer edge (see extract_california_metros.split_fresno_and_madera).
+        min_part_km2=1.0,
     ),
 }
 

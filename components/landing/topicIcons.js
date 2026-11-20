@@ -66,6 +66,15 @@ const TOPIC_ICON_PATHS = Object.freeze({
       <path d="M15 21h6" />
     </>
   ),
+  "zillow-affordability": (
+    <>
+      <path d="M3 12l7-6 7 6" />
+      <path d="M5 10.5V20h10v-9.5" />
+      <path d="M9 20v-4h2v4" />
+      <circle cx="18.5" cy="6.5" r="3" />
+      <path d="M18.5 5v3M17.5 6.5h2" />
+    </>
+  ),
 });
 
 export default function TopicIcon({ topicId, className }) {

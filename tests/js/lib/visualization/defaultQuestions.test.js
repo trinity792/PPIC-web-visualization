@@ -23,6 +23,7 @@ describe("the default v3 question every module opens on", () => {
       "housing-stress",
       "building-permits",
       "rhna-progress",
+      "zillow-affordability",
     ]);
 
     for (const moduleId of DEFAULT_QUESTION_MODULE_IDS) {
@@ -45,6 +46,13 @@ describe("the default v3 question every module opens on", () => {
         // Snapshot-versioned dataset with no static period list yet (see
         // rhnaProgress.js `time` comment) — resolves server-side instead.
         expect(spec.question.time, moduleId).toEqual({ contract: "snapshot" });
+      } else if (moduleId === "zillow-affordability") {
+        // The owner's chosen opening view starts in 2015-01, not the 2012 series start.
+        expect(spec.question.time).toEqual({
+          contract: "range",
+          startYear: "2015-01",
+          endYear: schema.time.availablePeriods.at(-1),
+        });
       } else if (moduleId === "components-of-change") {
         expect(spec.question.time).toEqual({
           contract: "snapshot",

@@ -19,6 +19,7 @@ import { POST as HOUSING_STRESS_POST } from "@/app/api/housing-stress/route";
 import { POST as POPHOUSING_POST } from "@/app/api/pophousing/route";
 import { POST as PROJECTIONS_POST } from "@/app/api/projections/route";
 import { POST as RHNA_PROGRESS_POST } from "@/app/api/rhna-progress/route";
+import { POST as ZILLOW_AFFORDABILITY_POST } from "@/app/api/zillow-affordability/route";
 import { getDefaultQuestion } from "@/lib/visualization/defaultQuestions";
 import { loadGeometry, loadRepresentativePoints } from "@/lib/data/geography";
 import { adaptObservations } from "@/lib/visualization/adapters";
@@ -53,6 +54,7 @@ describe("preloaded topic defaults", () => {
     ["housing-stress", HOUSING_STRESS_POST],
     ["building-permits", BUILDING_PERMITS_POST],
     ["rhna-progress", RHNA_PROGRESS_POST],
+    ["zillow-affordability", ZILLOW_AFFORDABILITY_POST],
   ])("%s returns data for its default comparisons and locations", async (moduleId, handler) => {
     const spec = getDefaultQuestion(moduleId);
     const { status, body } = await post(handler, moduleId);
@@ -72,7 +74,7 @@ describe("preloaded topic defaults", () => {
 // real CSVs, or that place silently draws blank.
 describe("maps join every place to a shape", () => {
   const SNAPSHOT = { time: { contract: "snapshot" } };
-  const shapeLevel = { Regions: "regions", States: "states", "US States": "states" };
+  const shapeLevel = { Regions: "regions", States: "states", "US States": "states", Metros: "metros" };
 
   it.each([
     ["pophousing", POPHOUSING_POST, "Regions", 9],
@@ -84,6 +86,11 @@ describe("maps join every place to a shape", () => {
     ["housing-stress", HOUSING_STRESS_POST, "States", 50],
     ["building-permits", BUILDING_PERMITS_POST, "Regions", 9],
     ["building-permits", BUILDING_PERMITS_POST, "States", 50],
+    // Building Permits labels three metros differently ("Inland Empire"), which
+    // the metro shapes carry as ALT_NAME. 25, not 26: the Census survey stopped
+    // reporting Madera after 2023-12, when the 2023 delineation merged it into Fresno.
+    ["building-permits", BUILDING_PERMITS_POST, "Metros", 25],
+    ["zillow-affordability", ZILLOW_AFFORDABILITY_POST, "Metros", 26],
   ])("%s on %s draws %i places", async (moduleId, handler, subset, count) => {
     const schema = getModuleSchema(moduleId);
     const spec = getDefaultQuestion(moduleId);

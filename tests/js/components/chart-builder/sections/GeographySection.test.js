@@ -59,11 +59,11 @@ describe("GeographySection", () => {
 
   it("lists schema subsets and restricts maps to the levels with shapes", async () => {
     const user = userEvent.setup();
-    state.schema = { ...baseSchema, subsets: { Metros: ["Metro"], ...baseSchema.subsets } };
+    state.schema = { ...baseSchema, subsets: { Cities: ["City"], ...baseSchema.subsets } };
     const { unmount } = render(<GeographySection />);
     await user.click(screen.getByRole("combobox", { name: /geographic level/i }));
     expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
-      "Metros",
+      "Cities",
       "Regions",
       "Counties",
       "States",

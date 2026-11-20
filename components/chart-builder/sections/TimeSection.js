@@ -5,8 +5,8 @@ import React, { useEffect, useState } from "react";
 import { Check, ChevronsUpDown, Search } from "lucide-react";
 
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
+import ChoiceList from "@/components/chart-builder/sections/ChoiceList";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -145,7 +145,6 @@ function RangePeriodSlider({ current, periods, minimumPeriod, onChange }) {
 function PeriodPopover({ periods, selected, multiple = false, onChange }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const selectedSet = new Set(selected);
   const filtered = periods.filter((period) => String(period).includes(query.trim()));
   // The chosen years themselves (owner, 2026-09-30), truncated when long.
   const summary = multiple
@@ -199,24 +198,22 @@ function PeriodPopover({ periods, selected, multiple = false, onChange }) {
             className="pl-8"
           />
         </div>
-        <div role="group" aria-label="Years" className="grid max-h-64 gap-1 overflow-y-auto">
-          {filtered.map((period) => {
-            const checked = selectedSet.has(period);
-            return (
-              <label
-                key={period}
-                className="flex cursor-pointer items-center gap-2 rounded-md border bg-background px-2 py-1.5 text-sm hover:bg-muted/60"
-              >
-                <Checkbox
-                  aria-label={`Select ${period}`}
-                  checked={checked}
-                  onCheckedChange={(next) => select(period, next === true)}
-                />
-                <span className="flex-1">{period}</span>
-                {checked ? <Check aria-hidden="true" className="size-4 text-ppic-brand" /> : null}
-              </label>
-            );
-          })}
+        <div className="grid max-h-64 gap-1 overflow-y-auto">
+          {/* Checkboxes only when several years may be picked; one year is a radio list. */}
+          <ChoiceList
+            label={multiple ? "Years" : "Year"}
+            options={filtered}
+            selected={selected}
+            multiple={multiple}
+            onToggle={select}
+            onChoose={(period) => select(period, true)}
+            itemLabel={(choice) => `Select ${choice.label}`}
+            className="grid gap-1"
+            rowClassName="flex cursor-pointer items-center gap-2 rounded-md border bg-background px-2 py-1.5 text-sm hover:bg-muted/60"
+            renderTrailing={(period, checked) =>
+              multiple && checked ? <Check aria-hidden="true" className="size-4 text-ppic-brand" /> : null
+            }
+          />
           {!filtered.length ? (
             <p className="px-2 py-3 text-center text-sm text-muted-foreground">
               No years match “{query.trim()}”.

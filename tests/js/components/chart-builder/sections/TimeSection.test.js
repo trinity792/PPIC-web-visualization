@@ -119,7 +119,9 @@ describe("the control follows the capability, not the chart id", () => {
 
     await user.click(screen.getByRole("combobox", { name: /^year$/i }));
     await user.type(screen.getByRole("searchbox", { name: /find a year/i }), "2022");
-    await user.click(screen.getByRole("checkbox", { name: "Select 2022" }));
+    // One year: radio buttons, never checkboxes (owner rule, 2026-11-20).
+    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
+    await user.click(screen.getByRole("radio", { name: "Select 2022" }));
 
     expect(state.dispatch).toHaveBeenCalledWith({
       type: "SET_TIME",

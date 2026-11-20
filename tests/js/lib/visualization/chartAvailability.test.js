@@ -21,7 +21,7 @@ import {
   requiresGeometry,
 } from "@/lib/visualization/chartAvailability";
 
-const NO_SHAPES_SCHEMA = { id: "no-shapes", subsets: { Metros: ["Metro"], Cities: ["City"] } };
+const NO_SHAPES_SCHEMA = { id: "no-shapes", subsets: { Jurisdictions: ["City"], Cities: ["City"] } };
 
 describe("geometryLevelFor", () => {
   it.each([
@@ -29,11 +29,12 @@ describe("geometryLevelFor", () => {
     ["Regions", "regions"],
     ["States", "states"],
     ["US States", "states"],
+    ["Metros", "metros"],
   ])("draws %s from the %s level", (subset, level) => {
     expect(geometryLevelFor(subset)).toBe(level);
   });
 
-  it.each(["State", "California", "Cities", "Metros", "Jurisdictions", "constructor", "", null, undefined])(
+  it.each(["State", "California", "Cities", "Jurisdictions", "constructor", "", null, undefined])(
     "has no level for %s",
     (subset) => {
       expect(geometryLevelFor(subset)).toBeNull();
@@ -45,7 +46,7 @@ describe("geometrySubsetsFor", () => {
   it("lists a module's levels with shapes, most preferred first", () => {
     // The schema itself lists Regions first; a map's preference is Counties.
     expect(geometrySubsetsFor(POPHOUSING_SCHEMA)).toEqual(["Counties", "Regions"]);
-    expect(geometrySubsetsFor(BUILDING_PERMITS_SCHEMA)).toEqual(["Regions", "States"]);
+    expect(geometrySubsetsFor(BUILDING_PERMITS_SCHEMA)).toEqual(["Regions", "States", "Metros"]);
     expect(geometrySubsetsFor(DEMOGRAPHIC_PROJECTIONS_SCHEMA)).toEqual(["Counties", "Regions", "US States"]);
   });
 });
@@ -66,7 +67,12 @@ describe("geometrySubsetFor", () => {
   });
 
   it("falls to the next level with shapes on a module with no Counties", () => {
-    expect(geometrySubsetFor(BUILDING_PERMITS_SCHEMA, "Metros")).toBe("Regions");
+    expect(geometrySubsetFor(BUILDING_PERMITS_SCHEMA)).toBe("Regions");
+    expect(geometrySubsetFor(BUILDING_PERMITS_SCHEMA, "Cities")).toBe("Regions");
+  });
+
+  it("keeps a reader on Metros now that the California metros have shapes", () => {
+    expect(geometrySubsetFor(BUILDING_PERMITS_SCHEMA, "Metros")).toBe("Metros");
   });
 
   it("answers null for a module whose levels we hold no geometry for", () => {

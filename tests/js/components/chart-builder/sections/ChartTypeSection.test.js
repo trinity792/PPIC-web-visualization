@@ -141,7 +141,7 @@ describe("ChartTypeSection", () => {
     });
 
     it("moves the next available tile up when a top-four tile is unavailable", () => {
-      state.schema = { id: "no-shapes", subsets: { Metros: ["Metro"], Cities: ["City"] } };
+      state.schema = { id: "no-shapes", subsets: { Jurisdictions: ["City"], Cities: ["City"] } };
       render(<ChartTypeSection />);
       expect(tileLabels()).toEqual(["Line", "Bar", "Range", "Scatter"]);
     });
@@ -236,7 +236,7 @@ describe("ChartTypeSection", () => {
   // only ever fail at the data layer.
   it("drops the Maps tile on a module with no level we hold geometry for", async () => {
     const user = userEvent.setup();
-    state.schema = { id: "no-shapes", subsets: { Metros: ["Metro"], Cities: ["City"] } };
+    state.schema = { id: "no-shapes", subsets: { Jurisdictions: ["City"], Cities: ["City"] } };
     render(<ChartTypeSection />);
     await showMore(user);
     expect(tileLabels()).not.toContain("Maps");
@@ -244,7 +244,7 @@ describe("ChartTypeSection", () => {
   });
 
   it("keeps the Maps tile on a module with Regions or States but no Counties", () => {
-    state.schema = { id: "permits", subsets: { Metros: ["Metro"], States: ["State"] } };
+    state.schema = { id: "permits", subsets: { Cities: ["City"], States: ["State"] } };
     render(<ChartTypeSection />);
     expect(tileLabels()).toContain("Maps");
   });

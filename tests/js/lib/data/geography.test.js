@@ -65,6 +65,7 @@ describe("geometry levels", () => {
     ["counties", 58],
     ["regions", 9],
     ["states", 52],
+    ["metros", 26],
   ])("gives each of the %s %i features a unique GEOID and a representative point", async (level, count) => {
     const geojson = await loadGeometry(level);
     const ids = geojson.features.map((feature) => feature.properties.GEOID);
@@ -75,7 +76,7 @@ describe("geometry levels", () => {
 
   it("stays light enough to send to a browser", async () => {
     // The detailed source files hold 39,692, 246,286, and 13,706 points.
-    const limits = { counties: 3000, regions: 1500, states: 5000 };
+    const limits = { counties: 3000, regions: 1500, states: 5000, metros: 2000 };
     for (const [level, limit] of Object.entries(limits)) {
       const geojson = await loadGeometry(level);
       const points = JSON.stringify(geojson).match(/\[-?\d+(\.\d+)?,-?\d+(\.\d+)?\]/g).length;
@@ -87,7 +88,7 @@ describe("geometry levels", () => {
   // inside. A counter-clockwise outer ring (the GeoJSON standard, and how the
   // source files run) fills the whole map except the shape: every place still
   // counts as drawn, so only this check or looking at the map will catch it.
-  it.each(["counties", "regions", "states"])("winds every %s ring so its shape draws right side out", async (level) => {
+  it.each(["counties", "regions", "states", "metros"])("winds every %s ring so its shape draws right side out", async (level) => {
     const signedArea = (ring) =>
       ring.slice(1).reduce((sum, [lon, lat], index) => sum + (lon - ring[index][0]) * (lat + ring[index][1]), 0);
     const geojson = await loadGeometry(level);
@@ -117,5 +118,15 @@ describe("geometry levels", () => {
   it("joins counties by bare name to their FIPS id", async () => {
     const lookup = await getFeatureIdLookup("counties");
     expect(lookup.get("Alameda")).toBe("06001");
+  });
+
+  it("joins metros by either dataset's label to the CBSA code", async () => {
+    const lookup = await getFeatureIdLookup("metros");
+    expect(lookup.get("Riverside")).toBe("40140");
+    expect(lookup.get("Inland Empire")).toBe("40140");
+    expect(lookup.get("Santa Barbara")).toBe(lookup.get("Santa Maria"));
+    expect(lookup.get("Ventura")).toBe(lookup.get("Oxnard"));
+    expect(lookup.get("Madera")).toBe("31460");
+    expect(lookup.get("Fresno")).toBe("23420");
   });
 });

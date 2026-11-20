@@ -8,6 +8,7 @@ import { GET as housingStress } from "@/app/api/housing-stress/route";
 import { GET as pophousing } from "@/app/api/pophousing/route";
 import { GET as projections } from "@/app/api/projections/route";
 import { GET as rhnaProgress } from "@/app/api/rhna-progress/route";
+import { GET as zillowAffordability } from "@/app/api/zillow-affordability/route";
 
 // Each module's own canonical subset: Building Permits is metro-grained (BPS
 // publishes no county series) and RHNA is jurisdiction-grained, so neither
@@ -19,6 +20,7 @@ const routes = [
   ["housing-stress", housingStress, "Counties"],
   ["building-permits", buildingPermits, "Metros"],
   ["rhna-progress", rhnaProgress, "Jurisdictions"],
+  ["zillow-affordability", zillowAffordability, "Metros"],
 ];
 
 async function request(get, query) {

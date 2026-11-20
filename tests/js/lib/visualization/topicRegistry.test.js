@@ -60,10 +60,16 @@ const EXPECTED_TOPICS = [
     href: "/rhna-progress",
     documentationHref: "/documents/rhna-progress-report-topic-specification",
   },
+  {
+    id: "zillow-affordability",
+    title: "Home & rent affordability",
+    href: "/zillow-affordability",
+    documentationHref: "/documents/zillow-affordability-topic-specification",
+  },
 ];
 
 describe("landing-page topic registry", () => {
-  it("lists the six built topics in mockup order", () => {
+  it("lists the seven built topics in mockup order", () => {
     expect(
       TOPICS.map((topic) => ({
         id: topic.id,

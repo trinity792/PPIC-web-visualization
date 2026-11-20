@@ -260,10 +260,10 @@ describe("reduceChartConfig — the geometry level a map needs", () => {
   });
 
   it("moves a module with no Counties level to the next level with shapes", () => {
-    const noCounties = { ...schema, subsets: { Metros: ["Metro"], States: ["State"], Regions: ["Region"] } };
+    const noCounties = { ...schema, subsets: { Cities: ["City"], States: ["State"], Regions: ["Region"] } };
     const config = createChartConfig(noCounties, {
       chartType: "line",
-      filters: { subset: "Metros", locations: [] },
+      filters: { subset: "Cities", locations: [] },
     });
     expect(switchTo(config, "choroplethMap", noCounties).filters.subset).toBe("Regions");
   });
@@ -285,17 +285,17 @@ describe("reduceChartConfig — the geometry level a map needs", () => {
   });
 
   it("leaves the level alone on a module that has no geometry level to move to", () => {
-    const noGeometry = { ...schema, subsets: { Metros: ["Metro"], Cities: ["City"] } };
+    const noGeometry = { ...schema, subsets: { Jurisdictions: ["City"], Cities: ["City"] } };
     const config = createChartConfig(noGeometry, {
       chartType: "line",
-      filters: { subset: "Metros", locations: [] },
+      filters: { subset: "Jurisdictions", locations: [] },
     });
     const map = reduceChartConfig(
       config,
       { type: "SET_CHART_TYPE", chartType: "symbolMap" },
       noGeometry,
     );
-    expect(map.filters.subset).toBe("Metros");
+    expect(map.filters.subset).toBe("Jurisdictions");
   });
 
   it("pins the v3 question level, source, locations, and time when entering a map", () => {

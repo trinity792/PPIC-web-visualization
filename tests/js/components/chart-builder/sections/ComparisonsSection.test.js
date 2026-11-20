@@ -116,9 +116,11 @@ function config(overrides = {}) {
 
 const cards = () => screen.getAllByRole("group", { name: /^comparison \d+$/i });
 
+// Drafts that add comparisons are multi-select (checkboxes); starter drafts and
+// existing cards hold one value (radio buttons). Owner rule, 2026-11-20.
 async function chooseDraftValue(user, draft, label, value) {
   await user.click(within(draft).getByRole("combobox", { name: label }));
-  await user.click(screen.getByRole("checkbox", { name: value }));
+  await user.click(screen.queryByRole("radio", { name: value }) || screen.getByRole("checkbox", { name: value }));
 }
 
 beforeEach(() => {
@@ -158,7 +160,7 @@ describe("draft authoring", () => {
     });
   });
 
-  it("opens and scrolls to a later draft, then commits it on the final field", async () => {
+  it("opens and scrolls to a later draft, then commits it with its Add button", async () => {
     const user = userEvent.setup();
     render(<ComparisonsSection />);
 
@@ -177,8 +179,10 @@ describe("draft authoring", () => {
 
     await chooseDraftValue(user, draft, "Race/ethnicity", "White");
     await chooseDraftValue(user, draft, "Sex", "Male");
-    expect(state.dispatch).not.toHaveBeenCalled();
     await chooseDraftValue(user, draft, "Age group", "5-9");
+    // A multi-select can't know the reader is done, so nothing commits until Add.
+    expect(state.dispatch).not.toHaveBeenCalled();
+    await user.click(within(draft).getByRole("button", { name: "Add comparison" }));
 
     const [action] = state.dispatch.mock.calls.at(-1);
     expect(action.type).toBe("SET_COMPARISONS");
@@ -190,6 +194,54 @@ describe("draft authoring", () => {
       "Age Group": "5-9",
     });
     expect(screen.queryByRole("group", { name: "New comparison draft" })).not.toBeInTheDocument();
+  });
+
+  it("adds one comparison per combination when a draft picks several values", async () => {
+    const user = userEvent.setup();
+    state.config = config({ comparisons: [] });
+    render(<ComparisonsSection />);
+
+    const draft = screen.getByRole("group", { name: "Comparison draft" });
+    await chooseDraftValue(user, draft, "Race/ethnicity", "Hispanic");
+    await user.click(screen.getByRole("checkbox", { name: "White" }));
+    await chooseDraftValue(user, draft, "Sex", "Female");
+    await user.click(screen.getByRole("checkbox", { name: "Male" }));
+    await chooseDraftValue(user, draft, "Age group", "All Ages");
+
+    await user.click(within(draft).getByRole("button", { name: "Add 4 comparisons" }));
+
+    const [action] = state.dispatch.mock.calls.at(-1);
+    // Order follows the schema's dimension order; the set is what matters.
+    expect(action.comparisons.map((entry) => entry.dimensions)).toHaveLength(4);
+    expect(action.comparisons.map((entry) => entry.dimensions)).toEqual(
+      expect.arrayContaining([
+        { "Race/Ethnicity": "Hispanic", Sex: "Female", "Age Group": "All Ages" },
+        { "Race/Ethnicity": "Hispanic", Sex: "Male", "Age Group": "All Ages" },
+        { "Race/Ethnicity": "White", Sex: "Female", "Age Group": "All Ages" },
+        { "Race/Ethnicity": "White", Sex: "Male", "Age Group": "All Ages" },
+      ]),
+    );
+  });
+
+  it("skips combinations the chart already has", async () => {
+    const user = userEvent.setup();
+    state.config = config({
+      comparisons: [comparison("cmp_latina", { "Race/Ethnicity": "Hispanic", Sex: "Female", "Age Group": "All Ages" })],
+    });
+    render(<ComparisonsSection />);
+
+    await user.click(screen.getByRole("button", { name: "Add comparison" }));
+    const draft = screen.getByRole("group", { name: "New comparison draft" });
+    await chooseDraftValue(user, draft, "Race/ethnicity", "Hispanic");
+    await chooseDraftValue(user, draft, "Sex", "Female");
+    await user.click(screen.getByRole("checkbox", { name: "Male" }));
+    await chooseDraftValue(user, draft, "Age group", "All Ages");
+    await user.click(within(draft).getByRole("button", { name: "Add 2 comparisons" }));
+
+    const [action] = state.dispatch.mock.calls.at(-1);
+    expect(action.comparisons.map((entry) => entry.id)[0]).toBe("cmp_latina");
+    expect(action.comparisons).toHaveLength(2);
+    expect(action.comparisons[1].dimensions.Sex).toBe("Male");
   });
 
   it("can cancel a later draft without changing the question", async () => {
@@ -339,7 +391,9 @@ describe("irregular cards", () => {
 
     const card = cards()[0];
     await user.click(within(card).getByRole("combobox", { name: /sex/i }));
-    await user.click(screen.getByRole("checkbox", { name: "Male" }));
+    // A card is one series, so its choices are radio buttons, never checkboxes.
+    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
+    await user.click(screen.getByRole("radio", { name: "Male" }));
 
     const [action] = state.dispatch.mock.calls.at(-1);
     const edited = action.comparisons[0];

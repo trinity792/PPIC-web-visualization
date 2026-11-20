@@ -40,6 +40,7 @@ describe("Navbar", () => {
       "ACS Housing Stress",
       "Building Permits",
       "RHNA Progress Report",
+      "Zillow Housing Affordability",
     ]);
   });
 
@@ -60,6 +61,7 @@ describe("Navbar", () => {
       "/housing-stress",
       "/building-permits",
       "/rhna-progress",
+      "/zillow-affordability",
     ]);
   });
 
@@ -103,7 +105,7 @@ describe("Navbar", () => {
     await user.type(input, "housing");
     const results = screen.getByRole("list", { name: "Search results" });
     expect(within(results).getAllByRole("link").map((link) => link.textContent)).toEqual([
-      "Population & Housing", "ACS Housing Stress",
+      "Population & Housing", "ACS Housing Stress", "Zillow Housing Affordability",
     ]);
     await user.keyboard("{Enter}");
     expect(within(results).getByRole("link", { name: "Population & Housing" })).toHaveFocus();
@@ -150,7 +152,7 @@ describe("Navbar", () => {
     await user.click(screen.getByRole("button", { name: "Try again" }));
     await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
     await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
-    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("2 matching results"));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("3 matching results"));
   });
 
   it("ignores a delayed response for a previous query", async () => {

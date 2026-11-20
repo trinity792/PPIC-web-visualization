@@ -3,10 +3,9 @@
 /**
  * DatasetsSection.js — which dataset a chart reads.
  *
- * One control: a checkbox per dataset, exclusive. Checking one unchecks the
- * others, and the checked one cannot be unchecked. Drawn as checkboxes to match
- * the mockup, but a chart reads exactly one dataset, so the control writes the
- * same single `filters.source` a radio would.
+ * One control: a radio button per dataset. A chart reads exactly one dataset,
+ * and the owner's rule (2026-11-20) is that checkboxes always mean multi-select,
+ * so this list (drawn as checkboxes until then) is a radio group via ChoiceList.
  *
  * The section shows only where that is a real question, which after the July
  * 2026 pass is Components of Change alone. Two controls that used to live here
@@ -30,12 +29,12 @@
  *   - lib/visualization/datasetLabels.js (public names for raw source ids)
  *
  * UI Kit reference:
- *   - Implements the checkbox-list form-control pattern
+ *   - Implements the "Radio Group" form-control pattern (via ChoiceList)
  */
 
 import React from "react";
 
-import { Checkbox } from "@/components/ui/checkbox";
+import ChoiceList from "@/components/chart-builder/sections/ChoiceList";
 
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import { datasetOptions } from "@/lib/visualization/datasetLabels";
@@ -92,30 +91,19 @@ export default function DatasetsSection() {
 
   return (
     <div className="grid gap-2">
-      <div className="grid gap-1.5">
-        {options.map((option) => {
-          const checked = option.id === active;
-          return (
-            <label
-              key={option.id}
-              className="flex cursor-pointer items-center gap-2 text-sm"
-            >
-              {/* Clicking the active dataset is a no-op rather than a clear: a
-                  chart always reads from somewhere, and an empty state here
-                  would render nothing at all. */}
-              <Checkbox
-                checked={checked}
-                aria-label={option.label}
-                onCheckedChange={() => {
-                  if (checked) return;
-                  selectDataset(option.id);
-                }}
-              />
-              <span>{option.label}</span>
-            </label>
-          );
-        })}
-      </div>
+      {/* One dataset at a time, so radio buttons (a checkbox would promise
+          multi-select). Re-picking the active one is a no-op: a chart always
+          reads from somewhere. */}
+      <ChoiceList
+        label="Dataset"
+        options={options.map((option) => ({ value: option.id, label: option.label }))}
+        selected={active == null ? [] : [active]}
+        onChoose={(id) => {
+          if (id !== active) selectDataset(id);
+        }}
+        className="grid gap-1.5"
+        rowClassName="flex cursor-pointer items-center gap-2 text-sm"
+      />
     </div>
   );
 }

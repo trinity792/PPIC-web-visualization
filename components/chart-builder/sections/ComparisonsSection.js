@@ -8,7 +8,6 @@ import { useAdvancedMode } from "@/components/chart-builder/advancedMode";
 import { useChartConfig } from "@/components/chart-builder/chartConfigStore";
 import useLocationOptions from "@/components/chart-builder/useLocationOptions";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -23,12 +22,15 @@ import {
   COMPARISON_LIMIT_MESSAGE,
   MAX_COMPARISONS,
   addComparison,
+  availableDimensionValues,
   createComparison,
+  expandCrossProduct,
   overlapMetadata,
   resolveLabels,
   updateComparison,
 } from "@/lib/visualization/comparisons";
 import { getChartCapabilities } from "@/lib/visualization/chartRegistry";
+import ChoiceList from "@/components/chart-builder/sections/ChoiceList";
 
 function DimensionPicker({ label, values, selected, multiple = false, onChange }) {
   const [open, setOpen] = useState(false);
@@ -38,7 +40,6 @@ function DimensionPicker({ label, values, selected, multiple = false, onChange }
     : selected
       ? [selected]
       : [];
-  const selectedSet = new Set(selectedValues);
   const filtered = values.filter((value) =>
     String(value).toLowerCase().includes(query.trim().toLowerCase()),
   );
@@ -94,21 +95,15 @@ function DimensionPicker({ label, values, selected, multiple = false, onChange }
           />
         </div>
         <div className="max-h-56 overflow-y-auto">
-          {filtered.map((value) => {
-            const checked = selectedSet.has(value);
-            return (
-              <label
-                key={value}
-                className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
-              >
-                <Checkbox
-                  checked={checked}
-                  onCheckedChange={(next) => select(value, next === true)}
-                />
-                <span>{value}</span>
-              </label>
-            );
-          })}
+          {/* Checkboxes only when several may be picked; one value is a radio list. */}
+          <ChoiceList
+            label={label}
+            options={filtered}
+            selected={selectedValues}
+            multiple={multiple}
+            onToggle={select}
+            onChoose={(value) => select(value, true)}
+          />
           {!filtered.length ? (
             <p className="px-2 py-3 text-sm text-muted-foreground">No matches.</p>
           ) : null}
@@ -140,6 +135,14 @@ function aggregateFirst(values, aggregateValues = []) {
   );
 }
 
+const asList = (value) =>
+  Array.isArray(value) ? value : value == null || value === "" ? [] : [value];
+
+/** How many comparisons a multi-select draft stands for: one per combination of its picks. */
+function draftCombinations(draft, dimensions) {
+  return dimensions.reduce((count, [name]) => count * asList(draft?.[name]).length, 1);
+}
+
 function draftIsComplete(draft, dimensions) {
   return dimensions.every(([name]) => {
     const value = draft?.[name];
@@ -152,6 +155,7 @@ function ComparisonDraft({
   title,
   dimensions,
   draft,
+  multiple = false,
   onChange,
   onCancel,
   action,
@@ -186,6 +190,7 @@ function ComparisonDraft({
             label={field.label}
             values={field.values || []}
             selected={draft?.[name]}
+            multiple={multiple}
             onChange={(value) => onChange(name, value)}
           />
         </div>
@@ -290,16 +295,25 @@ export default function ComparisonsSection() {
   const { config, dispatch, schema } = useChartConfig();
   const { advanced } = useAdvancedMode();
   const comparisons = config.question?.comparisons || [];
+  // Only offer values that carry the chosen outcome(s): a value without the
+  // measure would draw an empty series (see `availableFor` on module fields).
+  const outcomeKey = (config.question?.outcomes || []).map(({ measureId }) => measureId).join("|");
   const dimensions = useMemo(() => {
+    const measureIds = outcomeKey ? outcomeKey.split("|") : [];
     if (schema.comparisonDimensions?.length) {
       return schema.comparisonDimensions.map((dimension) => [
         dimension.id,
         {
           ...schema.fields?.[dimension.id],
           ...dimension,
-          values: aggregateFirst(
-            dimension.values || schema.fields?.[dimension.id]?.values,
-            schema.labelMeta?.omitValues?.[dimension.id],
+          values: availableDimensionValues(
+            schema,
+            dimension.id,
+            aggregateFirst(
+              dimension.values || schema.fields?.[dimension.id]?.values,
+              schema.labelMeta?.omitValues?.[dimension.id],
+            ),
+            measureIds,
           ),
         },
       ]);
@@ -313,7 +327,7 @@ export default function ComparisonsSection() {
           values: aggregateFirst(field.values, schema.labelMeta?.omitValues?.[name]),
         },
       ]);
-  }, [schema]);
+  }, [schema, outcomeKey]);
   const [initialDraft, setInitialDraft] = useState({});
   // A module's starter drafts (Projections: Women vs Men) replace the single
   // blank draft until the reader clicks Create Chart. After that, an emptied
@@ -366,16 +380,26 @@ export default function ComparisonsSection() {
   // also makes direct/embedded use safe.
   if (!dimensions.length) return null;
 
+  // A draft may hold several values per dimension (owner, 2026-11-20); it adds
+  // one comparison per combination, skipping any the chart already has.
+  const draftFits = (draft) =>
+    comparisons.length + draftCombinations(draft, dimensions) <= MAX_COMPARISONS;
+  const commitDraft = (draft) => {
+    if (!draftIsComplete(draft, dimensions) || !draftFits(draft)) return false;
+    const selections = Object.fromEntries(dimensions.map(([name]) => [name, asList(draft[name])]));
+    const expanded = expandCrossProduct(selections, { existing: comparisons });
+    if (expanded.issues.length) return false;
+    const added = expanded.comparisons.filter((entry) => !comparisons.includes(entry));
+    if (added.length) setComparisons([...comparisons, ...added]);
+    return true;
+  };
+  const addButtonLabel = (draft) => {
+    const count = draftCombinations(draft, dimensions);
+    return count > 1 ? `Add ${count} comparisons` : "Add comparison";
+  };
+
   const addInitialComparison = () => {
-    if (!draftIsComplete(initialDraft, dimensions) || atLimit) return;
-    const result = addComparison(
-      comparisons,
-      createComparison({ dimensions: initialDraft }),
-    );
-    if (!result.issues.length) {
-      setComparisons(result.comparisons);
-      setInitialDraft({});
-    }
+    if (commitDraft(initialDraft)) setInitialDraft({});
   };
 
   const showStarters = !comparisons.length && !startersUsed && starterDrafts.length > 0;
@@ -402,17 +426,9 @@ export default function ComparisonsSection() {
     setStartersUsed(true);
   };
 
-  const updateNewDraft = (name, value) => {
-    const next = { ...(newDraft || {}), [name]: value };
-    if (!draftIsComplete(next, dimensions)) {
-      setNewDraft(next);
-      return;
-    }
-    const result = addComparison(comparisons, createComparison({ dimensions: next }));
-    if (!result.issues.length) {
-      setComparisons(result.comparisons);
-      setNewDraft(null);
-    }
+  const updateNewDraft = (name, value) => setNewDraft({ ...(newDraft || {}), [name]: value });
+  const addNewDraft = () => {
+    if (commitDraft(newDraft)) setNewDraft(null);
   };
 
   return (
@@ -473,18 +489,22 @@ export default function ComparisonsSection() {
           title="Comparison 1"
           dimensions={dimensions}
           draft={initialDraft}
+          multiple
           onChange={(name, value) =>
             setInitialDraft((current) => ({ ...current, [name]: value }))
           }
           action={(
-            <Button
-              type="button"
-              disabled={!draftIsComplete(initialDraft, dimensions)}
-              onClick={addInitialComparison}
-            >
-              <Plus aria-hidden="true" />
-              Add comparison
-            </Button>
+            <>
+              <Button
+                type="button"
+                disabled={!draftIsComplete(initialDraft, dimensions) || !draftFits(initialDraft)}
+                onClick={addInitialComparison}
+              >
+                <Plus aria-hidden="true" />
+                {addButtonLabel(initialDraft)}
+              </Button>
+              {!draftFits(initialDraft) ? <p className="text-sm text-muted-foreground">{COMPARISON_LIMIT_MESSAGE}</p> : null}
+            </>
           )}
         />
       ) : null}
@@ -612,9 +632,23 @@ export default function ComparisonsSection() {
           title={`Comparison ${comparisons.length + 1}`}
           dimensions={dimensions}
           draft={newDraft}
+          multiple
           onChange={updateNewDraft}
           onCancel={() => setNewDraft(null)}
           containerRef={newDraftRef}
+          action={(
+            <>
+              <Button
+                type="button"
+                disabled={!draftIsComplete(newDraft, dimensions) || !draftFits(newDraft)}
+                onClick={addNewDraft}
+              >
+                <Plus aria-hidden="true" />
+                {addButtonLabel(newDraft)}
+              </Button>
+              {!draftFits(newDraft) ? <p className="text-sm text-muted-foreground">{COMPARISON_LIMIT_MESSAGE}</p> : null}
+            </>
+          )}
         />
       ) : null}
 

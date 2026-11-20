@@ -60,6 +60,7 @@ import {
 } from "@/lib/visualization/inlineQuestion";
 import { resolveEditorModel } from "@/lib/visualization/resolveEditorModel";
 import { assignComparisonColors } from "@/lib/visualization/palettes";
+import { reconcileComparisonsWithOutcomes } from "@/lib/visualization/comparisons";
 import {
   getPreset,
   PRESET_ORDER,
@@ -746,12 +747,23 @@ function reduceV3ChartConfig(config, action, schema) {
     return withInlineQuestion(config, table, config.presentation?.chartType, bindings, schema);
   }
   if (action.type === "SET_OUTCOME") {
+    const outcomes = [...readOutcomes(config.question).filter(({ role }) => role !== (action.role || "y")), ...(action.outcome?.measureId ? [{ ...clone(action.outcome), role: action.role || "y" }] : [])];
+    // A comparison pinned to a value that doesn't carry the new measure (Zillow:
+    // Years to Save has no "Rent" series) would draw nothing, so it moves to one
+    // that does. Modules without `availableFor` get the same array back.
+    const comparisons = config.question.comparisons || [];
+    const reconciled = reconcileComparisonsWithOutcomes(
+      schema,
+      comparisons,
+      outcomes.map(({ measureId }) => measureId),
+    );
     return normalizeQuestion({
       ...config,
       question: {
         ...config.question,
-        outcomes: [...readOutcomes(config.question).filter(({ role }) => role !== (action.role || "y")), ...(action.outcome?.measureId ? [{ ...clone(action.outcome), role: action.role || "y" }] : [])],
+        outcomes,
         calculation: { id: "actual", params: {} },
+        ...(reconciled !== comparisons ? { comparisons: clone(reconciled) } : {}),
       },
     });
   }

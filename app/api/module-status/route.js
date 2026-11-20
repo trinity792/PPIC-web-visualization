@@ -20,6 +20,7 @@ const LOG_MODULE_BY_SCHEMA = {
   "housing-stress": "housing-stress",
   "building-permits": "building-permits",
   "rhna-progress": "rhna-progress",
+  "zillow-affordability": "zillow-affordability",
 };
 
 export async function GET(request) {

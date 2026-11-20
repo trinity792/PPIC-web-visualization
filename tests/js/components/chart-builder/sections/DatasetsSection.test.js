@@ -57,8 +57,10 @@ describe("DatasetsSection", () => {
   it("selects exactly one dataset with one SET_FILTER dispatch", async () => {
     const user = userEvent.setup();
     render(<DatasetsSection />);
-    const dof = screen.getByRole("checkbox", { name: "CA Department of Finance" });
-    const census = screen.getByRole("checkbox", { name: "US Census" });
+    // One dataset at a time: radio buttons, never checkboxes (owner rule, 2026-11-20).
+    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
+    const dof = screen.getByRole("radio", { name: "CA Department of Finance" });
+    const census = screen.getByRole("radio", { name: "US Census" });
     expect(dof).toBeChecked();
     expect(census).not.toBeChecked();
 
@@ -71,11 +73,11 @@ describe("DatasetsSection", () => {
     });
   });
 
-  it("does not allow the active dataset to be unchecked", async () => {
+  it("does nothing when the active dataset is picked again", async () => {
     const user = userEvent.setup();
     render(<DatasetsSection />);
     await user.click(
-      screen.getByRole("checkbox", { name: "CA Department of Finance" }),
+      screen.getByRole("radio", { name: "CA Department of Finance" }),
     );
     expect(state.dispatch).not.toHaveBeenCalled();
   });
@@ -92,7 +94,7 @@ describe("DatasetsSection", () => {
     };
     render(<DatasetsSection />);
 
-    await user.click(screen.getByRole("checkbox", { name: "US Census" }));
+    await user.click(screen.getByRole("radio", { name: "US Census" }));
 
     expect(state.dispatch).toHaveBeenCalledTimes(1);
     expect(state.dispatch).toHaveBeenCalledWith({
